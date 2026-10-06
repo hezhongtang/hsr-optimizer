@@ -187,10 +187,6 @@ export function registerOptimizerTools(server: McpServer): void {
     // driver as CANCEL; partial results are kept, never thrown away).
     const cacheId = runtimeContext.nextCacheId()
     const cancelController = linkedAbortController(extra.signal)
-    registerJob(cacheId, 'optimize', {
-      cancel: () => cancelController.abort(),
-      summary: { characterId, resultsLimit, validPermutations: estimate.validPermutations },
-    })
 
     // Progress: the job registry is always updated (get_job reads it);
     // notifications go out only when the client sent a progressToken
@@ -222,8 +218,15 @@ export function registerOptimizerTools(server: McpServer): void {
     }
 
     // Force-flush pending mutations into the snapshot the driver reloads from,
-    // so a run can never search a stale inventory (matters once equip tools land)
+    // so a run can never search a stale inventory (matters once equip tools land).
+    // Before registerJob on purpose: flushSave can throw (e.g. EACCES on the
+    // save file) and a job registered earlier would stay running forever.
     runtimeContext.flushSave()
+
+    registerJob(cacheId, 'optimize', {
+      cancel: () => cancelController.abort(),
+      summary: { characterId, resultsLimit, validPermutations: estimate.validPermutations },
+    })
 
     const generation = runtimeContext.getSaveGeneration()
     let run: OptimizeRunResult

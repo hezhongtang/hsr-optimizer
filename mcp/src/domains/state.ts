@@ -34,6 +34,7 @@ import {
   savedSessionDefaults,
   useGlobalStore,
 } from 'lib/stores/app/appStore'
+import { useCharacterStore } from 'lib/stores/character/characterStore'
 import { useNewFeatureStore } from 'lib/stores/newFeatureStore'
 import {
   type CharacterGridDensity,
@@ -397,13 +398,20 @@ function validatePatch(section: UpdateSection, patch: Record<string, unknown>): 
       )
     }
   }
-  // 上游载入路径会把不在元数据中的 optimizerCharacterId 静默归一为 null;
-  // API 侧显式报错比静默清空更可操作。
+  // 上游载入归一化按「当前存档的角色集」校验 optimizerCharacterId,不在其中
+  // 即静默归一为 null(persistenceService.loadSaveData);API 侧显式报错比静默
+  // 清空更可操作,且校验口径与载入一致(元数据 ∩ 当前存档)。
   const optimizerCharacterId = patch['optimizerCharacterId']
-  if (section === 'session' && optimizerCharacterId != null && !getGameMetadata().characters[optimizerCharacterId as CharacterId]) {
-    throw new Error(
-      `update_state(section=session): 字段 optimizerCharacterId 的值 "${optimizerCharacterId}" 不在游戏元数据中 — 请改用有效角色 id,或显式传 null 清除`,
-    )
+  if (section === 'session' && optimizerCharacterId != null) {
+    const inMetadata = !!getGameMetadata().characters[optimizerCharacterId as CharacterId]
+    const inSave = !!(useCharacterStore.getState().charactersById as Record<string, unknown>)[optimizerCharacterId as string]
+    if (!inMetadata || !inSave) {
+      throw new Error(
+        `update_state(section=session): 字段 optimizerCharacterId 的值 "${optimizerCharacterId}" ${
+          inMetadata ? '不在当前存档的角色列表中(网页端载入时会把这种引用静默清空)' : '不在游戏元数据中'
+        } — 请改用当前存档里已存在的角色 id,或显式传 null 清除`,
+      )
+    }
   }
 }
 
@@ -444,25 +452,39 @@ function applyPatch(section: UpdateSection, patch: Record<string, unknown>): voi
       return
     }
     case 'scanner': {
-      // 上游扫描器动作 setter(与网页导入页同一入口;不使用 direct setState)
-      const scanner = useScannerState.getState()
-      if (typeof patch['ingest'] === 'boolean') scanner.setIngest(patch['ingest'])
-      if (typeof patch['ingestCharacters'] === 'boolean') scanner.setIngestCharacters(patch['ingestCharacters'])
-      if (typeof patch['ingestOnlyExistingCharacters'] === 'boolean') scanner.setIngestOnlyExistingCharacters(patch['ingestOnlyExistingCharacters'])
-      if (typeof patch['ingestWarpResources'] === 'boolean') scanner.setIngestWarpResources(patch['ingestWarpResources'])
-      if (typeof patch['websocketUrl'] === 'string') scanner.setWebsocketUrl(patch['websocketUrl'])
-      if (typeof patch['customUrl'] === 'boolean') {
+      // Direct setState over the scanner fields (the load path's approach in
+      // saveStores.replaceSaveStores): the upstream action setters schedule a
+      // 5s SaveState.delayedSave() the coordinator cannot cancel, which would
+      // fire even after a rolled-back transaction. In this server the socket
+      // is never connected, so the setters' re-import branches are dormant and
+      // direct writes are behaviorally identical minus that stray timer.
+      const update: Record<string, unknown> = {}
+      if (typeof patch['ingest'] === 'boolean') update.ingest = patch['ingest']
+      if (typeof patch['ingestCharacters'] === 'boolean') update.ingestCharacters = patch['ingestCharacters']
+      if (typeof patch['ingestOnlyExistingCharacters'] === 'boolean') update.ingestOnlyExistingCharacters = patch['ingestOnlyExistingCharacters']
+      if (typeof patch['ingestWarpResources'] === 'boolean') update.ingestWarpResources = patch['ingestWarpResources']
+      if (typeof patch['websocketUrl'] === 'string') update.websocketUrl = patch['websocketUrl']
+      if (patch['customUrl'] === false && typeof patch['websocketUrl'] === 'string' && patch['websocketUrl'] !== DEFAULT_WEBSOCKET_URL) {
+        // Symmetric with the customUrl=true guard below: an explicit custom
+        // url silently reset to default in the same patch would drop a value
+        // the caller deliberately provided.
+        throw new Error(
+          `update_state(section=scanner): 同一 patch 里 websocketUrl 提供了自定义地址,又传 customUrl=false 要求重置 — 两者矛盾,请只保留其一`,
+        )
+      }
+      if (patch['customUrl'] === false) update.websocketUrl = DEFAULT_WEBSOCKET_URL
+      if (patch['customUrl'] === true) {
         // customUrl 是派生标记(SaveState.save:websocketUrl !== 默认地址):
-        // false = 重置为默认地址;true = 要求(可能同 patch 刚写入的)地址非默认。
-        const url = useScannerState.getState().websocketUrl
-        if (patch['customUrl'] && url === DEFAULT_WEBSOCKET_URL) {
+        // true = 要求(可能同 patch 刚写入的)地址非默认。
+        const url = (update.websocketUrl as string | undefined) ?? useScannerState.getState().websocketUrl
+        if (url === DEFAULT_WEBSOCKET_URL) {
           throw new Error(
             `update_state(section=scanner): customUrl=true 但 websocketUrl 仍是默认地址 ${DEFAULT_WEBSOCKET_URL} — 请在同一个 patch 中带上自定义 websocketUrl`
               + '(或直接只改 websocketUrl,customUrl 随之派生)',
           )
         }
-        if (!patch['customUrl'] && url !== DEFAULT_WEBSOCKET_URL) scanner.setWebsocketUrl(DEFAULT_WEBSOCKET_URL)
       }
+      useScannerState.setState(update)
       return
     }
   }
@@ -521,13 +543,14 @@ export function registerStateTools(server: McpServer): void {
   }, async ({ section, patch, baseRevision }) => {
     runtimeContext.requireSave()
     runtimeContext.ensureMetadataReady()
-    if (baseRevision != null) runtimeContext.requireRevision(baseRevision, 'update_state')
     validatePatch(section, patch)
 
+    // baseRevision is checked INSIDE the scope (after earlier-queued changes
+    // landed) so a same-batch write cannot slip past the conflict gate.
     await runtimeContext.withChange('update_state', () => {
       applyPatch(section, patch)
       runtimeContext.markDirty()
-    })
+    }, baseRevision != null ? { baseRevision } : {})
 
     const revision = runtimeContext.getRevision()
     const payload: Record<string, unknown> = {

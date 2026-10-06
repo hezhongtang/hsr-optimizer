@@ -99,8 +99,10 @@ export function registerJob(
 ): void {
   jobs.delete(jobId) // a same-id retry replaces its previous record
   while (jobs.size >= MAX_JOBS) {
+    // Never evict a running record: its finishJob would become a no-op and
+    // cancel_job would report an unknown id for a job that is still going.
     const oldest = jobs.keys().next().value
-    if (oldest === undefined) break
+    if (oldest === undefined || jobs.get(oldest)?.status === 'running') break
     jobs.delete(oldest)
   }
   jobs.set(jobId, {

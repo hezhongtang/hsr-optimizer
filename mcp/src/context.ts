@@ -178,8 +178,8 @@ export const runtimeContext = {
   requireRevision(base: number, label: string): void {
     if (base !== revision) {
       throw new Error(
-        `${label}: revision conflict — caller held revision ${base} but current revision is ${revision}; `
-          + 'another change landed in between. Re-read the state, re-apply your change on the fresh revision.',
+        `${label}:修订号冲突——调用方持有 revision ${base},当前已是 ${revision};`
+          + '两者之间发生过其他变更。请重新读取状态,在最新 revision 上重放你的变更。',
       )
     }
   },
@@ -227,39 +227,58 @@ export const runtimeContext = {
   /**
    * Transacted, serialized mutation scope (M4 change coordinator).
    *
-   * Snapshots every persisted store via captureSaveStores() before the body
-   * runs. If the body throws, the stores, revision, dirty flag and blockedWrite
-   * marker are restored to their pre-scope values and the error propagates —
-   * a failed multi-step operation leaves no chimera behind. Bodies run in
-   * submission order (changeQueue), so one scope's rollback can never wipe a
-   * change another scope committed while it was in flight.
+   * Snapshots every persisted store via captureSaveStores() when the scope is
+   * DEQUEUED for execution — never at submission time: two writes submitted in
+   * the same stdin batch must not let the second scope's rollback restore a
+   * snapshot taken before the first scope committed. If the body throws, the
+   * stores, revision, dirty flag, blockedWrite marker, save generation and
+   * loaded-save pointer are restored to their pre-scope values and the error
+   * propagates — a failed multi-step operation leaves no chimera behind.
    *
    * Scope rules:
    *   - the body must not call other MCP tools or enqueue nested withChange
    *     scopes (the queue would deadlock);
+   *   - the body must stay synchronous (no awaits past its first statement):
+   *     an async body lets the debounced flush fire mid-scope and persist
+   *     intermediate bytes that cannot be rolled back;
    *   - the body should not flushSave() — bytes already written cannot be
    *     rolled back; persist after the scope returns;
    *   - successful changes bump revision themselves via markDirty/setSave
-   *     inside the body (this wrapper only counts, never commits).
+   *     inside the body (this wrapper only counts, never commits);
+   *   - pass baseRevision to enforce optimistic concurrency INSIDE the scope
+   *     (after all earlier-queued changes landed), closing the dispatch-time
+   *     TOCTOU window.
    */
-  async withChange<T>(label: string, body: () => Promise<T> | T): Promise<T> {
-    const restoreStores = captureSaveStores()
-    const revisionBefore = revision
-    const dirtyBefore = dirty
-    const blockedBefore = lastBlockedWrite
-    const run = async () => {
-      try {
-        return await body()
-      } catch (e) {
-        restoreStores()
-        runtimeContext.cancelPendingFlush()
-        revision = revisionBefore
-        lastBlockedWrite = blockedBefore
-        if (dirtyBefore) runtimeContext.scheduleDirtyFlush()
-        else dirty = false
-        process.stderr.write(`[mcp] change "${label}" rolled back: ${(e as Error).message}\n`)
-        throw e
-      }
+  async withChange<T>(label: string, body: () => Promise<T> | T, options: { baseRevision?: number } = {}): Promise<T> {
+    const run = () => {
+      // Captured at dequeue time: after every previously submitted scope has
+      // settled, before this body runs.
+      const restoreStores = captureSaveStores()
+      const revisionBefore = revision
+      const dirtyBefore = dirty
+      const blockedBefore = lastBlockedWrite
+      const generationBefore = saveGeneration
+      const loadedSaveBefore = loadedSave
+      const promise = (async () => {
+        if (options.baseRevision != null) {
+          runtimeContext.requireRevision(options.baseRevision, label)
+        }
+        try {
+          return await body()
+        } catch (e) {
+          restoreStores()
+          runtimeContext.cancelPendingFlush()
+          revision = revisionBefore
+          lastBlockedWrite = blockedBefore
+          saveGeneration = generationBefore
+          loadedSave = loadedSaveBefore
+          if (dirtyBefore) runtimeContext.scheduleDirtyFlush()
+          else dirty = false
+          process.stderr.write(`[mcp] change "${label}" rolled back: ${(e as Error).message}\n`)
+          throw e
+        }
+      })()
+      return promise
     }
     const queued = changeQueue.then(run, run)
     changeQueue = queued.catch(() => {})

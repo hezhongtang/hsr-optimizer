@@ -210,7 +210,7 @@ try {
     patch: { RelicEquippingBehavior: 'Replace' },
     baseRevision: revBeforeConflict - 1,
   })
-  const conflictMatch = conflict.match(/held revision (\d+) but current revision is (\d+)/)
+  const conflictMatch = conflict.match(/持有 revision (\d+),当前已是 (\d+)/)
   check(
     'stale baseRevision errors with BOTH revisions in the message',
     conflictMatch != null && Number(conflictMatch[1]) === revBeforeConflict - 1 && Number(conflictMatch[2]) === revBeforeConflict,
@@ -269,6 +269,36 @@ try {
     customUrlAlone.slice(0, 110),
   )
 
+  const contradictoryPatch = await callToolExpectError(client, 'update_state', {
+    section: 'scanner',
+    patch: { websocketUrl: 'ws://127.0.0.1:99998/ws', customUrl: false },
+  })
+  check(
+    'scanner contradictory patch (custom url + customUrl=false) is rejected, not silently reset',
+    contradictoryPatch.includes('矛盾'),
+    contradictoryPatch.slice(0, 110),
+  )
+
+  // ── optimizerCharacterId validated against the CURRENT save, like the load
+  // path's normalization (metadata ∩ save); a metadata-only id not in the
+  // loaded save must error instead of persisting a dangling reference ──────
+  const characters = await callTool(client, 'list_characters', {})
+  const inSaveId = characters.characters[0].id
+  const sessionWrite = await callTool(client, 'update_state', {
+    section: 'session',
+    patch: { optimizerCharacterId: inSaveId },
+  })
+  check('session optimizerCharacterId accepts an id present in the save', sessionWrite.updated === true)
+  const danglingId = await callToolExpectError(client, 'update_state', {
+    section: 'session',
+    patch: { optimizerCharacterId: '1001' },
+  })
+  check(
+    'session optimizerCharacterId rejects a metadata-only id not in the save',
+    danglingId.includes('optimizerCharacterId') && danglingId.includes('当前存档'),
+    danglingId.slice(0, 110),
+  )
+
   // ── flags + session writes roundtrip through upstream setters ────────────
   const flagsUpdated = await callTool(client, 'update_state', {
     section: 'flags',
@@ -304,8 +334,8 @@ try {
   // load=1, settings=2, scanner url=3, scanner reset=4, flags=5, session=6
   revision = await getState(client, 'revision')
   check(
-    'final revision: exactly one bump per committed write (load + 5 writes = 6)',
-    revision.revision === 6,
+    'final revision: exactly one bump per committed write (load + 6 writes = 7)',
+    revision.revision === 7,
     `revision=${revision.revision}`,
   )
 

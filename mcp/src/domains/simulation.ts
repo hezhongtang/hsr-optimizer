@@ -919,6 +919,13 @@ export function registerSimulationTools(server: McpServer): void {
       // per-preset granularity lives in progress (completedPresets/
       // totalPresets) instead of one job per preset. cancel_job aborts the
       // linked controller, checked at the top of each preset iteration.
+      // Resolved before the job is registered: this guard throws, and the
+      // per-preset try below only settles jobs for throws INSIDE the loop —
+      // an earlier registerJob would leave a running zombie.
+      if (!(lightCone ?? character.form.lightCone)) {
+        throw new Error(`角色 ${characterId} 没有配置光锥(存档表单与覆盖项均为空)——请先 upsert_character 设置光锥或传入 lightCone`)
+      }
+
       const jobId = nextJobId('bench')
       const cancelController = linkedAbortController(extra.signal)
       registerJob(jobId, 'benchmark_runs', {
@@ -961,6 +968,9 @@ export function registerSimulationTools(server: McpServer): void {
       const started = performance.now()
       const results: Array<Record<string, unknown>> = []
       let cancelled = false
+      // Captured before the preset loop; rechecked at the top of every
+      // iteration (see the generation gate inside the loop).
+      const generation = runtimeContext.getSaveGeneration()
 
       // A throw escaping the per-preset catch (e.g. an unresolvable ornament
       // set) must settle the job failed instead of leaving a running zombie.
@@ -970,6 +980,14 @@ export function registerSimulationTools(server: McpServer): void {
             cancelled = true
             notify(results.length, `cancelled before preset ${index + 1}/${presets.length}`)
             break
+          }
+
+          // Generation gate (mirrors optimize): the orchestrator awaits below
+          // yield to the event loop; a load_save in that window means the
+          // remaining presets would silently score the PREVIOUS save's
+          // inventory. Stop the batch instead.
+          if (generation !== runtimeContext.getSaveGeneration()) {
+            throw new Error('A load_save changed the save while benchmark_runs was running — 已完成的预设结果基于旧存档;请对当前存档重新运行')
           }
 
           const benchmarkForm: BenchmarkForm = {

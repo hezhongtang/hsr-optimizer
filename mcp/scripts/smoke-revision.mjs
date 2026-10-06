@@ -177,6 +177,18 @@ try {
   status = await callTool(client, 'save_status', {})
   check('export does not bump revision', status.revision === 6, `revision=${status.revision}`)
 
+  // ── same-batch pipelined writes: a failed scope must not roll back a
+  // committed sibling (regression for the snapshot-at-submission bug) ─────
+  // The SDK client serializes requests, so this needs a raw stdio child with
+  // two request frames in ONE stdin write — the exact interleaving the M4
+  // review reproduced the bug with.
+  const raw = await sameBatchDoubleWrite()
+  check(
+    'same-batch double write: committed sibling survives the failed scope',
+    raw.committedSettingsSurvived && raw.revisionMonotonic,
+    `settings value survived=${raw.committedSettingsSurvived}, revision ${raw.revisionBeforeFailure} → ${raw.revisionAfterFailure} (monotonic=${raw.revisionMonotonic}), failed scope isError=${raw.secondFailed}`,
+  )
+
   console.log(failures === 0 ? 'smoke-revision: ALL CHECKS PASSED' : `smoke-revision: ${failures} FAILED`)
 } finally {
   await client.close()
@@ -184,3 +196,117 @@ try {
 }
 
 process.exit(failures === 0 ? 0 : 1)
+
+// ── raw stdio same-batch probe ───────────────────────────────────────────────
+// Spawns a fresh server, performs the initialize handshake, then sends TWO
+// tools/call request frames in a SINGLE stdin write: W1 = update_state settings
+// (must commit), W2 = update_state scanner customUrl=true with no custom url
+// (throws inside the withChange body). With the submission-time-snapshot bug,
+// W2's rollback restored the state from BEFORE W1's body ran, silently wiping
+// W1's committed change and rewinding the revision; with the dequeue-time
+// snapshot both invariants hold. Returns what the probe observed.
+async function sameBatchDoubleWrite() {
+  const { spawn } = await import('node:child_process')
+  const rawTemp = mkdtempSync(`${tmpdir()}/hsr-mcp-smoke-revision-raw-`)
+  const rawSave = `${rawTemp}/sample-save.json`
+  copyFileSync(repoSampleSavePath, rawSave)
+
+  const child = spawn(process.execPath, [serverEntry], {
+    env: { ...process.env, HSR_MCP_STATE_FILE: `${rawTemp}/localstorage.json` },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+  let buf = ''
+  const responses = new Map()
+  const pending = []
+  child.stdout.on('data', (chunk) => {
+    buf += chunk
+    let idx
+    while ((idx = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, idx).trim()
+      buf = buf.slice(idx + 1)
+      if (!line) continue
+      try {
+        const msg = JSON.parse(line)
+        if (msg.id != null) {
+          responses.set(msg.id, msg)
+          for (let i = pending.length - 1; i >= 0; i--) {
+            if (pending[i].id === msg.id) {
+              pending[i].resolve(msg)
+              pending.splice(i, 1)
+            }
+          }
+        }
+      } catch { /* partial line */ }
+    }
+  })
+  child.stderr.on('data', () => {/* rollbacks are logged; noise */})
+  const send = (obj) => child.stdin.write(JSON.stringify(obj) + '\n')
+  const nextId = (() => {
+    let n = 0
+    return () => ++n
+  })()
+  const awaitResponse = (id, timeoutMs = 20000) =>
+    new Promise((resolve, reject) => {
+      const existing = responses.get(id)
+      if (existing) return resolve(existing)
+      const entry = { id, resolve }
+      pending.push(entry)
+      setTimeout(() => reject(new Error(`raw probe: no response for id ${id}`)), timeoutMs)
+    })
+
+  try {
+    const initId = nextId()
+    send({
+      jsonrpc: '2.0',
+      id: initId,
+      method: 'initialize',
+      params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'raw-smoke', version: '0' } },
+    })
+    await awaitResponse(initId)
+    send({ jsonrpc: '2.0', method: 'notifications/initialized' })
+
+    const loadId = nextId()
+    send({ jsonrpc: '2.0', id: loadId, method: 'tools/call', params: { name: 'load_save', arguments: { path: rawSave } } })
+    await awaitResponse(loadId)
+
+    // The probe: both frames in ONE write.
+    const w1 = nextId()
+    const w2 = nextId()
+    child.stdin.write(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: w1,
+        method: 'tools/call',
+        params: { name: 'update_state', arguments: { section: 'settings', patch: { RelicEquippingBehavior: 'Swap' } } },
+      }) + '\n'
+        + JSON.stringify({
+          jsonrpc: '2.0',
+          id: w2,
+          method: 'tools/call',
+          params: { name: 'update_state', arguments: { section: 'scanner', patch: { customUrl: true } } },
+        }) + '\n',
+    )
+    const [r1, r2] = await Promise.all([awaitResponse(w1), awaitResponse(w2)])
+
+    const checkId = nextId()
+    send({ jsonrpc: '2.0', id: checkId, method: 'tools/call', params: { name: 'get_state', arguments: { section: 'settings' } } })
+    const settingsPayload = (await awaitResponse(checkId)).result?.structuredContent ?? {}
+
+    const revId = nextId()
+    send({ jsonrpc: '2.0', id: revId, method: 'tools/call', params: { name: 'get_state', arguments: { section: 'revision' } } })
+    const revisionPayload = (await awaitResponse(revId)).result?.structuredContent?.revision ?? {}
+
+    const revision1 = r1.result?.structuredContent?.revision
+    return {
+      firstSucceeded: r1.result?.isError !== true,
+      secondFailed: r2.result?.isError === true,
+      committedSettingsSurvived: settingsPayload.settings?.settings?.RelicEquippingBehavior === 'Swap',
+      revisionBeforeFailure: revision1,
+      revisionAfterFailure: revisionPayload.revision,
+      revisionMonotonic: typeof revision1 === 'number' && typeof revisionPayload.revision === 'number' && revisionPayload.revision >= revision1,
+    }
+  } finally {
+    child.kill()
+    rmSync(rawTemp, { recursive: true, force: true })
+  }
+}

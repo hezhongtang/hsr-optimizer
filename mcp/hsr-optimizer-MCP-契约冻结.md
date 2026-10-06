@@ -6,8 +6,8 @@
 
 - 语法：`^[a-z][a-z0-9_]*$`（允许数字，如 `benchmark_top100` 类命名必须可注册且被覆盖校验看见）。`coverage-check.mjs` 的注册扫描与此语法一致。
 - 风格：动词_域或域_动词（`load_save`、`equip_build`、`score_relics`），一条用户动作一个工具。
-- 合并式域工具：当一族动作天然属于同一域且参数同构时，用单工具 + `action` 枚举参数（候选 `scanner(action=connect|disconnect|status|events)`、`manage_team`、`update_form`、`debug_utility`）。新增动作优先扩枚举值而非新工具。
-- 已冻结：44 个已注册工具名（`coverage/summary.md` 工具面段落为权威清单）与 16 个候选名。新候选入册必须先落 `coverage/features/*.json` 的 `candidates` 字段，`toolBudget=70` 由 `coverage-check.mjs` 强制（当前 44+16=60）。
+- 合并式域工具：当一族动作天然属于同一域且参数同构时，用单工具 + 枚举切子域参数——已落地的 `section` 形态（`get_state(section=…)`/`update_state(section=…)`）与候选 `action` 形态（`scanner(action=connect|disconnect|status|events)`、`manage_team`、`update_form`、`debug_utility`）同构；新增子域优先扩枚举值而非新工具。
+- 已冻结：48 个已注册工具名（`coverage/summary.md` 工具面段落为权威清单）与 12 个候选名。新候选入册必须先落 `coverage/features/*.json` 的 `candidates` 字段，`toolBudget=70` 由 `coverage-check.mjs` 强制（当前 48+12=60）。
 
 ## 2. 参数格式
 
@@ -18,7 +18,7 @@
 
 ## 3. 返回结构
 
-- 双通道（`src/toolResult.ts`，全工具强制）：`content` 一段中文文本摘要 + `structuredContent` 完整机器载荷；44 个工具全部声明 `outputSchema`，新增工具必须带。
+- 双通道（`src/toolResult.ts`，全工具强制）：`content` 一段中文文本摘要 + `structuredContent` 完整机器载荷；48 个工具全部声明 `outputSchema`，新增工具必须带。
 - 载荷顶层是平铺字段（`total`/`rows`/`score`…），大结果用分页或引用，不一次塞满响应。
 
 ## 4. 数值与百分比口径
@@ -41,10 +41,14 @@
 
 ## 7. 兼容策略
 
-- 已注册 44 工具的参数名、类型与默认值冻结：新行为走可选参数、显式模式（如 `warp_plan(applyPlannerMode=true)` 复刻网页 simple 行为而不改默认计算）或新工具，绝不静默改旧默认值。
+- 已注册 48 工具的参数名、类型与默认值冻结：新行为走可选参数、显式模式（如 `warp_plan(applyPlannerMode=true)` 复刻网页 simple 行为而不改默认计算）或新工具，绝不静默改旧默认值。
 - 输出只加字段不删不改语义；确需破坏性变更时新开工具名，旧工具标注弃用期。
 - 网页行为与 MCP 行为存在合理分歧时（如 save_build 的 overwrite 宽松语义），登记在对应 feature 行 `gaps`，不为复刻 UI 容错放宽 API 校验（全站覆盖计划 §4.1）。
 
 ## 8. 冻结变更流程
 
 修改任一冻结项须同步四处并过全部门禁：①`coverage/features/*.json`（候选/参数/状态）→ ②`README.md` 工具清单 → ③本文（记录变更）→ ④`coverage-check` + 四门禁 + smoke 全绿。
+
+## 9. 变更记录
+
+- **2026-10-06 M4**：注册 4 个新工具 `get_state`/`update_state`/`get_job`/`cancel_job`（44→48）；`export_save` 落地冻结时登记的候选参数 `structured=true`（只读结构化快照）；候选清单 16→12（四个 get_state 系与 get_job/cancel_job 转正、export_save(structured) 已落地移除、site://settings 改由 update_state 的 settings 分支承接后从候选移除）；§1 补 `section` 枚举先例。`save_status` 输出加 `revision`/`generation` 字段（只加字段）。

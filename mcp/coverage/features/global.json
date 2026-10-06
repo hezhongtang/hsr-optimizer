@@ -176,7 +176,8 @@
           "get_state 返回六项设置的当前值、可选值与默认值，与 SettingOptions/DefaultSettingOptions 一致",
           "逐项修改后导出的存档 settings 与网页修改同一项后的存档一致；非法取值被拒绝",
           "把 RelicEquippingBehavior 改为 Swap 后 equip_build 的行为随之改变"
-        ]
+        ],
+        "tests": ["mcp/scripts/smoke-state.mjs"]
       }
     },
     {
@@ -319,7 +320,8 @@
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["标记 leaderboard 已读后导出的存档 seenFeatures 与网页进入排行榜页之后一致；清空后恢复为空数组"]
+        "cases": ["标记 leaderboard 已读后导出的存档 seenFeatures 与网页进入排行榜页之后一致；清空后恢复为空数组"],
+        "tests": ["mcp/scripts/smoke-state.mjs"]
       }
     },
     {

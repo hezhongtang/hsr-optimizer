@@ -252,6 +252,33 @@ try {
     benchJob ? `jobId=${benchJob.jobId} (observed ${benchJob.status})` : 'never observed',
   )
 
+  // ── 4b. a throwing PRE-registration guard must not leave a zombie job ────
+  // A character with no light cone makes benchmark_runs throw BEFORE the job
+  // is registered (the guard was deliberately moved ahead of registerJob);
+  // with the old ordering this left a forever-running record.
+  {
+    // Strip the light cone off one character via upsert_character's patch path
+    const lightConeStripped = await callToolExpectError(client, 'benchmark_runs', {
+      characterId: '1212b1',
+      presets: [
+        { relicSet1: 'Scholar Lost in Erudition', relicSet2: 'Scholar Lost in Erudition', ornamentSet: 'Rutilant Arena', spdThreshold: 0 },
+      ],
+      lightCone: '',
+    })
+    check(
+      'benchmark_runs with an empty lightCone override errors cleanly',
+      lightConeStripped.includes('光锥'),
+      lightConeStripped.slice(0, 90),
+    )
+    const jobsList = await callTool(client, 'get_job', {})
+    const zombie = jobsList.jobs.find((j) => j.status === 'running' && j.kind === 'benchmark_runs')
+    check(
+      'a pre-registration throw leaves no running benchmark zombie',
+      zombie == null,
+      zombie ? `zombie jobId=${zombie.jobId}` : `registry: ${jobsList.jobs.map((j) => `${j.jobId}:${j.status}`).join(', ')}`,
+    )
+  }
+
   if (benchJob) {
     const benchDetail = await callTool(client, 'get_job', { jobId: benchJob.jobId })
     check(

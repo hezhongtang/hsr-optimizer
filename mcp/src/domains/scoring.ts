@@ -332,6 +332,12 @@ export function registerScoringTools(server: McpServer): void {
     const prepareMs = Math.round(performance.now() - started)
     notify(1, `prepare done in ${prepareMs}ms; running benchmark + perfection search`)
 
+    // Generation gate (mirrors optimize): the orchestrator awaits below yield
+    // to the event loop, and a load_save in that window swaps the inventory —
+    // scoring the previous save's relics as if they were current must error,
+    // not return a stale score silently.
+    const generation = runtimeContext.getSaveGeneration()
+
     const executeStart = performance.now()
     await executeOrchestrator(orchestrator as Any)
     const executeMs = Math.round(performance.now() - executeStart)
@@ -341,6 +347,10 @@ export function registerScoringTools(server: McpServer): void {
     await executeUpgradeOrchestrator(orchestrator as Any)
     const upgradeMs = Math.round(performance.now() - upgradeStart)
     const totalMs = Math.round(performance.now() - started)
+
+    if (generation !== runtimeContext.getSaveGeneration()) {
+      throw new Error('A load_save changed the save while dps_score was running — the score belongs to the previous save; re-run for the current save')
+    }
 
     const score = serializeSimulationScore(orchestrator.simulationScore!, {
       verified: verified && numRelics === 6,
