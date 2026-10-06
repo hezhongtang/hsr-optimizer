@@ -635,6 +635,34 @@
       "upstream": [{ "file": "src/lib/characterPreview/card/ShowcasePortrait.tsx", "symbol": "handleSpineUnsupported" }],
       "serves": ["preview.customize.display"],
       "reason": "LoadingBlurredSpine 报告当前环境不支持时的回调，只负责把这张卡切回静态肖像。条件已记在 preview.customize.display 里，不是独立的用户操作。"
+    },
+    {
+      "id": "preview.mech.spineRuntime",
+      "title": "Spine 动画渲染运行时",
+      "upstream": [
+        { "file": "src/lib/spine/LoadingBlurredSpine.tsx", "symbol": "LoadingBlurredSpine" },
+        { "file": "src/lib/spine/SpinePortrait.tsx", "symbol": "SpinePortrait" },
+        { "file": "src/lib/spine/spineEngine.ts", "symbol": "createSpineInstance" }
+      ],
+      "serves": ["preview.card.read", "preview.customize.display"],
+      "reason": "动态立绘的渲染底盘：模糊占位加载、onReady/onUnsupported 生命周期、WebGL 上下文丢失监听、页面不可见或失焦时自动暂停动画。开关与回退已登记在 preview.customize.display 和 preview.mech.spineFallback；渲染本身没有用户动作，在 M7 浏览器运行环境里照原样执行。"
+    },
+    {
+      "id": "preview.mech.scoringRuntime",
+      "title": "模拟评分引擎的请求与缓存生命周期",
+      "upstream": [
+        { "file": "src/lib/scoring/scoringService.ts", "symbol": "requestScore" },
+        { "file": "src/lib/scoring/scoringService.ts", "symbol": "requestScoreUpgrades" },
+        { "file": "src/lib/scoring/scoringService.ts", "symbol": "getOrComputePreview" },
+        { "file": "src/lib/scoring/scoringService.ts", "symbol": "getCachedResult" },
+        { "file": "src/lib/scoring/scoringService.ts", "symbol": "computeScoringCacheKey" },
+        { "file": "src/lib/scoring/scoringService.ts", "symbol": "hasExceededRetries" },
+        { "file": "src/lib/scoring/scoringService.ts", "symbol": "hasExceededUpgradeRetries" },
+        { "file": "src/lib/scoring/scoringService.ts", "symbol": "releaseOrchestrator" },
+        { "file": "src/lib/scoring/scoringService.ts", "symbol": "releasePreview" }
+      ],
+      "serves": ["preview.simScore.read", "preview.scoring.typeSwitch"],
+      "reason": "角色卡 SimScoring 面板背后的评分请求层：按缓存键去重、引用计数式申请/释放 orchestrator 与 preview、超过重试上限后停止重算。读取评分与切换评分类型已按功能行登记；MCP 侧由 dps_score 等入口直接调用计算层，不走这套 UI 驱动的请求生命周期。"
     }
   ]
 }

@@ -77,5 +77,40 @@
         "tests": ["mcp/scripts/smoke-conditionals.mjs"]
       }
     }
+  ],
+  "mechanisms": [
+    {
+      "id": "shared.mech.formWidgets",
+      "title": "通用表单控件",
+      "upstream": [
+        { "file": "src/lib/ui/CascaderSelect.tsx", "symbol": "CascaderSelect" },
+        { "file": "src/lib/ui/ComboboxNumberInput.tsx", "symbol": "ComboboxNumberInput" },
+        { "file": "src/lib/ui/MultiSelectPills.tsx", "symbol": "MultiSelectPills" },
+        { "file": "src/lib/ui/SearchableCombobox.tsx", "symbol": "SearchableCombobox" },
+        { "file": "src/lib/ui/WithPopover.tsx", "symbol": "WithPopover" }
+      ],
+      "serves": ["optimizer.form.mainStats", "optimizer.form.setFilters", "optimizer.form.resultFilters", "optimizer.form.weights"],
+      "reason": "被优化器表单、遗器筛选等大量复用的输入控件：级联选择、带下拉的数字输入、多选标签组、可搜索下拉、悬浮说明。每个具体字段的读写和默认值已按所属功能行登记；MCP 用结构化参数直接表达这些字段，不存在「操作控件」这一步。"
+    },
+    {
+      "id": "shared.mech.infoLinks",
+      "title": "着色外链与带说明的标题",
+      "upstream": [
+        { "file": "src/lib/ui/ColorizedLink.tsx", "symbol": "ColorizedLinkWithIcon" },
+        { "file": "src/lib/ui/ColorizedLink.tsx", "symbol": "ColorizedTitleWithInfo" }
+      ],
+      "serves": ["home.content.read", "changelog.entries.read"],
+      "reason": "带图标的外链和带信息浮层的着色标题组件，散布在首页社区卡片、更新日志、导入说明、通知等处。链接指向的资源已记在各功能行；组件本身是展示管道，不是用户功能。"
+    },
+    {
+      "id": "shared.mech.unmountedHeroHeader",
+      "title": "未挂载的首页头部组件",
+      "upstream": [
+        { "file": "src/lib/ui/HeroHeader.tsx", "symbol": "HeroHeader" },
+        { "file": "src/lib/ui/HeroHeader.tsx", "symbol": "SearchBar" }
+      ],
+      "serves": [],
+      "reason": "上游 #1818（navigation）引入的首页头部与 UID 搜索条，当前没有被任何页面导入，用户不可达；真正生效的首页搜索在 HomeTab 的 HeroSection（已登记为 home.search.uid）。源码清点如实列出它；若上游日后挂载，须转为 home 区域的功能行并并入 home.search.uid 的验收。"
+    }
   ]
 }
