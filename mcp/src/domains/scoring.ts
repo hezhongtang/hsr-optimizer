@@ -233,8 +233,9 @@ export function registerScoringTools(server: McpServer): void {
       + '(prepareOrchestrator → executeOrchestrator → executeUpgradeOrchestrator,与网页同一条链路,实测 <1s)。'
       + '返回:总分 percent(1.0=基准线,数值保持上游原样)与字母评级(SS/WTF…,六件套且全 verified 才可能 AEON)、'
       + 'original/baseline/benchmark/maximum 四组分数对比、原 SPD 与基准 SPD、副词条/套装/主词条升级表'
-      + '(每项含 part/stat/新百分比/分数增量)、队友饰品升级摘要。team="default" 用官方推荐队,"custom" 用自定义覆盖队'
-      + '(set_scoring_override 可改队友)。',
+      + '(每项含 part/stat/新百分比/分数增量)、队友饰品升级摘要。team="default" 用官方推荐队,"custom" 用存档评分覆盖里的自定义队伍'
+      + '(scoringMetadataOverrides[角色].simulation.teammates,未设置时与 default 相同);自定义队伍只能随存档载入(在网页端编辑),'
+      + '目前没有 MCP 工具可以设置——set_scoring_override 只改副词条权重与主词条候选。',
     inputSchema: {
       characterId: z.string().describe('角色 id(需已载入存档,按其当前装备评分)'),
       team: z.enum(['default', 'custom']).default('default').describe('基准队伍:官方推荐队或自定义覆盖队'),
