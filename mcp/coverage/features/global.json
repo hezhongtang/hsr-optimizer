@@ -342,6 +342,73 @@
       "acceptance": {
         "cases": ["resetShowcaseColors 之后 showcasePreferences 为空且 showcaseStandardMode 为 false，与控制台调用结果一致"]
       }
+    },
+    {
+      "id": "global.state.revision",
+      "title": "存档修订号与变更协调（技术基础）",
+      "surface": { "page": "GLOBAL", "entry": "无网页入口；是 MCP 侧全站变更的技术基础" },
+      "kind": "write",
+      "action": "在存档世代之外引入 revision：读取、编辑、扫描导入与同步操作都携带版本信息，变更串行提交，旧 revision 的写入返回冲突，多步操作支持快照恢复。",
+      "upstream": [],
+      "runtime": "node",
+      "state": { "owner": "MCP 状态协调器（待建）", "lifecycle": "session" },
+      "mcp": { "status": "missing", "candidates": ["get_state(section=revision)", "update_state(baseRevision=...)"] },
+      "scope": "foundation",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["并发变更串行提交且顺序确定", "基于旧 revision 的写入返回冲突而非静默覆盖", "失败操作恢复到调用前状态"]
+      }
+    },
+    {
+      "id": "global.jobs.manage",
+      "title": "统一长任务管理（技术基础）",
+      "surface": { "page": "GLOBAL", "entry": "网页端优化运行有自己的进度与取消；MCP 把长时优化、评分、GPU、浏览器导出统一为任务" },
+      "kind": "compute",
+      "action": "对长任务提供查询、进度、状态、取消、错误与结果引用；每类任务声明取消粒度，无法中断的上游步骤在安全边界停止。短同步计算仍直接返回。",
+      "upstream": [
+        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "ownsOptimizationRun" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "MCP 任务管理器（待建）", "lifecycle": "session" },
+      "mcp": { "status": "missing", "candidates": ["get_job", "cancel_job"] },
+      "scope": "foundation",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["运行中的优化可查询进度并可取消，取消后状态干净", "任务失败返回错误引用且不残留半开状态"]
+      }
+    },
+    {
+      "id": "global.runtime.browser",
+      "title": "浏览器运行环境管理（技术基础）",
+      "surface": { "page": "GLOBAL", "entry": "网页本身就是浏览器运行环境；MCP 需要托管同版本页面供渲染类任务使用" },
+      "kind": "compute",
+      "action": "浏览器的启动、关闭、隔离、资源准备与任务执行；对不可用的运行环境返回具体缺失能力，而不是笼统失败。",
+      "upstream": [],
+      "runtime": "browser",
+      "state": { "owner": "MCP 运行时适配器（待建）", "lifecycle": "ephemeral" },
+      "mcp": { "status": "missing", "candidates": ["get_runtime_capabilities"] },
+      "scope": "foundation",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["浏览器退出、超时与任务取消后不残留进程或错误状态", "环境不可用时报告缺失的具体能力"]
+      }
+    },
+    {
+      "id": "global.state.categorizedClear",
+      "title": "分类清空（增强项）",
+      "surface": { "page": "GLOBAL", "entry": "网页端只有整体重置；按分类清空是 MCP 新增能力" },
+      "kind": "write",
+      "action": "按区域清空（如只清遗器、只清队伍、只清保存的配装），替代全档重置；清空保护与全量清空一致。",
+      "upstream": [],
+      "runtime": "node",
+      "state": { "owner": "各业务 store", "lifecycle": "persisted", "saveKey": "*" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "missing", "candidates": ["reset_all(sections=...)"] },
+      "scope": "enhancement",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["按分类清空后其余分区数据逐字节不变", "现有全量清空保护（blockedWipe）对分类清空同样生效"]
+      }
     }
   ],
   "mechanisms": [

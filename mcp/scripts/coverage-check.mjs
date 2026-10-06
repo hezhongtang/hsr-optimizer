@@ -80,7 +80,9 @@ const featureSchema = z.object({
   }).strict(),
   kind: z.enum(KINDS),
   action: text,
-  upstream: z.array(reference).min(1),
+  // Baseline rows must name their web entry points; enhancement/foundation rows describe
+  // MCP-only capabilities and may have no upstream counterpart (enforced in checkFeature).
+  upstream: z.array(reference),
   params: z.array(z.object({ name: text, type: text, default: z.string().optional(), notes: text.optional() }).strict()).optional(),
   defaultsFrom: reference.optional(),
   conditions: text.optional(),
@@ -233,6 +235,9 @@ function candidateName(candidate) {
 
 function checkFeature(feature, surface) {
   const where = `[${feature.id}]`
+  if (feature.scope === 'baseline' && feature.upstream.length === 0) {
+    fail(`${where}: baseline rows must name at least one upstream entry point`)
+  }
   checkReferences(where, [...feature.upstream, ...(feature.defaultsFrom ? [feature.defaultsFrom] : [])])
   for (const tool of feature.mcp.tools ?? []) {
     if (!surface.tools.has(tool)) fail(`${where}: mcp.tools names "${tool}", which the server does not register`)

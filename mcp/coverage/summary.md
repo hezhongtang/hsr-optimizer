@@ -8,15 +8,15 @@
 
 | 域 | 功能条目 | missing | partial | implemented | verified | 机制项 |
 | --- | --- | --- | --- | --- | --- | --- |
-| global | 11 | 7 | 3 | 1 | 0 | 4 |
+| global | 15 | 11 | 3 | 1 | 0 | 4 |
 | home | 2 | 1 | 0 | 1 | 0 | 0 |
 | changelog | 1 | 0 | 0 | 1 | 0 | 0 |
-| import | 12 | 5 | 3 | 4 | 0 | 0 |
+| import | 13 | 6 | 3 | 4 | 0 | 0 |
 | characters | 22 | 5 | 8 | 9 | 0 | 0 |
 | preview | 21 | 14 | 5 | 2 | 0 | 4 |
 | teams | 13 | 9 | 2 | 2 | 0 | 2 |
 | relics | 12 | 5 | 4 | 3 | 0 | 0 |
-| optimizer | 40 | 8 | 22 | 10 | 0 | 5 |
+| optimizer | 43 | 11 | 22 | 10 | 0 | 5 |
 | showcase | 5 | 2 | 2 | 1 | 0 | 1 |
 | warp | 5 | 1 | 3 | 1 | 0 | 0 |
 | benchmarks | 7 | 0 | 4 | 3 | 0 | 0 |
@@ -25,25 +25,25 @@
 | webgpu | 1 | 1 | 0 | 0 | 0 | 0 |
 | metadata | 9 | 2 | 7 | 0 | 0 | 2 |
 | shared | 2 | 0 | 2 | 0 | 0 | 3 |
-| **合计** | 177 | 72 | 65 | 40 | 0 | 21 |
+| **合计** | 185 | 80 | 65 | 40 | 0 | 21 |
 
 网站基线条目 175 个，其中已验证 0 个。
 
 ## 分布
 
-- **范围**：baseline 175 · foundation 0 · enhancement 2
-- **运行环境**：node 165 · browser 11 · host 1
-- **是否需要动上游**：none 135 · mirror 38 · export 4 · extract 0
-- **类型**：read 33 · write 83 · compute 24 · artifact 4 · external 7 · navigate 4 · view 22
-- **状态生命周期**：persisted 90 · session 38 · ephemeral 15 · derived 25 · external 3 · none 6
+- **范围**：baseline 175 · foundation 3 · enhancement 7
+- **运行环境**：node 171 · browser 13 · host 1
+- **是否需要动上游**：none 142 · mirror 38 · export 5 · extract 0
+- **类型**：read 34 · write 85 · compute 27 · artifact 5 · external 8 · navigate 4 · view 22
+- **状态生命周期**：persisted 91 · session 42 · ephemeral 16 · derived 25 · external 4 · none 7
 
 ## 工具面与预算
 
 - 已注册工具 44 个（被条目引用 44 个），已注册资源 6 个。
-- 候选新工具 13 个：`analyze_relic`、`debug_utility`、`delete_relics`、`deliver_artifact`、`get_state`、`leaderboard`、`manage_team`、`render`、`scanner`、`score_character`、`update_form`、`update_state`、`upsert_relic`。
+- 候选新工具 16 个：`analyze_relic`、`cancel_job`、`debug_utility`、`delete_relics`、`deliver_artifact`、`get_job`、`get_runtime_capabilities`、`get_state`、`leaderboard`、`manage_team`、`render`、`scanner`、`score_character`、`update_form`、`update_state`、`upsert_relic`。
 - 候选新资源 7 个：`game://metadata/scoring`、`site://capabilities`、`site://help/{topic}`、`site://home`、`site://links`、`site://pages`、`site://settings`。
-- 需扩展参数的现有工具 28 个：`analyze_build`、`benchmark_runs`、`calc_aha`、`calc_ehr`、`default_form`、`delete_build`、`describe_conditionals`、`equip_saved_build`、`export_save`、`fetch_showcase`、`get_form`、`get_results`、`import_hoyolab`、`import_scanner_json`、`list_characters`、`list_relics`、`load_save`、`optimize`、`permutations`、`reset_all`、`save_team`、`score_relics`、`set_character_rank`、`set_scoring_override`、`simulate_build`、`stat_simulate`、`upsert_character`、`warp_plan`。
-- 全部建成后工具数 57，预算 70。
+- 需扩展参数的现有工具 29 个：`analyze_build`、`benchmark_runs`、`calc_aha`、`calc_ehr`、`default_form`、`delete_build`、`describe_conditionals`、`equip_saved_build`、`export_save`、`fetch_showcase`、`get_form`、`get_results`、`import_hoyolab`、`import_scanner_json`、`list_characters`、`list_relics`、`load_save`、`optimize`、`permutations`、`reset_all`、`save_team`、`score_relics`、`set_character_rank`、`set_scoring_override`、`simulate_build`、`stat_simulate`、`sync_bridge_start`、`upsert_character`、`warp_plan`。
+- 全部建成后工具数 60，预算 70。
 
 ## 普查对照
 
@@ -51,8 +51,8 @@
 | --- | --- | --- | --- | --- | --- |
 | controls | 546 | 518 | 0 | 28 | 0 |
 | storeActions | 179 | 150 | 20 | 9 | 0 |
-| exports | 155 | 127 | 0 | 28 | 0 |
-| interactions | 146 | 124 | 0 | 22 | 0 |
+| exports | 155 | 129 | 0 | 26 | 0 |
+| interactions | 146 | 129 | 0 | 17 | 0 |
 | persistence | 81 | 81 | 0 | 0 | 0 |
 
 ## 机制项

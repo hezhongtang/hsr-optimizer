@@ -345,6 +345,26 @@
         "cases": ["启动桥并连接后，网页端库存与 MCP 当前存档的遗器、角色一致；MCP 侧删除遗器后网页端同步删除"],
         "tests": ["mcp/scripts/smoke-misc.mjs"]
       }
+    },
+    {
+      "id": "import.bridge.fullSync",
+      "title": "完整状态双向同步（增强项，M8）",
+      "surface": { "page": "IMPORT", "entry": "现有桥只单向推送扫描帧（MCP → 网页，仅 5 星遗器与装备）；完整双向同步是独立增强" },
+      "kind": "external",
+      "action": "本机完整状态桥：网页端增加客户端，同步角色、遗器、表单、配装、评分配置、队伍、设置、会话与媒体引用。协议含 snapshot/operation/ack/conflict/resync，操作带 sessionId、opId 与 baseRevision；去重回传，断线重连取增量或完整快照，旧版本写入明确冲突。保留现有扫描桥作为兼容通道。",
+      "upstream": [],
+      "runtime": "node",
+      "state": { "owner": "MCP 状态协调方与网页客户端（待建）", "lifecycle": "external" },
+      "mcp": { "status": "missing", "candidates": ["sync_bridge_start(bidirectional=true)"] },
+      "scope": "enhancement",
+      "upstreamChange": "export",
+      "acceptance": {
+        "cases": [
+          "MCP 改遗器网页可见，网页改队伍 MCP 可见，冲突不静默覆盖",
+          "断线重连与服务重启后两端收敛到同一 revision",
+          "切换存档不串档，原扫描桥继续可用"
+        ]
+      }
     }
   ]
 }

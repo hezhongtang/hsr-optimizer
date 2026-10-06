@@ -1381,6 +1381,61 @@
           "读到的各分区折叠状态与网页端一致；改动后网页端重新打开时按新状态显示"
         ]
       }
+    },
+    {
+      "id": "optimizer.results.history",
+      "title": "多运行结果历史（增强项）",
+      "surface": { "page": "OPTIMIZER", "entry": "网页端只保留最近一次运行的结果与表单快照；保存多个 runId 的历史是 MCP 新增能力" },
+      "kind": "read",
+      "action": "保存多次运行的结果与运行时表单快照（runId 区分），可回看、比较与再次装备；网页端的内部表单快照缓存（optimizerFormCache，上限 50 份）不等于用户可见的历史。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "optimizerFormCache" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "MCP 结果历史（待建）", "lifecycle": "session" },
+      "mcp": { "status": "missing", "candidates": ["get_results(history=true)"] },
+      "scope": "enhancement",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["两次运行后两个 runId 的结果与各自表单快照都可独立取回", "缓存世代检查对历史行依然生效（跨存档装备被拒）"]
+      }
+    },
+    {
+      "id": "optimizer.run.resume",
+      "title": "长任务跨重启续跑（增强项）",
+      "surface": { "page": "OPTIMIZER", "entry": "网页端刷新即丢运行状态；MCP 进程重启后继续未完成的优化是新增能力" },
+      "kind": "compute",
+      "action": "把长时优化的进度持久化，MCP 重启后从检查点续跑而非从头再来；依赖统一任务管理（global.jobs.manage）。",
+      "upstream": [
+        { "file": "src/lib/worker/workerPool.ts", "symbol": "WorkerPool" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "MCP 任务管理器（待建）", "lifecycle": "session" },
+      "mcp": { "status": "missing", "candidates": ["optimize(resume=true)"] },
+      "scope": "enhancement",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["模拟进程重启后续跑的结果与一次跑完的结果一致", "取消后的任务重启时不被自动续跑"]
+      }
+    },
+    {
+      "id": "optimizer.analysis.chartExport",
+      "title": "任意图表图片导出（增强项）",
+      "surface": { "page": "OPTIMIZER", "entry": "展开数据面板里的伤害拆分柱状图与伤害标签饼图；导出为图片文件是 MCP 新增能力" },
+      "kind": "artifact",
+      "action": "把伤害拆分与伤害标签图表渲染成图片并返回文件路径、MIME 与尺寸；固定语言与素材以保证可重现。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabOptimizer/analysis/DamageSplitsChart.tsx", "symbol": "DamageSplitsChart" },
+        { "file": "src/lib/tabs/tabOptimizer/analysis/DamageTagPieChart.tsx", "symbol": "DamageTagPieChart" }
+      ],
+      "runtime": "browser",
+      "state": { "owner": "无", "lifecycle": "none" },
+      "mcp": { "status": "missing", "candidates": ["render(target=chart)"] },
+      "scope": "enhancement",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["导出图片的尺寸、配色与图例文字和网页端图表一致", "空数据返回明确错误而非空白图"]
+      }
     }
   ],
   "mechanisms": [
