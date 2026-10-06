@@ -1,0 +1,36 @@
+{
+  "name": "hsr-optimizer-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=26.0.0",
+    "npm": ">=11.0.0"
+  },
+  "scripts": {
+    "build": "vite build --config vite.mcp.config.ts --configLoader native",
+    "start": "node dist/index.js",
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:query": "node scripts/smoke-query.mjs",
+    "smoke:archive": "node scripts/smoke-archive.mjs",
+    "smoke:optimizer-generation": "node scripts/smoke-optimizer-generation.mjs",
+    "smoke:form-overrides": "node scripts/smoke-form-overrides.mjs",
+    "smoke:equip": "node scripts/smoke-equip.mjs",
+    "smoke:shutdown": "node scripts/smoke-shutdown.mjs",
+    "smoke:conditionals": "node scripts/smoke-conditionals.mjs",
+    "smoke:simulation": "node scripts/smoke-simulation.mjs",
+    "smoke:imports": "node scripts/smoke-imports.mjs",
+    "smoke:misc": "node scripts/smoke-misc.mjs",
+    "smoke:all": "node scripts/smoke.mjs && node scripts/smoke-query.mjs && node scripts/smoke-equip.mjs && node scripts/smoke-shutdown.mjs && node scripts/parity.mjs && node scripts/smoke-conditionals.mjs && node scripts/smoke-simulation.mjs && node scripts/smoke-imports.mjs && node scripts/smoke-misc.mjs && node scripts/smoke-archive.mjs && node scripts/smoke-optimizer-generation.mjs && node scripts/smoke-form-overrides.mjs",
+    "parity": "node scripts/parity.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "js-yaml": "^4.3.2",
+    "ws": "^8.22.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2"
+  }
+}

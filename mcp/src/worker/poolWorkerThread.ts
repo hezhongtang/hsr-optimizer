@@ -1,4 +1,10 @@
-// Throwaway spike: worker_threads entry that gives upstream baseWorker.ts the `self` it expects.
+// node:worker_threads entry for the shared optimizer pool: gives the upstream
+// `lib/worker/baseWorker.ts` the `self` / `postMessage` / `onmessage` it expects.
+// Shims must run before the dynamic baseWorker import (console redirect keeps
+// worker chatter off the protocol stdout).
+
+import '../shims'
+
 import { parentPort } from 'node:worker_threads'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
