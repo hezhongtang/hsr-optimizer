@@ -8,10 +8,10 @@
 
 | 域 | 功能条目 | missing | partial | implemented | verified | 机制项 |
 | --- | --- | --- | --- | --- | --- | --- |
-| global | 15 | 10 | 4 | 1 | 0 | 4 |
+| global | 15 | 6 | 4 | 5 | 0 | 4 |
 | home | 2 | 1 | 0 | 1 | 0 | 0 |
 | changelog | 1 | 0 | 0 | 1 | 0 | 0 |
-| import | 13 | 6 | 3 | 4 | 0 | 0 |
+| import | 13 | 5 | 4 | 4 | 0 | 0 |
 | characters | 22 | 5 | 8 | 9 | 0 | 0 |
 | preview | 21 | 14 | 5 | 2 | 0 | 4 |
 | teams | 13 | 9 | 2 | 2 | 0 | 2 |
@@ -25,7 +25,7 @@
 | webgpu | 1 | 1 | 0 | 0 | 0 | 0 |
 | metadata | 9 | 2 | 7 | 0 | 0 | 2 |
 | shared | 2 | 0 | 2 | 0 | 0 | 3 |
-| **合计** | 185 | 79 | 66 | 40 | 0 | 21 |
+| **合计** | 185 | 74 | 67 | 44 | 0 | 21 |
 
 网站基线条目 175 个，其中已验证 0 个。
 
@@ -39,10 +39,10 @@
 
 ## 工具面与预算
 
-- 已注册工具 44 个（被条目引用 44 个），已注册资源 6 个。
-- 候选新工具 16 个：`analyze_relic`、`cancel_job`、`debug_utility`、`delete_relics`、`deliver_artifact`、`get_job`、`get_runtime_capabilities`、`get_state`、`leaderboard`、`manage_team`、`render`、`scanner`、`score_character`、`update_form`、`update_state`、`upsert_relic`。
-- 候选新资源 7 个：`game://metadata/scoring`、`site://capabilities`、`site://help/{topic}`、`site://home`、`site://links`、`site://pages`、`site://settings`。
-- 需扩展参数的现有工具 29 个：`analyze_build`、`benchmark_runs`、`calc_aha`、`calc_ehr`、`default_form`、`delete_build`、`describe_conditionals`、`equip_saved_build`、`export_save`、`fetch_showcase`、`get_form`、`get_results`、`import_hoyolab`、`import_scanner_json`、`list_characters`、`list_relics`、`load_save`、`optimize`、`permutations`、`reset_all`、`save_team`、`score_relics`、`set_character_rank`、`set_scoring_override`、`simulate_build`、`stat_simulate`、`sync_bridge_start`、`upsert_character`、`warp_plan`。
+- 已注册工具 48 个（被条目引用 48 个），已注册资源 6 个。
+- 候选新工具 12 个：`analyze_relic`、`debug_utility`、`delete_relics`、`deliver_artifact`、`get_runtime_capabilities`、`leaderboard`、`manage_team`、`render`、`scanner`、`score_character`、`update_form`、`upsert_relic`。
+- 候选新资源 6 个：`game://metadata/scoring`、`site://capabilities`、`site://help/{topic}`、`site://home`、`site://links`、`site://pages`。
+- 需扩展参数的现有工具 31 个：`analyze_build`、`benchmark_runs`、`calc_aha`、`calc_ehr`、`default_form`、`delete_build`、`describe_conditionals`、`equip_saved_build`、`export_save`、`fetch_showcase`、`get_form`、`get_results`、`get_state`、`import_hoyolab`、`import_scanner_json`、`list_characters`、`list_relics`、`load_save`、`optimize`、`permutations`、`reset_all`、`save_team`、`score_relics`、`set_character_rank`、`set_scoring_override`、`simulate_build`、`stat_simulate`、`sync_bridge_start`、`update_state`、`upsert_character`、`warp_plan`。
 - 全部建成后工具数 60，预算 70。
 
 ## 普查对照

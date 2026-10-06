@@ -27,6 +27,7 @@ import type { HsrOptimizerSaveFormat } from 'types/store'
 import { z } from 'zod'
 
 import { runtimeContext } from '../context'
+import { readStructuredSnapshot } from '../saveSnapshot'
 import { replaceSaveStores } from '../saveStores'
 import { toolResult } from '../toolResult'
 
@@ -152,17 +153,62 @@ export function registerArchiveTools(server: McpServer): void {
       + '默认写回当前存档的载入路径;内联 JSON 载入的存档必须显式传 path。'
       + '写入带三道护栏:目标已是符号链接时拒绝(防止沿链接覆写任意文件);'
       + '目标文件已存在但不是存档形状(缺 relics/characters 数组)时拒绝(防止覆写 ~/.zshrc 等无关文件,刻意清空的存档仍是合法目标);'
-      + '实际写入走同目录临时文件 + 原子 rename,中断不会留下半截文件。',
+      + '实际写入走同目录临时文件 + 原子 rename,中断不会留下半截文件。'
+      + '传 structured=true 时改为只读快照:不写任何文件,直接返回当前内存状态的存档对象(与导出文件逐字段一致,含未落盘变更)——'
+      + '适合检查/备份内存态而不落盘,内联 JSON 载入的存档无需 path 也能用。',
     inputSchema: {
       path: z.string().optional().describe('目标文件路径(默认写回载入时的存档路径)'),
+      structured: z.boolean().optional().describe(
+        'true=只读结构化快照:返回当前内存状态的存档对象(不写任何文件、不触发写回、不变更 revision);'
+          + '缺省/false=写盘导出(默认行为)',
+      ),
     },
     outputSchema: {
-      exported: z.boolean(),
-      path: z.string(),
-      bytes: z.number().int(),
+      // Write mode payload fields — optional only because the structured mode
+      // returns the snapshot shape below instead (never both in one result).
+      exported: z.boolean().optional(),
+      path: z.string().optional(),
+      bytes: z.number().int().optional(),
+      // Structured (read-only) mode payload fields.
+      structured: z.boolean().optional(),
+      // 直读内存快照整体——快照形状跟上游 SaveState.save() 的序列化走
+      // (types/store.ts HsrOptimizerSaveFormat,可选字段随上游版本演化),
+      // 这里不收紧,与 load_save 的 version 字段同一处理原则。
+      snapshot: z.record(z.string(), z.unknown()).optional(),
+      revision: z.number().int().optional(),
+      generation: z.number().int().optional(),
+      counts: z.object({
+        relics: z.number().int(),
+        characters: z.number().int(),
+      }).optional(),
     },
-  }, async ({ path }) => {
+  }, async ({ path, structured }) => {
     runtimeContext.requireSave()
+
+    // Read-only structured snapshot: must return before ANY file write below.
+    // Deliberately does NOT call SaveState.save() — that writes localStorage
+    // (shifting the anti-wipe guard's reference), can be blocked by it, and
+    // clears the pending-save timer. The snapshot reads the live store values
+    // directly (see saveSnapshot.ts), so it reflects unflushed edits and bumps
+    // neither revision nor generation.
+    if (structured === true) {
+      const snapshot = readStructuredSnapshot()
+      const counts = {
+        relics: snapshot.relics.length,
+        characters: snapshot.characters.length,
+      }
+      return toolResult(
+        {
+          structured: true,
+          snapshot,
+          revision: runtimeContext.getRevision(),
+          generation: runtimeContext.getSaveGeneration(),
+          counts,
+        },
+        `只读结构化快照:${counts.relics} 件遗器、${counts.characters} 个角色`
+          + '(未写入任何文件;含未落盘变更,与 export_save 写盘内容逐字段一致)',
+      )
+    }
 
     const target = path != null
       ? (isAbsolute(path) ? path : resolve(process.cwd(), path))

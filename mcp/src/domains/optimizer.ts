@@ -34,10 +34,17 @@ import {
 } from '../permutations'
 import {
   isOptimizationRunning,
+  type OptimizeRunResult,
   runOptimization,
 } from '../runOptimizer'
 import { serializeBuild } from '../serializers/builds'
 import { toolResult } from '../toolResult'
+import {
+  finishJob,
+  linkedAbortController,
+  registerJob,
+  updateJobProgress,
+} from './jobs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any
@@ -174,47 +181,75 @@ export function registerOptimizerTools(server: McpServer): void {
       )
     }
 
-    // Progress notifications (only when the client sent a progressToken)
+    // Job registry (M4-B): the run's cacheId doubles as its jobId. cancel_job
+    // aborts the linked controller — the exact cooperative-cancel path a
+    // request-signal cancellation takes (runOptimization forwards it to the
+    // driver as CANCEL; partial results are kept, never thrown away).
+    const cacheId = runtimeContext.nextCacheId()
+    const cancelController = linkedAbortController(extra.signal)
+    registerJob(cacheId, 'optimize', {
+      cancel: () => cancelController.abort(),
+      summary: { characterId, resultsLimit, validPermutations: estimate.validPermutations },
+    })
+
+    // Progress: the job registry is always updated (get_job reads it);
+    // notifications go out only when the client sent a progressToken
     const progressToken = (extra._meta as Any)?.progressToken
-    const onProgress = progressToken == null
-      ? undefined
-      : (p: {
-        searched: number,
-        total: number,
-        results: number,
-        ratePerSec: number,
-      }) => {
-        void extra.sendNotification({
-          method: 'notifications/progress' as const,
-          params: {
-            progressToken,
-            progress: p.searched,
-            ...(p.total > 0 ? { total: p.total } : {}),
-            message: `searched ${p.searched.toLocaleString()} permutations, ${p.results} results, ${p.ratePerSec.toLocaleString()}/s`,
-          },
-        } as Any).catch(() => {
-          // Transport closing mid-run — progress is best-effort
-        })
-      }
+    const onProgress = (p: {
+      searched: number,
+      total: number,
+      results: number,
+      ratePerSec: number,
+    }) => {
+      updateJobProgress(cacheId, {
+        searched: p.searched,
+        totalPermutations: p.total,
+        results: p.results,
+        ratePerSec: p.ratePerSec,
+      })
+      if (progressToken == null) return
+      void extra.sendNotification({
+        method: 'notifications/progress' as const,
+        params: {
+          progressToken,
+          progress: p.searched,
+          ...(p.total > 0 ? { total: p.total } : {}),
+          message: `searched ${p.searched.toLocaleString()} permutations, ${p.results} results, ${p.ratePerSec.toLocaleString()}/s`,
+        },
+      } as Any).catch(() => {
+        // Transport closing mid-run — progress is best-effort
+      })
+    }
 
     // Force-flush pending mutations into the snapshot the driver reloads from,
     // so a run can never search a stale inventory (matters once equip tools land)
     runtimeContext.flushSave()
 
     const generation = runtimeContext.getSaveGeneration()
-    const run = await runOptimization(runtimeContext.requireSave().data, request, {
-      onProgress,
-      signal: extra.signal,
-    })
+    let run: OptimizeRunResult
+    try {
+      run = await runOptimization(runtimeContext.requireSave().data, request, {
+        onProgress,
+        signal: cancelController.signal,
+      })
+    } catch (e) {
+      finishJob(cacheId, 'failed', { error: String((e as Error)?.message ?? e) })
+      throw e
+    }
 
     // load_save remains available while the driver searches its own snapshot.
     // Discard that snapshot's results before caching or hydrating relic ids:
     // the new inventory may contain different relics with the same ids.
     if (generation !== runtimeContext.getSaveGeneration()) {
+      finishJob(cacheId, 'failed', { error: '运行期间 load_save 切换了存档,结果已丢弃——请对当前存档重新优化' })
       throw new Error('A load_save changed the save while optimization was running — results were discarded; re-run optimize for the current save')
     }
 
-    const cacheId = runtimeContext.nextCacheId()
+    finishJob(cacheId, run.summary.cancelled ? 'cancelled' : 'completed', {
+      searched: run.summary.searched,
+      durationMs: run.summary.durationMs,
+      rows: run.rows.length,
+    })
     runtimeContext.cacheOptimizeResult({
       summary: {
         cacheId,

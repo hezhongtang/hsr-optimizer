@@ -1,6 +1,6 @@
 # HSR Optimizer MCP Server
 
-让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **44 个工具**(M1 基础域 26 + M2/M3 扩展域 18)与 **6 个 `game://` 元数据资源**,覆盖方案 §7 M1–M3 的全部条目。
+让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **48 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4)与 **6 个 `game://` 元数据资源**,覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4 的状态基础。
 
 - 设计与分期依据:[`hsr-optimizer-MCP-实施方案.md`](./hsr-optimizer-MCP-实施方案.md)(§6.1 规模闸门、§6.2 一致性验收、§7 验收标准)
 - 可行性实测背景(spike)已删除,历史见 commit `81f0789a`(见文末「与 spike 的关系」)
@@ -24,6 +24,9 @@ npm run smoke          # 基础闭环:listTools → load_save → list_relics �
 npm run smoke:query    # 查询域:list_characters/get_character/get_form/default_form/permutations/list_relics
 npm run smoke:archive  # 存档回归:载入失败保留未落盘修改、完整恢复会话、换档时缺省字段恢复默认
 npm run smoke:revision # M4 变更协调器:revision 读不变/写递增、载入失败回滚修订号与脏标记
+npm run smoke:state    # M4 状态域:get_state/update_state 五分支读写、baseRevision 冲突、未知键拒绝
+npm run smoke:jobs     # M4 任务域:optimize/benchmark_runs 任务生命周期、进度查询、cancel_job 路由
+npm run smoke:snapshot # M4 结构化快照:与写盘输出逐字段对拍、零副作用(不动护栏引用/不写文件)
 npm run smoke:optimizer-generation # 优化时换档:拒绝旧结果与跨档缓存;同档取消保留部分结果
 npm run smoke:form-overrides # 表单覆盖回归:get_form 内部字段与显示表单字段均正确生效
 npm run smoke:equip    # 装备+评分域:equip/unequip/switch/builds/score_relics/dps_score/scoring override
@@ -62,18 +65,18 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | `HSR_MCP_HOME`        | `~/.hsr-optimizer-mcp`            | 状态目录:未显式指定 `HSR_MCP_STATE_FILE` 时,localStorage 后端文件落在此目录下                                                                                                                              |
 | `HSR_MCP_LOCALES_DIR` | 自动定位(见说明)                  | i18n 翻译目录(`public/locales` 形状,含 `<语言>/<ns>.yaml`)的显式覆盖;缺省从构建产物位置逐级向上查找(dist→mcp→仓库根),即 dist 须留在仓库内运行——要把构建产物挪到仓库外时用本变量指向仓库的 `public/locales` |
 
-## 工具清单(44 个,按域)
+## 工具清单(48 个,按域)
 
 ### M1 基础域(26 个)
 
 **存档域(archive)** — 网页端存档生命周期:
 
-| 工具          | 功能                                                              |
-| ------------- | ----------------------------------------------------------------- |
-| `load_save`   | 载入存档文件/内联 JSON(完整迁移链),替换当前状态                   |
-| `export_save` | 当前状态序列化写回磁盘(网页「导出存档」,带护栏,见下)              |
-| `save_status` | 当前存档概况:来源、数量、dirty、revision/generation、最近优化缓存 |
-| `reset_all`   | 清空恢复默认(仅内存,写回被擦写保护拦截)                           |
+| 工具          | 功能                                                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `load_save`   | 载入存档文件/内联 JSON(完整迁移链),替换当前状态                                                                     |
+| `export_save` | 当前状态序列化写回磁盘(网页「导出存档」,带护栏,见下);`structured=true` 返回无写入的结构化快照(与写盘输出逐字段对拍) |
+| `save_status` | 当前存档概况:来源、数量、dirty、revision/generation、最近优化缓存                                                   |
+| `reset_all`   | 清空恢复默认(仅内存,写回被擦写保护拦截)                                                                             |
 
 `load_save` 替换全部存档状态:新档没有提供的会话与设置字段恢复为默认值。载入失败时恢复调用前的内存状态,包括防抖窗口内尚未落盘的修改,原存档路径与待写回状态保持不变。
 
@@ -196,6 +199,22 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 - **行为**:网页端一连上(含断线重连)立即收到全量 InitialScan;此后每次存档变更自动重推全量(幂等合并);在 MCP 侧删除的遗器以 DeleteRelics 事件先于全量帧同步删除。
 - **已知**:网页端开②后会把导入角色统一按 80 级/光锥 80 级落库(上游固定行为);优化器不追踪遗器锁定状态,帧内 `lock` 恒 false;退出进程前建议先 `sync_bridge_stop`(见已知限制 #10)。
 
+### M4 状态与任务域(4 个)
+
+**状态域(state)** — 全站覆盖计划 M4 的设置/会话/标记/扫描器配置读写:
+
+| 工具           | 功能                                                                                                                                                                                                                        |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_state`    | 按 section 读取:`revision`(修订号/世代/dirty/blockedWrite)、`settings`(六项设置当前值+定义,默认值派生自上游)、`session`(持久化 savedSession+易取的临时态)、`flags`(seenFeatures+未读派生)、`scanner`(六字段+customUrl 派生) |
+| `update_state` | 按 section 写入(未知键拒绝、枚举校验);可选 `baseRevision` 乐观并发检查(不匹配报冲突,消息含双方修订号);整体走 withChange 事务,失败回滚                                                                                       |
+
+**任务域(jobs)** — 长任务统一注册表(optimize/benchmark_runs 已接入,评分与后续任务逐里程碑接入):
+
+| 工具         | 功能                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `get_job`    | 无参列出全部任务(id/类型/状态/时间);带 jobId 返回详情(进度、可否取消、摘要引用——optimize 的 jobId 即返回的 cacheId) |
+| `cancel_job` | 取消运行中的任务(复用既有取消路径,optimize 保留部分结果);已结束任务返回其终态而非报错                               |
+
 ### game:// 资源(6 项)
 
 只读元数据面,与工具同进程注册(`src/resources.ts`);列表资源只带摘要,单实体详情走 URI 模板(模板不占 resources/list,经 templates/list 发现):
@@ -270,7 +289,7 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 - `fetch_showcase` / `import_showcase`(enka/mihomo 档案)✅
 - teams 数据面(`save_team`/`list_teams`)✅
 - stats 归约器(`ComputedStatsContainer → JSON`,随 simulate_build/stat_simulate 返回)✅;套装效果描述面(`game://metadata/sets`)✅;「行→配装」按方案有意折叠进 optimize/get_results 的行内 builds 字段,不另设 resource
-- 全部工具的 outputSchema 声明(§9 D7)✅(44 个工具全覆盖;6 个 `game://` 资源不适用——SDK 的资源配置无 outputSchema 参数,见方案 §10 D12)
+- 全部工具的 outputSchema 声明(§9 D7)✅(48 个工具全覆盖;6 个 `game://` 资源不适用——SDK 的资源配置无 outputSchema 参数,见方案 §10 D12)
 - 追加交付:同步桥 `sync_bridge_start/status/stop/push`(MCP→网页端单向推送,变更驱动自动重推)与 6 项 `game://` 元数据资源
 
 留尾巴(未做成/未覆盖,如实登记):

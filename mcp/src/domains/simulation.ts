@@ -98,6 +98,13 @@ import {
   serializeRotationDamageStep,
 } from '../serializers/stats'
 import { toolResult } from '../toolResult'
+import {
+  finishJob,
+  linkedAbortController,
+  nextJobId,
+  registerJob,
+  updateJobProgress,
+} from './jobs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any
@@ -907,8 +914,31 @@ export function registerSimulationTools(server: McpServer): void {
 
       ;(globalThis as Any).SEQUENTIAL_BENCHMARKS = true
 
+      // Job registry (M4-B): ONE job per batch — cancellation only lands
+      // between presets and the tool returns a single aggregated result, so
+      // per-preset granularity lives in progress (completedPresets/
+      // totalPresets) instead of one job per preset. cancel_job aborts the
+      // linked controller, checked at the top of each preset iteration.
+      const jobId = nextJobId('bench')
+      const cancelController = linkedAbortController(extra.signal)
+      registerJob(jobId, 'benchmark_runs', {
+        cancel: () => cancelController.abort(),
+        summary: {
+          characterId,
+          presets: presets.map((preset) =>
+            `${preset.relicSet1}${preset.relicSet2 === preset.relicSet1 ? ' (4pc)' : ` + ${preset.relicSet2}`} × ${
+              preset.ornamentSet ?? '(元数据推荐饰品)'
+            } @SPD≥${preset.spdThreshold ?? 0}`
+          ),
+        },
+        progress: { completedPresets: 0, totalPresets: presets.length },
+      })
+
       const progressToken = (extra._meta as Any)?.progressToken
       const notify = (completed: number, message: string) => {
+        // Job progress updates always land (get_job reads them); the
+        // notification itself only goes out when a progressToken was sent.
+        updateJobProgress(jobId, { completedPresets: completed, totalPresets: presets.length, phase: message })
         if (progressToken == null) return
         void extra.sendNotification({
           method: 'notifications/progress' as const,
@@ -932,83 +962,99 @@ export function registerSimulationTools(server: McpServer): void {
       const results: Array<Record<string, unknown>> = []
       let cancelled = false
 
-      for (const [index, preset] of presets.entries()) {
-        if (extra.signal?.aborted) {
-          cancelled = true
-          notify(results.length, `cancelled before preset ${index + 1}/${presets.length}`)
-          break
-        }
-
-        const benchmarkForm: BenchmarkForm = {
-          ...baseBenchmarkForm,
-          basicSpd: preset.spdThreshold ?? 0,
-          simRelicSet1: preset.relicSet1,
-          simRelicSet2: preset.relicSet2,
-          simOrnamentSet: preset.ornamentSet ?? simulationMetadata.ornamentSets?.[0],
-          teammate0: resolvedTeammates[0],
-          teammate1: resolvedTeammates[1],
-          teammate2: resolvedTeammates[2],
-          setConditionals: clone(defaultSetConditionals),
-        } as BenchmarkForm
-        if (benchmarkForm.simOrnamentSet == null) {
-          throw new Error(`预设 ${index} 无法确定位面饰品套装——评分元数据没有推荐饰品,请显式传入 preset.ornamentSet`)
-        }
-
-        // handleCharacterSelectChange's preset recipe: set-conditional defaults
-        // seeded per character element/path, then scoring-metadata presets
-        const teammateInfo = resolveTeammateInfo(...resolvedTeammates)
-        applySetConditionalPresets(benchmarkForm, teammateInfo)
-        applyScoringMetadataPresets(benchmarkForm, teammateInfo)
-
-        const presetStart = performance.now()
-        const entry: Record<string, unknown> = {
-          index,
-          preset: {
-            relicSet1: preset.relicSet1,
-            relicSet2: preset.relicSet2,
-            ornamentSet: benchmarkForm.simOrnamentSet,
-            spdThreshold: preset.spdThreshold ?? 0,
-          },
-        }
-        try {
-          const orchestrator = await runCustomBenchmarkOrchestrator(
-            benchmarkForm,
-            includePerfection ? undefined : { benchmarkOnly: true },
-          )
-          const candidates = orchestrator.benchmarkSimCandidates ?? []
-          entry.status = 'completed'
-          entry.durationMs = Math.round(performance.now() - presetStart)
-          entry.benchmarkScore = orchestrator.benchmarkSimScore
-          entry.bestBuild = orchestrator.benchmarkSimRequest ? echoSimRequest(orchestrator.benchmarkSimRequest) : null
-          entry.topCandidates = candidates.slice(0, TOP_BENCHMARK_CANDIDATES).map((candidate) => ({
-            simScore: candidate.result?.simScore ?? 0,
-            ...echoSimRequest(candidate.request),
-          }))
-          entry.candidateCount = candidates.length
-          entry.originalSpd = orchestrator.originalSpd ?? null
-          entry.spdBenchmark = orchestrator.spdBenchmark ?? null
-          entry.benchmarkBasicSpdTarget = orchestrator.flags.benchmarkBasicSpdTarget
-          if (includePerfection) {
-            entry.perfectionScore = orchestrator.perfectionSimScore
-            entry.percent = orchestrator.percent ?? null
-            entry.scores = orchestrator.simulationScore
-              ? {
-                original: orchestrator.simulationScore.originalSimScore,
-                baseline: orchestrator.simulationScore.baselineSimScore,
-                benchmark: orchestrator.simulationScore.benchmarkSimScore,
-                maximum: orchestrator.simulationScore.maximumSimScore,
-              }
-              : null
+      // A throw escaping the per-preset catch (e.g. an unresolvable ornament
+      // set) must settle the job failed instead of leaving a running zombie.
+      try {
+        for (const [index, preset] of presets.entries()) {
+          if (cancelController.signal.aborted) {
+            cancelled = true
+            notify(results.length, `cancelled before preset ${index + 1}/${presets.length}`)
+            break
           }
-        } catch (e) {
-          entry.status = 'error'
-          entry.error = String((e as Error)?.message ?? e)
+
+          const benchmarkForm: BenchmarkForm = {
+            ...baseBenchmarkForm,
+            basicSpd: preset.spdThreshold ?? 0,
+            simRelicSet1: preset.relicSet1,
+            simRelicSet2: preset.relicSet2,
+            simOrnamentSet: preset.ornamentSet ?? simulationMetadata.ornamentSets?.[0],
+            teammate0: resolvedTeammates[0],
+            teammate1: resolvedTeammates[1],
+            teammate2: resolvedTeammates[2],
+            setConditionals: clone(defaultSetConditionals),
+          } as BenchmarkForm
+          if (benchmarkForm.simOrnamentSet == null) {
+            throw new Error(`预设 ${index} 无法确定位面饰品套装——评分元数据没有推荐饰品,请显式传入 preset.ornamentSet`)
+          }
+
+          // handleCharacterSelectChange's preset recipe: set-conditional defaults
+          // seeded per character element/path, then scoring-metadata presets
+          const teammateInfo = resolveTeammateInfo(...resolvedTeammates)
+          applySetConditionalPresets(benchmarkForm, teammateInfo)
+          applyScoringMetadataPresets(benchmarkForm, teammateInfo)
+
+          const presetStart = performance.now()
+          const entry: Record<string, unknown> = {
+            index,
+            preset: {
+              relicSet1: preset.relicSet1,
+              relicSet2: preset.relicSet2,
+              ornamentSet: benchmarkForm.simOrnamentSet,
+              spdThreshold: preset.spdThreshold ?? 0,
+            },
+          }
+          try {
+            const orchestrator = await runCustomBenchmarkOrchestrator(
+              benchmarkForm,
+              includePerfection ? undefined : { benchmarkOnly: true },
+            )
+            const candidates = orchestrator.benchmarkSimCandidates ?? []
+            entry.status = 'completed'
+            entry.durationMs = Math.round(performance.now() - presetStart)
+            entry.benchmarkScore = orchestrator.benchmarkSimScore
+            entry.bestBuild = orchestrator.benchmarkSimRequest ? echoSimRequest(orchestrator.benchmarkSimRequest) : null
+            entry.topCandidates = candidates.slice(0, TOP_BENCHMARK_CANDIDATES).map((candidate) => ({
+              simScore: candidate.result?.simScore ?? 0,
+              ...echoSimRequest(candidate.request),
+            }))
+            entry.candidateCount = candidates.length
+            entry.originalSpd = orchestrator.originalSpd ?? null
+            entry.spdBenchmark = orchestrator.spdBenchmark ?? null
+            entry.benchmarkBasicSpdTarget = orchestrator.flags.benchmarkBasicSpdTarget
+            if (includePerfection) {
+              entry.perfectionScore = orchestrator.perfectionSimScore
+              entry.percent = orchestrator.percent ?? null
+              entry.scores = orchestrator.simulationScore
+                ? {
+                  original: orchestrator.simulationScore.originalSimScore,
+                  baseline: orchestrator.simulationScore.baselineSimScore,
+                  benchmark: orchestrator.simulationScore.benchmarkSimScore,
+                  maximum: orchestrator.simulationScore.maximumSimScore,
+                }
+                : null
+            }
+          } catch (e) {
+            entry.status = 'error'
+            entry.error = String((e as Error)?.message ?? e)
+          }
+          results.push(entry)
+          notify(results.length, `preset ${results.length}/${presets.length} done (${String(entry.status)})`)
         }
-        results.push(entry)
-        notify(results.length, `preset ${results.length}/${presets.length} done (${String(entry.status)})`)
+      } catch (e) {
+        finishJob(jobId, 'failed', {
+          error: String((e as Error)?.message ?? e),
+          completedPresets: results.length,
+          totalPresets: presets.length,
+        })
+        throw e
       }
 
       const durationMs = Math.round(performance.now() - started)
+      finishJob(jobId, cancelled ? 'cancelled' : 'completed', {
+        completedPresets: results.filter((r) => r.status === 'completed').length,
+        totalPresets: presets.length,
+        durationMs,
+      })
 
       // Ranking among completed presets (web grid semantics: combo desc, delta % vs top)
       const completed = results.filter((r) => r.status === 'completed') as Array<{ index: number, benchmarkScore: number, preset: Record<string, unknown> }>

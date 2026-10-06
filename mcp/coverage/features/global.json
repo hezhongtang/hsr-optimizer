@@ -60,8 +60,7 @@
       "mcp": {
         "status": "implemented",
         "tools": ["export_save", "save_status"],
-        "gaps": "export_save 只把存档原样写盘（path/bytes），不返回结构化内容；「无写入的结构化快照读取」（全站覆盖计划 M4 交付项）还没有入口。",
-        "candidates": ["export_save(structured=true)"]
+        "gaps": "export_save(structured=true) 已提供无写入的结构化快照读取（saveSnapshot 镜像 SaveState.save 映射并有对拍回归，零副作用）。"
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -133,11 +132,12 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.sidebarCollapsed" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "missing", "candidates": ["get_state(section=session)", "update_state(section=session)"] },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["update_state 写入 sidebarCollapsed 后导出的存档与网页点击菜单按钮后的存档在该键上一致；浏览器运行环境渲染出折叠态侧边栏"]
+        "cases": ["update_state 写入 sidebarCollapsed 后导出的存档与网页点击菜单按钮后的存档在该键上一致；浏览器运行环境渲染出折叠态侧边栏"],
+        "tests": ["mcp/scripts/smoke-state.mjs"]
       }
     },
     {
@@ -165,9 +165,9 @@
       "state": { "owner": "useGlobalStore.settings", "lifecycle": "persisted", "saveKey": "settings" },
       "sideEffects": ["SaveState.delayedSave()"],
       "mcp": {
-        "status": "missing",
-        "gaps": "现有工具只是遵守其中两项（equip_build 读 RelicEquippingBehavior，upsert_character 读 NewCharacterDefaultRank），没有读取或修改设置的入口。",
-        "candidates": ["get_state(section=settings)", "update_state(section=settings)", "site://settings"]
+        "status": "implemented",
+        "tools": ["get_state", "update_state"],
+        "gaps": "get_state(section=settings) 给出六项设置的定义（枚举值/默认值派生自上游 SettingOptions/DefaultSettingOptions）与当前值；update_state(section=settings) 逐项写入并防抖保存。站点设置页资源（site://settings）不在本期。"
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -198,7 +198,7 @@
       "mcp": {
         "status": "missing",
         "gaps": "MCP 输出的标签固定取 zh_CN，没有切换语言的入口；浏览器运行环境渲染的图片也需要可指定语言。",
-        "candidates": ["get_state(section=session)", "update_state(section=session)"]
+        "candidates": ["update_state(section=session, language=...)"]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -281,8 +281,8 @@
       "mcp": {
         "status": "partial",
         "resources": ["game://changelog"],
-        "gaps": "更新内容可读，但读不到「存档版本是否过期」；另外 MCP 每次落盘都会把 version 写成当前版本（SaveState.save 的固有行为），用户回到网页后不会再看到更新弹窗，这一点没有对外说明。",
-        "candidates": ["get_state(section=flags)"]
+        "gaps": "更新内容可读，存档是否过期可经 export_save(structured=true) 的 snapshot.version 判断；MCP 每次落盘都会把 version 写成当前版本（SaveState.save 的固有行为），用户回到网页不会再看到更新弹窗——该行为差异已在此登记。",
+        "candidates": ["export_save(structured=true)"]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -311,7 +311,11 @@
       "runtime": "node",
       "state": { "owner": "useNewFeatureStore.seenFeatures", "lifecycle": "persisted", "saveKey": "seenFeatures" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "missing", "candidates": ["get_state(section=flags)", "update_state(section=flags)"] },
+      "mcp": {
+        "status": "implemented",
+        "tools": ["get_state", "update_state"],
+        "gaps": "get_state(section=flags) 返回 seenFeatures 与按 ACTIVE_NEW_FEATURES 派生的未读键；update_state(section=flags) 整组替换（读改写配合 baseRevision 即等价 markFeatureSeen/resetSeenFeatures）。蓝点渲染是网页表现。"
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -354,15 +358,15 @@
       "state": { "owner": "runtimeContext 变更协调器（context.ts）", "lifecycle": "session" },
       "mcp": {
         "status": "partial",
-        "tools": ["save_status"],
-        "gaps": "M4-A 已落地协调器本体：revision 在每次 markDirty/setSave/clearSave 递增（只读工具不变）并经 save_status 透出；withChange 提供串行化+快照回滚的事务作用域（load_save 已接入，失败回滚修订号/脏标记/库存）。缺：get_state(section=revision) 独立入口、写工具的 baseRevision 冲突参数（requireRevision 已备好，待 M4 后续接线）。",
-        "candidates": ["get_state(section=revision)", "update_state(baseRevision=...)"]
+        "tools": ["save_status", "get_state"],
+        "gaps": "协调器本体与读取已落地：revision 在每次 markDirty/setSave/clearSave 递增（只读工具不变），经 save_status 与 get_state(section=revision) 透出；withChange 提供串行化+快照回滚的事务作用域（load_save/update_state 已接入）；update_state 已支持 baseRevision 乐观并发检查。剩余：把 baseRevision 以可选参数形式逐步接入其余写工具。",
+        "candidates": ["update_state(baseRevision=...)"]
       },
       "scope": "foundation",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["并发变更串行提交且顺序确定", "基于旧 revision 的写入返回冲突而非静默覆盖", "失败操作恢复到调用前状态"],
-        "tests": ["mcp/scripts/smoke-revision.mjs"]
+        "tests": ["mcp/scripts/smoke-revision.mjs", "mcp/scripts/smoke-state.mjs"]
       }
     },
     {
@@ -375,12 +379,17 @@
         { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "ownsOptimizationRun" }
       ],
       "runtime": "node",
-      "state": { "owner": "MCP 任务管理器（待建）", "lifecycle": "session" },
-      "mcp": { "status": "missing", "candidates": ["get_job", "cancel_job"] },
+      "state": { "owner": "jobs.ts 模块级注册表（上限 50 条）", "lifecycle": "session" },
+      "mcp": {
+        "status": "implemented",
+        "tools": ["get_job", "cancel_job"],
+        "gaps": "已覆盖 optimize 与 benchmark_runs 两类（jobId 即 cacheId/批任务 id，进度经 get_job 查询，取消复用既有取消路径）；评分、GPU 与浏览器导出任务在对应里程碑接入同一注册表。"
+      },
       "scope": "foundation",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["运行中的优化可查询进度并可取消，取消后状态干净", "任务失败返回错误引用且不残留半开状态"]
+        "cases": ["运行中的优化可查询进度并可取消，取消后状态干净", "任务失败返回错误引用且不残留半开状态"],
+        "tests": ["mcp/scripts/smoke-jobs.mjs"]
       }
     },
     {

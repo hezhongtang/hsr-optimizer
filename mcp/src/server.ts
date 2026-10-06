@@ -9,11 +9,13 @@ import { registerCalculatorsTools } from './domains/calculators'
 import { registerConditionalsTools } from './domains/conditionals'
 import { registerEquipmentTools } from './domains/equipment'
 import { registerImportTools } from './domains/imports'
+import { registerJobsTools } from './domains/jobs'
 import { registerOptimizerTools } from './domains/optimizer'
 import { registerQueryTools } from './domains/query'
 import { registerScoringTools } from './domains/scoring'
 import { registerShowcaseTools } from './domains/showcase'
 import { registerSimulationTools } from './domains/simulation'
+import { registerStateTools } from './domains/state'
 import { registerTeamsTools } from './domains/teams'
 import { registerGameResources } from './resources'
 
@@ -33,11 +35,13 @@ export function createMcpServer(): McpServer {
   registerConditionalsTools(server)
   registerEquipmentTools(server)
   registerImportTools(server)
+  registerJobsTools(server)
   registerOptimizerTools(server)
   registerQueryTools(server)
   registerScoringTools(server)
   registerShowcaseTools(server)
   registerSimulationTools(server)
+  registerStateTools(server)
   registerTeamsTools(server)
   registerGameResources(server)
   return server

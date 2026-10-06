@@ -200,9 +200,10 @@
       "state": { "owner": "useScannerState", "lifecycle": "persisted", "saveKey": "scannerSettings" },
       "sideEffects": ["已连接时可能触发一次整库重新导入", "SaveState.delayedSave()"],
       "mcp": {
-        "status": "missing",
-        "gaps": "load_save 会把这些设置载入内存，但没有读取或修改的入口。",
-        "candidates": ["get_state(section=scanner)", "update_state(section=scanner)"]
+        "status": "partial",
+        "tools": ["get_state", "update_state"],
+        "gaps": "设置读写已实现（get_state/update_state 的 scanner 分支，含 customUrl 派生语义）；「已连接时」的重新导入副作用需要实时扫描器客户端（M6），当前没有连接路径。",
+        "candidates": ["scanner(action=connect)"]
       },
       "scope": "baseline",
       "upstreamChange": "none",
