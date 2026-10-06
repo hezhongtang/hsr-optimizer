@@ -60,13 +60,17 @@ const ENGINE_DIRS = ['src/lib/optimization/', 'src/lib/gpu/']
 const PERSISTENCE_CALL = /^SaveState\.(save|delayedSave|permitEmptySave|load)$/
 
 const INTERACTION_PATTERNS = [
+  // Literal event names and identifier/constant event names are separate patterns so a
+  // line never double-counts; drag engines register with imported constants (slotDrag.ts).
   ['dom-listener', /\baddEventListener\(\s*['"`]([\w:-]+)/],
+  ['dom-listener', /\baddEventListener\(\s*[A-Za-z_$][\w$.]*\s*,/],
   ['dnd', /\b(useSortable|useDraggable|useDroppable)\(|<(DndContext|SortableContext|DragOverlay)\b/],
   ['clipboard-share', /navigator\.(clipboard|share|canShare)|\bClipboardItem\b/],
   ['window-open', /\bwindow\.open\(/],
   ['file-input', /type=['"]file['"]|<(FileButton|FileInput|Dropzone)\b|\bFileReader\b|showOpenFilePicker|showSaveFilePicker/],
   ['download', /URL\.createObjectURL|\.download\s*=|\bsaveAs\(|\bdownload=/],
-  ['websocket', /\bnew WebSocket\(/],
+  // The scanner socket is a partysocket hook, not a bare constructor.
+  ['websocket', /\bnew WebSocket\(|\buseWebSocket\(/],
   ['network', /\bfetch\(/],
   ['storage', /\b(localStorage|sessionStorage)\.(getItem|setItem|removeItem|clear)\(/],
   ['navigation', /window\.location\.(hash|href|search)\s*=|history\.(pushState|replaceState)\(|\bnavigateTo\(/],

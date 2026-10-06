@@ -57,7 +57,12 @@
       "runtime": "node",
       "state": { "owner": "SaveState → localStorage['state']", "lifecycle": "persisted", "saveKey": "*" },
       "sideEffects": ["覆写 localStorage['state']"],
-      "mcp": { "status": "implemented", "tools": ["export_save", "save_status"] },
+      "mcp": {
+        "status": "implemented",
+        "tools": ["export_save", "save_status"],
+        "gaps": "export_save 只把存档原样写盘（path/bytes），不返回结构化内容；「无写入的结构化快照读取」（全站覆盖计划 M4 交付项）还没有入口。",
+        "candidates": ["export_save(structured=true)"]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {

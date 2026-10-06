@@ -24,11 +24,16 @@
       ],
       "runtime": "node",
       "state": { "owner": "useCharacterTabStore.filters", "lifecycle": "session" },
-      "mcp": { "status": "implemented", "tools": ["list_characters"] },
+      "mcp": {
+        "status": "partial",
+        "tools": ["list_characters"],
+        "gaps": "list_characters 的 path 与 element 参数只接受单个值，也没有名称子串筛选的 name 参数；网页筛选态是 name 子串 + 命途多选 + 属性多选三者同时生效。名称模糊匹配可由调用方拿列表后自行做，多选筛选做不到。",
+        "candidates": ["list_characters(name, path[], element[])"]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["list_characters 的顺序、rank 与网页角色网格一致；按命途、属性筛选的结果集与网页筛选条一致"],
+        "cases": ["list_characters 的顺序、rank 与网页角色网格一致；按命途、属性筛选的结果集与网页筛选条一致；补齐多选与 name 参数后与网页三轴筛选逐一对拍"],
         "tests": ["mcp/scripts/smoke-query.mjs"]
       }
     },
@@ -259,14 +264,18 @@
       "runtime": "node",
       "state": { "owner": "useCharacterStore（character.builds）", "lifecycle": "persisted", "saveKey": "characters[].builds" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["save_build"] },
+      "mcp": {
+        "status": "implemented",
+        "tools": ["save_build"],
+        "gaps": "网页端「覆盖」仅在名称已被占用时可用且要经确认框；MCP 对不存在的名称传 overwrite=true 会静默新建（返回 overwrote=false），保留该宽松语义以支持幂等调用。"
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "角色页来源：保存后两边存档里的该配装（遗器、光锥、星魂、队伍、评分配置类型）一致",
           "优化器来源：保存的表单快照是该次运行实际使用的表单",
-          "重名不带 overwrite 报错，带 overwrite 覆盖；对不存在的名称 overwrite 报错"
+          "重名不带 overwrite 报错，带 overwrite 覆盖；名称不存在时带 overwrite 会静默新建并返回 overwrote=false（网页端「覆盖」按钮此时不可用），差异见 gaps"
         ],
         "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-optimizer-generation.mjs"]
       }

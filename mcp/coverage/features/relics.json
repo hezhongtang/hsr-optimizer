@@ -242,14 +242,14 @@
         { "name": "substats", "type": "{ stat, value }[]", "notes": "至多 4 条；不能重复，不能与主词条相同；数值大于 0 且小于 1000" },
         { "name": "previewSubstats", "type": "{ stat, value }[]", "notes": "标成预览的副词条，数值存在这里" }
       ],
-      "conditions": "实时导入开启时「添加」按钮禁用，弹窗里提示改动可能被覆盖；「编辑」要求恰好选中一件。编辑时改了部位或清空装备者会先卸下；装备给新角色时按全局装备行为处理该槽位原来的遗器。优化器结果预览里打开的同一弹窗还带上一件、下一件箭头（见 optimizer 域）。",
+      "conditions": "实时导入开启时「添加」按钮禁用，弹窗里提示改动可能被覆盖；「编辑」要求恰好选中一件。编辑时改了部位或清空装备者会先卸下；装备给新角色时按全局装备行为处理该槽位原来的遗器。提交校验除重复与主副冲突外还包括取值范围与百分比词条的取整精度（一位小数）。优化器结果预览里打开的同一弹窗还带上一件、下一件箭头（见 optimizer 域）。逐件卸下并入 upsert_relic(equippedBy=null)，不单设 unequip_relic。",
       "runtime": "node",
       "state": { "owner": "useRelicStore + useCharacterStore", "lifecycle": "persisted", "saveKey": "relics / characters[].equipped" },
       "sideEffects": ["SaveState.delayedSave()", "编辑后重算优化器排列数（recalculatePermutations）", "内容变化的遗器 verified 置为 false", "RelicAugmenter.augment 补全派生字段"],
       "mcp": {
         "status": "missing",
-        "gaps": "没有新增或编辑单件遗器的工具；equip_build 能改装备关系，但改不了遗器本身的词条。",
-        "candidates": ["upsert_relic"]
+        "gaps": "没有按弹窗语义新增或编辑单件遗器的工具（按 id 编辑、弹窗校验、预览词条、换部位先卸下）。equip_build 能改装备关系但改不了词条；单件「新增」可粗放地经 import_scanner_json(inline, merge=union) 内联合成达成（见 import.scanner.mergeRelicsOnly），与弹窗语义不同。",
+        "candidates": ["upsert_relic", "upsert_relic(equippedBy=null)"]
       },
       "scope": "baseline",
       "upstreamChange": "export",

@@ -507,7 +507,7 @@
       ],
       "params": [
         { "name": "selectedAction", "type": "number", "default": "0", "notes": "循环里的动作序号" },
-        { "name": "selectedFilter", "type": "DamageTag 位掩码 | null", "default": "角色配置的 scoring.defaultDamageType", "notes": "null 表示不过滤" }
+        { "name": "selectedFilter", "type": "DamageTag 位掩码 | null", "default": "角色配置的 scoring.defaultDamageType", "notes": "筛选只作用于属性合计：null 时只汇总通用增益（damageTags 为空的条目），有筛选时汇总通用增益加标签匹配的条目（buffMatchesSumFilter）；标签含输出类与 MEMO（忆灵）等。命中定义表与敌人面板展示的命中缩放和敌人参数不随筛选变化" }
       ],
       "runtime": "node",
       "state": { "owner": "BuffsAnalysisDisplay 组件内的选中项", "lifecycle": "ephemeral" },
@@ -541,11 +541,16 @@
       "conditions": "只对 5 星遗器估算天数。评分权重取该角色生效的评分元数据。",
       "runtime": "node",
       "state": { "owner": "EstimatedTbpRelicsDisplay 组件内的 worker 结果", "lifecycle": "derived" },
-      "mcp": { "status": "implemented", "tools": ["score_relics"] },
+      "mcp": {
+        "status": "partial",
+        "tools": ["score_relics"],
+        "gaps": "score_relics 覆盖天数估算与潜力（includeEstTbp=true）；每件的逐副词条 roll 反解与六件合计没有输出字段——roll 数据只在 get_character/list_relics 的遗器序列化里，调用方需自行汇总。",
+        "candidates": ["score_relics(rollsSummary=true)"]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["score_relics(characterId, includeEstTbp=true) 对角色已装备的六件返回的天数与潜力，和这一栏逐件显示的数值一致"],
+        "cases": ["score_relics(characterId, includeEstTbp=true) 对角色已装备的六件返回的天数与潜力，和这一栏逐件显示的数值一致；补齐汇总后每件 roll 数与六件合计与网页逐件统计一致"],
         "tests": ["mcp/scripts/smoke-equip.mjs"]
       }
     },
@@ -610,7 +615,7 @@
       "runtime": "browser",
       "state": { "owner": "useDebugVisualConfigStore", "lifecycle": "session" },
       "mcp": { "status": "missing", "candidates": ["get_state(section=visualDebug)", "update_state(section=visualDebug)"] },
-      "scope": "enhancement",
+      "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["修改任一视觉参数后渲染的展示卡与网页在同一调试配置下的外观一致"]
@@ -644,8 +649,8 @@
         { "file": "src/lib/spine/SpinePortrait.tsx", "symbol": "SpinePortrait" },
         { "file": "src/lib/spine/spineEngine.ts", "symbol": "createSpineInstance" }
       ],
-      "serves": ["preview.card.read", "preview.customize.display"],
-      "reason": "动态立绘的渲染底盘：模糊占位加载、onReady/onUnsupported 生命周期、WebGL 上下文丢失监听、页面不可见或失焦时自动暂停动画。开关与回退已登记在 preview.customize.display 和 preview.mech.spineFallback；渲染本身没有用户动作，在 M7 浏览器运行环境里照原样执行。"
+      "serves": ["preview.card.read", "preview.customize.display", "preview.portrait.set", "preview.character.edit", "metadata.imageCenter.edit"],
+      "reason": "动态立绘的渲染底盘：模糊占位加载、onReady/onUnsupported 生命周期、WebGL 上下文丢失监听、页面不可见或失焦时自动暂停动画（展示卡、肖像编辑、元数据图片中心的动态立绘取景都走它）。开关与回退已登记在 preview.customize.display 和 preview.mech.spineFallback；渲染本身没有用户动作，在 M7 浏览器运行环境里照原样执行。"
     },
     {
       "id": "preview.mech.scoringRuntime",
@@ -661,8 +666,8 @@
         { "file": "src/lib/scoring/scoringService.ts", "symbol": "releaseOrchestrator" },
         { "file": "src/lib/scoring/scoringService.ts", "symbol": "releasePreview" }
       ],
-      "serves": ["preview.simScore.read", "preview.scoring.typeSwitch"],
-      "reason": "角色卡 SimScoring 面板背后的评分请求层：按缓存键去重、引用计数式申请/释放 orchestrator 与 preview、超过重试上限后停止重算。读取评分与切换评分类型已按功能行登记；MCP 侧由 dps_score 等入口直接调用计算层，不走这套 UI 驱动的请求生命周期。"
+      "serves": ["preview.simScore.read", "preview.scoring.typeSwitch", "preview.team.select", "preview.team.editTeammate", "preview.team.reset", "preview.team.sync", "preview.scoring.buffPriority", "preview.scoring.spdWeight", "preview.scoring.spdPrecision", "preview.scoring.spdBenchmark"],
+      "reason": "角色卡 SimScoring 面板背后的评分请求层：按缓存键去重、引用计数式申请/释放 orchestrator 与 preview、超过重试上限后停止重算。评分读取、类型切换、队伍编辑与速度/增益参数调整都经它触发重算。MCP 侧由 dps_score 等入口直接调用计算层，不走这套 UI 驱动的请求生命周期。"
     }
   ]
 }

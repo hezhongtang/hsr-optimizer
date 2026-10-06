@@ -208,7 +208,8 @@ function registeredSurface() {
   const domainFiles = readdirSync(resolve(mcpDir, 'src/domains')).filter((name) => name.endsWith('.ts')).map((name) => `src/domains/${name}`)
   for (const file of ['src/resources.ts', ...domainFiles]) {
     const source = readFileSync(resolve(mcpDir, file), 'utf8')
-    for (const match of source.matchAll(/registerTool\(\s*'([a-z_]+)'/g)) tools.add(match[1])
+    // Grammar mirrors TOOL_NAME below: tool names may contain digits.
+    for (const match of source.matchAll(/registerTool\(\s*'([a-z][a-z0-9_]*)'/g)) tools.add(match[1])
     for (const match of source.matchAll(/registerResource\(\s*'[^']+',\s*'(game:\/\/[^']+)'/g)) resources.add(match[1])
     for (const match of source.matchAll(/new ResourceTemplate\('(game:\/\/[^']+)'/g)) resources.add(match[1])
   }
@@ -384,7 +385,7 @@ function renderSummary(manifest, features, mechanisms, coverage, surface, propos
   return [
     '# 功能覆盖矩阵摘要',
     '',
-    '本文件由 `npm run coverage:check -- --write` 生成，请勿手改。条目定义见 [README](./README.md)。',
+    '本文件由 `npm run coverage:check -- --write` 生成，请勿手改。条目定义见 [README](../README.md)。',
     '',
     `基线：\`${manifest.baseline.commit}\`（src 树 \`${manifest.baseline.srcTree.slice(0, 12)}\`）。`,
     '',

@@ -7,7 +7,7 @@
   },
   "totals": {
     "controls": 546,
-    "interactions": 140,
+    "interactions": 146,
     "stores": 22,
     "storeActions": 179,
     "actionModules": 28,
@@ -7324,6 +7324,12 @@
       "text": "type='file'"
     },
     {
+      "key": "src/lib/tabs/tabImport/ScannerWebsocketClient.tsx#websocket#1",
+      "file": "src/lib/tabs/tabImport/ScannerWebsocketClient.tsx",
+      "kind": "websocket",
+      "text": "useWebSocket(websocketUrl, undefined, {"
+    },
+    {
       "key": "src/lib/tabs/tabLeaderboard/LeaderboardHeader.tsx#navigation#1",
       "file": "src/lib/tabs/tabLeaderboard/LeaderboardHeader.tsx",
       "kind": "navigation",
@@ -7510,6 +7516,12 @@
       "text": "void fetch(`${API_ENDPOINT}/profile/${id}`, { method: 'GET' })"
     },
     {
+      "key": "src/lib/tabs/tabTeamShowcase/SlotCellOverlay.tsx#dom-listener#1",
+      "file": "src/lib/tabs/tabTeamShowcase/SlotCellOverlay.tsx",
+      "kind": "dom-listener",
+      "text": "document.addEventListener(POINTER_DOWN_EVENT, handlePointerDown)"
+    },
+    {
       "key": "src/lib/tabs/tabTeamShowcase/TeamCardGrid.tsx#dnd#1",
       "file": "src/lib/tabs/tabTeamShowcase/TeamCardGrid.tsx",
       "kind": "dnd",
@@ -7528,6 +7540,12 @@
       "text": "} = useDraggable({ id: index })"
     },
     {
+      "key": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx#dom-listener#1",
+      "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx",
+      "kind": "dom-listener",
+      "text": "for (const event of CLICK_SUPPRESSION_RECOVERY_EVENTS) window.addEventListener(event, releaseIfDragging)"
+    },
+    {
       "key": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx#dnd#1",
       "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx",
       "kind": "dnd",
@@ -7544,6 +7562,24 @@
       "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx",
       "kind": "dnd",
       "text": "} = useSortable({ id: props.team.id })"
+    },
+    {
+      "key": "src/lib/tabs/tabTeamShowcase/slotDrag.ts#dom-listener#1",
+      "file": "src/lib/tabs/tabTeamShowcase/slotDrag.ts",
+      "kind": "dom-listener",
+      "text": "for (const event of RECOVERY_EVENTS) window.addEventListener(event, recover)"
+    },
+    {
+      "key": "src/lib/tabs/tabTeamShowcase/slotDrag.ts#dom-listener#2",
+      "file": "src/lib/tabs/tabTeamShowcase/slotDrag.ts",
+      "kind": "dom-listener",
+      "text": "node.addEventListener(TRANSITION_END_EVENT, handleTransition)"
+    },
+    {
+      "key": "src/lib/tabs/tabTeamShowcase/slotDrag.ts#dom-listener#3",
+      "file": "src/lib/tabs/tabTeamShowcase/slotDrag.ts",
+      "kind": "dom-listener",
+      "text": "node.addEventListener(TRANSITION_CANCEL_EVENT, handleTransition)"
     },
     {
       "key": "src/lib/tabs/tabWarp/WarpUnifiedTable.tsx#dnd#1",

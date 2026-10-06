@@ -472,7 +472,7 @@ export function registerQueryTools(server: McpServer): void {
 
   server.registerTool('list_relics', {
     title: '遗器库存筛选',
-    description: '遗器库存列表与结构化筛选——对应网页端 Optimizer 页签左侧的遗器浏览:主词条、副词条'
+    description: '遗器库存列表与结构化筛选——对应网页端遗器(Inventory)页签的主表格:主词条、副词条'
       + '(含 roll 反解 high/mid/low 与 addedRolls)、套装、部件、强化等级、星级、归属。'
       + '输出中的 weightScore 恒为 null:加权分仅在优化管线内部计算,主线程不维护;'
       + '存档文件可能残留网页端历史保存的 weightScore(不代表任何当前角色),不予透出。需要按角色打分用 score_relics。'

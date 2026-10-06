@@ -89,8 +89,8 @@
         { "file": "src/lib/ui/SearchableCombobox.tsx", "symbol": "SearchableCombobox" },
         { "file": "src/lib/ui/WithPopover.tsx", "symbol": "WithPopover" }
       ],
-      "serves": ["optimizer.form.mainStats", "optimizer.form.setFilters", "optimizer.form.resultFilters", "optimizer.form.weights"],
-      "reason": "被优化器表单、遗器筛选等大量复用的输入控件：级联选择、带下拉的数字输入、多选标签组、可搜索下拉、悬浮说明。每个具体字段的读写和默认值已按所属功能行登记；MCP 用结构化参数直接表达这些字段，不存在「操作控件」这一步。"
+      "serves": ["optimizer.form.mainStats", "optimizer.form.setFilters", "optimizer.form.resultFilters", "optimizer.form.weights", "optimizer.form.conditionals", "optimizer.combo.definition", "optimizer.statSim.run", "relics.grid.filter", "warp.resources.set", "benchmarks.configure.settings", "benchmarks.configure.sets", "calculators.aha.form", "calculators.aha.solve", "metadata.imageCenter.edit", "preview.relic.addOrEdit"],
+      "reason": "被优化器表单、遗器筛选、基准配置、跃迁设置、阿哈面板等大量复用的输入控件：级联选择、带下拉的数字输入、多选标签组、可搜索下拉、悬浮说明（serves 列出已确认的直接消费方，非穷尽）。每个具体字段的读写和默认值已按所属功能行登记；MCP 用结构化参数直接表达这些字段，不存在「操作控件」这一步。"
     },
     {
       "id": "shared.mech.infoLinks",
@@ -99,8 +99,8 @@
         { "file": "src/lib/ui/ColorizedLink.tsx", "symbol": "ColorizedLinkWithIcon" },
         { "file": "src/lib/ui/ColorizedLink.tsx", "symbol": "ColorizedTitleWithInfo" }
       ],
-      "serves": ["home.content.read", "changelog.entries.read"],
-      "reason": "带图标的外链和带信息浮层的着色标题组件，散布在首页社区卡片、更新日志、导入说明、通知等处。链接指向的资源已记在各功能行；组件本身是展示管道，不是用户功能。"
+      "serves": ["home.content.read", "changelog.entries.read", "global.changelog.whatsNew", "import.help.read", "characters.scoring.weights", "characters.scoring.resetAll", "preview.simScore.read"],
+      "reason": "带图标的外链和带信息浮层的着色标题组件，散布在首页社区卡片、更新日志、导入说明、通知、评分弹窗、跃迁页等处（serves 列出已确认的直接消费方，非穷尽）。链接指向的资源已记在各功能行；组件本身是展示管道，不是用户功能。"
     },
     {
       "id": "shared.mech.unmountedHeroHeader",

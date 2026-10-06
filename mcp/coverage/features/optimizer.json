@@ -429,7 +429,7 @@
         { "name": "lightConeConditionals", "type": "Record<条件键, boolean | number>", "default": "光锥条件控制器的默认值" },
         { "name": "teammates[i].characterConditionals / lightConeConditionals", "type": "同上", "default": "队友视角的默认值" }
       ],
-      "conditions": "有哪些条件、取值范围、默认值以及星魂和叠影门槛都由角色与光锥决定；未解锁的条件显示为禁用。写盘时机见 optimizer.form.persist。",
+      "conditions": "有哪些条件、取值范围、默认值以及星魂和叠影门槛都由角色与光锥决定；未解锁的条件显示为禁用。网页端改角色/光锥（含队友）条件时只联动补丁连招的默认首分段（patchComboConditionalDefault），不覆盖逐回合的自定义值；MCP 侧要复刻这一联动而不能整段重写连招。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
       "mcp": {
@@ -1231,7 +1231,7 @@
       "title": "管理已保存的模拟",
       "surface": { "page": "OPTIMIZER", "overlay": "确认对话框（全部删除时）", "entry": "「自定义属性模拟」区左侧的模拟列表与右侧的保存、覆盖、删除按钮" },
       "kind": "write",
-      "action": "把当前填写的内容存成一条模拟（内容完全相同的不重复保存，四个主词条没选全不让存）；用当前输入覆盖选中的那一条；删除单条，或经确认后全部删除；点列表里的一行把它的内容回填到输入区。保存的模拟随角色表单一起落盘。",
+      "action": "把当前填写的内容存成一条模拟（内容完全相同的不重复保存，四个主词条没选全不让存）；用当前输入覆盖选中的那一条（覆盖后获得新的 key 并重新选中，重复检测排除被覆盖的那条）；删除单条，或经确认后全部删除；点列表里的一行把它的内容回填到输入区——回填时未选的主词条（0 值）转成 null、切换到该条的模拟模式，并同步选中优化结果网格里的对应行。保存的模拟随角色表单一起落盘。",
       "upstream": [
         { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/SimulatedBuildsGrid.tsx", "symbol": "SimulatedBuildsGrid" },
         { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/StatSimulationDisplay.tsx", "symbol": "StatSimulationDisplay" },
@@ -1311,7 +1311,7 @@
         "status": "partial",
         "tools": ["permutations"],
         "gaps": "permutations 给出各部位筛选前后的数量和有效排列数，调用方能看出哪个部位是 0，但它不指出是哪条筛选造成的，也不给可直接套用的修复；它的 suggestions 只针对排列过多的情况。",
-        "candidates": ["permutations(diagnose=true)"]
+        "candidates": ["permutations(diagnose=true)", "permutations(applyFixes=true)"]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -1342,7 +1342,7 @@
       "mcp": {
         "status": "missing",
         "gaps": "optimize 搜完一行结果都没有时只返回空结果，不说明是哪些上下限造成的。",
-        "candidates": ["optimize(diagnose=true)"]
+        "candidates": ["optimize(diagnose=true)", "optimize(applyFixes=true)"]
       },
       "scope": "baseline",
       "upstreamChange": "none",

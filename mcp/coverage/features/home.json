@@ -41,7 +41,11 @@
       "conditions": "「更新日志」卡片是站内跳转（普通点击走 navigateTo，按住 Ctrl/Meta/Shift 时走浏览器默认行为），其余三张社区卡片和贡献者图片是外链。",
       "runtime": "node",
       "state": { "owner": "无", "lifecycle": "none" },
-      "mcp": { "status": "missing", "candidates": ["site://home", "site://links"] },
+      "mcp": {
+        "status": "missing",
+        "gaps": "首页文案、社区链接之外，「完整版本与能力清单」（当前优化器版本、数据版本、站点能力入口，全站覆盖计划矩阵第 16 行）也没有可发现的入口。",
+        "candidates": ["site://home", "site://links", "site://capabilities"]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
