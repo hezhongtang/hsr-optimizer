@@ -27,10 +27,7 @@ import type { HsrOptimizerSaveFormat } from 'types/store'
 import { z } from 'zod'
 
 import { runtimeContext } from '../context'
-import {
-  captureSaveStores,
-  replaceSaveStores,
-} from '../saveStores'
+import { replaceSaveStores } from '../saveStores'
 import { toolResult } from '../toolResult'
 
 function parseSave(raw: string, origin: string): HsrOptimizerSaveFormat {
@@ -113,14 +110,13 @@ export function registerArchiveTools(server: McpServer): void {
     // throw on malformed entries (e.g. a character missing `form` → TypeError
     // in migrateCharacterForm). Left as-is that is a chimera — new-save markers
     // + previous-save inventory — while loadedSave still points at the OLD
-    // file, so the next flush would persist the chimera into it. Snapshot the
-    // current stores up front, including edits not yet flushed to disk. Neither
-    // snapshot nor rollback serializes, saves, or changes runtime ownership.
-    const restoreStores = captureSaveStores()
+    // file, so the next flush would persist the chimera into it. withChange
+    // snapshots the current stores (including edits not yet flushed to disk)
+    // and on failure restores them plus revision/dirty — no serialization, no
+    // save, no runtime ownership change on the rollback path.
     try {
-      data = replaceSaveStores(data)
+      data = await runtimeContext.withChange('load_save', () => replaceSaveStores(data))
     } catch (e) {
-      restoreStores()
       throw new Error(
         `存档载入失败:迁移链处理该存档时抛错(${(e as Error).message})。`
           + '服务器已恢复载入前的内存状态(含未落盘变更),未写入任何新档状态;'
@@ -219,12 +215,17 @@ export function registerArchiveTools(server: McpServer): void {
     title: '当前存档状态',
     description: '报告当前已载入存档的概况——对应网页端维护的存档状态:来源路径、遗器/角色数量、未落盘标记(dirty,防抖写回 pending)、'
       + '最近一次 optimize 结果缓存(cacheId / 角色与行数)。'
+      + 'revision 是变更修订号,每次已提交的状态变更(写工具、载入/清空存档)递增,只读工具不变——'
+      + '读到它后在别处作为 baseRevision 传回即可检测中途插入的变更。'
+      + 'generation 是存档世代,每次 load_save/clearSave 递增,优化结果缓存按它判旧。'
       + 'dirty=true 且 blockedWrite 非空表示存在被防擦写护栏拦截的写回:变更仍在内存中未落盘,刻意重置请用 export_save。',
     inputSchema: {},
     outputSchema: {
       loaded: z.boolean(),
       path: z.string().nullable(),
       dirty: z.boolean(),
+      revision: z.number().int(),
+      generation: z.number().int(),
       relics: z.number().int(),
       characters: z.number().int(),
       characterIds: z.array(z.string()),
@@ -248,6 +249,8 @@ export function registerArchiveTools(server: McpServer): void {
         loaded: save != null,
         path: save?.path ?? null,
         dirty: runtimeContext.isDirty(),
+        revision: runtimeContext.getRevision(),
+        generation: runtimeContext.getSaveGeneration(),
         ...(save ? saveCounts() : { relics: 0, characters: 0, characterIds: [] }),
         blockedWrite,
         lastOptimize: last

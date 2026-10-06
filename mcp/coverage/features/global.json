@@ -351,12 +351,18 @@
       "action": "在存档世代之外引入 revision：读取、编辑、扫描导入与同步操作都携带版本信息，变更串行提交，旧 revision 的写入返回冲突，多步操作支持快照恢复。",
       "upstream": [],
       "runtime": "node",
-      "state": { "owner": "MCP 状态协调器（待建）", "lifecycle": "session" },
-      "mcp": { "status": "missing", "candidates": ["get_state(section=revision)", "update_state(baseRevision=...)"] },
+      "state": { "owner": "runtimeContext 变更协调器（context.ts）", "lifecycle": "session" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["save_status"],
+        "gaps": "M4-A 已落地协调器本体：revision 在每次 markDirty/setSave/clearSave 递增（只读工具不变）并经 save_status 透出；withChange 提供串行化+快照回滚的事务作用域（load_save 已接入，失败回滚修订号/脏标记/库存）。缺：get_state(section=revision) 独立入口、写工具的 baseRevision 冲突参数（requireRevision 已备好，待 M4 后续接线）。",
+        "candidates": ["get_state(section=revision)", "update_state(baseRevision=...)"]
+      },
       "scope": "foundation",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["并发变更串行提交且顺序确定", "基于旧 revision 的写入返回冲突而非静默覆盖", "失败操作恢复到调用前状态"]
+        "cases": ["并发变更串行提交且顺序确定", "基于旧 revision 的写入返回冲突而非静默覆盖", "失败操作恢复到调用前状态"],
+        "tests": ["mcp/scripts/smoke-revision.mjs"]
       }
     },
     {

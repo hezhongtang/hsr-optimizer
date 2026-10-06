@@ -18,6 +18,7 @@ import {
 import type { HsrOptimizerSaveFormat } from 'types/store'
 
 import { bridgeNotifyChange } from './domains/bridge'
+import { captureSaveStores } from './saveStores'
 import { requestedPoolSize } from './shims'
 
 export type LoadedSave = {
@@ -113,6 +114,17 @@ let runCounter = 0
 // generation it ran against so fromCache references from a previous save load
 // are rejected instead of equipping colliding relic ids from the new save.
 let saveGeneration = 0
+// Change revision (M4 change coordinator): bumped on every committed state
+// change — markDirty (any store mutation heading for a flush), setSave and
+// clearSave (save swaps). Read-only tools never bump it, so an agent can read
+// it via save_status and pass it back as a baseRevision-style check later.
+// Multiple bumps within one tool call are fine: the number identifies state,
+// not calls. Rollbacks (withChange) restore it.
+let revision = 0
+// Serializes withChange bodies: scopes run to completion in submission order,
+// so one scope's rollback can never restore stores another concurrent scope
+// already mutated. Chained promise — never awaited by callers directly.
+let changeQueue: Promise<unknown> = Promise.resolve()
 
 export const runtimeContext = {
   workerCount: requestedPoolSize(),
@@ -133,6 +145,7 @@ export const runtimeContext = {
     dirty = false
     lastBlockedWrite = null
     saveGeneration++
+    revision++
   },
 
   /** Drop the loaded save entirely (load_save rollback with no previous save). */
@@ -142,12 +155,33 @@ export const runtimeContext = {
     dirty = false
     lastBlockedWrite = null
     saveGeneration++
+    revision++
   },
 
   /** Generation of the currently loaded save; caches stamped with an older
    * generation belong to a previous `load_save` and are stale. */
   getSaveGeneration(): number {
     return saveGeneration
+  },
+
+  /** Current change revision — see the module-level `revision` comment. */
+  getRevision(): number {
+    return revision
+  },
+
+  /**
+   * Optimistic-concurrency gate for future write tools: rejects when the
+   * caller's view of the state (the revision it read before composing its
+   * change) is no longer current. Surface as a tool error; the message carries
+   * both revisions so the agent can re-read and reapply.
+   */
+  requireRevision(base: number, label: string): void {
+    if (base !== revision) {
+      throw new Error(
+        `${label}: revision conflict — caller held revision ${base} but current revision is ${revision}; `
+          + 'another change landed in between. Re-read the state, re-apply your change on the fresh revision.',
+      )
+    }
   },
 
   getSave(): LoadedSave | null {
@@ -162,6 +196,14 @@ export const runtimeContext = {
   },
 
   markDirty(): void {
+    revision++
+    runtimeContext.scheduleDirtyFlush()
+  },
+
+  /** dirty=true + debounced flush, without a revision bump (internal: the
+   * bump belongs to the mutation, withChange rollback re-schedules a pending
+   * flush for already-counted changes without counting them twice). */
+  scheduleDirtyFlush(): void {
     dirty = true
     if (flushTimer != null) clearTimeout(flushTimer)
     flushTimer = setTimeout(() => {
@@ -180,6 +222,48 @@ export const runtimeContext = {
       clearTimeout(flushTimer)
       flushTimer = null
     }
+  },
+
+  /**
+   * Transacted, serialized mutation scope (M4 change coordinator).
+   *
+   * Snapshots every persisted store via captureSaveStores() before the body
+   * runs. If the body throws, the stores, revision, dirty flag and blockedWrite
+   * marker are restored to their pre-scope values and the error propagates —
+   * a failed multi-step operation leaves no chimera behind. Bodies run in
+   * submission order (changeQueue), so one scope's rollback can never wipe a
+   * change another scope committed while it was in flight.
+   *
+   * Scope rules:
+   *   - the body must not call other MCP tools or enqueue nested withChange
+   *     scopes (the queue would deadlock);
+   *   - the body should not flushSave() — bytes already written cannot be
+   *     rolled back; persist after the scope returns;
+   *   - successful changes bump revision themselves via markDirty/setSave
+   *     inside the body (this wrapper only counts, never commits).
+   */
+  async withChange<T>(label: string, body: () => Promise<T> | T): Promise<T> {
+    const restoreStores = captureSaveStores()
+    const revisionBefore = revision
+    const dirtyBefore = dirty
+    const blockedBefore = lastBlockedWrite
+    const run = async () => {
+      try {
+        return await body()
+      } catch (e) {
+        restoreStores()
+        runtimeContext.cancelPendingFlush()
+        revision = revisionBefore
+        lastBlockedWrite = blockedBefore
+        if (dirtyBefore) runtimeContext.scheduleDirtyFlush()
+        else dirty = false
+        process.stderr.write(`[mcp] change "${label}" rolled back: ${(e as Error).message}\n`)
+        throw e
+      }
+    }
+    const queued = changeQueue.then(run, run)
+    changeQueue = queued.catch(() => {})
+    return queued
   },
 
   /**

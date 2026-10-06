@@ -13,6 +13,7 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:query": "node scripts/smoke-query.mjs",
     "smoke:archive": "node scripts/smoke-archive.mjs",
+    "smoke:revision": "node scripts/smoke-revision.mjs",
     "smoke:optimizer-generation": "node scripts/smoke-optimizer-generation.mjs",
     "smoke:form-overrides": "node scripts/smoke-form-overrides.mjs",
     "smoke:equip": "node scripts/smoke-equip.mjs",
@@ -21,7 +22,7 @@
     "smoke:simulation": "node scripts/smoke-simulation.mjs",
     "smoke:imports": "node scripts/smoke-imports.mjs",
     "smoke:misc": "node scripts/smoke-misc.mjs",
-    "smoke:all": "node scripts/smoke.mjs && node scripts/smoke-query.mjs && node scripts/smoke-equip.mjs && node scripts/smoke-shutdown.mjs && node scripts/parity.mjs && node scripts/smoke-conditionals.mjs && node scripts/smoke-simulation.mjs && node scripts/smoke-imports.mjs && node scripts/smoke-misc.mjs && node scripts/smoke-archive.mjs && node scripts/smoke-optimizer-generation.mjs && node scripts/smoke-form-overrides.mjs",
+    "smoke:all": "node scripts/smoke.mjs && node scripts/smoke-query.mjs && node scripts/smoke-equip.mjs && node scripts/smoke-shutdown.mjs && node scripts/parity.mjs && node scripts/smoke-conditionals.mjs && node scripts/smoke-simulation.mjs && node scripts/smoke-imports.mjs && node scripts/smoke-misc.mjs && node scripts/smoke-archive.mjs && node scripts/smoke-revision.mjs && node scripts/smoke-optimizer-generation.mjs && node scripts/smoke-form-overrides.mjs",
     "parity": "node scripts/parity.mjs",
     "coverage:census": "node scripts/coverage-census.mjs",
     "coverage:check": "node scripts/coverage-check.mjs"

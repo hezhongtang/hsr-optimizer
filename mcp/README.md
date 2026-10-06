@@ -23,6 +23,7 @@ npm start              # stdio 启动(供 MCP client 拉起)
 npm run smoke          # 基础闭环:listTools → load_save → list_relics → optimize → 取消路径 → export/reset
 npm run smoke:query    # 查询域:list_characters/get_character/get_form/default_form/permutations/list_relics
 npm run smoke:archive  # 存档回归:载入失败保留未落盘修改、完整恢复会话、换档时缺省字段恢复默认
+npm run smoke:revision # M4 变更协调器:revision 读不变/写递增、载入失败回滚修订号与脏标记
 npm run smoke:optimizer-generation # 优化时换档:拒绝旧结果与跨档缓存;同档取消保留部分结果
 npm run smoke:form-overrides # 表单覆盖回归:get_form 内部字段与显示表单字段均正确生效
 npm run smoke:equip    # 装备+评分域:equip/unequip/switch/builds/score_relics/dps_score/scoring override
@@ -67,12 +68,12 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 **存档域(archive)** — 网页端存档生命周期:
 
-| 工具          | 功能                                                 |
-| ------------- | ---------------------------------------------------- |
-| `load_save`   | 载入存档文件/内联 JSON(完整迁移链),替换当前状态      |
-| `export_save` | 当前状态序列化写回磁盘(网页「导出存档」,带护栏,见下) |
-| `save_status` | 当前存档概况:来源、数量、dirty、最近优化缓存         |
-| `reset_all`   | 清空恢复默认(仅内存,写回被擦写保护拦截)              |
+| 工具          | 功能                                                              |
+| ------------- | ----------------------------------------------------------------- |
+| `load_save`   | 载入存档文件/内联 JSON(完整迁移链),替换当前状态                   |
+| `export_save` | 当前状态序列化写回磁盘(网页「导出存档」,带护栏,见下)              |
+| `save_status` | 当前存档概况:来源、数量、dirty、revision/generation、最近优化缓存 |
+| `reset_all`   | 清空恢复默认(仅内存,写回被擦写保护拦截)                           |
 
 `load_save` 替换全部存档状态:新档没有提供的会话与设置字段恢复为默认值。载入失败时恢复调用前的内存状态,包括防抖窗口内尚未落盘的修改,原存档路径与待写回状态保持不变。
 
