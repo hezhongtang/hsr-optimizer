@@ -1,0 +1,350 @@
+{
+  "area": "import",
+  "title": "导入页：存档载入/保存/清除、扫描器文件导入、实时扫描",
+  "features": [
+    {
+      "id": "import.save.load",
+      "title": "从文件载入存档",
+      "surface": { "page": "IMPORT", "entry": "「载入数据」页签：选择 .json → 确认页 →「使用上传的数据」" },
+      "kind": "write",
+      "action": "读入文件后分两步：先展示文件里的遗器数与角色数；确认后 loadSaveData(save, autosave=false)（sanitize 取默认 true）整体替换当前数据，随后 SaveState.save() 落盘。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabImport/LoadDataSubmenu.tsx", "symbol": "LoadDataSubmenu" },
+        { "file": "src/lib/tabs/tabImport/LoadDataSubmenu.tsx", "symbol": "UploadFileStage" },
+        { "file": "src/lib/tabs/tabImport/LoadDataSubmenu.tsx", "symbol": "ConfirmDataStage" },
+        { "file": "src/lib/tabs/tabImport/LoadDataSubmenu.tsx", "symbol": "loadConfirmed" },
+        { "file": "src/lib/services/persistenceService.ts", "symbol": "loadSaveData" },
+        { "file": "src/lib/stores/relic/relicStore.ts", "symbol": "setRelics" }
+      ],
+      "params": [
+        { "name": "file", "type": ".json 文件", "notes": "fribbels-optimizer-save.json 格式" },
+        { "name": "sanitize", "type": "boolean", "default": "true（手动载入）", "notes": "为 true 时不从文件恢复自定义的扫描器 websocket 地址" }
+      ],
+      "conditions": "文件带 fileType 或 source 字段（即扫描器文件）或缺少 relics/characters 时，确认页显示「无效存档，是否想用扫描器导入」，无法继续。",
+      "runtime": "node",
+      "state": { "owner": "全部 store", "lifecycle": "persisted", "saveKey": "*" },
+      "sideEffects": ["替换全部数据并跑迁移链", "清空角色页的聚焦角色", "立即 SaveState.save()"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["load_save"],
+        "gaps": "load_save 走的是启动载入的语义（sanitize=false）：文件里 scannerSettings.customUrl 为真时会把 websocketUrl 一并恢复，而网页手动载入出于安全考虑不恢复。现在 MCP 没有扫描器客户端，暂无实际影响；接入 scanner 之后，来历不明的存档就能改写扫描连接地址，必须先对齐。",
+        "candidates": ["load_save(sanitize=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "同一存档经网页「载入数据」与 load_save 载入后，SaveState.save() 输出逐键一致",
+          "带自定义 websocketUrl 的存档按手动载入语义载入后，websocketUrl 仍是默认值",
+          "扫描器文件与缺少 relics/characters 的文件被拒绝，当前数据不变"
+        ],
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/parity.mjs"]
+      }
+    },
+    {
+      "id": "import.save.export",
+      "title": "把存档保存为文件",
+      "surface": { "page": "IMPORT", "entry": "「保存数据」页签 →「保存数据」按钮" },
+      "kind": "artifact",
+      "action": "SaveState.save() 取得存档字符串（同时写入 localStorage），生成 text/json Blob，默认文件名 fribbels-optimizer-save.json，交给系统保存。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabImport/ImportTab.tsx", "symbol": "SaveDataSubmenu" },
+        { "file": "src/lib/tabs/tabImport/ImportTab.tsx", "symbol": "saveClicked" },
+        { "file": "src/lib/tabs/tabImport/ImportTab.tsx", "symbol": "saveFile" }
+      ],
+      "conditions": "浏览器支持 File System Access API 且页面不在 iframe 里时弹系统保存对话框，否则退回 <a download> 直接下载。SaveState.save() 被防清空护栏拦截而返回空时不产生文件。",
+      "runtime": "node",
+      "state": { "owner": "SaveState", "lifecycle": "persisted", "saveKey": "*" },
+      "sideEffects": ["写出一个 JSON 文件", "同时刷新 localStorage['state']"],
+      "mcp": { "status": "implemented", "tools": ["export_save"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["export_save 写出的文件与网页「保存数据」下载的文件内容逐键一致，可被两边重新载入"],
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "import.save.clear",
+      "title": "清除全部数据",
+      "surface": { "page": "IMPORT", "entry": "「清除数据」页签 →「清除数据」按钮，经确认框" },
+      "kind": "write",
+      "action": "确认后 persistenceService.resetAll()：放行下一次空保存，再用空的遗器、角色、评分覆盖载入（autosave 取默认 true），5 秒防抖后把清空结果落盘。已读的新功能标记保留。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabImport/ClearDataSubmenu.tsx", "symbol": "ClearDataSubmenu" },
+        { "file": "src/lib/tabs/tabImport/ClearDataSubmenu.tsx", "symbol": "clearDataClicked" },
+        { "file": "src/lib/services/persistenceService.ts", "symbol": "resetAll" }
+      ],
+      "conditions": "必须经过确认框。",
+      "runtime": "node",
+      "state": { "owner": "全部 store", "lifecycle": "persisted", "saveKey": "*" },
+      "sideEffects": ["清空遗器、角色、评分覆盖", "SaveState.permitEmptySave() 后防抖落盘"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["reset_all"],
+        "gaps": "reset_all 只清内存：自动写回被防清空护栏拦住，磁盘上的存档保持原样，要再调一次 export_save 才落盘；网页的清除会自己落盘。",
+        "candidates": ["reset_all(persist=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["reset_all(persist=true) 之后磁盘存档的 relics、characters、scoringMetadataOverrides 为空且 seenFeatures 保留，与网页清除并等待落盘后的存档一致"],
+        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/parity.mjs"]
+      }
+    },
+    {
+      "id": "import.scanner.parseFile",
+      "title": "解析扫描器或 HoYoLAB 文件",
+      "surface": { "page": "IMPORT", "entry": "「遗器扫描导入」页签：上传 .json，或把 JSON 文本粘贴进输入框" },
+      "kind": "read",
+      "action": "按内容判别来源：含 data 字段按 HoYoLAB 解析；否则 source 必须是已知扫描器（HSR-Scanner、Reliquary Archiver、Yas），用对应解析器解析。解析出的角色等级与光锥等级一律改为 80，然后在确认页显示遗器数与角色数。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabImport/ScannerImportSubmenu.tsx", "symbol": "uploadScannerFile" },
+        { "file": "src/lib/tabs/tabImport/ScannerImportSubmenu.tsx", "symbol": "uploadedText" },
+        { "file": "src/lib/importer/importConfig.ts", "symbol": "ScannerSourceToParser" },
+        { "file": "src/lib/importer/hoyoLabFormatParser.tsx", "symbol": "hoyolabParser" }
+      ],
+      "params": [
+        { "name": "file | text", "type": ".json 文件或粘贴的 JSON 文本" }
+      ],
+      "conditions": "实时导入已连接且开启（connected && ingest）时上传按钮和粘贴框禁用。粘贴内容不是合法 JSON 时静默忽略；来源未知或解析出错时提示错误，确认页显示「无遗器」。",
+      "runtime": "node",
+      "state": { "owner": "ScannerImportSubmenu 组件内的待确认数据", "lifecycle": "ephemeral" },
+      "mcp": { "status": "implemented", "tools": ["import_scanner_json", "import_hoyolab"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["同一文件在网页确认页显示的遗器数、角色数与 import_scanner_json / import_hoyolab(dryRun=true) 的统计一致；未知来源两边都报错"],
+        "tests": ["mcp/scripts/smoke-imports.mjs"]
+      }
+    },
+    {
+      "id": "import.scanner.mergeRelicsOnly",
+      "title": "只导入遗器",
+      "surface": { "page": "IMPORT", "entry": "扫描导入确认页 →「导入遗器」按钮" },
+      "kind": "write",
+      "action": "persistenceService.mergeRelics(relics, []) 后防抖保存：导入件按 hash 与库存匹配并覆盖，不新增或修改角色。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabImport/ScannerImportSubmenu.tsx", "symbol": "mergeRelicsConfirmed" },
+        { "file": "src/lib/services/persistenceService.ts", "symbol": "mergeRelics" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "useRelicStore / useCharacterStore", "lifecycle": "persisted", "saveKey": "relics" },
+      "sideEffects": ["重写遗器库存并同步角色装备、已存配装里的遗器引用", "SaveState.delayedSave()"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["import_scanner_json", "import_hoyolab"],
+        "gaps": "两个导入工具总是连同文件里的角色一起导入，没有只导入遗器的分支。",
+        "candidates": ["import_scanner_json(includeCharacters=false)", "import_hoyolab(includeCharacters=false)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["includeCharacters=false、merge=replace 导入后，角色列表不变、遗器库存与网页点「导入遗器」之后的存档一致"],
+        "tests": ["mcp/scripts/smoke-imports.mjs"]
+      }
+    },
+    {
+      "id": "import.scanner.mergeCharacters",
+      "title": "导入角色与遗器",
+      "surface": { "page": "IMPORT", "entry": "扫描导入确认页 →「导入角色与遗器」按钮，经确认框；可勾选「只导入已有角色」" },
+      "kind": "write",
+      "action": "persistenceService.mergeRelics(relics, characters) 后防抖保存：按文件里的角色新建或更新角色并重新穿戴，遗器整库按导入件重置。勾选「只导入已有角色」时先把文件里的角色过滤为库存中已存在的。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabImport/ScannerImportSubmenu.tsx", "symbol": "confirmDataMerge" },
+        { "file": "src/lib/tabs/tabImport/ScannerImportSubmenu.tsx", "symbol": "mergeCharactersConfirmed" },
+        { "file": "src/lib/tabs/tabImport/ScannerImportSubmenu.tsx", "symbol": "setOnlyImportExisting" },
+        { "file": "src/lib/services/persistenceService.ts", "symbol": "mergeRelics" }
+      ],
+      "params": [
+        { "name": "onlyImportExisting", "type": "boolean", "default": "false", "notes": "每次解析新文件后重置为 false" }
+      ],
+      "conditions": "必须经过确认框。库存里没有任何角色时「只导入已有角色」复选框禁用。",
+      "runtime": "node",
+      "state": { "owner": "useRelicStore / useCharacterStore", "lifecycle": "persisted", "saveKey": "relics, characters" },
+      "sideEffects": ["新增角色只对新增的那一批排序，已有角色的顺序保留", "清理重复装备与失效的遗器引用", "SaveState.delayedSave()"],
+      "mcp": { "status": "implemented", "tools": ["import_scanner_json", "import_hoyolab"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "merge=replace 导入后的存档与网页点「导入角色与遗器」之后的存档一致",
+          "existingCharactersOnly=true 与勾选「只导入已有角色」的结果一致"
+        ],
+        "tests": ["mcp/scripts/smoke-imports.mjs"]
+      }
+    },
+    {
+      "id": "import.live.settings",
+      "title": "实时导入的开关与连接地址",
+      "surface": { "page": "IMPORT", "entry": "扫描导入页签「实时导入控制」的四个开关，以及「高级设置」里的 Websocket 地址与重置按钮" },
+      "kind": "write",
+      "action": "逐项写入扫描器设置并防抖保存。已连接时，打开「启用实时导入」或角色相关开关会立刻用最近一次完整扫描数据重新导入一遍；打开跃迁资源开关会重新广播一遍当前数据。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "setIngest" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "setIngestCharacters" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "setIngestOnlyExistingCharacters" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "setIngestWarpResources" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "setWebsocketUrl" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "buildFullScanData" },
+        { "file": "src/lib/tabs/tabImport/ScannerImportSubmenu.tsx", "symbol": "setIngest" }
+      ],
+      "params": [
+        { "name": "ingest", "type": "boolean", "default": "false", "notes": "启用实时导入；为 true 时导入页才挂载 websocket 客户端" },
+        { "name": "ingestCharacters", "type": "boolean", "default": "false", "notes": "同步角色的装备与光锥" },
+        { "name": "ingestOnlyExistingCharacters", "type": "boolean", "default": "false", "notes": "只更新已有角色；仅在 ingestCharacters 打开时显示" },
+        { "name": "ingestWarpResources", "type": "boolean", "default": "false", "notes": "把星琼、专票、保底同步进跃迁规划器" },
+        { "name": "websocketUrl", "type": "string", "default": "ws://127.0.0.1:23313/ws", "notes": "存档里另存 customUrl = 地址是否不同于默认值" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "useScannerState", "lifecycle": "persisted", "saveKey": "scannerSettings" },
+      "sideEffects": ["已连接时可能触发一次整库重新导入", "SaveState.delayedSave()"],
+      "mcp": {
+        "status": "missing",
+        "gaps": "load_save 会把这些设置载入内存，但没有读取或修改的入口。",
+        "candidates": ["get_state(section=scanner)", "update_state(section=scanner)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "逐项修改后导出的存档 scannerSettings（含 customUrl）与网页拨动同一开关后的存档一致",
+          "已连接状态下打开 ingestCharacters 会触发一次按角色的重新导入，结果与网页一致"
+        ]
+      }
+    },
+    {
+      "id": "import.live.connection",
+      "title": "连接实时扫描器",
+      "surface": { "page": "IMPORT", "entry": "打开「启用实时导入」后自动连接；状态显示在开关右侧（已连接 / 未连接）" },
+      "kind": "external",
+      "action": "ingest 为 true 时挂载 websocket 客户端连到 websocketUrl；连上置 connected=true，断开置 false，由 partysocket 自动重连。启用了但连不上时在状态处提示「无法连接扫描器，请确认它在运行」。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabImport/ScannerWebsocketClient.tsx", "symbol": "ScannerWebsocket" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "setConnected" },
+        { "file": "src/lib/tabs/tabImport/ImportTab.tsx", "symbol": "ImportTab" }
+      ],
+      "conditions": "只在 ingest 打开期间保持连接；组件卸载时把 connected 置回 false。连接状态不落盘。",
+      "runtime": "node",
+      "state": { "owner": "useScannerState.connected", "lifecycle": "external" },
+      "mcp": { "status": "missing", "candidates": ["scanner(action=connect)", "scanner(action=disconnect)", "scanner(action=status)"] },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "对本地假扫描器服务：connect 后 status 报告已连接，服务端断开后报告未连接并自动重连",
+          "目标地址不可达时返回明确的连接失败原因，而不是空成功"
+        ]
+      }
+    },
+    {
+      "id": "import.live.events",
+      "title": "应用实时扫描事件",
+      "surface": { "page": "IMPORT", "entry": "连接建立后由扫描器推送，无需操作" },
+      "kind": "write",
+      "action": "逐条处理扫描器事件并防抖保存：InitialScan 记录完整扫描并在 ingest 时整库导入；UpdateRelics 更新单件遗器；UpdateCharacters 新建或更新角色；DeleteRelics 删除遗器；UpdateLightCones / UpdateMaterials / UpdateGachaFunds / DeleteLightCones 只更新扫描器侧的缓存；GachaResult 不写扫描器状态。ingest 打开时每条事件再广播给订阅方（跃迁规划器据此同步资源与保底）。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "initialScan" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "updateInitialScan" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "handleUpdateRelic" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "updateRelic" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "handleUpdateCharacter" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "updateCharacter" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "updateActivatedBuffs" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "handleDeleteRelic" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "deleteRelic" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "updateLightCone" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "deleteLightCone" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "updateMaterial" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "updateGachaFunds" },
+        { "file": "src/lib/tabs/tabImport/ScannerWebsocketClient.tsx", "symbol": "onMessage" }
+      ],
+      "params": [
+        { "name": "event", "type": "'InitialScan' | 'UpdateRelics' | 'UpdateCharacters' | 'DeleteRelics' | 'UpdateLightCones' | 'DeleteLightCones' | 'UpdateMaterials' | 'UpdateGachaFunds' | 'GachaResult'" }
+      ],
+      "conditions": "ingest 关闭时所有事件只更新扫描器缓存、不动库存。UpdateRelics 只落库 5★；库存已有该遗器且 ingestCharacters 关闭时保留原佩戴者；ingestOnlyExistingCharacters 打开且佩戴者不在角色列表时清空佩戴者。UpdateCharacters 需要 ingest 与 ingestCharacters 同时打开；ingestOnlyExistingCharacters 时跳过不存在的角色；强化版角色映射变化时把旧 id 身上的遗器转给新 id。DeleteRelics 只删 5★。InitialScan 导入的角色等级与光锥等级统一为 80。无法识别的事件只记错误日志。",
+      "runtime": "node",
+      "state": { "owner": "useScannerState（扫描缓存）+ useRelicStore / useCharacterStore", "lifecycle": "persisted", "saveKey": "relics, characters" },
+      "sideEffects": [
+        "扫描器缓存（relics、lightCones、materials、characters、gachaFunds、recentRelics、activatedBuffs、lastScanData）只在内存里，不落盘",
+        "当前页是优化器时重绘结果网格",
+        "SaveState.delayedSave()"
+      ],
+      "mcp": {
+        "status": "missing",
+        "gaps": "现有 sync_bridge_* 是反方向（MCP 扮演扫描器向网页推送），不能接收真实扫描器的事件。",
+        "candidates": ["scanner(action=events)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "向 MCP 与网页回放同一段事件序列（InitialScan、UpdateRelics、UpdateCharacters、DeleteRelics、UpdateMaterials、UpdateGachaFunds、UpdateLightCones、DeleteLightCones、GachaResult），两边导出的存档一致",
+          "四种开关组合（ingest × ingestCharacters × ingestOnlyExistingCharacters）下 UpdateRelics 的佩戴者处理与网页一致",
+          "非 5★ 遗器的更新与删除事件不改动库存"
+        ]
+      }
+    },
+    {
+      "id": "import.live.rerollPreview",
+      "title": "重掷前后对比弹窗",
+      "surface": { "page": "IMPORT", "overlay": "RelicRerollModal", "entry": "实时导入收到带 reroll_substats 的遗器更新时自动弹出" },
+      "kind": "compute",
+      "action": "把同一件遗器分别按原副词条和重掷后的副词条解析成两件，并排展示；遗器有佩戴者时按该角色的副词条权重各算一个当前分（SUBSTAT_SCORE），没有佩戴者则不显示分数。一批更新里只展示第一件带重掷的遗器。",
+      "upstream": [
+        { "file": "src/lib/overlays/modals/RelicRerollModal.tsx", "symbol": "RelicRerollModal" },
+        { "file": "src/lib/tabs/tabImport/ScannerWebsocketClient.tsx", "symbol": "closeRerollModal" }
+      ],
+      "conditions": "只在导入页挂载了 websocket 客户端（ingest 打开）时出现。弹窗只做展示，不提供「采用重掷」之类的操作。",
+      "runtime": "node",
+      "state": { "owner": "ScannerWebsocket 组件内的弹窗状态", "lifecycle": "ephemeral" },
+      "mcp": { "status": "missing", "candidates": ["analyze_relic(view=reroll)", "scanner(action=events)"] },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": ["对带 reroll_substats 的遗器事件，返回原/重掷两组副词条及各自的当前分，与弹窗里两张遗器卡的数值一致；无佩戴者时不给分"]
+      }
+    },
+    {
+      "id": "import.help.read",
+      "title": "扫描器说明与外链",
+      "surface": { "page": "IMPORT", "entry": "扫描导入页签顶部的说明列表" },
+      "kind": "read",
+      "action": "列出四种数据来源及其特点和下载/教程链接：Reliquary Archiver、HSR-Scanner、展示柜（站内跳到展示柜页）、HoYoLAB（指向仓库讨论帖）；实时导入说明链接到 docs/guides/en/live-import.md。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabImport/ScannerImportSubmenu.tsx", "symbol": "ScannerImportSubmenu" },
+        { "file": "src/lib/tabs/tabImport/ReliquaryDescription.tsx", "symbol": "ReliquaryDescription" },
+        { "file": "src/lib/importer/importConfig.ts", "symbol": "KelzScannerConfig" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "无", "lifecycle": "none" },
+      "mcp": { "status": "missing", "candidates": ["site://help/{topic}", "site://links"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["site://help/import 列出四种来源的名称、说明与链接，与导入页当前语言下的内容一致"]
+      }
+    },
+    {
+      "id": "import.bridge.push",
+      "title": "把 MCP 的存档推送给网页（同步桥）",
+      "surface": { "page": "IMPORT", "entry": "网页端打开实时导入并保持默认地址，由 MCP 侧启动服务" },
+      "kind": "external",
+      "action": "MCP 在本机扮演 Reliquary Archiver 的 websocket 服务：网页连上即收到全量 InitialScan，此后每次存档变更自动重推，MCP 侧删除的遗器以 DeleteRelics 先行同步。方向只有 MCP → 网页。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabImport/ScannerWebsocketClient.tsx", "symbol": "ScannerWebsocket" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "DEFAULT_WEBSOCKET_URL" }
+      ],
+      "conditions": "网页端必须自己打开「启用实时导入」；要同步角色还需打开角色更新开关。这不是网站已有的功能，而是借用网站的实时导入通道。",
+      "runtime": "node",
+      "state": { "owner": "MCP 进程内的桥服务", "lifecycle": "external" },
+      "mcp": { "status": "implemented", "tools": ["sync_bridge_start", "sync_bridge_status", "sync_bridge_stop", "sync_bridge_push"] },
+      "scope": "enhancement",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["启动桥并连接后，网页端库存与 MCP 当前存档的遗器、角色一致；MCP 侧删除遗器后网页端同步删除"],
+        "tests": ["mcp/scripts/smoke-misc.mjs"]
+      }
+    }
+  ]
+}

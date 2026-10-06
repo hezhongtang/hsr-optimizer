@@ -1,0 +1,41 @@
+{
+  "area": "webgpu",
+  "title": "WebGPU 测试页",
+  "features": [
+    {
+      "id": "webgpu.tests.run",
+      "title": "运行 WebGPU 一致性测试",
+      "surface": { "page": "WEBGPU_TEST", "entry": "页面顶部的「Run all WebGPU tests」按钮。页面没有侧边栏入口，只能在地址栏输入 #webgpu 打开" },
+      "kind": "compute",
+      "action": "批量生成测试用例，每个用例把同一份请求和同一套固定遗器分别交给 CPU 和 GPU 计算，逐项比较全部面板属性和伤害数值，差值在允许精度内算通过。用例包括：每个饰品套装、每个遗器套装、列表里每个角色的满星魂满叠影配置，以及每把四星和三星光锥。用例逐个执行，执行完的排到前面，其中有失败项的排在最前。展开一个用例可以看逐项对照表：属性、CPU 值、GPU 值、差值、允许精度。全部跑完后按钮变绿，可以再点一次重跑。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabWebgpu/WebgpuTab.tsx", "symbol": "WebgpuDashboard" },
+        { "file": "src/lib/tabs/tabWebgpu/WebgpuTab.tsx", "symbol": "startTests" },
+        { "file": "src/lib/gpu/tests/webgpuTestGenerator.ts", "symbol": "generateAllTests" },
+        { "file": "src/lib/gpu/tests/webgpuTestUtils.ts", "symbol": "runTestRequest" },
+        { "file": "src/lib/gpu/tests/webgpuTestUtils.ts", "symbol": "testWrapper" }
+      ],
+      "conditions": "需要浏览器支持 WebGPU；拿不到 GPU 设备时点按钮没有任何反应，也没有提示。执行期间按钮不可点。",
+      "runtime": "browser",
+      "state": { "owner": "WebgpuDashboard 的本地状态", "lifecycle": "ephemeral" },
+      "sideEffects": [
+        "把全局调试开关 WEBGPU_DEBUG 打开且不再关闭：之后本次会话里光锥即使与角色命途不符也会生效，刷新页面才恢复"
+      ],
+      "mcp": {
+        "status": "missing",
+        "gaps": "MCP 没有浏览器运行环境，无法执行 GPU 计算，也就没有 CPU 与 GPU 的一致性校验。",
+        "candidates": ["debug_utility(action=webgpu_tests)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "在受管浏览器里执行后返回的用例数、每个用例是否通过与网页端手动点按钮跑完后一致",
+          "有失败项时返回具体的属性名、CPU 值、GPU 值、差值和允许精度",
+          "浏览器不支持 WebGPU 时返回明确的不可用原因，而不是零个用例",
+          "测试在独立页面里运行，跑完后其他计算不受调试开关影响"
+        ]
+      }
+    }
+  ]
+}

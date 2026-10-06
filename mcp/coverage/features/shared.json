@@ -1,0 +1,81 @@
+{
+  "area": "shared",
+  "title": "跨页面共用的选择器",
+  "features": [
+    {
+      "id": "shared.select.character",
+      "title": "从角色选择弹窗里挑角色",
+      "surface": { "page": "GLOBAL", "overlay": "角色选择弹窗", "entry": "各页面里显示角色名的只读输入框：优化器的角色与队友、角色编辑弹窗、评分设置弹窗、基准生成器、跃迁规划的目标、遗器页顶栏、队伍展示的槽位、套装基准审计" },
+      "kind": "read",
+      "action": "点输入框打开弹窗，里面是全部角色的卡片。可以按名字搜索，按属性和命途多选筛选，点卡片选中并关闭；在搜索框里按回车直接选中第一个结果。卡片按名称排序，已经出了换代升级版的旧角色排在最后。输入框右侧的叉可以清空选择。每次打开弹窗筛选条件都会重置。",
+      "upstream": [
+        { "file": "src/lib/ui/selectors/CharacterSelect.tsx", "symbol": "CharacterSelect" },
+        { "file": "src/lib/ui/selectors/CardSelectModalComponents.tsx", "symbol": "SegmentedFilterRow" },
+        { "file": "src/lib/ui/selectors/SelectCardGrid.tsx", "symbol": "SelectCardGrid" },
+        { "file": "src/lib/ui/selectors/optionGenerator.ts", "symbol": "generateCharacterOptions" },
+        { "file": "src/lib/ui/selectors/selectConstants.ts", "symbol": "applyCharacterFilters" },
+        { "file": "src/lib/ui/selectors/useSelectModal.ts", "symbol": "useSelectModal" }
+      ],
+      "params": [
+        { "name": "name", "type": "string", "default": "空", "notes": "按当前语言的角色长名做不区分大小写的包含匹配" },
+        { "name": "element", "type": "属性多选", "default": "不限" },
+        { "name": "path", "type": "命途多选", "default": "不限" }
+      ],
+      "conditions": "基准生成器和套装基准审计只列出有输出类模拟评分配置的角色。个别入口不允许清空选择。",
+      "runtime": "node",
+      "state": { "owner": "useSelectModal 的本地筛选状态", "lifecycle": "ephemeral" },
+      "mcp": {
+        "status": "partial",
+        "resources": ["game://metadata/characters"],
+        "gaps": "角色列表资源给出了编号、名字、稀有度、命途、属性和是否为换代前旧角色，调用方可以自行筛选；但没有标明哪些角色有模拟评分配置，长名也只在单角色详情里。",
+        "candidates": ["game://metadata/characters(hasSimulation)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "资源返回的角色集合与网页端弹窗不加筛选时的卡片集合一致",
+          "按命途和属性筛选后的角色集合与网页端点对应筛选标签后一致",
+          "标为有模拟评分配置的角色集合与基准生成器弹窗里列出的角色一致"
+        ],
+        "tests": ["mcp/scripts/smoke-conditionals.mjs"]
+      }
+    },
+    {
+      "id": "shared.select.lightCone",
+      "title": "从光锥选择弹窗里挑光锥",
+      "surface": { "page": "GLOBAL", "overlay": "光锥选择弹窗", "entry": "各页面里显示光锥名的只读输入框：优化器的角色与队友、角色编辑弹窗、基准生成器、跃迁规划的目标、套装基准审计" },
+      "kind": "read",
+      "action": "点输入框打开弹窗，里面是全部光锥的卡片。可以按名字搜索，按稀有度和命途多选筛选，点卡片选中并关闭；在搜索框里按回车直接选中第一个结果。已经选了角色时，命途筛选默认就是该角色的命途，该角色的五星专属光锥排在最前并有专门的样式。输入框右侧的叉可以清空选择。",
+      "upstream": [
+        { "file": "src/lib/ui/selectors/LightConeSelect.tsx", "symbol": "LightConeSelect" },
+        { "file": "src/lib/ui/selectors/optionGenerator.ts", "symbol": "generateLightConeOptions" },
+        { "file": "src/lib/ui/selectors/SelectCardGrid.tsx", "symbol": "signatureId" }
+      ],
+      "params": [
+        { "name": "name", "type": "string", "default": "空", "notes": "按当前语言的光锥名做不区分大小写的包含匹配" },
+        { "name": "rarity", "type": "稀有度多选", "default": "不限" },
+        { "name": "path", "type": "命途多选", "default": "已选角色时为该角色的命途，否则不限" }
+      ],
+      "conditions": "命途默认筛选只是初值，可以取消后选其他命途的光锥。每次打开弹窗筛选条件都会重置为初值。",
+      "runtime": "node",
+      "state": { "owner": "useSelectModal 的本地筛选状态", "lifecycle": "ephemeral" },
+      "mcp": {
+        "status": "partial",
+        "resources": ["game://metadata/lightcones"],
+        "gaps": "光锥列表资源给出了编号、名字、稀有度和命途，调用方可以自行筛选；但读不到某个角色的专属光锥是哪一把。",
+        "candidates": ["game://metadata/characters/{id}(signatureLightCone)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "资源返回的光锥集合与网页端弹窗不加筛选时的卡片集合一致",
+          "按角色命途筛选后的光锥集合与网页端为该角色打开弹窗时默认显示的一致",
+          "返回的角色专属光锥与网页端弹窗里排在最前的那一把一致"
+        ],
+        "tests": ["mcp/scripts/smoke-conditionals.mjs"]
+      }
+    }
+  ]
+}

@@ -22,7 +22,9 @@
     "smoke:imports": "node scripts/smoke-imports.mjs",
     "smoke:misc": "node scripts/smoke-misc.mjs",
     "smoke:all": "node scripts/smoke.mjs && node scripts/smoke-query.mjs && node scripts/smoke-equip.mjs && node scripts/smoke-shutdown.mjs && node scripts/parity.mjs && node scripts/smoke-conditionals.mjs && node scripts/smoke-simulation.mjs && node scripts/smoke-imports.mjs && node scripts/smoke-misc.mjs && node scripts/smoke-archive.mjs && node scripts/smoke-optimizer-generation.mjs && node scripts/smoke-form-overrides.mjs",
-    "parity": "node scripts/parity.mjs"
+    "parity": "node scripts/parity.mjs",
+    "coverage:census": "node scripts/coverage-census.mjs",
+    "coverage:check": "node scripts/coverage-check.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

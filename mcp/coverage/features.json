@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "baseline": {
+    "commit": "6280c61c",
+    "srcTree": "838f222f2f33b1d76b986d6eb3ab7b5f57403197"
+  },
+  "toolBudget": 70,
+  "areas": [
+    {
+      "id": "global",
+      "file": "features/global.json"
+    },
+    {
+      "id": "home",
+      "file": "features/home.json"
+    },
+    {
+      "id": "changelog",
+      "file": "features/changelog.json"
+    },
+    {
+      "id": "import",
+      "file": "features/import.json"
+    },
+    {
+      "id": "characters",
+      "file": "features/characters.json"
+    },
+    {
+      "id": "preview",
+      "file": "features/preview.json"
+    },
+    {
+      "id": "teams",
+      "file": "features/teams.json"
+    },
+    {
+      "id": "relics",
+      "file": "features/relics.json"
+    },
+    {
+      "id": "optimizer",
+      "file": "features/optimizer.json"
+    },
+    {
+      "id": "showcase",
+      "file": "features/showcase.json"
+    },
+    {
+      "id": "warp",
+      "file": "features/warp.json"
+    },
+    {
+      "id": "benchmarks",
+      "file": "features/benchmarks.json"
+    },
+    {
+      "id": "calculators",
+      "file": "features/calculators.json"
+    },
+    {
+      "id": "leaderboard",
+      "file": "features/leaderboard.json"
+    },
+    {
+      "id": "webgpu",
+      "file": "features/webgpu.json"
+    },
+    {
+      "id": "metadata",
+      "file": "features/metadata.json"
+    },
+    {
+      "id": "shared",
+      "file": "features/shared.json"
+    }
+  ]
+}

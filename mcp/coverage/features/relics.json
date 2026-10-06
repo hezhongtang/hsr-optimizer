@@ -1,0 +1,391 @@
+{
+  "area": "relics",
+  "title": "遗器页与遗器弹窗",
+  "features": [
+    {
+      "id": "relics.grid.read",
+      "title": "浏览遗器库存表格",
+      "surface": { "page": "RELICS", "entry": "遗器页的主表格" },
+      "kind": "read",
+      "action": "分页表格列出全部遗器：装备者、套装、星级、强化、部位、主词条与数值、12 项副词条数值，以及用户勾选的评分列。评分在 worker 里对全部角色算好（scoreRelicsAsync）：选中角色的当前分与潜力、重掷期望及其差值，以及「自定义角色集」和「全部角色」两个范围里的最高潜力。点列头可按任一列排序。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabRelics/RelicsGrid.tsx", "symbol": "RelicsGrid" },
+        { "file": "src/lib/tabs/tabRelics/columnDefs.ts", "symbol": "generateBaselineColDefs" },
+        { "file": "src/lib/tabs/tabRelics/columnDefs.ts", "symbol": "generateOptionalColDefs" },
+        { "file": "src/lib/worker/scoreRelicsWorkerRunner.ts", "symbol": "scoreRelicsAsync" }
+      ],
+      "conditions": "评分列依赖选中角色（见 relics.focusCharacter.set）和排除列表（见 relics.potential.excludeCharacters）；评分权重变化后整表重算。没选角色时选中角色相关的列为空。",
+      "runtime": "node",
+      "state": { "owner": "useRelicStore + scoreRelicsAsync 的结果", "lifecycle": "derived" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["list_relics", "score_relics"],
+        "gaps": "score_relics 只给针对一个角色的当前分、潜力与重掷期望；表格里「自定义角色集」「全部角色」两个范围的最高潜力与重掷列、重掷相对已装备遗器的差值都没有。排序只支持强化和星级，不能按分数或副词条排。list_relics 的说明把它写成优化器页左侧的遗器浏览，实际对应的是这张表。",
+        "candidates": ["score_relics(scope=selected|custom|all)", "list_relics(sortBy=...)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "同一角色下逐件返回的当前分、平均潜力、最高潜力、重掷期望与表格对应列一致",
+          "「全部角色」范围的最高潜力与表格里 potentialAllAll.bestPct 列一致",
+          "按最高潜力降序返回的前 20 件与表格按该列排序后的前 20 行一致"
+        ],
+        "tests": ["mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-imports.mjs"]
+      }
+    },
+    {
+      "id": "relics.grid.filter",
+      "title": "筛选遗器表格",
+      "surface": { "page": "RELICS", "entry": "表格上方的筛选条（两行下拉药丸）与「清除」按钮" },
+      "kind": "view",
+      "action": "九组多选筛选，组间取交集、组内取并集（副词条例外，要求全部命中）：部位、主词条、副词条、强化、星级、初始词条数、是否已装备、是否已校验、套装（遗器套装与饰品套装两个下拉写同一组）。「清除」把九组全部置空。筛选只在会话内保留。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabRelics/topBar/FilterPillBar.tsx", "symbol": "FilterPillBar" },
+        { "file": "src/lib/tabs/tabRelics/topBar/FilterPill.tsx", "symbol": "FilterPillInner" },
+        { "file": "src/lib/tabs/tabRelics/topBar/TopBar.tsx", "symbol": "resetFilters" },
+        { "file": "src/lib/tabs/tabRelics/RelicsGrid.tsx", "symbol": "doesExternalFilterPass" },
+        { "file": "src/lib/tabs/tabRelics/useRelicsTabStore.ts", "symbol": "setFilter" },
+        { "file": "src/lib/tabs/tabRelics/useRelicsTabStore.ts", "symbol": "setFilters" },
+        { "file": "src/lib/tabs/tabRelics/useRelicsTabStore.ts", "symbol": "resetFilters" }
+      ],
+      "params": [
+        { "name": "part", "type": "Parts[]", "default": "[]" },
+        { "name": "mainStat", "type": "MainStats[]", "default": "[]" },
+        { "name": "subStat", "type": "SubStats[]", "default": "[]", "notes": "每一项都要出现在遗器的副词条或预览副词条里" },
+        { "name": "enhance", "type": "number[]", "default": "[]", "notes": "可选 0、3、6、9、12、15；每个值匹配 x 到 x+2 的强化等级" },
+        { "name": "grade", "type": "number[]", "default": "[]", "notes": "5、4、3、2" },
+        { "name": "initialRolls", "type": "number[]", "default": "[]", "notes": "4 或 3；遗器没有记录时按 3" },
+        { "name": "equipped", "type": "boolean[]", "default": "[]" },
+        { "name": "verified", "type": "boolean[]", "default": "[]", "notes": "没有记录时按未校验" },
+        { "name": "set", "type": "Sets[]", "default": "[]", "notes": "未上线的套装不在选项里" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "useRelicsTabStore.filters", "lifecycle": "session" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["list_relics", "score_relics"],
+        "gaps": "每个条件只能传一个值；强化是精确匹配而不是三级一档；副词条只能要求一个且不看预览副词条；没有初始词条数这个条件。",
+        "candidates": ["list_relics(filters=...)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "部位选头部和手部、强化选 12、副词条选暴击率和暴击伤害时，返回的遗器集合与表格筛选后的行一致",
+          "初始词条数选 4 时两边结果一致，未记录初始词条数的遗器不在其中"
+        ],
+        "tests": ["mcp/scripts/smoke-query.mjs"]
+      }
+    },
+    {
+      "id": "relics.grid.valueColumns",
+      "title": "选择表格显示哪些评分列",
+      "surface": { "page": "RELICS", "entry": "筛选条右侧的评分列多选" },
+      "kind": "view",
+      "action": "从 17 个可选评分列里勾选要显示的列，分三组：选中角色（当前分、平均与最高潜力、重掷期望及相对当前和相对已装备的差值、锁定一条词条后的重掷期望及差值）、自定义角色集、全部角色（各有平均与最高潜力、重掷与锁定重掷）。选择只在会话内保留。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabRelics/topBar/FilterPillBar.tsx", "symbol": "setValueColumns" },
+        { "file": "src/lib/tabs/tabRelics/columnDefs.ts", "symbol": "generateValueColumnOptions" },
+        { "file": "src/lib/tabs/tabRelics/useRelicsTabStore.ts", "symbol": "setValueColumns" }
+      ],
+      "params": [
+        {
+          "name": "valueColumns",
+          "type": "ValueColumnField[]",
+          "default": "当前分、重掷期望及差值、选中角色的平均与最高潜力、自定义角色集的平均与最高潜力，共 7 列",
+          "notes": "字段名形如 weights.currentPct、weights.potentialAllAll.bestPct"
+        }
+      ],
+      "runtime": "node",
+      "state": { "owner": "useRelicsTabStore.valueColumns", "lifecycle": "session" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["score_relics"],
+        "gaps": "返回的字段是固定的一组，不能点名要哪些列，而且缺的正是表格里可选的那些范围列（见 relics.grid.read）。",
+        "candidates": ["score_relics(scope=selected|custom|all)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["要求返回 17 个评分列里的任意一列时，数值与表格勾选该列后显示的一致"],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "relics.focusCharacter.set",
+      "title": "选择用于评分的角色",
+      "surface": { "page": "RELICS", "entry": "遗器页左上角的头像或角色名" },
+      "kind": "view",
+      "action": "选定一个角色作为遗器评分的基准：表格的选中角色列、底部遗器卡的分数、稀有度分析都按它的权重计算。只在会话内保留。旁边的「评分算法」按钮以该角色打开评分权重弹窗。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabRelics/topBar/TopBar.tsx", "symbol": "TopBar" },
+        { "file": "src/lib/tabs/tabRelics/topBar/TopBar.tsx", "symbol": "handleScoringClick" },
+        { "file": "src/lib/tabs/tabRelics/useRelicsTabStore.ts", "symbol": "setFocusCharacter" }
+      ],
+      "params": [{ "name": "focusCharacter", "type": "CharacterId | null", "default": "null", "notes": "可选任意角色，不限已拥有" }],
+      "runtime": "node",
+      "state": { "owner": "useRelicsTabStore.focusCharacter", "lifecycle": "session" },
+      "mcp": { "status": "implemented", "tools": ["score_relics"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["score_relics 传 characterId 得到的逐件分数，与遗器页选中同一角色后表格里的当前分一致；不传时两边都没有分数"],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "relics.potential.excludeCharacters",
+      "title": "设置潜力计算的自定义角色集",
+      "surface": { "page": "RELICS", "entry": "筛选条里的角色多选（自定义潜力角色）" },
+      "kind": "write",
+      "action": "勾掉不想参与「自定义角色集」潜力计算的角色，写入 excludedRelicPotentialCharacters 并防抖保存。影响表格的自定义范围列，以及洞察面板在「自定义」角色范围下的结果。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabRelics/topBar/FilterPillBar.tsx", "symbol": "onExcludedCharactersChange" },
+        { "file": "src/lib/ui/selectors/CharacterMultiSelect.tsx", "symbol": "CharacterMultiSelect" },
+        { "file": "src/lib/tabs/tabRelics/useRelicsTabStore.ts", "symbol": "setExcludedRelicPotentialCharacters" }
+      ],
+      "params": [{ "name": "excluded", "type": "CharacterId[]", "default": "[]", "notes": "存的是被排除的角色" }],
+      "runtime": "node",
+      "state": { "owner": "useRelicsTabStore.excludedRelicPotentialCharacters", "lifecycle": "persisted", "saveKey": "excludedRelicPotentialCharacters" },
+      "sideEffects": ["SaveState.delayedSave()", "整表重新评分"],
+      "mcp": { "status": "missing", "candidates": ["get_state(section=relicsTab)", "update_state(section=relicsTab)"] },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": ["排除两名角色后两边存档的 excludedRelicPotentialCharacters 一致，自定义范围的最高潜力随之变化且与表格一致"]
+      }
+    },
+    {
+      "id": "relics.select",
+      "title": "选中遗器",
+      "surface": { "page": "RELICS", "entry": "点击表格行（可多选）、方向键移动，或点击「最近更新的遗器」里的卡片" },
+      "kind": "view",
+      "action": "记录选中的遗器 id 列表，最后选中的那件作为当前遗器：底部显示它的遗器卡、位置提示和洞察面板，编辑与删除按钮作用于选中项。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabRelics/relicsTabController.ts", "symbol": "onSelectionChanged" },
+        { "file": "src/lib/tabs/tabRelics/relicsTabController.ts", "symbol": "nodeClickedCallback" },
+        { "file": "src/lib/tabs/tabRelics/relicsTabController.ts", "symbol": "navigateToNextCell" },
+        { "file": "src/lib/tabs/tabRelics/RecentRelicCard.tsx", "symbol": "setSelectedRelicID" },
+        { "file": "src/lib/tabs/tabRelics/RecentRelics.tsx", "symbol": "RecentRelics" },
+        { "file": "src/lib/tabs/tabRelics/useRelicsTabStore.ts", "symbol": "setSelectedRelicsIds" },
+        { "file": "src/lib/interactions/arrowKeyGridNavigation.ts", "symbol": "arrowKeyGridNavigation" }
+      ],
+      "params": [{ "name": "selectedRelicsIds", "type": "RelicId[]", "default": "[]" }],
+      "runtime": "node",
+      "state": { "owner": "useRelicsTabStore.selectedRelicsIds", "lifecycle": "session" },
+      "mcp": { "status": "implemented", "tools": ["list_relics"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["网页里选中遗器后的每个后续操作，在 MCP 侧都以遗器 id 作为参数直接指定，不需要先「选中」；list_relics 返回的 id 可直接用于这些操作"],
+        "tests": ["mcp/scripts/smoke-query.mjs"]
+      }
+    },
+    {
+      "id": "relics.recent.read",
+      "title": "查看最近更新的遗器",
+      "surface": { "page": "RELICS", "entry": "实时导入连接后，表格上方出现的「最近更新的遗器」折叠区" },
+      "kind": "read",
+      "action": "显示扫描器最近推送的至多 6 件遗器，每张卡带选中角色下的当前分、平均与最高潜力，以及这件遗器最适合的几名角色各自的潜力；点击即在表格里选中它。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabRelics/RecentRelics.tsx", "symbol": "RecentRelics" },
+        { "file": "src/lib/tabs/tabRelics/RecentRelicCard.tsx", "symbol": "RecentRelicCard" },
+        { "file": "src/lib/tabs/tabRelics/RelicsTab.tsx", "symbol": "hasRecentRelics" }
+      ],
+      "conditions": "只有扫描器处于已连接状态且收到过遗器更新时才显示。",
+      "runtime": "node",
+      "state": { "owner": "useScannerState.recentRelics", "lifecycle": "session" },
+      "mcp": { "status": "missing", "candidates": ["scanner(action=events)"] },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": ["扫描器推送三件遗器后，返回的最近遗器 id 及顺序与折叠区里的卡片一致"]
+      }
+    },
+    {
+      "id": "relics.upsert",
+      "title": "新增或编辑遗器",
+      "surface": { "page": "RELICS", "overlay": "RelicModal", "entry": "底部工具栏的「添加遗器」「编辑遗器」，双击表格行，或点击底部的遗器卡" },
+      "kind": "write",
+      "action": "在弹窗里填部位、套装、强化、星级、主词条、装备者和至多 4 条副词条。换部位时主词条重置为该部位的第一项，套装类型不匹配时换成同类的第一项；主词条数值按星级和强化自动算出。每条副词条旁有低、中、高三个按钮，点一下把该词条加一次强化并把强化等级进到下一个 3 的倍数；也可以把一条副词条标成「预览」（尚未解锁的词条）。提交时校验后写入库存并处理装备关系，内容有变化的遗器失去已校验标记。",
+      "upstream": [
+        { "file": "src/lib/overlays/modals/relicModal/RelicModal.tsx", "symbol": "RelicModal" },
+        { "file": "src/lib/overlays/modals/relicModal/RelicModalContent.tsx", "symbol": "RelicModalContent" },
+        { "file": "src/lib/overlays/modals/relicModal/SubstatInput.tsx", "symbol": "SubstatInput" },
+        { "file": "src/lib/overlays/modals/relicModal/SubstatInput.tsx", "symbol": "UpgradeButton" },
+        { "file": "src/lib/overlays/modals/relicModal/relicModalController.ts", "symbol": "validateRelic" },
+        { "file": "src/lib/overlays/modals/relicModal/relicModalController.ts", "symbol": "computeInitialFormValues" },
+        { "file": "src/lib/overlays/modals/relicModal/relicModalController.ts", "symbol": "computeMainStatOptions" },
+        { "file": "src/lib/overlays/modals/relicModal/relicModalController.ts", "symbol": "computeMainStatDisplayValue" },
+        { "file": "src/lib/overlays/modals/relicModal/relicModalController.ts", "symbol": "computePartChangeUpdates" },
+        { "file": "src/lib/overlays/modals/relicModal/relicModalController.ts", "symbol": "calculateUpgradeValues" },
+        { "file": "src/lib/overlays/modals/relicModal/relicModalController.ts", "symbol": "onEditOk" },
+        { "file": "src/lib/tabs/tabRelics/relicsTabController.ts", "symbol": "onRelicModalOk" },
+        { "file": "src/lib/tabs/tabRelics/relicsTabController.ts", "symbol": "addClicked" },
+        { "file": "src/lib/tabs/tabRelics/relicsTabController.ts", "symbol": "editClicked" },
+        { "file": "src/lib/tabs/tabRelics/relicsTabController.ts", "symbol": "onRowDoubleClicked" },
+        { "file": "src/lib/tabs/tabRelics/bottomDock/BottomToolbar.tsx", "symbol": "BottomToolbarRight" },
+        { "file": "src/lib/tabs/tabRelics/bottomDock/ScoredRelicPreview.tsx", "symbol": "ScoredRelicPreview" },
+        { "file": "src/lib/tabs/tabRelics/RelicPreview.tsx", "symbol": "cardClicked" },
+        { "file": "src/lib/services/equipmentService.ts", "symbol": "upsertRelicWithEquipment" },
+        { "file": "src/lib/services/equipmentService.ts", "symbol": "equipRelic" },
+        { "file": "src/lib/stores/relic/relicStore.ts", "symbol": "upsertRelic" }
+      ],
+      "params": [
+        { "name": "part", "type": "Parts", "default": "Head" },
+        { "name": "set", "type": "Sets", "notes": "必填；遗器套装只能配四个遗器部位，饰品套装只能配位面球和连结绳" },
+        { "name": "grade", "type": "2-5", "default": "5" },
+        { "name": "enhance", "type": "0-15", "default": "15", "notes": "不能超过 星级 × 3" },
+        { "name": "mainStatType", "type": "MainStats", "default": "该部位的第一项", "notes": "数值由星级与强化推出，不能手填" },
+        { "name": "equippedBy", "type": "CharacterId | 'None'", "default": "None" },
+        { "name": "substats", "type": "{ stat, value }[]", "notes": "至多 4 条；不能重复，不能与主词条相同；数值大于 0 且小于 1000" },
+        { "name": "previewSubstats", "type": "{ stat, value }[]", "notes": "标成预览的副词条，数值存在这里" }
+      ],
+      "conditions": "实时导入开启时「添加」按钮禁用，弹窗里提示改动可能被覆盖；「编辑」要求恰好选中一件。编辑时改了部位或清空装备者会先卸下；装备给新角色时按全局装备行为处理该槽位原来的遗器。优化器结果预览里打开的同一弹窗还带上一件、下一件箭头（见 optimizer 域）。",
+      "runtime": "node",
+      "state": { "owner": "useRelicStore + useCharacterStore", "lifecycle": "persisted", "saveKey": "relics / characters[].equipped" },
+      "sideEffects": ["SaveState.delayedSave()", "编辑后重算优化器排列数（recalculatePermutations）", "内容变化的遗器 verified 置为 false", "RelicAugmenter.augment 补全派生字段"],
+      "mcp": {
+        "status": "missing",
+        "gaps": "没有新增或编辑单件遗器的工具；equip_build 能改装备关系，但改不了遗器本身的词条。",
+        "candidates": ["upsert_relic"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "export",
+      "acceptance": {
+        "cases": [
+          "用同样的字段新增一件遗器后，两边存档里这件遗器除 id 外一致（含主词条数值与派生字段）",
+          "强化等级超过星级允许的上限、副词条重复、副词条与主词条相同、套装与部位类型不符时，两边都拒绝",
+          "把一件已装备的遗器改到别的部位后，原装备者对应槽位清空，两边一致",
+          "编辑已校验遗器的副词条数值后 verified 变为 false"
+        ]
+      }
+    },
+    {
+      "id": "relics.delete",
+      "title": "删除遗器",
+      "surface": { "page": "RELICS", "overlay": "确认弹窗", "entry": "底部工具栏的「删除遗器」" },
+      "kind": "write",
+      "action": "确认后把选中的每件遗器从装备者身上卸下并从库存删除，清空选中项，允许保存空库存并防抖保存。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabRelics/relicsTabController.ts", "symbol": "deleteConfirmed" },
+        { "file": "src/lib/tabs/tabRelics/bottomDock/BottomToolbar.tsx", "symbol": "openConfirmModal" },
+        { "file": "src/lib/services/equipmentService.ts", "symbol": "removeRelic" },
+        { "file": "src/lib/stores/relic/relicStore.ts", "symbol": "deleteRelic" }
+      ],
+      "params": [{ "name": "relicIds", "type": "RelicId[]", "notes": "当前选中的全部遗器" }],
+      "conditions": "没有选中项或实时导入开启时按钮禁用。确认弹窗里写明要删除的件数。",
+      "runtime": "node",
+      "state": { "owner": "useRelicStore + useCharacterStore", "lifecycle": "persisted", "saveKey": "relics / characters[].equipped" },
+      "sideEffects": ["SaveState.permitEmptySave()", "SaveState.delayedSave()"],
+      "mcp": { "status": "missing", "candidates": ["delete_relics"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "删除两件遗器（其中一件已装备）后，两边存档的 relics 少了这两件，原装备者对应槽位为空",
+          "删光全部遗器后存档仍能保存且 relics 为空数组"
+        ]
+      }
+    },
+    {
+      "id": "relics.card.read",
+      "title": "查看选中遗器的评分卡",
+      "surface": { "page": "RELICS", "entry": "表格下方左侧的遗器卡" },
+      "kind": "read",
+      "action": "显示选中遗器的卡片：套装、主副词条，以及在选中角色权重下的当前分与评级（RelicScorer.scoreCurrentRelic）。点击卡片打开编辑弹窗。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabRelics/bottomDock/ScoredRelicPreview.tsx", "symbol": "ScoredRelicPreview" },
+        { "file": "src/lib/tabs/tabRelics/bottomDock/useRelicScore.ts", "symbol": "useRelicScore" },
+        { "file": "src/lib/tabs/tabRelics/RelicPreview.tsx", "symbol": "RelicPreview" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "useRelicsTabStore.selectedRelicId（派生）", "lifecycle": "derived" },
+      "mcp": { "status": "implemented", "tools": ["score_relics", "list_relics"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["对同一件遗器和同一角色，score_relics 返回的 percentScore 与评级和卡片上显示的一致"],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "relics.locator",
+      "title": "定位遗器在游戏背包里的位置",
+      "surface": { "page": "RELICS", "entry": "表格下方左侧的位置提示条；点开可设置背包宽度与行数上限。设置里开启后遗器弹窗内也显示" },
+      "kind": "compute",
+      "action": "按获取顺序（ageIndex）数出比这件遗器更新的同部位遗器有多少件，换算成游戏背包里按部位筛选后的第几行第几列；如果超出「行数上限 × 背包宽度」，就改为同时按套装筛选后再数，并提示需要加套装筛选。背包宽度与行数上限在弹出层关闭时防抖保存。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabRelics/RelicLocator.tsx", "symbol": "RelicLocator" },
+        { "file": "src/lib/tabs/tabRelics/RelicLocator.tsx", "symbol": "setInventoryWidth" },
+        { "file": "src/lib/tabs/tabRelics/RelicLocator.tsx", "symbol": "setRowLimit" },
+        { "file": "src/lib/tabs/tabRelics/bottomDock/BottomToolbar.tsx", "symbol": "BottomToolbarLeft" }
+      ],
+      "params": [
+        { "name": "relicId", "type": "RelicId", "notes": "当前选中的遗器" },
+        { "name": "inventoryWidth", "type": "number", "default": "9", "notes": "最小 1；清空时回到默认值" },
+        { "name": "rowLimit", "type": "number", "default": "10", "notes": "最小 1；清空时回到默认值" }
+      ],
+      "conditions": "没有选中遗器时显示「未选择」。位置依赖遗器的 ageIndex，手工新增的遗器没有游戏内顺序可言。",
+      "runtime": "node",
+      "state": { "owner": "useRelicLocatorStore", "lifecycle": "persisted", "saveKey": "relicLocator" },
+      "sideEffects": ["关闭设置弹出层时 SaveState.delayedSave()"],
+      "mcp": { "status": "missing", "candidates": ["analyze_relic(view=location)", "update_state(section=relicsTab)"] },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "同一件遗器返回的行、列与是否需要套装筛选，和位置提示条显示的一致",
+          "把背包宽度改为 8 后两边存档的 relicLocator.inventoryWidth 都是 8，行列随之变化"
+        ]
+      }
+    },
+    {
+      "id": "relics.insights.read",
+      "title": "遗器洞察：这件遗器适合哪些角色",
+      "surface": { "page": "RELICS", "entry": "表格下方右侧的洞察面板及其上方的三个切换控件" },
+      "kind": "compute",
+      "action": "对选中遗器，在选定的角色范围（全部、自定义、已拥有）里逐个计算潜力（scoreRelicPotential），去掉最高潜力为 0 的角色后按最高潜力降序。三种视图：分桶图把角色按最高潜力或平均潜力（可切换）落进 10 个百分比区间；前十名图列出潜力最高的角色；稀有度视图给出这件遗器在选中角色权重下的预计刷取天数与重掷分析。点图上的角色头像以该角色打开评分权重弹窗。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabRelics/relicInsightsPanel/RelicInsightsPanel.tsx", "symbol": "RelicInsightsPanel" },
+        { "file": "src/lib/tabs/tabRelics/relicInsightsPanel/BucketsPanel.tsx", "symbol": "BucketsPanel" },
+        { "file": "src/lib/tabs/tabRelics/relicInsightsPanel/BucketsPanel.tsx", "symbol": "getBucketIndex" },
+        { "file": "src/lib/tabs/tabRelics/relicInsightsPanel/Top10Panel.tsx", "symbol": "Top10Panel" },
+        { "file": "src/lib/tabs/tabRelics/relicInsightsPanel/Top10Panel.tsx", "symbol": "LegendContent" },
+        { "file": "src/lib/tabs/tabRelics/relicInsightsPanel/Estbp.tsx", "symbol": "EstbpCard" },
+        { "file": "src/lib/tabs/tabRelics/bottomDock/BottomToolbar.tsx", "symbol": "setInsightsMode" },
+        { "file": "src/lib/tabs/tabRelics/bottomDock/BottomToolbar.tsx", "symbol": "setInsightsCharacters" },
+        { "file": "src/lib/tabs/tabRelics/bottomDock/BottomToolbar.tsx", "symbol": "setBucketPotentialMode" },
+        { "file": "src/lib/tabs/tabRelics/useRelicsTabStore.ts", "symbol": "setInsightsMode" },
+        { "file": "src/lib/tabs/tabRelics/useRelicsTabStore.ts", "symbol": "setInsightsCharacters" },
+        { "file": "src/lib/tabs/tabRelics/useRelicsTabStore.ts", "symbol": "setBucketPotentialMode" }
+      ],
+      "params": [
+        { "name": "relicId", "type": "RelicId", "notes": "当前选中的遗器" },
+        { "name": "insightsMode", "type": "RelicInsights", "default": "Buckets", "notes": "Buckets、Top10、ESTBP" },
+        { "name": "insightsCharacters", "type": "InsightCharacters", "default": "Custom", "notes": "All、Custom（去掉排除列表里的角色）、Owned" },
+        { "name": "bucketPotentialMode", "type": "BucketPotentialMode", "default": "Maximum", "notes": "只影响分桶图里角色落在哪个区间；Maximum 或 Average" }
+      ],
+      "conditions": "没有选中遗器时面板为空。强化版角色（buffedCharacters）不参与。三个切换都只在会话内保留。",
+      "runtime": "node",
+      "state": { "owner": "useRelicsTabStore（insightsMode、insightsCharacters、bucketPotentialMode）", "lifecycle": "session" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["score_relics"],
+        "gaps": "score_relics 是「一个角色看多件遗器」；这里是反过来「一件遗器看全部角色」。现在只能对每个角色各调一次自行汇总，也没有角色范围和分桶。",
+        "candidates": ["analyze_relic(view=characters)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "对同一件遗器，返回的角色排序与各自的最高、平均潜力和前十名图一致",
+          "角色范围选「已拥有」时结果只含角色列表里的角色，与面板一致",
+          "分桶结果里每个区间的角色集合与分桶图一致，切到平均潜力后同样一致"
+        ],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    }
+  ]
+}

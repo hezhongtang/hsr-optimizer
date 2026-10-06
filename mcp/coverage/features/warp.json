@@ -1,0 +1,196 @@
+{
+  "area": "warp",
+  "title": "跃迁规划器页",
+  "features": [
+    {
+      "id": "warp.resources.set",
+      "title": "填写现有资源与保底状态",
+      "surface": { "page": "WARP", "entry": "页面上半部的「设置」区" },
+      "kind": "write",
+      "action": "填写手头的星琼与星轨专票、星芒返利档位、要计入的后续版本收入（多选，按版本上下半与三种氪金档位列出），以及角色池和光锥池各自已垫的抽数与下一个五星是否必中。任何改动都即时重算，并在约 10 秒后落盘，下次打开页面沿用。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabWarp/WarpSettingsPanel.tsx", "symbol": "WarpSettingsPanel" },
+        { "file": "src/lib/tabs/tabWarp/WarpSettingsPanel.tsx", "symbol": "ResourceNumberField" },
+        { "file": "src/lib/tabs/tabWarp/WarpSettingsPanel.tsx", "symbol": "PityField" },
+        { "file": "src/lib/tabs/tabWarp/WarpSettingsPanel.tsx", "symbol": "GuaranteedField" },
+        { "file": "src/lib/tabs/tabWarp/WarpCalculatorTab.tsx", "symbol": "onValuesChange" },
+        { "file": "src/lib/tabs/tabWarp/useWarpCalculatorStore.ts", "symbol": "setRequest" },
+        { "file": "src/lib/tabs/tabWarp/warpCalculatorController.ts", "symbol": "normalizeWarpRequest" },
+        { "file": "src/lib/tabs/tabWarp/warpCalculatorController.ts", "symbol": "WarpIncomeOptions" }
+      ],
+      "params": [
+        { "name": "jades", "type": "number", "default": "0", "notes": "160 星琼折 1 抽" },
+        { "name": "passes", "type": "number", "default": "0" },
+        { "name": "starlight", "type": "REFUND_NONE | REFUND_LOW | REFUND_AVG | REFUND_HIGH", "default": "REFUND_AVG", "notes": "返利比例 0%、4%、7.5%、11%" },
+        { "name": "income", "type": "string[]", "default": "[]", "notes": "收入选项 id，选项表随游戏版本手工维护" },
+        { "name": "pityCharacter", "type": "0..89", "default": "0" },
+        { "name": "guaranteedCharacter", "type": "boolean", "default": "false" },
+        { "name": "pityLightCone", "type": "0..79", "default": "0" },
+        { "name": "guaranteedLightCone", "type": "boolean", "default": "false" }
+      ],
+      "conditions": "载入存档时会规范化保存的请求：不认识的收入选项被丢弃，越界的等级被夹回合法范围。",
+      "runtime": "node",
+      "state": { "owner": "useWarpCalculatorStore.request", "lifecycle": "persisted", "saveKey": "warpRequest" },
+      "sideEffects": ["SaveState.delayedSave(10000)"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["warp_plan"],
+        "gaps": "这些字段都能作为 warp_plan 的参数传入，fromSaved 也能读出存档里保存的请求，但工具是纯计算，不会把改动写回存档，网页端看不到。",
+        "candidates": ["warp_plan(save=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "fromSaved 读出的请求与网页端打开页面时各输入框显示的值一致",
+          "要求保存后，导出的存档里 warpRequest 与网页端填同样数值后的内容一致",
+          "传入不存在的收入选项 id 时报错并列出合法 id"
+        ],
+        "tests": ["mcp/scripts/smoke-misc.mjs"]
+      }
+    },
+    {
+      "id": "warp.plan.simple",
+      "title": "简单模式：按策略看各里程碑",
+      "surface": { "page": "WARP", "entry": "模式切换选「简单」后出现的策略下拉与结果表" },
+      "kind": "compute",
+      "action": "不指定具体角色，按一条固定路线从零抽到满星魂满叠影（E6S5），列出沿途每个里程碑的期望抽数和在现有预算内达成的概率。策略决定专属光锥插在哪一步：先把角色抽到某个星魂再抽 S1，或者先抽 S1 再补星魂。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabWarp/WarpCalculatorTab.tsx", "symbol": "WarpPlanner" },
+        { "file": "src/lib/tabs/tabWarp/WarpCalculatorTab.tsx", "symbol": "QuickResultsTable" },
+        { "file": "src/lib/tabs/tabWarp/warpCalculatorController.ts", "symbol": "calculateWarps" }
+      ],
+      "params": [
+        { "name": "plannerMode", "type": "simple | multi", "default": "multi" },
+        { "name": "strategy", "type": "0..7", "default": "0", "notes": "0–6 表示先抽到 E0–E6 再抽 S1；7 表示先抽 S1" }
+      ],
+      "conditions": "简单模式下忽略目标列表，改用一个从零到 E6S5 的内置目标。",
+      "runtime": "node",
+      "state": { "owner": "useWarpCalculatorStore.request.plannerMode / strategy", "lifecycle": "persisted", "saveKey": "warpRequest" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["warp_plan"],
+        "gaps": "warp_plan 不看 plannerMode，始终按传入的 targets 计算。要得到网页端简单模式的结果，调用方得自己构造那个从零到 E6S5 的目标；用 fromSaved 读一份处于简单模式的存档时，算出来的是存档里多目标列表的结果，与网页端显示的不同。",
+        "candidates": ["warp_plan(applyPlannerMode=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "八种策略下各里程碑的期望抽数与达成概率，与网页端简单模式结果表逐行一致",
+          "对一份处于简单模式的存档按网页端口径计算，结果与页面显示一致"
+        ],
+        "tests": ["mcp/scripts/smoke-misc.mjs"]
+      }
+    },
+    {
+      "id": "warp.plan.targets",
+      "title": "多目标模式：编排抽取目标",
+      "surface": { "page": "WARP", "overlay": "角色选择弹窗、光锥选择弹窗", "entry": "模式切换选「多目标」后的目标表格及其底部三个添加按钮" },
+      "kind": "write",
+      "action": "按抽取顺序排出一串目标：添加「角色加专属光锥」「角色」或「光锥」，为每个目标选择已有等级和想要达到的等级，点目标头像更换角色或光锥，删除目标，拖动调整先后顺序。排在后面的目标接着前面目标剩下的预算和保底继续算。添加角色目标时已有星魂从存档里的角色读取。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabWarp/WarpUnifiedTable.tsx", "symbol": "WarpUnifiedTable" },
+        { "file": "src/lib/tabs/tabWarp/WarpTargetHeaderCard.tsx", "symbol": "TargetHeaderRow" },
+        { "file": "src/lib/tabs/tabWarp/WarpTargetHeaderCard.tsx", "symbol": "TargetGoalSelectors" },
+        { "file": "src/lib/tabs/tabWarp/WarpTargetHeaderCard.tsx", "symbol": "TargetPreviewImage" },
+        { "file": "src/lib/tabs/tabWarp/warpTargetMutations.ts", "symbol": "addCharAndSignatureGoal" },
+        { "file": "src/lib/tabs/tabWarp/warpTargetMutations.ts", "symbol": "addCharGoal" },
+        { "file": "src/lib/tabs/tabWarp/warpTargetMutations.ts", "symbol": "addLcGoal" },
+        { "file": "src/lib/tabs/tabWarp/warpTargetMutations.ts", "symbol": "updateTarget" },
+        { "file": "src/lib/tabs/tabWarp/warpTargetMutations.ts", "symbol": "updateTargetFrom" },
+        { "file": "src/lib/tabs/tabWarp/warpTargetMutations.ts", "symbol": "updateTargetTo" },
+        { "file": "src/lib/tabs/tabWarp/warpTargetMutations.ts", "symbol": "removeTarget" },
+        { "file": "src/lib/tabs/tabWarp/warpTargetMutations.ts", "symbol": "moveTarget" },
+        { "file": "src/lib/tabs/tabWarp/warpCalculatorTypes.ts", "symbol": "isPremiumCharacter" }
+      ],
+      "params": [
+        { "name": "targets[].characterId", "type": "CharacterId | null", "default": "null" },
+        { "name": "targets[].lightConeId", "type": "LightConeId | null", "default": "null" },
+        { "name": "targets[].currentEidolonLevel", "type": "-1..6", "default": "-1", "notes": "-1 表示还没有这个角色" },
+        { "name": "targets[].targetEidolonLevel", "type": "-1..6", "default": "已有等级加一", "notes": "-1 表示这一行不抽角色" },
+        { "name": "targets[].currentSuperimpositionLevel", "type": "0..5", "default": "0" },
+        { "name": "targets[].targetSuperimpositionLevel", "type": "0..5", "default": "已有等级加一", "notes": "0 表示这一行不抽光锥" }
+      ],
+      "conditions": "可选的只有限定五星角色及其专属光锥。同一个角色或光锥的多个目标自动首尾相接：已有等级是整条链共用的，改它会带动链上每一行；新目标的起点不低于前面目标的终点；目标等级落到起点或以下时自动顶到下一级；删掉链上最低的一行时，已有等级转给剩下的最低一行。调整顺序不会改变目标集合。",
+      "runtime": "node",
+      "state": { "owner": "useWarpCalculatorStore.request.targets", "lifecycle": "persisted", "saveKey": "warpRequest" },
+      "sideEffects": ["SaveState.delayedSave(10000)"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["warp_plan"],
+        "gaps": "targets 要调用方按最终形态完整给出。网页端在增删改目标时自动维持的规则（同一角色或光锥的目标首尾相接、新目标从存档里已有的星魂起算、可选范围限于限定五星）不会替调用方做，也不会校验；改动同样不会写回存档。",
+        "candidates": ["warp_plan(normalizeTargets=true)", "warp_plan(save=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "给出「某角色 E0 到 E2，再加其专属光锥 S1」的目标串，各里程碑的期望抽数与达成概率与网页端同样编排后的表格一致",
+          "同一角色先后两个目标交给工具规范化后，起止等级与网页端自动接续后的结果一致",
+          "只给角色 id 新增目标时，起点等于存档里该角色的星魂",
+          "交换两个目标的顺序后，结果与网页端拖动后的表格一致"
+        ],
+        "tests": ["mcp/scripts/smoke-misc.mjs"]
+      }
+    },
+    {
+      "id": "warp.results.read",
+      "title": "查看预算与达成概率",
+      "surface": { "page": "WARP", "entry": "设置区下方的预算摘要与结果表" },
+      "kind": "compute",
+      "action": "先汇总可用抽数：现有专票、星琼折算、所选版本收入与星芒返利。再对每个目标列出沿途各里程碑的累计期望抽数，以及在这份预算内达成它的概率；后面的目标在前面目标之后接着算。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabWarp/WarpCalculatorTab.tsx", "symbol": "WarpSummary" },
+        { "file": "src/lib/tabs/tabWarp/WarpMilestoneTable.tsx", "symbol": "WarpMilestoneRows" },
+        { "file": "src/lib/tabs/tabWarp/WarpMilestoneTable.tsx", "symbol": "WarpTableHeader" },
+        { "file": "src/lib/tabs/tabWarp/warpCalculatorController.ts", "symbol": "calculateWarps" },
+        { "file": "src/lib/tabs/tabWarp/warpCalculatorController.ts", "symbol": "enrichWarpRequest" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "由 useWarpCalculatorStore.request 推导", "lifecycle": "derived" },
+      "mcp": {
+        "status": "implemented",
+        "tools": ["warp_plan"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "同一请求下总抽数、星芒返利折算的额外专票与网页端摘要一致",
+          "每个目标每个里程碑的期望抽数与达成概率与网页端结果表逐行一致",
+          "已垫抽数与必中状态变化后，结果与网页端同步变化"
+        ],
+        "tests": ["mcp/scripts/smoke-misc.mjs"]
+      }
+    },
+    {
+      "id": "warp.scanner.sync",
+      "title": "由实时扫描器同步资源与保底",
+      "surface": { "page": "WARP", "entry": "没有单独的入口；导入页开启「同步跃迁资源」后，扫描器在线时自动生效" },
+      "kind": "external",
+      "action": "连着实时扫描器时，游戏里的变化直接写进规划器：星琼数取星琼与古老梦华之和，专票数取专票加上未熄的星芒折算的张数；每次抽卡按卡池类型累加或重置已垫抽数，出五星时同时更新下一个五星是否必中。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabWarp/useWarpScannerSync.ts", "symbol": "useWarpScannerSync" },
+        { "file": "src/lib/tabs/tabImport/scannerStore.ts", "symbol": "ingestWarpResources" }
+      ],
+      "conditions": "只在扫描器设置里的 ingestWarpResources 打开时生效（见 import.live.settings），且规划器页面处于挂载状态。未熄的星芒每 20 个折 1 张专票。",
+      "runtime": "host",
+      "state": { "owner": "useWarpCalculatorStore.request（由扫描器事件改写）", "lifecycle": "persisted", "saveKey": "warpRequest" },
+      "sideEffects": ["改写规划器里的星琼、专票、已垫抽数与必中状态", "SaveState.delayedSave(10000)"],
+      "mcp": {
+        "status": "missing",
+        "gaps": "MCP 还没有实时扫描器客户端，抽卡与资源事件进不来，规划器里的这些数只能手工传。",
+        "candidates": ["scanner(action=connect|disconnect|status|events)", "warp_plan(save=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "回放一段含资源更新与抽卡结果的扫描器事件后，存档里 warpRequest 的星琼、专票、两个卡池的已垫抽数与必中状态与网页端回放同一段事件后一致",
+          "ingestWarpResources 关闭时同样的事件不改动 warpRequest"
+        ]
+      }
+    }
+  ]
+}

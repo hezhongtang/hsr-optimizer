@@ -1,0 +1,599 @@
+{
+  "area": "characters",
+  "title": "角色页：角色列表、角色菜单、配装、评分权重、行迹",
+  "features": [
+    {
+      "id": "characters.list.read",
+      "title": "浏览与筛选角色列表",
+      "surface": { "page": "CHARACTERS", "entry": "左侧角色网格；上方搜索框、命途与属性筛选条" },
+      "kind": "read",
+      "action": "按优先级顺序列出全部角色（头像、光锥、序号）。可按名称子串（当前语言的长名，忽略大小写）、命途多选、属性多选筛选，三者同时生效。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCharacters/CharacterGrid.tsx", "symbol": "CharacterGrid" },
+        { "file": "src/lib/tabs/tabCharacters/CharacterGrid.tsx", "symbol": "CharacterRowContent" },
+        { "file": "src/lib/tabs/tabCharacters/CharacterGrid.tsx", "symbol": "DragOverlayRow" },
+        { "file": "src/lib/tabs/tabCharacters/FilterBar.tsx", "symbol": "FilterBar" },
+        { "file": "src/lib/tabs/tabCharacters/useCharacterTabStore.ts", "symbol": "setNameFilter" },
+        { "file": "src/lib/tabs/tabCharacters/useCharacterTabStore.ts", "symbol": "setElementFilter" },
+        { "file": "src/lib/tabs/tabCharacters/useCharacterTabStore.ts", "symbol": "setPathFilter" }
+      ],
+      "params": [
+        { "name": "name", "type": "string", "default": "''" },
+        { "name": "path", "type": "PathName[]", "default": "[]" },
+        { "name": "element", "type": "ElementName[]", "default": "[]" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "useCharacterTabStore.filters", "lifecycle": "session" },
+      "mcp": { "status": "implemented", "tools": ["list_characters"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["list_characters 的顺序、rank 与网页角色网格一致；按命途、属性筛选的结果集与网页筛选条一致"],
+        "tests": ["mcp/scripts/smoke-query.mjs"]
+      }
+    },
+    {
+      "id": "characters.detail.read",
+      "title": "选中角色查看详情",
+      "surface": { "page": "CHARACTERS", "entry": "单击角色行，右侧显示该角色的展示卡" },
+      "kind": "read",
+      "action": "把聚焦角色设为该行角色，右侧渲染其展示卡（装备、属性、评分等，卡片本身见 preview 域）。聚焦角色也是角色菜单各项操作的对象。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCharacters/CharacterGrid.tsx", "symbol": "SortableCharacterRow" },
+        { "file": "src/lib/tabs/tabCharacters/CharacterGrid.tsx", "symbol": "handleRowClick" },
+        { "file": "src/lib/tabs/tabCharacters/useCharacterTabStore.ts", "symbol": "setFocusCharacter" },
+        { "file": "src/lib/tabs/tabCharacters/CharactersPanelContent.tsx", "symbol": "CharactersPanelContent" }
+      ],
+      "conditions": "聚焦的角色不存在时自动清空聚焦。每次切回角色页，若优化器的当前角色变了，聚焦角色跟着同步过去。",
+      "runtime": "node",
+      "state": { "owner": "useCharacterTabStore.focusCharacter", "lifecycle": "session" },
+      "mcp": { "status": "implemented", "tools": ["get_character"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["get_character 返回的六槽遗器、已存表单、配装列表与评分元数据与网页选中该角色后看到的一致"],
+        "tests": ["mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "characters.openInOptimizer",
+      "title": "双击角色跳到优化器",
+      "surface": { "page": "CHARACTERS", "entry": "双击角色行" },
+      "kind": "navigate",
+      "action": "navigateTo(OPTIMIZER) 后 switchToCharacter(id)：优化器先保存正在编辑的角色表单，再载入该角色的表单。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCharacters/CharacterGrid.tsx", "symbol": "handleRowDoubleClick" },
+        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "switchToCharacter" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "useOptimizerDisplayStore.focusCharacterId", "lifecycle": "persisted", "saveKey": "savedSession.global.optimizerCharacterId" },
+      "sideEffects": ["离开的角色表单被保存（详见 optimizer.character.switch）"],
+      "mcp": { "status": "missing", "candidates": ["update_state(section=session)"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["与 optimizer.character.switch 同一用例：切换后存档里的 optimizerCharacterId 与离开角色的表单都与网页一致"]
+      }
+    },
+    {
+      "id": "characters.rank.move",
+      "title": "调整角色优先级",
+      "surface": { "page": "CHARACTERS", "entry": "拖拽角色行；或角色菜单「移到顶部」" },
+      "kind": "write",
+      "action": "insertCharacter(id, index) 把角色移到目标位置并防抖保存。拖拽时目标位置取落点行在完整列表里的下标；「移到顶部」等价于 index=0。角色顺序即优先级，决定优化器的优先级过滤能动用谁身上的遗器。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCharacters/CharacterGrid.tsx", "symbol": "handleDragEnd" },
+        { "file": "src/lib/tabs/tabCharacters/characterTabController.ts", "symbol": "moveFocusCharacterToTop" },
+        { "file": "src/lib/stores/character/characterStore.ts", "symbol": "insertCharacter" }
+      ],
+      "params": [
+        { "name": "characterId", "type": "CharacterId" },
+        { "name": "index", "type": "number", "notes": "0 为最高优先级" }
+      ],
+      "conditions": "「移到顶部」需要先选中角色，否则提示未选择角色。指针拖动 3px 后才开始拖拽，触屏需长按 200ms。",
+      "runtime": "node",
+      "state": { "owner": "useCharacterStore.characters（数组顺序）", "lifecycle": "persisted", "saveKey": "characters" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "implemented", "tools": ["set_character_rank"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["把同一角色移到同一位置后，两边导出存档的 characters 顺序一致；index=0 与「移到顶部」等价"],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "characters.rank.sortByEffectiveSubstats",
+      "title": "按有效副词条自动排序",
+      "surface": { "page": "CHARACTERS", "entry": "角色菜单 → 优先级 →「按有效副词条排序」" },
+      "kind": "write",
+      "action": "对每个角色把身上各件遗器的潜力当前值（scoreRelicPotential().currentPct）相加，按总和从高到低重排全部角色并防抖保存。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCharacters/characterTabController.ts", "symbol": "sortByEffectiveSubstats" },
+        { "file": "src/lib/tabs/tabCharacters/CharacterMenu.tsx", "symbol": "CharacterMenu" },
+        { "file": "src/lib/stores/character/characterStore.ts", "symbol": "setCharacters" }
+      ],
+      "conditions": "不需要选中角色，无确认框，直接改写整个列表顺序。",
+      "runtime": "node",
+      "state": { "owner": "useCharacterStore.characters（数组顺序）", "lifecycle": "persisted", "saveKey": "characters" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["set_character_rank"],
+        "gaps": "只能逐个移动角色，没有一次性按有效副词条重排的入口；Agent 自己用 score_relics 算分再逐个移动，既慢又未必与网页算法一致。",
+        "candidates": ["set_character_rank(sortBy=effectiveSubstats)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["同一存档排序后，两边导出存档的 characters 顺序一致（含得分相同时的稳定顺序）"]
+      }
+    },
+    {
+      "id": "characters.upsert",
+      "title": "添加或编辑角色",
+      "surface": { "page": "CHARACTERS", "overlay": "CharacterModal", "entry": "角色菜单「添加新角色」「编辑角色/光锥」；或角色行上的编辑图标" },
+      "kind": "write",
+      "action": "在弹窗里选角色、星魂、光锥、叠影，保存时 upsertCharacterFromForm(form)：角色不存在则按默认表单新建，存在则合并字段；随后防抖保存并把聚焦角色设为该角色。",
+      "upstream": [
+        { "file": "src/lib/overlays/modals/CharacterModal.tsx", "symbol": "CharacterModal" },
+        { "file": "src/lib/overlays/modals/CharacterModal.tsx", "symbol": "CharacterModalContent" },
+        { "file": "src/lib/overlays/modals/CharacterModal.tsx", "symbol": "SetSelect" },
+        { "file": "src/lib/tabs/tabCharacters/characterTabController.ts", "symbol": "onCharacterModalOk" },
+        { "file": "src/lib/tabs/tabCharacters/CharacterGrid.tsx", "symbol": "handleEdit" },
+        { "file": "src/lib/services/persistenceService.ts", "symbol": "upsertCharacterFromForm" },
+        { "file": "src/lib/stores/character/characterStore.ts", "symbol": "addCharacter" },
+        { "file": "src/lib/stores/character/characterStore.ts", "symbol": "setCharacter" }
+      ],
+      "params": [
+        { "name": "characterId", "type": "CharacterId", "notes": "必填" },
+        { "name": "characterEidolon", "type": "0-6", "default": "0" },
+        { "name": "lightCone", "type": "LightConeId", "notes": "网页端必填" },
+        { "name": "lightConeSuperimposition", "type": "1-5", "default": "1" },
+        { "name": "teamRelicSet / teamOrnamentSet", "type": "string", "notes": "只在以队友身份打开弹窗（showSetSelection）时出现，角色页不显示" }
+      ],
+      "conditions": "网页端缺角色或缺光锥时报错并保持弹窗打开；upsert_character 允许不带光锥。新角色的插入位置遵守全局设置 NewCharacterDefaultRank。「编辑」需要先选中角色。",
+      "runtime": "node",
+      "state": { "owner": "useCharacterStore", "lifecycle": "persisted", "saveKey": "characters" },
+      "sideEffects": ["SaveState.delayedSave()", "聚焦角色改为该角色"],
+      "mcp": { "status": "implemented", "tools": ["upsert_character"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "新建角色后两边存档里的该角色（默认表单、空装备、插入位置）一致",
+          "修改已有角色的光锥、叠影、星魂后两边存档一致，其余表单字段不变"
+        ],
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-archive.mjs"]
+      }
+    },
+    {
+      "id": "characters.delete",
+      "title": "删除角色",
+      "surface": { "page": "CHARACTERS", "entry": "角色菜单「删除角色」；或角色行上的删除图标；均经确认框" },
+      "kind": "write",
+      "action": "equipmentService.removeCharacter(id)：先卸下其全部遗器再从列表移除，遗器留在库存；若删的是聚焦角色则清空聚焦；防抖保存。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCharacters/characterTabController.ts", "symbol": "removeCharacter" },
+        { "file": "src/lib/tabs/tabCharacters/characterTabController.ts", "symbol": "removeFocusCharacter" },
+        { "file": "src/lib/tabs/tabCharacters/CharacterGrid.tsx", "symbol": "handleRemove" },
+        { "file": "src/lib/services/equipmentService.ts", "symbol": "removeCharacter" },
+        { "file": "src/lib/stores/character/characterStore.ts", "symbol": "removeCharacter" }
+      ],
+      "conditions": "必须经过确认框。",
+      "runtime": "node",
+      "state": { "owner": "useCharacterStore / useRelicStore", "lifecycle": "persisted", "saveKey": "characters, relics" },
+      "sideEffects": ["该角色的已存配装随角色一起消失", "SaveState.delayedSave()"],
+      "mcp": { "status": "implemented", "tools": ["delete_character"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["删除后两边存档的角色列表一致，原佩戴遗器的 equippedBy 均为空"],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "characters.unequip",
+      "title": "卸下角色全部遗器",
+      "surface": { "page": "CHARACTERS", "entry": "角色菜单「卸下角色遗器」，经确认框" },
+      "kind": "write",
+      "action": "equipmentService.unequipCharacter(focusCharacter) 清空六槽，遗器回到库存，防抖保存。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCharacters/characterTabController.ts", "symbol": "unequipFocusCharacter" },
+        { "file": "src/lib/services/equipmentService.ts", "symbol": "unequipCharacter" }
+      ],
+      "conditions": "需要先选中角色；必须经过确认框。",
+      "runtime": "node",
+      "state": { "owner": "useCharacterStore / useRelicStore", "lifecycle": "persisted", "saveKey": "characters, relics" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "implemented", "tools": ["unequip_character"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["卸下后两边存档里该角色的 equipped 为空，六件遗器的 equippedBy 为空"],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "characters.switchRelics",
+      "title": "与另一角色交换遗器",
+      "surface": { "page": "CHARACTERS", "overlay": "SwitchRelicsModal", "entry": "角色菜单「交换遗器」" },
+      "kind": "write",
+      "action": "在弹窗里选另一名角色（不含自己），保存时 equipmentService.switchRelics(focus, target) 把两人的遗器整套互换并防抖保存。",
+      "upstream": [
+        { "file": "src/lib/overlays/modals/SwitchRelicsModal.tsx", "symbol": "SwitchRelicsModal" },
+        { "file": "src/lib/overlays/modals/SwitchRelicsModal.tsx", "symbol": "SwitchRelicsModalContent" },
+        { "file": "src/lib/tabs/tabCharacters/characterTabController.ts", "symbol": "onSwitchRelicsOk" },
+        { "file": "src/lib/services/equipmentService.ts", "symbol": "switchRelics" }
+      ],
+      "conditions": "需要先选中角色。候选只列已在角色列表里的其他角色。",
+      "runtime": "node",
+      "state": { "owner": "useCharacterStore / useRelicStore", "lifecycle": "persisted", "saveKey": "characters, relics" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "implemented", "tools": ["switch_relics"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["交换后两边存档里两名角色的 equipped 与相关遗器的 equippedBy 一致"],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "characters.builds.save",
+      "title": "保存配装",
+      "surface": { "page": "CHARACTERS", "overlay": "SaveBuildModal", "entry": "角色菜单「保存当前配装」；优化器结果区的保存按钮打开同一弹窗" },
+      "kind": "write",
+      "action": "输入名称后 buildService.saveBuild(name, characterId, source, overwrite)。来源为角色页时保存当前装备，并按该角色生效的评分类型记录评分队伍；来源为优化器时保存选中结果行连同表单快照。弹窗左侧可点已有配装把名称填入并预览。",
+      "upstream": [
+        { "file": "src/lib/overlays/modals/SaveBuildModal.tsx", "symbol": "SaveBuildModal" },
+        { "file": "src/lib/overlays/modals/SaveBuildModal.tsx", "symbol": "SaveBuildModalContent" },
+        { "file": "src/lib/tabs/tabOptimizer/sidebar/BuildsSection.tsx", "symbol": "useSaveBuildModalStore" },
+        { "file": "src/lib/services/buildService.ts", "symbol": "saveBuild" }
+      ],
+      "params": [
+        { "name": "name", "type": "string", "notes": "必填" },
+        { "name": "source", "type": "'Character' | 'Optimizer'", "default": "Character" },
+        { "name": "overwrite", "type": "boolean", "default": "false" }
+      ],
+      "conditions": "名称为空或已被占用时「保存」禁用；名称未被占用时「覆盖」禁用；覆盖要经确认框。来源为优化器且表单没选光锥时报错。角色页来源记录的队伍取决于当前的默认/自定义队伍选择，而这个选择是不落盘的会话状态。",
+      "runtime": "node",
+      "state": { "owner": "useCharacterStore（character.builds）", "lifecycle": "persisted", "saveKey": "characters[].builds" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "implemented", "tools": ["save_build"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "角色页来源：保存后两边存档里的该配装（遗器、光锥、星魂、队伍、评分配置类型）一致",
+          "优化器来源：保存的表单快照是该次运行实际使用的表单",
+          "重名不带 overwrite 报错，带 overwrite 覆盖；对不存在的名称 overwrite 报错"
+        ],
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-optimizer-generation.mjs"]
+      }
+    },
+    {
+      "id": "characters.builds.list",
+      "title": "查看已存配装列表",
+      "surface": { "page": "CHARACTERS", "overlay": "BuildsModal", "entry": "角色菜单「查看已存配装」" },
+      "kind": "read",
+      "action": "列出聚焦角色的全部已存配装；打开时默认选中第一个。没有配装时显示空提示。",
+      "upstream": [
+        { "file": "src/lib/overlays/modals/BuildsModal.tsx", "symbol": "BuildsModal" },
+        { "file": "src/lib/overlays/modals/BuildsModal.tsx", "symbol": "BuildsModalContent" },
+        { "file": "src/lib/overlays/modals/BuildsModal.tsx", "symbol": "BuildList" },
+        { "file": "src/lib/overlays/modals/BuildsModal.tsx", "symbol": "BuildCard" },
+        { "file": "src/lib/tabs/tabOptimizer/sidebar/BuildsSection.tsx", "symbol": "useBuildsModalStore" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "useCharacterStore（character.builds）", "lifecycle": "persisted", "saveKey": "characters[].builds" },
+      "mcp": { "status": "implemented", "tools": ["list_builds"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["list_builds 返回的配装名、顺序、来源、遗器 id 与弹窗列表一致"],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "characters.builds.preview",
+      "title": "预览已存配装的展示卡",
+      "surface": { "page": "CHARACTERS", "overlay": "BuildsModal", "entry": "在配装列表里点选一个配装，右侧显示它的展示卡" },
+      "kind": "compute",
+      "action": "用该配装记录的遗器、光锥、星魂和队伍（而不是角色当前状态）渲染一张完整的展示卡：属性、评分、遗器分析等，内容与角色页展示卡相同。",
+      "upstream": [
+        { "file": "src/lib/overlays/modals/BuildsModal.tsx", "symbol": "BuildPreview" },
+        { "file": "src/lib/overlays/modals/BuildsModal.tsx", "symbol": "setSelectedBuild" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "BuildsModal 组件内的选中项", "lifecycle": "ephemeral" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["list_builds", "simulate_build"],
+        "gaps": "list_builds 只给配装的静态内容；simulate_build 与 dps_score 用的是角色当前的表单与光锥，不是配装里记录的光锥、星魂和队伍，算不出配装自己的属性与评分。",
+        "candidates": ["score_character(source=build)", "render(target=saved_build)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": ["对一个光锥、星魂与当前角色不同的已存配装，返回的属性与评分和弹窗里这张展示卡上的数值一致"]
+      }
+    },
+    {
+      "id": "characters.builds.equip",
+      "title": "装备已存配装",
+      "surface": { "page": "CHARACTERS", "overlay": "BuildsModal", "entry": "配装卡片上的「装备」按钮" },
+      "kind": "write",
+      "action": "equipBuildRelics 把配装的遗器装到角色上并防抖保存。若配装记录了完整的 3 名队友，还会把它写成该角色 DPS 评分配置的自定义队伍，并把 DPS 的队伍选择切到自定义。之后关闭弹窗、聚焦该角色并回到角色面板。",
+      "upstream": [
+        { "file": "src/lib/overlays/modals/BuildsModal.tsx", "symbol": "handleEquip" },
+        { "file": "src/lib/services/buildService.ts", "symbol": "equipBuildRelics" },
+        { "file": "src/lib/services/equipmentService.ts", "symbol": "equipRelicIds" },
+        { "file": "src/lib/stores/scoring/scoringStore.ts", "symbol": "updateScoringConfigOverride" }
+      ],
+      "conditions": "配装里有遗器正被别的角色佩戴时先弹确认框。队伍副作用固定作用于 DPS 配置，不管该配装保存时用的是哪种评分配置；队友不足 3 人时不触发。装备行为遵守全局设置 RelicEquippingBehavior。",
+      "runtime": "node",
+      "state": { "owner": "useCharacterStore / useRelicStore / useScoringStore", "lifecycle": "persisted", "saveKey": "characters, relics, scoringMetadataOverrides" },
+      "sideEffects": [
+        "scoringMetadataOverrides[角色].simulation.teammates 被配装队伍覆盖（落盘）",
+        "showcaseTeamPreferenceByConfig[角色].DPS 置为自定义（会话状态，不落盘）",
+        "SaveState.delayedSave()"
+      ],
+      "mcp": {
+        "status": "partial",
+        "tools": ["equip_saved_build"],
+        "gaps": "只装备遗器，不写评分队伍：网页装备带 3 名队友的配装后 DPS 评分改用配装队伍，MCP 装备后评分仍用原队伍，两边存档的 scoringMetadataOverrides 不一致。",
+        "candidates": ["equip_saved_build(applyScoringTeam=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "装备带 3 名队友的配装后，两边存档的 equipped 与 scoringMetadataOverrides[角色].simulation.teammates 一致",
+          "队友不足 3 人的配装不改评分覆盖",
+          "配装遗器被他人佩戴时，Replace 与 Swap 两种设置下的归属变化与网页一致"
+        ],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "characters.builds.loadInOptimizer",
+      "title": "把已存配装载入优化器",
+      "surface": { "page": "CHARACTERS", "overlay": "BuildsModal", "entry": "配装卡片上的「载入」按钮" },
+      "kind": "write",
+      "action": "loadBuildInOptimizer(build)：以角色已存表单（没有则默认表单）经 computeLoadForm 得到完整表单，再叠加配装反序列化出的字段（光锥、星魂、队友、条件等），一次性写入优化器表单；把优化器当前角色切到该角色并跳到优化器页，防抖保存。",
+      "upstream": [
+        { "file": "src/lib/services/buildService.ts", "symbol": "loadBuildInOptimizer" },
+        { "file": "src/lib/overlays/modals/BuildsModal.tsx", "symbol": "BuildCard" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "useOptimizerRequestStore + savedSession.global.optimizerCharacterId", "lifecycle": "persisted", "saveKey": "savedSession.global.optimizerCharacterId" },
+      "sideEffects": ["优化器表单被整体替换（表单本身要等下一次保存表单才写回角色）", "SaveState.delayedSave()"],
+      "mcp": { "status": "missing", "candidates": ["update_form(fromBuild=name)"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["载入同一配装后，get_form 返回的工作表单与网页优化器表单逐字段一致，optimizerCharacterId 指向该角色"]
+      }
+    },
+    {
+      "id": "characters.builds.delete",
+      "title": "删除单个已存配装",
+      "surface": { "page": "CHARACTERS", "overlay": "BuildsModal", "entry": "配装卡片上的删除按钮，经确认框" },
+      "kind": "write",
+      "action": "buildService.deleteBuild(characterId, name) 移除该配装并防抖保存；删完最后一个时关闭弹窗。",
+      "upstream": [
+        { "file": "src/lib/services/buildService.ts", "symbol": "deleteBuild" },
+        { "file": "src/lib/overlays/modals/BuildsModal.tsx", "symbol": "handleDelete" }
+      ],
+      "conditions": "必须经过确认框。",
+      "runtime": "node",
+      "state": { "owner": "useCharacterStore（character.builds）", "lifecycle": "persisted", "saveKey": "characters[].builds" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "implemented", "tools": ["delete_build"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["删除后两边存档里该角色的 builds 一致"],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "characters.builds.clear",
+      "title": "清空角色的全部配装",
+      "surface": { "page": "CHARACTERS", "overlay": "BuildsModal", "entry": "弹窗底部「全部删除」，经确认框" },
+      "kind": "write",
+      "action": "buildService.clearBuilds(characterId) 把该角色的 builds 置空并防抖保存，然后关闭弹窗。",
+      "upstream": [
+        { "file": "src/lib/services/buildService.ts", "symbol": "clearBuilds" },
+        { "file": "src/lib/overlays/modals/BuildsModal.tsx", "symbol": "handleDeleteAllBuilds" }
+      ],
+      "conditions": "必须经过确认框。",
+      "runtime": "node",
+      "state": { "owner": "useCharacterStore（character.builds）", "lifecycle": "persisted", "saveKey": "characters[].builds" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["delete_build"],
+        "gaps": "只能按名称逐个删除，没有一次清空的入口。",
+        "candidates": ["delete_build(all=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["清空后两边存档里该角色的 builds 都是空数组"]
+      }
+    },
+    {
+      "id": "characters.builds.screenshot",
+      "title": "导出已存配装的图片",
+      "surface": { "page": "CHARACTERS", "overlay": "BuildsModal", "entry": "弹窗底部的下载与复制按钮" },
+      "kind": "artifact",
+      "action": "对当前选中配装的展示卡（#buildPreview）截图，文件名为「角色长名_配装名」；可下载为图片或复制到剪贴板。",
+      "upstream": [
+        { "file": "src/lib/overlays/modals/BuildsModal.tsx", "symbol": "captureScreenshot" },
+        { "file": "src/lib/utils/screenshotUtils.ts", "symbol": "screenshotElementById" }
+      ],
+      "params": [{ "name": "action", "type": "ScreenshotAction", "notes": "Download 或 Clipboard" }],
+      "conditions": "没有选中配装时不动作。移动端浏览器上「复制」走系统分享（见 preview 域的截图条目）。",
+      "runtime": "browser",
+      "state": { "owner": "无", "lifecycle": "none" },
+      "mcp": { "status": "missing", "candidates": ["render(target=saved_build)", "deliver_artifact(action=copy)"] },
+      "scope": "baseline",
+      "upstreamChange": "export",
+      "acceptance": {
+        "cases": ["渲染出的图片尺寸、文字与数值和网页下载的配装截图一致，背景透明处理相同"]
+      }
+    },
+    {
+      "id": "characters.scoring.weights",
+      "title": "编辑角色的评分权重与主词条候选",
+      "surface": { "page": "CHARACTERS", "overlay": "ScoringModal", "entry": "角色菜单 → 评分 →「评分算法」；展示卡和遗器页也能打开同一弹窗" },
+      "kind": "write",
+      "action": "选定角色后编辑 9 项副词条权重（攻击、生命、防御各一行，同时作用于固定值与百分比）和躯干、脚部、位面球、连结绳四个部位的主词条候选。保存时空值记 0，把百分比权重设成与固定值相同，再以增量形式写入评分覆盖；「恢复默认」清掉该角色的全部评分覆盖。",
+      "upstream": [
+        { "file": "src/lib/overlays/modals/ScoringModal.tsx", "symbol": "ScoringModal" },
+        { "file": "src/lib/overlays/modals/ScoringModal.tsx", "symbol": "ScoringModalContent" },
+        { "file": "src/lib/overlays/modals/ScoringModal.tsx", "symbol": "StatValueRow" },
+        { "file": "src/lib/stores/app/appStore.ts", "symbol": "setScoringAlgorithmFocusCharacter" },
+        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "setScoringAlgorithmFocusCharacter" },
+        { "file": "src/lib/stores/scoring/scoringStore.ts", "symbol": "updateCharacterOverrides" },
+        { "file": "src/lib/stores/scoring/scoringStore.ts", "symbol": "clearCharacterOverrides" }
+      ],
+      "params": [
+        { "name": "characterId", "type": "CharacterId", "notes": "弹窗内可切换" },
+        { "name": "stats", "type": "Record<ATK | HP | DEF | SPD | CR | CD | EHR | RES | BE, number>", "notes": "保存时 ATK%、HP%、DEF% 分别取 ATK、HP、DEF 的值" },
+        { "name": "parts", "type": "Record<Body | Feet | PlanarSphere | LinkRope, MainStats[]>" }
+      ],
+      "conditions": "「恢复默认」调用 clearCharacterOverrides，会连同该角色的自定义评分队伍和行迹开关一起清掉，不只是权重。",
+      "runtime": "node",
+      "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides" },
+      "sideEffects": ["评分版本号递增，遗器评分与潜力缓存失效", "SaveState.delayedSave()"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["get_scoring_metadata", "set_scoring_override"],
+        "gaps": "set_scoring_override 把 12 个副词条权重各自独立写入：只改 ATK 时 ATK% 不会跟着变，还能写出 ATK 与 ATK% 不同这种网页保存不出来的状态。",
+        "candidates": ["set_scoring_override(linkFlatAndPercent=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "只把 ATK 权重改为 1 后，两边存档的 scoringMetadataOverrides 里 ATK 与 ATK% 都是 1",
+          "修改部位主词条候选后两边存档一致，与默认值相同的项被剪掉",
+          "恢复默认后该角色在 scoringMetadataOverrides 里没有任何条目"
+        ],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "characters.scoring.resetAll",
+      "title": "重置所有角色的评分覆盖",
+      "surface": { "page": "CHARACTERS", "overlay": "ScoringModal", "entry": "评分弹窗底部「重置所有角色」，经确认框" },
+      "kind": "write",
+      "action": "setScoringMetadataOverrides({}) 清空全部角色的评分覆盖（权重、主词条候选、自定义评分队伍、行迹开关）并防抖保存。",
+      "upstream": [
+        { "file": "src/lib/overlays/modals/ScoringModal.tsx", "symbol": "ResetAllCharactersButton" },
+        { "file": "src/lib/stores/scoring/scoringStore.ts", "symbol": "setScoringMetadataOverrides" }
+      ],
+      "conditions": "必须经过确认框。",
+      "runtime": "node",
+      "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["set_scoring_override"],
+        "gaps": "reset 只能逐个角色做，没有一次清空全部的入口。",
+        "candidates": ["set_scoring_override(resetAll=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["重置后两边存档的 scoringMetadataOverrides 都是空对象"]
+      }
+    },
+    {
+      "id": "characters.traces.update",
+      "title": "开关角色的属性行迹",
+      "surface": { "page": "CHARACTERS", "overlay": "StatTracesDrawer", "entry": "优化器表单「高级选项」里的行迹按钮；或展示卡定制侧栏的行迹入口" },
+      "kind": "write",
+      "action": "以树形列出角色的属性行迹节点，默认全部启用。勾选一个节点会连同它的所有前置节点和所有后代一起勾上；取消勾选会连同所有后代一起取消。保存时把未勾选的节点 id 写入 scoringMetadataOverrides[角色].traces.deactivated 并防抖保存。",
+      "upstream": [
+        { "file": "src/lib/overlays/drawers/StatTracesDrawer.tsx", "symbol": "StatTracesDrawer" },
+        { "file": "src/lib/overlays/drawers/StatTracesDrawer.tsx", "symbol": "StatTracesDrawerContent" },
+        { "file": "src/lib/overlays/drawers/StatTracesDrawer.tsx", "symbol": "TraceTreeNode" },
+        { "file": "src/lib/stores/app/appStore.ts", "symbol": "setStatTracesDrawerFocusCharacter" },
+        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "onTraceClick" },
+        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/AdvancedOptionsPanel.tsx", "symbol": "TRACES_DRAWER" },
+        { "file": "src/lib/stores/scoring/scoringStore.ts", "symbol": "updateCharacterOverrides" }
+      ],
+      "params": [
+        { "name": "deactivated", "type": "string[]", "default": "[]", "notes": "被关闭的行迹节点 id；节点与前置关系来自游戏元数据的 traceTree" }
+      ],
+      "conditions": "没有聚焦角色时抽屉内容为空。级联规则只在界面里执行，存储层不校验：直接写入的 deactivated 可以违反前置关系。",
+      "runtime": "node",
+      "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides[].traces.deactivated" },
+      "sideEffects": ["角色基础属性随之变化，影响优化、模拟与评分", "SaveState.delayedSave()"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["get_scoring_metadata"],
+        "resources": ["game://metadata/characters/{id}"],
+        "gaps": "行迹树的节点、前置关系和数值可以从角色详情资源读到，当前关闭了哪些节点可以从 get_scoring_metadata 的 override.traces.deactivated 读到，但没有入口写入：关闭行迹会改变所有计算结果，现在只能改存档文件再 load_save。",
+        "candidates": ["set_scoring_override(traces=...)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "关闭一个有后代的节点后，deactivated 包含它和全部后代，与网页取消勾选同一节点的结果一致",
+          "重新启用一个深层节点后，它的全部前置节点一并启用",
+          "关闭行迹后 simulate_build 的基础属性与网页优化器里同一角色的数值一致",
+          "角色详情资源返回的行迹树节点、前置关系和数值与网页抽屉里显示的树一致"
+        ],
+        "tests": ["mcp/scripts/smoke-conditionals.mjs"]
+      }
+    },
+    {
+      "id": "characters.panel.switch",
+      "title": "切换角色面板与组队面板",
+      "surface": { "page": "CHARACTERS", "entry": "角色页顶部的两个页签（角色 / 组队）" },
+      "kind": "navigate",
+      "action": "在同一页面内切换两个面板，并把地址栏 hash 改为 #characters 或 #teams。组队面板首次进入时才挂载，之后保持挂载。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCharacters/CharacterTab.tsx", "symbol": "handleTabChange" },
+        { "file": "src/lib/tabs/tabCharacters/characterPanels.ts", "symbol": "pushCharactersHash" },
+        { "file": "src/lib/tabs/tabCharacters/useCharacterTabStore.ts", "symbol": "setActivePanel" }
+      ],
+      "params": [{ "name": "panel", "type": "'CHARACTERS' | 'TEAMS'", "default": "按 hash 解析，否则 CHARACTERS" }],
+      "runtime": "browser",
+      "state": { "owner": "useCharacterTabStore.activePanel + location.hash", "lifecycle": "session" },
+      "mcp": { "status": "missing", "candidates": ["site://pages", "render(target=page)"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["site://pages 把 #characters 与 #teams 列为角色页的两个面板；浏览器运行环境可直接打开其中任一面板"]
+      }
+    },
+    {
+      "id": "characters.grid.density",
+      "title": "切换角色网格密度",
+      "surface": { "page": "CHARACTERS", "entry": "角色网格下方的「默认 / 紧凑」切换" },
+      "kind": "view",
+      "action": "把 characterGridDensity 写入全局会话并防抖保存，网格行高与宽度随之改变。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCharacters/CharactersPanelContent.tsx", "symbol": "handleDensityChange" },
+        { "file": "src/lib/stores/app/appStore.ts", "symbol": "setSavedSessionKey" }
+      ],
+      "params": [{ "name": "characterGridDensity", "type": "'default' | 'compact'", "default": "default" }],
+      "defaultsFrom": { "file": "src/lib/stores/app/appStore.ts", "symbol": "savedSessionDefaults" },
+      "runtime": "node",
+      "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.characterGridDensity" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "missing", "candidates": ["get_state(section=session)", "update_state(section=session)"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["写入 compact 后导出的存档与网页切到紧凑后的存档在该键上一致；非法取值被拒绝"]
+      }
+    }
+  ]
+}

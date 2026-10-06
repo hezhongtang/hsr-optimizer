@@ -1,0 +1,372 @@
+{
+  "area": "global",
+  "title": "全局外壳：启动与持久化、导航、设置、语言、提示",
+  "features": [
+    {
+      "id": "global.state.bootLoad",
+      "title": "启动时载入本地存档",
+      "surface": { "page": "GLOBAL", "entry": "打开网站（src/index.tsx 模块初始化）" },
+      "kind": "write",
+      "action": "先 Metadata.initialize() 建立游戏元数据，再 SaveState.load(false, false) 从 localStorage['state'] 读出存档，经 persistenceService.loadSaveData 跑迁移链并恢复全部 store；启动这一次不自动回写、不做 sanitize。",
+      "upstream": [
+        { "file": "src/index.tsx", "symbol": "SaveState" },
+        { "file": "src/lib/state/saveState.ts", "symbol": "load" },
+        { "file": "src/lib/services/persistenceService.ts", "symbol": "loadSaveData" },
+        { "file": "src/lib/stores/app/appStore.ts", "symbol": "setSavedSession" },
+        { "file": "src/lib/stores/app/appStore.ts", "symbol": "setCompletedMigrations" }
+      ],
+      "params": [
+        { "name": "autosave", "type": "boolean", "default": "false（启动时）", "notes": "SaveState.load 的函数默认值是 true，启动调用显式传 false" },
+        { "name": "sanitize", "type": "boolean", "default": "false（启动时）" }
+      ],
+      "conditions": "localStorage 没有 'state' 时返回 false 并保持默认空状态；JSON 损坏时捕获异常、同样保持空状态。",
+      "runtime": "node",
+      "state": { "owner": "localStorage['state'] → 全部 store", "lifecycle": "persisted", "saveKey": "*" },
+      "sideEffects": ["替换内存中的角色、遗器、评分覆盖、设置、会话等全部 store"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["load_save", "save_status"],
+        "gaps": "MCP 进程重启后不会自动恢复上次的存档（没有任何启动路径读取 HSR_MCP_STATE_FILE 里的 'state'），必须重新 load_save；网页是打开即载入。",
+        "candidates": ["load_save(resume=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "同一份存档经网页启动载入与 load_save 载入后，SaveState.save() 的输出逐键一致",
+          "MCP 进程重启后不带路径恢复上次存档，角色数、遗器数与重启前一致"
+        ],
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/parity.mjs"]
+      }
+    },
+    {
+      "id": "global.state.autosave",
+      "title": "变更后自动落盘与防清空护栏",
+      "surface": { "page": "GLOBAL", "entry": "任何写操作之后（各处调用 SaveState.save / delayedSave）" },
+      "kind": "write",
+      "action": "SaveState.save() 把全部持久化键序列化写入 localStorage['state']；delayedSave(ms=5000) 防抖后调用 save；beforeunload 时把挂起的防抖保存立即落盘。写入前若内存里角色或遗器为 0 而已存数据非空，则拒绝写入，除非先调用 permitEmptySave()。",
+      "upstream": [
+        { "file": "src/lib/state/saveState.ts", "symbol": "save" },
+        { "file": "src/lib/state/saveState.ts", "symbol": "delayedSave" },
+        { "file": "src/lib/state/saveState.ts", "symbol": "permitEmptySave" }
+      ],
+      "params": [
+        { "name": "ms", "type": "number", "default": "5000", "notes": "delayedSave 的防抖时长" }
+      ],
+      "conditions": "防清空护栏只看角色和遗器两个集合；permitEmptySave 仅对下一次保存生效。写入的 version 恒为 CURRENT_OPTIMIZER_VERSION，与内存里的 version 无关。",
+      "runtime": "node",
+      "state": { "owner": "SaveState → localStorage['state']", "lifecycle": "persisted", "saveKey": "*" },
+      "sideEffects": ["覆写 localStorage['state']"],
+      "mcp": { "status": "implemented", "tools": ["export_save", "save_status"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "写操作后 save_status.dirty 变为 true，防抖结束后落盘文件与 SaveState.save() 输出一致",
+          "集合被清空时自动写回被拦截并在 save_status.blockedWrite 中报告，export_save 才能落盘"
+        ],
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-shutdown.mjs"]
+      }
+    },
+    {
+      "id": "global.navigate.page",
+      "title": "页面导航",
+      "surface": { "page": "GLOBAL", "entry": "侧边栏导航项、顶栏 Logo、地址栏 hash、浏览器前进后退" },
+      "kind": "navigate",
+      "action": "navigateTo(page, params) 把 activeKey 设为目标页并 pushState 到对应 hash；hashchange 监听把地址栏变化同步回 activeKey。侧边栏分三组：工具（展示柜、排行榜、基准、计算器、跃迁规划）、优化（优化器、角色、遗器、导入、设置抽屉、入门抽屉）、链接（首页、更新日志及外链）。",
+      "upstream": [
+        { "file": "src/lib/overlays/drawers/MenuDrawer.tsx", "symbol": "MenuDrawer" },
+        { "file": "src/lib/overlays/drawers/MenuDrawer.tsx", "symbol": "SidebarNavExpanded" },
+        { "file": "src/lib/overlays/drawers/MenuDrawer.tsx", "symbol": "SidebarNavCollapsed" },
+        { "file": "src/lib/tabs/navigation/utils.ts", "symbol": "navigateTo" },
+        { "file": "src/lib/tabs/navigation/constants.ts", "symbol": "getDefaultActiveKey" },
+        { "file": "src/lib/tabs/navigation/useHashNavigation.ts", "symbol": "useHashNavigation" },
+        { "file": "src/lib/tabs/Tabs.tsx", "symbol": "Tabs" },
+        { "file": "src/lib/stores/app/appStore.ts", "symbol": "setActiveKey" },
+        { "file": "src/lib/layout/LayoutHeader.tsx", "symbol": "LayoutHeader" },
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardHeader.tsx", "symbol": "goToShowcase" }
+      ],
+      "params": [
+        { "name": "page", "type": "AppPages", "default": "由 hash 解析，解析不出时为 HOME", "notes": "HOME''、OPTIMIZER#main、CHARACTERS#characters（#teams 也映射到它）、RELICS#relics、IMPORT#import、SHOWCASE#showcase、LEADERBOARD#leaderboard、BENCHMARKS#benchmarks、CALCULATORS#aha（#ehr 也映射到它）、WARP#warp、CHANGELOG#changelog、WEBGPU_TEST#webgpu、METADATA_TEST#metadata" },
+        { "name": "params", "type": "URLSearchParams", "notes": "附在 hash 之后，例如展示柜的 id=<uid>" }
+      ],
+      "conditions": "首次访问（localStorage 无 'state'）且 hash 指向优化器/角色/遗器时改跳首页。WEBGPU_TEST 与 METADATA_TEST 没有侧边栏入口，只能经 hash 直达，且首次访问时才懒加载。目标页与当前页相同则不动作。",
+      "runtime": "browser",
+      "state": { "owner": "useGlobalStore.activeKey + location.hash", "lifecycle": "session" },
+      "sideEffects": [
+        "history.pushState 改写地址栏",
+        "进入带新功能标记的页面时写入 seenFeatures",
+        "首次进入优化器页时初始化 worker 池",
+        "window.scrollTo(0, 0)"
+      ],
+      "mcp": {
+        "status": "missing",
+        "gaps": "Node 运行环境下各域工具可直接调用，不需要导航；缺的是页面清单与可交给用户的链接，以及浏览器运行环境里打开指定页面。",
+        "candidates": ["site://pages", "render(target=page)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "site://pages 列出 13 个页面的 hash、标题和对应的 MCP 入口，与 PageToHash/HashToPage 一致",
+          "浏览器运行环境按 page 打开后 activeKey 与地址栏 hash 与网页点击侧边栏的结果一致"
+        ]
+      }
+    },
+    {
+      "id": "global.sidebar.collapse",
+      "title": "折叠或展开侧边栏",
+      "surface": { "page": "GLOBAL", "entry": "顶栏左侧菜单按钮" },
+      "kind": "view",
+      "action": "切换 MENU_SIDEBAR 开合，并把折叠状态写入 savedSession.global.sidebarCollapsed 后防抖保存。",
+      "upstream": [
+        { "file": "src/lib/layout/LayoutHeader.tsx", "symbol": "handleToggleSidebar" },
+        { "file": "src/lib/stores/app/appStore.ts", "symbol": "setSavedSessionKey" }
+      ],
+      "params": [{ "name": "sidebarCollapsed", "type": "boolean", "default": "false" }],
+      "defaultsFrom": { "file": "src/lib/stores/app/appStore.ts", "symbol": "savedSessionDefaults" },
+      "runtime": "node",
+      "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.sidebarCollapsed" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "missing", "candidates": ["get_state(section=session)", "update_state(section=session)"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["update_state 写入 sidebarCollapsed 后导出的存档与网页点击菜单按钮后的存档在该键上一致；浏览器运行环境渲染出折叠态侧边栏"]
+      }
+    },
+    {
+      "id": "global.settings.update",
+      "title": "读写全局设置",
+      "surface": { "page": "GLOBAL", "overlay": "SettingsDrawer", "entry": "侧边栏「设置」" },
+      "kind": "write",
+      "action": "设置抽屉列出 SettingOptions 的六项下拉；任一项变化即 setSettings(values) 并防抖保存。打开抽屉时先用 DefaultSettingOptions 补齐存档里缺失的键并写回 store。",
+      "upstream": [
+        { "file": "src/lib/overlays/drawers/SettingsDrawer.tsx", "symbol": "SettingsDrawer" },
+        { "file": "src/lib/overlays/drawers/SettingsDrawer.tsx", "symbol": "SettingsDrawerContent" },
+        { "file": "src/lib/constants/settingsConstants.ts", "symbol": "SettingOptions" },
+        { "file": "src/lib/stores/app/appStore.ts", "symbol": "setSettings" }
+      ],
+      "params": [
+        { "name": "RelicEquippingBehavior", "type": "'Replace' | 'Swap'", "default": "Replace", "notes": "装备遗器时原持有者的槽位是清空还是换上被替下的遗器" },
+        { "name": "PermutationsSidebarBehavior", "type": "'Show XL' | 'Show XXL' | 'Do Not Show'", "default": "Show XL", "notes": "优化器排列数侧栏在多宽的屏幕上显示" },
+        { "name": "ExpandedInfoPanelPosition", "type": "'Above' | 'Below'", "default": "Below", "notes": "展开数据面板在结果网格上方还是下方" },
+        { "name": "ShowLocatorInRelicsModal", "type": "'No' | 'Yes'", "default": "No", "notes": "遗器弹窗里是否显示库存定位" },
+        { "name": "ShowComboDmgWarning", "type": "'Show' | 'HideV2'", "default": "Show", "notes": "是否显示连招伤害提示" },
+        { "name": "NewCharacterDefaultRank", "type": "'First' | 'Last'", "default": "First", "notes": "新角色插到列表最前还是最后" }
+      ],
+      "defaultsFrom": { "file": "src/lib/constants/settingsConstants.ts", "symbol": "DefaultSettingOptions" },
+      "runtime": "node",
+      "state": { "owner": "useGlobalStore.settings", "lifecycle": "persisted", "saveKey": "settings" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": {
+        "status": "missing",
+        "gaps": "现有工具只是遵守其中两项（equip_build 读 RelicEquippingBehavior，upsert_character 读 NewCharacterDefaultRank），没有读取或修改设置的入口。",
+        "candidates": ["get_state(section=settings)", "update_state(section=settings)", "site://settings"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "get_state 返回六项设置的当前值、可选值与默认值，与 SettingOptions/DefaultSettingOptions 一致",
+          "逐项修改后导出的存档 settings 与网页修改同一项后的存档一致；非法取值被拒绝",
+          "把 RelicEquippingBehavior 改为 Swap 后 equip_build 的行为随之改变"
+        ]
+      }
+    },
+    {
+      "id": "global.language.switch",
+      "title": "切换界面语言",
+      "surface": { "page": "GLOBAL", "entry": "顶栏右侧语言下拉" },
+      "kind": "write",
+      "action": "i18n.changeLanguage(locale) 切换全站文案语言。",
+      "upstream": [
+        { "file": "src/lib/i18n/LanguageSelector.tsx", "symbol": "LanguageSelector" },
+        { "file": "src/lib/i18n/i18n.ts", "symbol": "completedLocales" }
+      ],
+      "params": [
+        { "name": "locale", "type": "Languages", "default": "浏览器语言检测，回退 en_US", "notes": "正式站只列 completedLocales：en_US、es_ES、fr_FR、ja_JP、ko_KR、pt_BR、ru_RU、vi_VN、zh_CN" }
+      ],
+      "conditions": "测试站（BASE_PATH 为 BETA）额外列出未完成的语言并带 WIP 标记；aa_ER 是 Crowdin 行内翻译伪语言，只在测试站出现，切入切出时启动/停止 window.jipt。",
+      "runtime": "node",
+      "state": { "owner": "i18next（由 LanguageDetector 自行缓存，不在存档里）", "lifecycle": "session" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "MCP 输出的标签固定取 zh_CN，没有切换语言的入口；浏览器运行环境渲染的图片也需要可指定语言。",
+        "candidates": ["get_state(section=session)", "update_state(section=session)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "切到 en_US 后 describe_conditionals 等返回的标签与网页英文界面一致，切回 zh_CN 后恢复",
+          "浏览器运行环境在指定语言下渲染的角色卡文字与网页同语言截图一致"
+        ]
+      }
+    },
+    {
+      "id": "global.gettingStarted.loadSample",
+      "title": "载入示例存档",
+      "surface": { "page": "GLOBAL", "overlay": "GettingStartedDrawer", "entry": "侧边栏「入门」→「试一试」按钮，经确认框" },
+      "kind": "write",
+      "action": "确认后 loadSaveData(sample-save.json 的深拷贝, autosave=false)，随即 SaveState.save() 落盘并提示成功。会整体替换当前数据。",
+      "upstream": [
+        { "file": "src/lib/overlays/drawers/GettingStartedDrawer.tsx", "symbol": "GettingStartedDrawer" },
+        { "file": "src/lib/overlays/drawers/GettingStartedDrawer.tsx", "symbol": "tryItOutClicked" },
+        { "file": "src/data/sample-save.json", "symbol": "*" }
+      ],
+      "conditions": "必须经过确认框；确认框文案说明会覆盖现有数据。",
+      "runtime": "node",
+      "state": { "owner": "全部 store", "lifecycle": "persisted", "saveKey": "*" },
+      "sideEffects": ["替换全部角色、遗器与设置", "立即 SaveState.save()"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["load_save"],
+        "gaps": "load_save 能载入这份文件，但 Agent 得自己知道仓库里的样例路径，安装到仓库外后该路径不存在；没有「示例存档」这个可发现的入口。",
+        "candidates": ["load_save(sample=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["load_save(sample=true) 之后导出的存档与网页点击「试一试」之后的存档一致，且在仓库外的安装目录下同样可用"],
+        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/smoke-archive.mjs"]
+      }
+    },
+    {
+      "id": "global.links.external",
+      "title": "外部链接与帮助文档",
+      "surface": { "page": "GLOBAL", "entry": "侧边栏「链接」分组、顶栏 Discord 图标、入门抽屉的完整指南、更新弹窗底部卡片" },
+      "kind": "external",
+      "action": "在新标签页打开外部站点：Ko-fi、Discord、GitHub 仓库、无剧透/含剧透站点互跳、优化器使用指南（docs/guides/en/optimizer.md）。",
+      "upstream": [
+        { "file": "src/lib/overlays/drawers/MenuDrawer.tsx", "symbol": "MenuDrawer" },
+        { "file": "src/lib/layout/LayoutHeader.tsx", "symbol": "LayoutHeader" },
+        { "file": "src/lib/overlays/drawers/GettingStartedDrawer.tsx", "symbol": "GettingStartedDrawer" },
+        { "file": "src/lib/overlays/modals/changelogCta/CtaCards.tsx", "symbol": "CtaCards" }
+      ],
+      "conditions": "officialOnly 为 true 时侧边栏显示指向含剧透站点的链接，否则显示指向无剧透站点的链接（当前常量为 false）。",
+      "runtime": "node",
+      "state": { "owner": "无", "lifecycle": "none" },
+      "mcp": { "status": "missing", "candidates": ["site://links", "site://help/{topic}"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "site://links 列出的链接与侧边栏、顶栏、入门抽屉、更新弹窗里的 href 逐条一致",
+          "site://help/optimizer 返回仓库内 docs/guides 对应指南的正文"
+        ]
+      }
+    },
+    {
+      "id": "global.changelog.whatsNew",
+      "title": "版本更新弹窗与已读版本",
+      "surface": { "page": "GLOBAL", "overlay": "ChangelogModal", "entry": "启动 1 秒后自动弹出；也可由 globalThis.openChangelogModal() 打开" },
+      "kind": "read",
+      "action": "存档里的 version 缺失或早于 CURRENT_OPTIMIZER_VERSION 时弹出最新一条更新内容（文字、图片、链接）。关闭时把 version 设为当前版本并防抖保存，之后不再弹出。",
+      "upstream": [
+        { "file": "src/lib/overlays/modals/ChangelogModal.tsx", "symbol": "ChangelogModal" },
+        { "file": "src/lib/interactions/notifications.tsx", "symbol": "checkForUpdatesNotification" },
+        { "file": "src/lib/stores/app/appStore.ts", "symbol": "setVersion" },
+        { "file": "src/lib/tabs/tabChangelog/changelogData.ts", "symbol": "getChangelogContent" }
+      ],
+      "conditions": "弹出后 1 秒内不能靠点击遮罩或 Esc 关闭。展示的是 getChangelogContent()[1]，即第一条带日期的更新。",
+      "runtime": "node",
+      "state": { "owner": "useGlobalStore.version", "lifecycle": "persisted", "saveKey": "version" },
+      "sideEffects": ["关闭时 setVersion(CURRENT_OPTIMIZER_VERSION) 并 SaveState.delayedSave()"],
+      "mcp": {
+        "status": "partial",
+        "resources": ["game://changelog"],
+        "gaps": "更新内容可读，但读不到「存档版本是否过期」；另外 MCP 每次落盘都会把 version 写成当前版本（SaveState.save 的固有行为），用户回到网页后不会再看到更新弹窗，这一点没有对外说明。",
+        "candidates": ["get_state(section=flags)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "载入旧版本存档后 get_state 报告存档版本、当前版本和是否过期，与 isVersionOutdated 一致",
+          "game://changelog 第一条带日期的条目与弹窗内容一致"
+        ],
+        "tests": ["mcp/scripts/smoke-conditionals.mjs"]
+      }
+    },
+    {
+      "id": "global.newFeature.badges",
+      "title": "新功能标记与已读",
+      "surface": { "page": "GLOBAL", "entry": "侧边栏导航项上的蓝点；进入对应页面即标为已读" },
+      "kind": "write",
+      "action": "ACTIVE_NEW_FEATURES 里尚未出现在 seenFeatures 的键显示蓝点；进入该页时 markFeatureSeen(key) 写入并防抖保存。resetSeenFeatures() 清空已读，只挂在 window.__HSR_DEBUG 上。",
+      "upstream": [
+        { "file": "src/lib/stores/newFeatureStore.ts", "symbol": "setSeenFeatures" },
+        { "file": "src/lib/stores/newFeatureStore.ts", "symbol": "markFeatureSeen" },
+        { "file": "src/lib/stores/newFeatureStore.ts", "symbol": "resetSeenFeatures" },
+        { "file": "src/lib/constants/newFeatures.ts", "symbol": "ACTIVE_NEW_FEATURES" }
+      ],
+      "params": [{ "name": "seenFeatures", "type": "string[]", "default": "[]", "notes": "当前生效的键只有 leaderboard" }],
+      "conditions": "不在 ACTIVE_NEW_FEATURES 里的键会被 markFeatureSeen 忽略。",
+      "runtime": "node",
+      "state": { "owner": "useNewFeatureStore.seenFeatures", "lifecycle": "persisted", "saveKey": "seenFeatures" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "missing", "candidates": ["get_state(section=flags)", "update_state(section=flags)"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["标记 leaderboard 已读后导出的存档 seenFeatures 与网页进入排行榜页之后一致；清空后恢复为空数组"]
+      }
+    },
+    {
+      "id": "global.debug.consoleUtilities",
+      "title": "开发者控制台工具",
+      "surface": { "page": "GLOBAL", "entry": "浏览器控制台 window.__HSR_DEBUG" },
+      "kind": "write",
+      "action": "挂在全局对象上的开发辅助函数：populateAllCharacters 把所有角色连同一把同命途光锥和 6 件随机遗器加入库存并按名称排序、清除自定义肖像；resetShowcaseColors 清空全部角色的展示配色偏好与已提取的肖像色并关闭全局 STANDARD 模式；exportShowcaseColors 导出 角色→颜色 映射。",
+      "upstream": [
+        { "file": "src/index.tsx", "symbol": "__HSR_DEBUG" },
+        { "file": "src/lib/dev/populateAllCharacters.ts", "symbol": "populateAllCharacters" },
+        { "file": "src/lib/stores/relic/relicStore.ts", "symbol": "batchUpsertRelics" },
+        { "file": "src/lib/simulations/tests/simDebuggers.ts", "symbol": "injectBenchmarkDebuggers" },
+        { "file": "src/lib/dev/resetShowcaseColors.ts", "symbol": "resetShowcaseColors" },
+        { "file": "src/lib/dev/exportShowcaseColors.ts", "symbol": "exportShowcaseColors" }
+      ],
+      "conditions": "没有任何界面入口，只能在控制台手动调用；populateAllCharacters 生成的遗器带随机数。",
+      "runtime": "node",
+      "state": { "owner": "useCharacterStore / useRelicStore / useShowcaseTabStore", "lifecycle": "session" },
+      "sideEffects": ["这些函数本身不调用 SaveState，改动要等其他操作触发保存才落盘"],
+      "mcp": { "status": "missing", "candidates": ["debug_utility"] },
+      "scope": "enhancement",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["resetShowcaseColors 之后 showcasePreferences 为空且 showcaseStandardMode 为 false，与控制台调用结果一致"]
+      }
+    }
+  ],
+  "mechanisms": [
+    {
+      "id": "global.mech.overlayOpenClose",
+      "title": "弹层开合状态",
+      "upstream": [{ "file": "src/lib/hooks/useOpenClose.ts", "symbol": "setIsOpen" }],
+      "serves": ["global.settings.update", "global.gettingStarted.loadSample", "global.changelog.whatsNew", "global.sidebar.collapse"],
+      "reason": "记录 15 个抽屉与弹窗各自是否打开的通用开关。打开弹层本身不产生数据，它露出的内容和其中的动作都已按功能逐条登记；MCP 工具直接带参数调用，不存在「先打开」这一步。"
+    },
+    {
+      "id": "global.mech.scrollLock",
+      "title": "弹层打开时锁定页面滚动",
+      "upstream": [{ "file": "src/lib/layout/scrollController.ts", "symbol": "*" }],
+      "serves": [],
+      "reason": "纯页面表现：带引用计数地冻结背景滚动并记住偏移量，其中 _resetForTesting 与 _getLockCount 是测试钩子。不读写任何业务数据，浏览器运行环境直接运行原网页时原样生效。"
+    },
+    {
+      "id": "global.mech.confirmDialog",
+      "title": "通用确认框",
+      "upstream": [{ "file": "src/lib/interactions/confirmModal.tsx", "symbol": "ConfirmModalProvider" }],
+      "serves": ["global.gettingStarted.loadSample"],
+      "reason": "破坏性操作前的二次确认容器。哪些操作需要确认已写在各功能条目的 conditions 里；MCP 侧由契约统一规定破坏性工具的显式确认参数与 dryRun。"
+    },
+    {
+      "id": "global.mech.themeSeed",
+      "title": "主题主色（未接线）",
+      "upstream": [{ "file": "src/lib/stores/themeStore.ts", "symbol": "setSeedColor" }],
+      "serves": [],
+      "reason": "useThemeStore 的主色经 zustand persist 存在 localStorage['theme-store-v1']，但当前源码里没有任何界面或代码调用 setSeedColor，主色恒为默认 #1668DC（或浏览器里的历史值）。上游接线后转为功能条目。"
+    }
+  ]
+}

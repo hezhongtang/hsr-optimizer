@@ -1,0 +1,247 @@
+{
+  "area": "calculators",
+  "title": "计算器页",
+  "features": [
+    {
+      "id": "calculators.panel.switch",
+      "title": "切换计算器面板",
+      "surface": { "page": "CALCULATORS", "entry": "页面顶部的两个页签：阿哈速度、效果命中" },
+      "kind": "navigate",
+      "action": "在阿哈速度计算器和效果命中计算器之间切换。当前面板写进地址栏的 #aha 或 #ehr，可以直接分享链接打开指定面板；从别的页面切回来时保持上次停留的面板。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCalculators/CalculatorsTab.tsx", "symbol": "handleTabChange" },
+        { "file": "src/lib/tabs/tabCalculators/calculatorPanels.ts", "symbol": "resolveCalculatorPanel" },
+        { "file": "src/lib/tabs/tabCalculators/calculatorPanels.ts", "symbol": "pushCalculatorHash" },
+        { "file": "src/lib/tabs/tabCalculators/calculatorPanels.ts", "symbol": "replaceCalculatorHash" }
+      ],
+      "params": [
+        { "name": "panel", "type": "AHA | EHR", "default": "AHA", "notes": "地址栏没有 #aha 或 #ehr 时默认打开阿哈速度" }
+      ],
+      "runtime": "browser",
+      "state": { "owner": "CalculatorsTab 的 activePanel + location.hash", "lifecycle": "session" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "两个计算器在 MCP 里是两个独立工具，不需要切换；缺的是页面清单里这两个子面板的链接，以及在浏览器运行环境里打开指定面板。",
+        "candidates": ["site://pages", "render(target=page)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "site://pages 在计算器页下列出两个子面板，hash 分别是 #aha 与 #ehr，并指明对应的工具是 calc_aha 与 calc_ehr",
+          "浏览器运行环境按 #ehr 打开后显示的是效果命中面板，与网页端点击该页签的结果一致"
+        ]
+      }
+    },
+    {
+      "id": "calculators.aha.form",
+      "title": "填写阿哈速度计算器的队友速度",
+      "surface": { "page": "CALCULATORS", "entry": "阿哈速度面板「计算器」一节的四个队友速度输入框" },
+      "kind": "write",
+      "action": "填写最多四名欢愉队友的战斗速度，输入框右侧的叉可以清空一格。填的内容连同目标阿哈速度一起自动存进存档，下次打开还在。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCalculators/AhaPanelContent.tsx", "symbol": "IntegratedRow" },
+        { "file": "src/lib/tabs/tabCalculators/AhaPanel.tsx", "symbol": "useAhaTuningStore" },
+        { "file": "src/lib/stores/ahaTuningStore.ts", "symbol": "useAhaTuningStore" },
+        { "file": "src/lib/state/saveState.ts", "symbol": "ahaSpeedTuner" },
+        { "file": "src/lib/services/persistenceService.ts", "symbol": "ahaSpeedTuner" }
+      ],
+      "params": [
+        { "name": "teammate0", "type": "number | 空", "default": "180" },
+        { "name": "teammate1", "type": "number | 空", "default": "135" },
+        { "name": "teammate2", "type": "number | 空", "default": "空" },
+        { "name": "teammate3", "type": "number | 空", "default": "空" },
+        { "name": "desiredAha", "type": "number | 空", "default": "135", "notes": "反解用的目标值，见 calculators.aha.solve" }
+      ],
+      "defaultsFrom": { "file": "src/lib/stores/ahaTuningStore.ts", "symbol": "useAhaTuningStore" },
+      "conditions": "速度不能为负。",
+      "runtime": "node",
+      "state": { "owner": "useAhaTuningStore", "lifecycle": "persisted", "saveKey": "ahaSpeedTuner" },
+      "sideEffects": ["每次改动后延迟写盘"],
+      "mcp": {
+        "status": "missing",
+        "gaps": "载入和保存存档时这组数值会原样带过去，但没有入口读出来或改写它；calc_aha 每次都要调用方自己给速度。",
+        "candidates": ["calc_aha(fromSaved=true)", "calc_aha(save=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "载入网页端导出的存档后，按存档取值计算得到的阿哈速度与网页端打开该面板时显示的一致",
+          "写回四个队友速度和目标值后导出存档，网页端载入后面板里显示的就是这组数值"
+        ]
+      }
+    },
+    {
+      "id": "calculators.aha.compute",
+      "title": "计算阿哈速度",
+      "surface": { "page": "CALCULATORS", "entry": "阿哈速度面板「计算器」一节的贡献条与公式" },
+      "kind": "compute",
+      "action": "阿哈速度等于基础值 80 加上各队友的贡献。队友按速度从高到低排名，第一到第四名分别贡献自身速度的五分之一、十分之一、二十分之一和四十分之一。面板逐行显示每名队友的排名和贡献值，并把公式代入数字写出来。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCalculators/AhaPanel.tsx", "symbol": "calculateAhaSpeed" },
+        { "file": "src/lib/tabs/tabCalculators/ahaCalculations.ts", "symbol": "calculateAhaSpeed" },
+        { "file": "src/lib/tabs/tabCalculators/ahaCalculations.ts", "symbol": "speedToContributionMultiplier" },
+        { "file": "src/lib/tabs/tabCalculators/AhaPanelContent.tsx", "symbol": "buildTeammateRows" },
+        { "file": "src/lib/tabs/tabCalculators/AhaPanelContent.tsx", "symbol": "FormulaSummary" }
+      ],
+      "conditions": "速度相同的队友按槽位先后排名。一格都没填时结果就是基础值 80。",
+      "runtime": "node",
+      "state": { "owner": "由 useAhaTuningStore 的四个速度推导", "lifecycle": "derived" },
+      "mcp": {
+        "status": "implemented",
+        "tools": ["calc_aha"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "队友速度 160、120、100 时阿哈速度为 129，各名次的贡献为 32、12、5，与网页端贡献条一致",
+          "传入顺序打乱后结果不变",
+          "不传队友时返回基础值 80"
+        ],
+        "tests": ["mcp/scripts/smoke-misc.mjs"]
+      }
+    },
+    {
+      "id": "calculators.aha.solve",
+      "title": "反解下一名队友需要的速度",
+      "surface": { "page": "CALCULATORS", "entry": "阿哈速度面板「求解器」一节" },
+      "kind": "compute",
+      "action": "给出想要的阿哈速度（下拉里有常用速度档位，也可以手填），算出在已填队友的基础上，再加一名队友至少需要多少速度才能达到。结果旁的说明随情况变化：四格已填满时提示没有空位，当前已经达标时提示已满足，否则说明这是第几名队友的要求。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCalculators/AhaPanel.tsx", "symbol": "handleDesiredChange" },
+        { "file": "src/lib/tabs/tabCalculators/AhaPanelContent.tsx", "symbol": "ReverseSolve" },
+        { "file": "src/lib/tabs/tabCalculators/ahaCalculations.ts", "symbol": "calculateNextTeammateSpeed" },
+        { "file": "src/lib/constants/spdPresetConfig.ts", "symbol": "buildSpdPresetOptions" }
+      ],
+      "params": [
+        { "name": "desiredAha", "type": "number | 空", "default": "135" }
+      ],
+      "conditions": "四格都填了就不出结果。目标值为空也不出结果。新队友的名次不固定：它可能排在已有队友之间，所需速度按它实际落到的名次计算。",
+      "runtime": "node",
+      "state": { "owner": "由 useAhaTuningStore 推导", "lifecycle": "derived" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "calc_aha 只做正向计算，没有按目标阿哈速度反解下一名队友速度的入口。",
+        "candidates": ["calc_aha(desiredAha=...)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "已有队友 180 与 135、目标 135 时返回第三名队友需要 110 速度，与网页端求解器显示的一致",
+          "已填满四名队友时明确返回没有空位，而不是给出一个数",
+          "当前阿哈速度已经不低于目标时标明已满足，数值与网页端一致"
+        ]
+      }
+    },
+    {
+      "id": "calculators.ehr.probability",
+      "title": "计算减益施加概率",
+      "surface": { "page": "CALCULATORS", "entry": "效果命中面板「计算器」一节的输入与公式" },
+      "kind": "compute",
+      "action": "填入效果命中、减益基础概率和施加次数，选择敌方效果抵抗和减益抵抗，得到单次施加的实际概率，以及在给定次数内至少成功一次的概率。面板把公式代入数字写出来，结果按高低显示不同颜色。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCalculators/EhrPanel.tsx", "symbol": "EhrPanel" },
+        { "file": "src/lib/tabs/tabCalculators/EhrPanelContent.tsx", "symbol": "EhrPanelContent" },
+        { "file": "src/lib/tabs/tabCalculators/EhrPanelContent.tsx", "symbol": "InputField" },
+        { "file": "src/lib/tabs/tabCalculators/EhrPanelContent.tsx", "symbol": "SelectField" },
+        { "file": "src/lib/tabs/tabCalculators/EhrPanelContent.tsx", "symbol": "FormulaDisplay" },
+        { "file": "src/lib/tabs/tabCalculators/ehrCalculations.ts", "symbol": "calculatePerAttemptRate" },
+        { "file": "src/lib/tabs/tabCalculators/ehrCalculations.ts", "symbol": "calculateApplicationRate" },
+        { "file": "src/lib/stores/ehrTuningStore.ts", "symbol": "useEhrTuningStore" }
+      ],
+      "params": [
+        { "name": "effectHitRate", "type": "number（百分数）", "default": "50" },
+        { "name": "baseChance", "type": "number（百分数）", "default": "100" },
+        { "name": "attempts", "type": "正整数", "default": "1", "notes": "四舍五入取整，最小按 1" },
+        { "name": "effectRes", "type": "0 | 10 | … | 80（百分数）", "default": "40" },
+        { "name": "debuffRes", "type": "0 | 25 | 50 | 75 | 100（百分数）", "default": "0" }
+      ],
+      "defaultsFrom": { "file": "src/lib/stores/ehrTuningStore.ts", "symbol": "EHR_TUNING_DEFAULTS" },
+      "conditions": "输入框清空后失焦会恢复成默认值。显示的概率限制在 0 到 100 之间。这组输入只在本次会话里保留，不写进存档。",
+      "runtime": "node",
+      "state": { "owner": "useEhrTuningStore", "lifecycle": "session" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "calc_ehr 只做反解（给目标概率求所需效果命中），没有给定效果命中求施加概率的正向计算；它的 effectHitRate 参数目前不参与任何计算。",
+        "candidates": ["calc_ehr(mode=probability)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "效果命中 50、基础概率 100、效果抵抗 40、减益抵抗 0、施加 1 次时返回 90，与网页端公式一行的结果一致",
+          "施加次数改为 3 时同时返回单次概率和三次内至少成功一次的概率，与网页端两个数值一致",
+          "计算结果超过 100 时返回 100"
+        ]
+      }
+    },
+    {
+      "id": "calculators.ehr.grid",
+      "title": "查看效果命中与抵抗对照表",
+      "surface": { "page": "CALCULATORS", "entry": "效果命中面板公式下方的表格，范围由「范围」下拉控制" },
+      "kind": "read",
+      "action": "一张对照表：行是效果命中，以当前值为中心每 5 一档向上下展开；列是敌方效果抵抗 0 到 80 每 10 一档；每格是该组合下的施加概率（取整），按高低分色。当前效果命中所在行和最接近当前抵抗的列有标线。「范围」下拉决定上下各展开多少，10 到 100 可选。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCalculators/ehrViz/EhrGrid.tsx", "symbol": "EhrGrid" },
+        { "file": "src/lib/tabs/tabCalculators/EhrPanelContent.tsx", "symbol": "setWindowHalf" },
+        { "file": "src/lib/tabs/tabCalculators/EhrPanelContent.tsx", "symbol": "generateRangeOptions" }
+      ],
+      "params": [
+        { "name": "windowHalf", "type": "10 | 20 | … | 100", "default": "50", "notes": "只在组件里保留，离开页面即恢复默认" }
+      ],
+      "conditions": "当前效果命中向下取到 5 的倍数作为中心行；下界不低于 0。表里每格用的基础概率、减益抵抗和施加次数取自上面的输入。",
+      "runtime": "node",
+      "state": { "owner": "由 useEhrTuningStore 推导；范围是 EhrPanelContent 的本地状态", "lifecycle": "derived" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "没有入口一次返回整张对照表，调用方只能自己逐格计算，而正向计算本身也还没有（见 calculators.ehr.probability）。",
+        "candidates": ["calc_ehr(mode=grid)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "默认输入、范围 50 时返回 21 行乘 9 列，行从 100 降到 0，各格数值与网页端表格逐格一致",
+          "效果命中 52 时中心行是 50，效果抵抗 40 所在列被标为当前列",
+          "范围改为 10 时只返回中心行上下各两档"
+        ]
+      }
+    },
+    {
+      "id": "calculators.ehr.solve",
+      "title": "反解所需效果命中",
+      "surface": { "page": "CALCULATORS", "entry": "效果命中面板「求解器」一节" },
+      "kind": "compute",
+      "action": "给出想要的施加概率，按当前的基础概率、敌方两种抵抗和施加次数，算出至少需要多少效果命中。基础概率为 0 或任一抵抗达到 100 时无解，面板不显示数值。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabCalculators/EhrPanelContent.tsx", "symbol": "ReverseSolve" },
+        { "file": "src/lib/tabs/tabCalculators/EhrPanel.tsx", "symbol": "calculateRequiredEhr" },
+        { "file": "src/lib/tabs/tabCalculators/ehrCalculations.ts", "symbol": "calculateRequiredEhr" }
+      ],
+      "params": [
+        { "name": "desiredHitRate", "type": "0..100（百分数）", "default": "100" }
+      ],
+      "defaultsFrom": { "file": "src/lib/stores/ehrTuningStore.ts", "symbol": "EHR_TUNING_DEFAULTS" },
+      "conditions": "不需要额外效果命中就能达标时结果为 0。",
+      "runtime": "node",
+      "state": { "owner": "由 useEhrTuningStore 推导", "lifecycle": "derived" },
+      "mcp": {
+        "status": "implemented",
+        "tools": ["calc_ehr"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "效果抵抗 20、基础概率 100、施加 1 次、目标 100 时返回 25，与网页端求解器一致",
+          "施加次数 2.4 与 2 的结果相同",
+          "减益抵抗 100 时返回不可达和原因，而不是 0"
+        ],
+        "tests": ["mcp/scripts/smoke-misc.mjs"]
+      }
+    }
+  ]
+}

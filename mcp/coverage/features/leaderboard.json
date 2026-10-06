@@ -1,0 +1,261 @@
+{
+  "area": "leaderboard",
+  "title": "排行榜页",
+  "features": [
+    {
+      "id": "leaderboard.data.load",
+      "title": "加载排行榜数据",
+      "surface": { "page": "LEADERBOARD", "entry": "第一次打开排行榜页时自动进行" },
+      "kind": "external",
+      "action": "从站点自己的目录下载两份静态文件：全部角色的榜单（按角色分别压缩）和最近动态。下载后逐个角色解压，建立配装编号到角色、评分类型、队伍的索引，并算出每个角色的最高分和参与人数。数据只下载一次，本次访问期间重复使用。榜单取自在展示柜页查询过的配装，由维护者离线评分后随站点发布，每天刷新一次；网页端只读不写。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardTab.tsx", "symbol": "initializeLeaderboardTab" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardTabController.ts", "symbol": "initializeLeaderboardTab" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardDataLoader.ts", "symbol": "loadLeaderboardData" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardDataLoader.ts", "symbol": "getLeaderboardTopScores" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardDataLoader.ts", "symbol": "getLeaderboardCharacterIds" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardDataLoader.ts", "symbol": "getBuildIndex" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardDataLoader.ts", "symbol": "loadCharacterData" },
+        { "file": "src/lib/tabs/tabLeaderboard/useLeaderboardTabStore.ts", "symbol": "useLeaderboardTabStore" }
+      ],
+      "conditions": "榜单文件下载失败时角色列表为空，页面不报错；动态文件下载失败或版本过旧时只是不显示动态。地址栏带有配装编号时，加载完成后直接定位到那套配装（见 leaderboard.entry.read）。",
+      "runtime": "node",
+      "state": { "owner": "leaderboardDataLoader 的模块级缓存 + useLeaderboardTabStore", "lifecycle": "session" },
+      "sideEffects": ["向站点所在域名发起两次只读下载"],
+      "mcp": {
+        "status": "missing",
+        "gaps": "MCP 没有任何排行榜入口。上游加载函数按网页自身所在地址拼出文件路径，在 Node 里解析不到线上地址，需要自带一份按线上地址下载的实现。",
+        "candidates": ["leaderboard(view=characters)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "下载并解压后得到的角色数、每个角色的最高分和参与人数与网页端角色列表一致",
+          "同一会话内多次查询只下载一次",
+          "下载失败时返回明确的错误，而不是空榜单"
+        ]
+      }
+    },
+    {
+      "id": "leaderboard.characters.list",
+      "title": "浏览上榜角色",
+      "surface": { "page": "LEADERBOARD", "entry": "左侧角色列表；进入某个角色后收成一列头像" },
+      "kind": "read",
+      "action": "列出有排行榜的五星角色，按该角色的最高分从高到低排：名次、头像与名字、最高分、公开展示的人数和参与总人数。可以按名字搜索，也可以用输出、辅助、治疗、护盾四个标签只看支持该评分类型的角色，标签上带角色数。数据还不够开榜的角色单独列在下面的「数据不足」一组，只显示参与人数，不能点进去。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabLeaderboard/CharacterListPanel.tsx", "symbol": "CharacterListPanel" },
+        { "file": "src/lib/tabs/tabLeaderboard/CharacterListPanel.tsx", "symbol": "ActiveRow" },
+        { "file": "src/lib/tabs/tabLeaderboard/CharacterListPanel.tsx", "symbol": "GrowingRow" },
+        { "file": "src/lib/tabs/tabLeaderboard/CollapsedCharacterStrip.tsx", "symbol": "CollapsedCharacterStrip" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardCharacterHelpers.ts", "symbol": "getLeaderboardCharacters" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardCharacterHelpers.ts", "symbol": "getCharacterLeaderboardConfigTypes" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardCharacterHelpers.ts", "symbol": "isCharacterLeaderboardEnabled" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardDataLoader.ts", "symbol": "getPublicEntryCount" }
+      ],
+      "params": [
+        { "name": "search", "type": "string", "default": "空", "notes": "按当前语言的角色名做不区分大小写的包含匹配" },
+        { "name": "configType", "type": "DPS | BUFFER | HEAL | SHIELD | 空", "default": "空", "notes": "再点一次已选中的标签即取消" }
+      ],
+      "conditions": "公开展示人数只统计分数不低于 150% 的玩家，最多显示 100。搜索词和标签只在组件里保留，离开页面即清空。",
+      "runtime": "node",
+      "state": { "owner": "useLeaderboardTabStore.availableCharacters / topScores / totalEntries；搜索与标签是 CharacterListPanel 的本地状态", "lifecycle": "derived" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "没有入口列出上榜角色及其最高分和人数。",
+        "candidates": ["leaderboard(view=characters)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "返回的角色顺序、最高分（保留一位小数、向下截断）和人数与网页端列表逐行一致",
+          "按评分类型筛选后的角色集合与网页端点对应标签后一致",
+          "未开榜的角色单独标出，与网页端「数据不足」一组一致"
+        ]
+      }
+    },
+    {
+      "id": "leaderboard.board.read",
+      "title": "查看某个角色的榜单",
+      "surface": { "page": "LEADERBOARD", "entry": "在角色列表点一个角色后进入的名次列表；左上角的返回按钮回到角色列表" },
+      "kind": "read",
+      "action": "点角色进入它的榜单。评分类型取角色列表上当时选中的标签，没选就按输出、辅助、治疗、护盾的顺序取该角色有数据的第一个。榜单每个玩家只保留最好的一套配装，按分数从高到低排，取前 100 名，每行显示名次（前三名有奖牌色）、分数、星魂与叠影、光锥和队友。进入时队伍与星魂筛选重置为全部，并自动选中第一名。可以用上下方向键逐行移动。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardTabController.ts", "symbol": "selectLeaderboardCharacter" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardTabController.ts", "symbol": "expandCharacterList" },
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardTab.tsx", "symbol": "expandCharacterList" },
+        { "file": "src/lib/tabs/tabLeaderboard/RankListPanel.tsx", "symbol": "RankListPanel" },
+        { "file": "src/lib/tabs/tabLeaderboard/RankListPanel.tsx", "symbol": "RankListEntry" },
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardTeamDisplay.tsx", "symbol": "LeaderboardTeamDisplay" },
+        { "file": "src/lib/tabs/tabLeaderboard/deriveVisibleEntries.ts", "symbol": "deriveVisibleEntries" },
+        { "file": "src/lib/tabs/tabLeaderboard/deriveVisibleEntries.ts", "symbol": "LEADERBOARD_DISPLAY_TOP_N" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardDataLoader.ts", "symbol": "mapPublicEntry" }
+      ],
+      "params": [
+        { "name": "characterId", "type": "CharacterId", "notes": "必须是已开榜的角色" },
+        { "name": "configType", "type": "dps | support | heal | shield", "default": "该角色有数据的第一个" }
+      ],
+      "conditions": "线上站点只显示分数不低于 150% 的配装；本地开发地址下不做这条过滤，「数据不足」的角色也能点开。同分时按配装编号排序。进入榜单后没有切换评分类型的控件，要换类型得回到角色列表改标签再进。",
+      "runtime": "node",
+      "state": { "owner": "useLeaderboardTabStore.selectedCharacterId / activeConfigType / visibleEntries", "lifecycle": "session" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "没有入口读取某个角色的榜单。",
+        "candidates": ["leaderboard(view=board)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "同一角色、同一评分类型下返回的名次、分数、星魂、叠影、光锥和队友与网页端名次列表逐行一致",
+          "不指定评分类型时取到的类型与网页端直接点该角色时一致",
+          "结果不超过 100 行，且不含分数低于 150% 的配装"
+        ]
+      }
+    },
+    {
+      "id": "leaderboard.board.filter",
+      "title": "按队伍和星魂筛选榜单",
+      "surface": { "page": "LEADERBOARD", "overlay": "队伍下拉面板", "entry": "榜单上方的星魂分段按钮和队伍下拉" },
+      "kind": "view",
+      "action": "队伍下拉列出这个角色在该评分类型下的所有参评队伍，每项显示三名队友的头像和名字，默认「全部队伍」。选定一支队伍后只看用这支队伍评分的榜单，名次也是这支队伍内的名次。星魂分段按钮在全部、0 魂、1 魂、2 魂、6 魂之间切换，只留下落在该档位的配装。筛选后原来选中的配装如果还在就保持选中，否则改选第一行。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardTabController.ts", "symbol": "setLeaderboardFilters" },
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardFilterControls.tsx", "symbol": "LeaderboardFilterControls" },
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardFilterControls.tsx", "symbol": "TeamPopover" },
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardFilterControls.tsx", "symbol": "TeamNamedButton" },
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardFilterControls.tsx", "symbol": "renderTeamNamedRows" },
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardFilterControls.tsx", "symbol": "renderCharacterEidolonBar" },
+        { "file": "src/leaderboard/shared/eidolonConfig.ts", "symbol": "eidolonToGroup" }
+      ],
+      "params": [
+        { "name": "teamId", "type": "队伍编号 | all", "default": "all" },
+        { "name": "characterEidolon", "type": "all | e0 | e1 | e2 | e6", "default": "all", "notes": "按「不低于」归档：3 到 5 魂归入 2 魂档" }
+      ],
+      "conditions": "星魂筛选在取前 100 名之后进行，名次数字保持筛选前的总名次，所以筛选后的名次可能不连续，行数也可能远少于 100。",
+      "runtime": "node",
+      "state": { "owner": "useLeaderboardTabStore.activeTeamId / filterCharacterEidolon", "lifecycle": "session" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "没有入口按队伍或星魂档位读取榜单，也没有入口列出某个角色有哪些参评队伍。",
+        "candidates": ["leaderboard(view=board)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "指定队伍后返回的行和名次与网页端选中该队伍后一致",
+          "指定星魂档位后返回的行与网页端一致，名次保持筛选前的数字",
+          "返回的可选队伍列表（队友与顺序）与网页端下拉面板一致"
+        ]
+      }
+    },
+    {
+      "id": "leaderboard.entry.read",
+      "title": "查看上榜配装详情",
+      "surface": { "page": "LEADERBOARD", "entry": "在名次列表点一行；或打开带配装编号的链接" },
+      "kind": "read",
+      "action": "选中一套配装后，右侧显示它的概览和完整角色卡。概览有名次、分数（达到 150% 时带 AEON 标记）、是全部队伍名次还是队伍内名次、数据抓取日期、星魂与光锥、队友、生效的套装件数、各有效副词条的词条数，以及一条标出各评级分数线的刻度尺。角色卡与展示柜的卡片相同，但只读：分数直接用榜单记录的数值，评分一律用默认配置和该配装参评时的队伍，不受本地评分设置影响，也不能换立绘、改遗器或切换评分方式。选中的配装编号写进地址栏，复制链接给别人打开就是同一套配装；链接指向的配装会落在它能出现的榜单上，优先全部队伍榜。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardTabController.ts", "symbol": "selectLeaderboardEntry" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardTabController.ts", "symbol": "selectLeaderboardBuild" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardTabController.ts", "symbol": "getHashParam" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardTabController.ts", "symbol": "updateLeaderboardUrl" },
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardBanner.tsx", "symbol": "LeaderboardBanner" },
+        { "file": "src/lib/tabs/tabLeaderboard/HeroScoreRuler.tsx", "symbol": "HeroScoreRuler" },
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardCharacterPreview.tsx", "symbol": "LeaderboardCharacterPreview" },
+        { "file": "src/leaderboard/shared/profileCompression.ts", "symbol": "expandCharacter" },
+        { "file": "src/lib/characterPreview/CharacterPreviewScoringContext.tsx", "symbol": "CharacterPreviewScoringProvider" }
+      ],
+      "params": [
+        { "name": "buildId", "type": "string", "notes": "配装编号，即链接里的 b 参数" }
+      ],
+      "conditions": "链接里的配装已不在榜上时不选中任何配装。配装只在自己的队伍榜上够得着名次时，落在那支队伍的榜单上。",
+      "runtime": "node",
+      "state": { "owner": "useLeaderboardTabStore.selectedBuildId / selectedEntry / expandedCharacter + 地址栏的 b 参数", "lifecycle": "session" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "没有入口按配装编号取出上榜配装的遗器、光锥、队伍和记录的分数，也不能对它生成角色卡或做评分分析。",
+        "candidates": ["leaderboard(view=entry)", "score_character(source=leaderboard)", "render(target=character_card)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "按配装编号返回的名次、分数、星魂、光锥、队友、套装件数和六件遗器与网页端打开同一链接后显示的一致",
+          "返回的分数是榜单记录的数值，不随本地评分设置变化",
+          "返回结果指明这套配装所在的榜单是全部队伍还是某支队伍，与网页端落到的榜单一致",
+          "配装编号不在榜上时返回明确的未找到"
+        ]
+      }
+    },
+    {
+      "id": "leaderboard.timeline.read",
+      "title": "查看排行榜最近动态",
+      "surface": { "page": "LEADERBOARD", "entry": "页面顶部横幅里的动态列表" },
+      "kind": "read",
+      "action": "列出最近的榜单变化，最多 100 条：多久以前、当前名次、角色、分数，以及比上一次最高分涨了多少；新开榜的角色标为「新」。点一条跳到对应的那套配装；这套配装已经不在榜上时，改为打开该角色对应评分类型的榜单。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabLeaderboard/TimelineFeed.tsx", "symbol": "TimelineFeed" },
+        { "file": "src/lib/tabs/tabLeaderboard/TimelineFeed.tsx", "symbol": "handleRowClick" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardDataLoader.ts", "symbol": "loadLeaderboardTimeline" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardDataLoader.ts", "symbol": "normalizeBrowserTimelineEvent" },
+        { "file": "src/leaderboard/timeline/timelineEventValidation.ts", "symbol": "parseTimelineEventWire" },
+        { "file": "src/leaderboard/timeline/timelineTypes.ts", "symbol": "TIMELINE_SCHEMA_VERSION" }
+      ],
+      "conditions": "格式不合法的动态条目被丢弃。涨幅从 150% 起算：上一次分数低于 150% 时按 150% 计。时间不足一小时显示为一小时前，满 24 小时后按天显示。",
+      "runtime": "node",
+      "state": { "owner": "useLeaderboardTabStore.timelineEvents", "lifecycle": "session" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "没有入口读取排行榜动态。",
+        "candidates": ["leaderboard(view=timeline)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "返回的动态条目（角色、评分类型、名次、分数、涨幅、是否新开榜）与网页端列表逐条一致，顺序相同",
+          "每条动态带配装编号，可以直接用来读取配装详情",
+          "动态文件不可用时返回空列表并说明原因"
+        ]
+      }
+    },
+    {
+      "id": "leaderboard.myRanks.read",
+      "title": "查看自己的上榜配装",
+      "surface": { "page": "LEADERBOARD", "entry": "页面顶部横幅里的「你的 Aeon」卡片" },
+      "kind": "read",
+      "action": "用展示柜页记住的 UID 在全部榜单里查找自己的配装，按名次从前到后列出：名次、角色、评分类型、分数。只在某支队伍的榜单上够得着名次时，显示那支队伍内的最好名次并加标记。点一条跳到那套配装。UID 只在本地做哈希后与榜单里的匿名编号比对，不会发送出去。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardUserRanksCard.tsx", "symbol": "LeaderboardUserRanksCard" },
+        { "file": "src/lib/tabs/tabLeaderboard/LeaderboardUserRanksCard.tsx", "symbol": "selectRank" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardUidLookup.ts", "symbol": "lookupUserLeaderboardRanks" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardBrowserHash.ts", "symbol": "hashLeaderboardUid" },
+        { "file": "src/lib/tabs/tabLeaderboard/leaderboardBrowserHash.ts", "symbol": "computeBrowserCandidateId" },
+        { "file": "src/lib/utils/miscUtils.ts", "symbol": "validateUuid" }
+      ],
+      "params": [
+        { "name": "uid", "type": "9 位数字", "default": "展示柜页记住的 UID" }
+      ],
+      "conditions": "没有记住 UID 时提示找不到已保存的 UID；UID 不是 9 位数字时提示无效；榜单数据不可用时提示暂不可用；查到零条时整张卡片不显示。",
+      "runtime": "node",
+      "state": { "owner": "LeaderboardUserRanksCard 的本地状态，依赖 useShowcaseTabStore.savedSession.scorerId", "lifecycle": "derived" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "没有入口按 UID 查询上榜名次。",
+        "candidates": ["leaderboard(view=my_ranks)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "同一 UID 返回的名次、角色、评分类型、分数和是否为队伍内名次与网页端卡片一致",
+          "不传 UID 时使用存档里展示柜页记住的 UID，没有则返回需要 UID 的提示",
+          "查询过程不产生任何带 UID 的网络请求"
+        ]
+      }
+    }
+  ]
+}

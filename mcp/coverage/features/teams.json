@@ -1,0 +1,398 @@
+{
+  "area": "teams",
+  "title": "队伍展示（角色页的 #teams 面板）",
+  "features": [
+    {
+      "id": "teams.working.setSlot",
+      "title": "给队伍槽位选择、更换或移除角色",
+      "surface": { "page": "CHARACTERS", "entry": "队伍面板里空槽位的加号，或卡片选项里的「更换角色」「移除」" },
+      "kind": "write",
+      "action": "四个槽位组成当前编辑的队伍。选角色时：角色不在角色列表里就先按默认表单加进去；同一角色已在别的槽位时那个槽位被清空；如果队伍原本全空且填的是第一个槽位，按该角色的自定义评分队伍（没有自定义队时不补）用已拥有的角色自动补满其余槽位。移除就是把槽位置空。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/useTeamShowcase.ts", "symbol": "setSlot" },
+        { "file": "src/lib/tabs/tabTeamShowcase/TeamShowcaseLayout.tsx", "symbol": "setSlot" },
+        { "file": "src/lib/tabs/tabTeamShowcase/SlotPicker.tsx", "symbol": "SlotPicker" },
+        { "file": "src/lib/tabs/tabTeamShowcase/SlotCellOverlay.tsx", "symbol": "openPicker" },
+        { "file": "src/lib/tabs/tabTeamShowcase/SlotCellOverlay.tsx", "symbol": "onRemove" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseModel.ts", "symbol": "autofillTeamSlots" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseScoring.ts", "symbol": "resolveCustomAutofillTeammateIds" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseController.ts", "symbol": "ensureRosterCharacters" }
+      ],
+      "params": [
+        { "name": "index", "type": "0 | 1 | 2 | 3", "notes": "TEAM_SIZE = 4；第一个槽位在同步基准时被当作主 C" },
+        { "name": "characterId", "type": "CharacterId | null", "notes": "选择器列出全部角色，不限已拥有；null 为移除" }
+      ],
+      "conditions": "自动补位只用已拥有的角色，取展示卡显示顺序里第一个选了自定义队的评分配置的队友。角色从列表里被删除后，对应槽位自动清空。",
+      "runtime": "node",
+      "state": { "owner": "useTeamShowcase 组件内的 workingTeam", "lifecycle": "ephemeral" },
+      "sideEffects": ["选了未拥有的角色时把它加进角色列表（位置遵守 NewCharacterDefaultRank）并 SaveState.delayedSave()"],
+      "mcp": {
+        "status": "missing",
+        "gaps": "MCP 没有「当前编辑的队伍」这个状态，也没有自动补位。save_team 能直接写入一支已保存队伍，但不会把缺失的角色补进角色列表。",
+        "candidates": ["manage_team(action=compose)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "空队伍里给第一个槽位选一个存有自定义评分队伍的角色，返回的四个槽位与网页自动补位后的结果一致",
+          "选一个未拥有的角色后，两边存档的 characters 都多出该角色（默认表单、空装备）",
+          "把已在第三槽的角色选进第一槽后，第三槽变空"
+        ]
+      }
+    },
+    {
+      "id": "teams.working.reorder",
+      "title": "拖拽调整槽位顺序",
+      "surface": { "page": "CHARACTERS", "entry": "在队伍面板里拖动卡片到另一个槽位" },
+      "kind": "write",
+      "action": "一次性写入四个位置的新排列（reorderSlots），已同步的基准快照保留。顺序有含义：同步基准后第一槽按主 C 评分，其余三槽按副 C（deprioritizeBuffs）评分。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/useTeamShowcase.ts", "symbol": "reorderSlots" },
+        { "file": "src/lib/tabs/tabTeamShowcase/TeamShowcaseLayout.tsx", "symbol": "reorderSlots" },
+        { "file": "src/lib/tabs/tabTeamShowcase/TeamCardGrid.tsx", "symbol": "TeamCardGrid" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseModel.ts", "symbol": "resolveTeamBenchmarkOverrides" }
+      ],
+      "params": [{ "name": "order", "type": "number[]", "notes": "新排列里每个位置取原来的哪个槽位" }],
+      "runtime": "node",
+      "state": { "owner": "useTeamShowcase 组件内的 workingTeam", "lifecycle": "ephemeral" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "没有工作队伍状态。对已保存队伍用 save_team 改 characterIds 的顺序会丢掉基准快照，而网页拖拽后快照还在。",
+        "candidates": ["manage_team(action=compose)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": ["把第三槽角色换到第一槽后，该角色按主 C、原第一槽角色按副 C 评分，分数与网页拖拽后的两张卡一致"]
+      }
+    },
+    {
+      "id": "teams.working.clear",
+      "title": "清空当前队伍",
+      "surface": { "page": "CHARACTERS", "entry": "队伍面板侧栏的「清空」按钮" },
+      "kind": "write",
+      "action": "把四个槽位全部置空，并丢弃已同步的基准快照。不影响已保存的队伍。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/useTeamShowcase.ts", "symbol": "clearTeam" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsActions.tsx", "symbol": "onClear" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsSidebar.tsx", "symbol": "clearTeam" }
+      ],
+      "conditions": "队伍为空时按钮禁用。",
+      "runtime": "node",
+      "state": { "owner": "useTeamShowcase 组件内的 workingTeam", "lifecycle": "ephemeral" },
+      "mcp": { "status": "missing", "candidates": ["manage_team(action=compose)"] },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": ["清空后读到的工作队伍四槽皆空、没有基准快照，已保存队伍列表不变"]
+      }
+    },
+    {
+      "id": "teams.cards.read",
+      "title": "查看队伍的四张展示卡",
+      "surface": { "page": "CHARACTERS", "entry": "队伍面板的 2×2 卡片网格" },
+      "kind": "compute",
+      "action": "每个非空槽位渲染该角色的展示卡（来源 TEAM：只读、无定制侧栏、无构筑分析）。同步过基准时，每张卡的模拟评分改用队伍快照做覆盖：队友是快照里的另外三名成员，第一槽按主 C、其余按副 C。未同步时各卡用自己的评分队伍。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/TeamShowcaseLayout.tsx", "symbol": "TeamShowcaseLayout" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseModel.ts", "symbol": "buildTeamBenchmarkOverrideVariants" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseModel.ts", "symbol": "resolveTeamBenchmarkOverrides" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseScoring.ts", "symbol": "resolveSlotScoring" }
+      ],
+      "conditions": "页签第一次显示之后才挂载卡片，避免后台跑评分。快照成员与当前四槽不完全对应时不使用覆盖。",
+      "runtime": "node",
+      "state": { "owner": "useTeamShowcase（派生）", "lifecycle": "derived" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["dps_score", "list_teams"],
+        "gaps": "dps_score 只能用角色自己的默认队或自定义队评分，不能用队伍快照做覆盖，也不区分主 C 与副 C 槽位；非 DPS 配置同样没有入口。",
+        "candidates": ["score_character(source=team)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "对一支已同步基准的队伍，四名成员各自的评分与队伍面板四张卡上的分数一致",
+          "未同步时返回的分数与各角色单独展示卡的分数一致"
+        ],
+        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-archive.mjs"]
+      }
+    },
+    {
+      "id": "teams.slot.scoringType",
+      "title": "切换槽位卡片的评分类型",
+      "surface": { "page": "CHARACTERS", "entry": "卡片选项里的「基准」下拉" },
+      "kind": "write",
+      "action": "为该槽位的角色选择评分类型，可选项与展示卡相同；写入的是同一个 showcasePreferences[角色].scoringType，所以角色页的展示卡也会跟着变。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/useTeamShowcase.ts", "symbol": "setSlotScoringType" },
+        { "file": "src/lib/tabs/tabTeamShowcase/TeamShowcaseLayout.tsx", "symbol": "setSlotScoringType" },
+        { "file": "src/lib/tabs/tabTeamShowcase/SlotCellOverlay.tsx", "symbol": "onScoringChange" },
+        { "file": "src/lib/tabs/tabTeamShowcase/SlotScoringSelect.tsx", "symbol": "SlotScoringSelect" }
+      ],
+      "params": [
+        { "name": "index", "type": "0 | 1 | 2 | 3" },
+        { "name": "scoringType", "type": "ScoringType", "notes": "取值与回退规则见 preview.scoring.typeSwitch" }
+      ],
+      "conditions": "空槽位不动作。",
+      "runtime": "node",
+      "state": { "owner": "useShowcaseTabStore.showcasePreferences", "lifecycle": "persisted", "saveKey": "showcasePreferences[].scoringType" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "missing", "candidates": ["update_state(section=showcase)"] },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": ["在队伍面板把某槽位切到副词条评分后，两边存档里该角色的 showcasePreferences.scoringType 都是 1"]
+      }
+    },
+    {
+      "id": "teams.benchmarks.sync",
+      "title": "同步基准队伍",
+      "surface": { "page": "CHARACTERS", "entry": "队伍面板侧栏的「同步基准队伍」按钮" },
+      "kind": "write",
+      "action": "把四名成员当前的星魂、光锥、叠影，以及按已装备遗器推断出的队伍遗器套装（4 件）和饰品套装（2 件）记成一份快照，作为这支队伍的基准覆盖。如果当前队伍对应一支已保存的队伍，快照同时写进那支队伍并防抖保存。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/useTeamShowcase.ts", "symbol": "syncBenchmarkTeams" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsActions.tsx", "symbol": "onSyncBenchmarks" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsSidebar.tsx", "symbol": "syncBenchmarkTeams" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseModel.ts", "symbol": "captureTeamBenchmarkSnapshot" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/useSavedTeams.ts", "symbol": "applyBenchmarkSnapshot" },
+        { "file": "src/lib/optimization/teammateSetUtils.ts", "symbol": "calculateTeammateSets" }
+      ],
+      "conditions": "四个槽位必须都有角色，否则按钮禁用；任一成员没装光锥时报错不同步。当前队伍没有对应的已保存队伍时，快照只存在于工作状态里。",
+      "runtime": "node",
+      "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams[].benchmarkSnapshot" },
+      "sideEffects": ["四张卡的模拟评分按新快照重算", "有对应的已保存队伍时 SaveState.delayedSave()"],
+      "mcp": {
+        "status": "missing",
+        "gaps": "list_teams 能读出快照，但没有工具可以生成；save_team 新建的队伍不带快照，改槽位还会把已有快照丢掉。",
+        "candidates": ["manage_team(action=sync_benchmarks)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "对同一支四人队伍同步后，两边存档里该队伍的 benchmarkSnapshot.members 逐项一致（含推断出的套装）",
+          "有成员没装光锥时两边都拒绝并给出同类错误"
+        ]
+      }
+    },
+    {
+      "id": "teams.saved.save",
+      "title": "保存当前队伍",
+      "surface": { "page": "CHARACTERS", "entry": "队伍面板侧栏的「保存」按钮" },
+      "kind": "write",
+      "action": "把当前四槽和基准快照存成一支新队伍：id 为新生成的 uuid，名字是「队伍 N」（N 为已有队伍数加一，按界面语言生成），追加到列表末尾并防抖保存。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/useSavedTeams.ts", "symbol": "saveCurrentTeam" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsSidebar.tsx", "symbol": "saveCurrentTeam" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseController.ts", "symbol": "writeSavedTeams" }
+      ],
+      "params": [
+        { "name": "characterIds", "type": "(CharacterId | null)[4]", "notes": "取当前工作队伍" },
+        { "name": "name", "type": "string", "default": "SavedTeams.DefaultName（队伍 N）", "notes": "保存时不能自己起名，之后可重命名" }
+      ],
+      "conditions": "四槽全空时不保存。当前队伍已与某支已保存队伍一致（槽位和基准快照都相同）时按钮禁用，所以网页存不出两支完全相同的队伍；保存总是新建，不覆盖已有队伍。",
+      "runtime": "node",
+      "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["save_team"],
+        "gaps": "save_team 新建时必须显式给名字，没有网页的默认命名；新建的队伍不能带基准快照。",
+        "candidates": ["save_team(benchmarkSnapshot=...)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "保存同样的四槽后，两边存档的 teamShowcaseSavedTeams 末尾多出的队伍除 id 外一致",
+          "带着已同步的基准保存时，两边队伍里的 benchmarkSnapshot 一致"
+        ],
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke.mjs"]
+      }
+    },
+    {
+      "id": "teams.saved.list",
+      "title": "查看已保存的队伍",
+      "surface": { "page": "CHARACTERS", "entry": "队伍面板侧栏的已保存队伍列表" },
+      "kind": "read",
+      "action": "按保存顺序列出每支队伍的名字和四名成员的头像；与当前工作队伍（槽位和基准快照都相同）对应的那支高亮显示。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx", "symbol": "SavedTeamsList" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseController.ts", "symbol": "readSavedTeams" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsActions.tsx", "symbol": "SavedTeamsActions" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams" },
+      "mcp": { "status": "implemented", "tools": ["list_teams"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["list_teams 返回的队伍数量、顺序、名字、四槽角色与基准快照，和侧栏列表及存档内容一致"],
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-misc.mjs"]
+      }
+    },
+    {
+      "id": "teams.saved.load",
+      "title": "载入一支已保存的队伍",
+      "surface": { "page": "CHARACTERS", "entry": "点击已保存队伍列表里的一项" },
+      "kind": "write",
+      "action": "把这支队伍的四槽设为当前工作队伍并标记为选中。载入前把队伍里不在角色列表中的角色按默认表单补进列表；补完后仍然无效的槽位被清空，这种情况下不带入基准快照，其余情况带入。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/useSavedTeams.ts", "symbol": "loadSavedTeam" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseController.ts", "symbol": "loadSavedTeamSlots" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseController.ts", "symbol": "ensureRosterCharacters" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx", "symbol": "handleLoad" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx", "symbol": "onLoad" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsSidebar.tsx", "symbol": "loadSavedTeam" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseModel.ts", "symbol": "sanitizeTeamSlots" }
+      ],
+      "params": [{ "name": "teamId", "type": "SavedTeamId" }],
+      "conditions": "游戏元数据里已不存在的角色 id 不会被补进列表。",
+      "runtime": "node",
+      "state": { "owner": "useTeamShowcase 组件内的 workingTeam", "lifecycle": "ephemeral" },
+      "sideEffects": ["把缺失的角色加进角色列表并 SaveState.delayedSave()"],
+      "mcp": {
+        "status": "missing",
+        "gaps": "list_teams 能读出队伍内容，但「把缺失角色补进角色列表」这一步没有对应操作，后续对这些角色评分会因角色不存在而失败。",
+        "candidates": ["manage_team(action=load)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "mirror",
+      "acceptance": {
+        "cases": [
+          "载入一支含未拥有角色的队伍后，两边存档的 characters 都多出该角色，返回的四槽与网页一致",
+          "队伍里有一个元数据中不存在的角色 id 时，该槽位为空且不带基准快照"
+        ]
+      }
+    },
+    {
+      "id": "teams.saved.rename",
+      "title": "重命名已保存的队伍",
+      "surface": { "page": "CHARACTERS", "entry": "已保存队伍条目上的重命名图标，行内输入后回车或失焦提交，Esc 取消" },
+      "kind": "write",
+      "action": "把名字去掉首尾空白后写回该队伍并防抖保存；空名字或与原名相同时不动作。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/useSavedTeams.ts", "symbol": "renameSavedTeam" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx", "symbol": "commitName" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx", "symbol": "startEditing" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsSidebar.tsx", "symbol": "renameSavedTeam" }
+      ],
+      "params": [
+        { "name": "teamId", "type": "SavedTeamId" },
+        { "name": "name", "type": "string", "notes": "trim 后非空" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams[].name" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "implemented", "tools": ["save_team"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["save_team(teamId, name) 之后的存档与网页行内重命名为同一名字后的存档一致，槽位与基准快照不变"],
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-misc.mjs"]
+      }
+    },
+    {
+      "id": "teams.saved.delete",
+      "title": "删除已保存的队伍",
+      "surface": { "page": "CHARACTERS", "entry": "已保存队伍条目上的删除图标" },
+      "kind": "write",
+      "action": "把该队伍从列表里移除并防抖保存，不需要确认。当前工作队伍不受影响。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/useSavedTeams.ts", "symbol": "deleteSavedTeam" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx", "symbol": "onDelete" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsSidebar.tsx", "symbol": "deleteSavedTeam" }
+      ],
+      "params": [{ "name": "teamId", "type": "SavedTeamId" }],
+      "runtime": "node",
+      "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": {
+        "status": "missing",
+        "gaps": "save_team 只能新建和更新，建错的队伍删不掉。",
+        "candidates": ["manage_team(action=delete)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["删除一支队伍后两边存档的 teamShowcaseSavedTeams 一致，其余队伍顺序不变"]
+      }
+    },
+    {
+      "id": "teams.saved.move",
+      "title": "拖拽调整已保存队伍的顺序",
+      "surface": { "page": "CHARACTERS", "entry": "在已保存队伍列表里拖动条目" },
+      "kind": "write",
+      "action": "把一支队伍从原位置移到目标位置，其余顺延，写回列表并防抖保存。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/useSavedTeams.ts", "symbol": "moveSavedTeam" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx", "symbol": "handleDragEnd" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsSidebar.tsx", "symbol": "moveSavedTeam" }
+      ],
+      "params": [
+        { "name": "from", "type": "number", "notes": "原下标" },
+        { "name": "to", "type": "number", "notes": "目标下标" }
+      ],
+      "conditions": "下标越界或前后相同时不动作。",
+      "runtime": "node",
+      "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "missing", "candidates": ["manage_team(action=move)"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["把第三支队伍移到最前后，两边存档的 teamShowcaseSavedTeams 顺序一致"]
+      }
+    },
+    {
+      "id": "teams.screenshot",
+      "title": "导出队伍展示图片",
+      "surface": { "page": "CHARACTERS", "entry": "队伍面板侧栏的复制截图与下载截图按钮" },
+      "kind": "artifact",
+      "action": "把 2×2 卡片网格（#teamShowcaseGrid，按两张卡宽加间距、两张卡高加间距的尺寸）渲染成一张 PNG，文件名前缀取翻译项 ScreenshotName；复制与下载的行为同单张展示卡。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/useTeamShowcase.ts", "symbol": "screenshot" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsActions.tsx", "symbol": "onScreenshot" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsSidebar.tsx", "symbol": "screenshot" },
+        { "file": "src/lib/tabs/tabTeamShowcase/teamShowcaseConstants.ts", "symbol": "GRID_SIZE" },
+        { "file": "src/lib/utils/screenshotUtils.ts", "symbol": "screenshotElementById" }
+      ],
+      "params": [{ "name": "action", "type": "ScreenshotAction", "notes": "Clipboard 或 Download" }],
+      "conditions": "队伍为空时按钮禁用。界面上卡片按 0.6 倍显示，截图按原始尺寸导出。",
+      "runtime": "browser",
+      "state": { "owner": "无", "lifecycle": "none" },
+      "mcp": { "status": "missing", "candidates": ["render(target=team_card)", "deliver_artifact(action=copy|share)"] },
+      "scope": "baseline",
+      "upstreamChange": "export",
+      "acceptance": {
+        "cases": ["渲染出的队伍图片尺寸与网页下载的一致，四张卡的角色、分数与顺序相同"]
+      }
+    }
+  ],
+  "mechanisms": [
+    {
+      "id": "teams.mech.cardOptionsReveal",
+      "title": "卡片选项的显示与隐藏",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/SlotCellOverlay.tsx", "symbol": "revealSlot" },
+        { "file": "src/lib/tabs/tabTeamShowcase/useSlotInteractions.ts", "symbol": "*" }
+      ],
+      "serves": ["teams.working.setSlot", "teams.slot.scoringType"],
+      "reason": "鼠标悬停、聚焦或触摸点击卡片时显示「更换角色、基准、移除」这组选项，移开后隐藏。它只决定按钮何时可见，按钮本身的功能已各有条目。"
+    },
+    {
+      "id": "teams.mech.dragSensors",
+      "title": "槽位拖拽的手势识别",
+      "upstream": [
+        { "file": "src/lib/tabs/tabTeamShowcase/slotDrag.ts", "symbol": "*" },
+        { "file": "src/lib/tabs/tabTeamShowcase/pointerDragSensors.ts", "symbol": "*" },
+        { "file": "src/lib/tabs/tabTeamShowcase/savedTeams/SavedTeamsList.tsx", "symbol": "handleDragStart" }
+      ],
+      "serves": ["teams.working.reorder", "teams.saved.move"],
+      "reason": "把指针与触摸手势转成「从哪个位置拖到哪个位置」，并在拖拽刚结束时抑制一次误触发的点击。产出的排列就是两个排序条目的参数。"
+    }
+  ]
+}

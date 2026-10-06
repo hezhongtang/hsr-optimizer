@@ -1,0 +1,198 @@
+{
+  "area": "showcase",
+  "title": "展示柜页",
+  "features": [
+    {
+      "id": "showcase.profile.fetch",
+      "title": "按 UID 拉取玩家展示柜",
+      "surface": { "page": "SHOWCASE", "entry": "页面顶部的 UID 输入框与「提交」按钮；带 id 参数的链接或上次查询过的 UID 会在进入页面时自动拉取" },
+      "kind": "external",
+      "action": "输入 9 位 UID 后向展示柜代理接口请求该玩家公开展示的角色，按返回的数据来源（enka 或 mihomo）解析，转换成角色与遗器，并去掉重复出现的同一角色。成功后显示角色头像行和第一名角色的展示卡，把 UID 写进地址栏并记住，下次进入页面自动重新拉取。两次手动提交之间要间隔 10 秒。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabShowcase/ShowcaseTab.tsx", "symbol": "handleSubmit" },
+        { "file": "src/lib/tabs/tabShowcase/showcaseApi.ts", "symbol": "submitForm" },
+        { "file": "src/lib/tabs/tabShowcase/dataProcessors.ts", "symbol": "processEnkaData" },
+        { "file": "src/lib/tabs/tabShowcase/dataProcessors.ts", "symbol": "processMihomoData" },
+        { "file": "src/lib/tabs/tabShowcase/showcaseTabController.ts", "symbol": "initializeShowcaseOnMount" },
+        { "file": "src/lib/tabs/tabShowcase/showcaseTabController.ts", "symbol": "parseShowcaseUrlId" },
+        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "startFetch" },
+        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "setFetchResult" },
+        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "handleFetchFailure" },
+        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "setScreen" },
+        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "setLatestRefreshDate" },
+        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "setScorerId" },
+        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "setSavedSession" }
+      ],
+      "params": [
+        { "name": "scorerId", "type": "string", "default": "上次查询过的 UID", "notes": "去掉首尾空白后长度必须是 9" }
+      ],
+      "conditions": "长度不是 9 时提示无效并不请求。10 秒内再次手动提交会提示还要等几秒；由链接或上次会话触发的自动拉取不受这个间隔限制。请求失败时 5 秒后提示稍后重试，已经显示的旧档案保留。从未被扫描过或没公开展示信息的 UID 得到空档案。",
+      "runtime": "node",
+      "state": { "owner": "外部展示柜接口 + useShowcaseTabStore.availableCharacters；上次查询的 UID 在 useShowcaseTabStore.savedSession.scorerId", "lifecycle": "persisted", "saveKey": "savedSession.showcaseTab.scorerId" },
+      "sideEffects": ["向展示柜代理接口发一次 GET 请求", "把 UID 写进地址栏参数", "SaveState.delayedSave()"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["fetch_showcase"],
+        "gaps": "拉取、解析与去重和网页端同一条链路，差别有三处：UID 校验更严（只接受 9 位数字，网页端只看长度）；没有网页端两次提交间隔 10 秒的节流；不会把这次查询的 UID 记进存档，网页端下次进入展示柜页不会自动加载它。",
+        "candidates": ["fetch_showcase(remember=true)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "同一 UID 返回的角色列表（角色、星魂、光锥、叠影、已装备遗器数）与网页端头像行及各张展示卡一致",
+          "enka 与 mihomo 两种来源的样例数据都能解析，重复角色只保留第一次出现的",
+          "连续两次拉取之间不足 10 秒时第二次被拒绝并说明还要等多久",
+          "要求记住 UID 后，导出的存档里 savedSession.showcaseTab.scorerId 等于该 UID"
+        ],
+        "tests": ["mcp/scripts/smoke-imports.mjs"]
+      }
+    },
+    {
+      "id": "showcase.card.read",
+      "title": "查看展示柜角色的展示卡",
+      "surface": { "page": "SHOWCASE", "entry": "头像行里点某个角色，下方显示它的展示卡" },
+      "kind": "read",
+      "action": "在拉到的角色之间切换，查看每个角色的展示卡：属性、六件遗器及评分、DPS 评分或属性评分，以及展示卡上的全部分析。角色不需要先导入存档。展示卡本身的内容与各项操作见 preview 域。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabShowcase/ShowcasePortraitRow.tsx", "symbol": "ShowcasePortraitRow" },
+        { "file": "src/lib/tabs/tabShowcase/ShowcaseTab.tsx", "symbol": "onSelect" },
+        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "selectCharacter" }
+      ],
+      "params": [
+        { "name": "selectedIndex", "type": "number", "default": "0", "notes": "拉取成功后回到第一个角色" }
+      ],
+      "conditions": "这里的展示卡显示 UID（可在展示设置里关闭），不能换装备的遗器。",
+      "runtime": "node",
+      "state": { "owner": "useShowcaseTabStore.selectedIndex", "lifecycle": "session" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["fetch_showcase"],
+        "gaps": "fetch_showcase 只返回每个角色的摘要。对还没导入存档的展示柜角色，算不了遗器评分、属性汇总和 DPS 评分，要先用 import_showcase 导入才能调用 score_relics、dps_score。",
+        "candidates": ["score_character(source=showcase)", "render(target=character_card)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "不导入的情况下，对展示柜里某个角色算出的遗器评分、属性汇总与 DPS 评分，与网页端该角色展示卡上的数值一致",
+          "算完之后存档里的角色与遗器没有任何变化"
+        ],
+        "tests": ["mcp/scripts/smoke-imports.mjs"]
+      }
+    },
+    {
+      "id": "showcase.import",
+      "title": "把展示柜数据导入存档",
+      "surface": { "page": "SHOWCASE", "entry": "输入框右侧的「导入」下拉菜单" },
+      "kind": "write",
+      "action": "三种导入方式：只导入遗器；导入当前选中的角色及遗器；导入全部角色及遗器。遗器按内容与库存比对，对得上的更新为展示柜里的数值并标为已校验，对不上的作为新遗器加入。导入角色时按展示柜里的星魂、光锥等信息新建或更新角色，并把遗器装到它身上；只导入遗器时不改变任何人的装备。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabShowcase/ShowcaseTab.tsx", "symbol": "importShowcaseCharacters" },
+        { "file": "src/lib/tabs/tabShowcase/showcaseTabController.ts", "symbol": "importShowcaseCharacters" },
+        { "file": "src/lib/services/persistenceService.ts", "symbol": "mergePartialRelics" },
+        { "file": "src/lib/services/persistenceService.ts", "symbol": "upsertCharacterFromForm" }
+      ],
+      "params": [
+        { "name": "mode", "type": "relics | singleCharacter | multiCharacter", "default": "无", "notes": "三个菜单项各对应一种" }
+      ],
+      "conditions": "拉到至少一个角色后才显示这个菜单。不论哪种方式，遗器合并都覆盖档案里全部角色的遗器。导入的是当前显示的角色，如果它被模拟替换过（见 showcase.simulate.override），导入的就是替换后的角色。",
+      "runtime": "node",
+      "state": { "owner": "useRelicStore + useCharacterStore", "lifecycle": "persisted", "saveKey": "relics, characters" },
+      "sideEffects": ["匹配到的库存遗器被展示柜数值覆盖并标为已校验", "导入角色时遗器从原持有者身上转到该角色", "SaveState.delayedSave()"],
+      "mcp": {
+        "status": "implemented",
+        "tools": ["import_showcase", "fetch_showcase"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "三种 mode 导入后的存档（角色列表、各角色装备、遗器库存）分别与网页端点对应菜单项后的存档一致",
+          "只导入遗器时没有任何角色的装备发生变化",
+          "重复导入同一份档案不会产生重复遗器"
+        ],
+        "tests": ["mcp/scripts/smoke-imports.mjs"]
+      }
+    },
+    {
+      "id": "showcase.simulate.override",
+      "title": "用这套遗器模拟别的角色",
+      "surface": { "page": "SHOWCASE", "overlay": "角色编辑弹窗", "entry": "展示卡左侧模拟栏里的预设角色头像与加号按钮；展示卡上的「编辑角色」按钮打开同一个弹窗" },
+      "kind": "compute",
+      "action": "把当前选中的展示柜角色临时换成另一个角色和光锥，遗器原样保留，用来看这套遗器穿在别的角色身上的属性与评分。预设头像一键换成近期角色及其专属光锥（星魂 0、叠影 1）；加号或「编辑角色」打开弹窗，自己选角色、星魂、光锥、叠影和套装。替换只在页面里生效，重新拉取档案就恢复原样。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabShowcase/SimulationSidebar.tsx", "symbol": "onPresetClick" },
+        { "file": "src/lib/tabs/tabShowcase/ShowcaseTab.tsx", "symbol": "presetClicked" },
+        { "file": "src/lib/tabs/tabShowcase/showcaseTabController.ts", "symbol": "presetCharacters" },
+        { "file": "src/lib/tabs/tabShowcase/showcaseTabController.ts", "symbol": "handleCharacterModalOk" },
+        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "applyCharacterOverride" },
+        { "file": "src/lib/tabs/tabShowcase/showcaseTabStoreActions.ts", "symbol": "computeCharacterOverride" }
+      ],
+      "params": [
+        { "name": "characterId", "type": "CharacterId", "default": "无", "notes": "必填" },
+        { "name": "lightCone", "type": "LightConeId", "default": "无", "notes": "必填" },
+        { "name": "characterEidolon", "type": "0..6", "default": "0" },
+        { "name": "lightConeSuperimposition", "type": "1..5", "default": "1" }
+      ],
+      "conditions": "没选角色或没选光锥时提示并不替换。同一个角色可以出现在多个位置。预设名单随游戏版本手工维护，元数据里不存在的角色不显示。",
+      "runtime": "node",
+      "state": { "owner": "useShowcaseTabStore.availableCharacters[selectedIndex]", "lifecycle": "session" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "没有「拿一套遗器换一个角色和光锥来评分」的入口；simulate_build 与 dps_score 都要求角色已在存档里并使用它保存的表单。",
+        "candidates": ["score_character(source=showcase, override=...)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "把展示柜里某个角色换成另一个角色与光锥后，算出的属性汇总、遗器评分与 DPS 评分和网页端替换后的展示卡一致",
+          "缺角色或缺光锥时被拒绝，原因与网页端的提示对应",
+          "计算不改动存档，也不改动缓存里的原始档案"
+        ]
+      }
+    },
+    {
+      "id": "showcase.sidebar.toggle",
+      "title": "展开或收起模拟栏",
+      "surface": { "page": "SHOWCASE", "entry": "展示卡左侧模拟栏顶部的烧瓶按钮" },
+      "kind": "view",
+      "action": "显示或隐藏预设角色列表，状态会记住。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabShowcase/SimulationSidebar.tsx", "symbol": "onToggle" },
+        { "file": "src/lib/tabs/tabShowcase/ShowcaseTab.tsx", "symbol": "onSidebarToggle" },
+        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "setSidebarOpen" }
+      ],
+      "params": [
+        { "name": "sidebarOpen", "type": "boolean", "default": "true" }
+      ],
+      "runtime": "node",
+      "state": { "owner": "useShowcaseTabStore.savedSession.sidebarOpen", "lifecycle": "persisted", "saveKey": "savedSession.showcaseTab.sidebarOpen" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": {
+        "status": "missing",
+        "gaps": "存档里的这项界面状态读不到也改不了。",
+        "candidates": ["get_state(section=session)", "update_state(section=session)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "读到的展开状态与网页端一致；改动后网页端重新打开展示柜页按新状态显示"
+        ]
+      }
+    }
+  ],
+  "mechanisms": [
+    {
+      "id": "showcase.mech.urlSync",
+      "title": "地址栏与展示柜状态同步",
+      "upstream": [
+        { "file": "src/lib/tabs/tabShowcase/showcaseTabController.ts", "symbol": "syncShowcaseUrl" }
+      ],
+      "serves": ["showcase.profile.fetch", "global.navigate.page"],
+      "reason": "每次切回展示柜页时把已加载的 UID 重新写进地址栏参数，让链接可以分享；既没有链接参数也没有上次的 UID 时退回首页。它只是让地址栏跟着已有状态走，拉取与导航本身都已有条目。"
+    }
+  ]
+}

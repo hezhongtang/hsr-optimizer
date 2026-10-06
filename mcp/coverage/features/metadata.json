@@ -1,0 +1,332 @@
+{
+  "area": "metadata",
+  "title": "元数据测试页",
+  "features": [
+    {
+      "id": "metadata.setAuditor.run",
+      "title": "套装基准审计",
+      "surface": { "page": "METADATA_TEST", "overlay": "角色选择弹窗、光锥选择弹窗、队友编辑弹窗", "entry": "「Set benchmark auditor」面板。页面没有侧边栏入口，只能在地址栏输入 #metadata 打开" },
+      "kind": "compute",
+      "action": "给维护者检查角色评分配置里的推荐套装是否有遗漏。选定角色、星魂、光锥、叠影和三名队友，勾选要扫的套装类型、速度档位、输出或副 C、是否带充能绳，以及按 100% 还是 200% 基准比较。工具先用该角色配置里的第一组推荐套装算出参照分，再把全部四件套、二加二组合和饰品套装逐个替换进去重算，按与参照分的差距排序：不在推荐名单里却持平或更高的标红，差距在 2% 以内的标黄，已在名单里的标绿底。点一行展开看每组参数下的分数、参照分和差距。运行中显示完成数和预计剩余时间，可以取消。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabMetadata/setAuditor/SetBenchmarkAuditor.tsx", "symbol": "SetBenchmarkAuditor" },
+        { "file": "src/lib/tabs/tabMetadata/setAuditor/SetBenchmarkAuditor.tsx", "symbol": "CheckboxGroupField" },
+        { "file": "src/lib/tabs/tabMetadata/setAuditor/setAuditorEngine.ts", "symbol": "runAudit" },
+        { "file": "src/lib/tabs/tabMetadata/setAuditor/setAuditorConstants.ts", "symbol": "computeFlag" },
+        { "file": "src/lib/tabs/tabMetadata/setAuditor/SetAuditorSummaryTable.tsx", "symbol": "SetAuditorSummaryTable" },
+        { "file": "src/lib/tabs/tabMetadata/setAuditor/SetAuditorSummaryTable.tsx", "symbol": "SummarySection" },
+        { "file": "src/lib/tabs/tabMetadata/setAuditor/SetAuditorSummaryTable.tsx", "symbol": "SummaryRow" },
+        { "file": "src/lib/tabs/tabMetadata/setAuditor/SetAuditorDrillDown.tsx", "symbol": "SetAuditorDrillDown" }
+      ],
+      "params": [
+        { "name": "characterId", "type": "CharacterId", "notes": "必须有输出类模拟评分配置；选定后星魂重置为 0、叠影重置为 1，队友取配置里的推荐队友" },
+        { "name": "lightCone", "type": "LightConeId" },
+        { "name": "setTypes", "type": "relic4p | relic2p2p | ornament 多选", "default": "relic4p、ornament" },
+        { "name": "spdBreakpoints", "type": "0 | 133 | 160 | 200 多选", "default": "0、133、160" },
+        { "name": "modes", "type": "dps | subDps 多选", "default": "按角色配置：副 C 角色为 subDps，否则 dps" },
+        { "name": "errRope", "type": "noErr | err 多选", "default": "按角色配置：允许充能绳的角色两项都选，否则只选 noErr" },
+        { "name": "scoringModes", "type": "benchmark | perfection 多选", "default": "perfection" }
+      ],
+      "conditions": "遗器套装和饰品套装分开扫：扫遗器时饰品固定为参照饰品，扫饰品时遗器固定为参照遗器，两者之间的联动发现不了，页面上有同样的提示。二加二组合按两件套效果归类后取代表套装配对，不是所有套装两两配对。任一多选项为空时不能运行。",
+      "runtime": "node",
+      "state": { "owner": "SetBenchmarkAuditor 的本地状态；队友借用 useBenchmarksTabStore.teammate0..2", "lifecycle": "ephemeral" },
+      "sideEffects": ["换角色会改写基准生成器页的三名队友"],
+      "mcp": {
+        "status": "partial",
+        "tools": ["benchmark_runs"],
+        "gaps": "benchmark_runs 能对指定套装逐个出基准分，但一次最多 16 组、要求角色已在存档里，也没有「全部套装对参照套装」的批量扫描、差距计算和标记。",
+        "candidates": ["benchmark_runs(sweep=sets)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "同一角色、光锥、队友和勾选项下，返回的每个套装的最佳差距、对应参数和红黄标记与网页端汇总表逐行一致",
+          "返回的参照套装与网页端「Compared to」后显示的一致",
+          "展开数据（每组参数下的分数、参照分、差距）与网页端展开行一致",
+          "带进度令牌时按已完成的基准数发送进度，取消后不返回半截结果"
+        ],
+        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+      }
+    },
+    {
+      "id": "metadata.colorGrid.view",
+      "title": "展示卡配色总览",
+      "surface": { "page": "METADATA_TEST", "entry": "「Character color grid」面板" },
+      "kind": "view",
+      "action": "把角色列表里的全部角色各渲染一张展示卡，三列排开，配一个浮动的视觉调参面板：拖动面板里的任一参数，所有卡片同时变化。用来一次看清一套取色和光影参数在各个角色上的效果。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "CharacterColorGridDashboard" },
+        { "file": "src/lib/characterPreview/debugPanelConfig.ts", "symbol": "useDebugPanelConfig" }
+      ],
+      "conditions": "角色列表为空时只显示一句提示。卡片固定用调试模式渲染，不播放动态立绘。调参面板本身见 preview.debug.visualPanel。",
+      "runtime": "browser",
+      "state": { "owner": "useCharacterStore.characters + useDebugVisualConfigStore", "lifecycle": "session" },
+      "mcp": {
+        "status": "missing",
+        "gaps": "没有浏览器运行环境，无法渲染展示卡，也没有入口读写视觉调试参数。",
+        "candidates": ["render(target=character_card)", "get_state(section=visualDebug)", "update_state(section=visualDebug)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "在同一组视觉调试参数下对多个角色批量渲染，得到的每张卡片与网页端总览里对应的卡片外观一致",
+          "修改一项调试参数后重新渲染，所有卡片都按新参数变化"
+        ]
+      }
+    },
+    {
+      "id": "metadata.imageCenter.edit",
+      "title": "立绘与光锥图居中调校",
+      "surface": { "page": "METADATA_TEST", "entry": "「Image center editor」面板" },
+      "kind": "view",
+      "action": "给维护者调校角色立绘、动态立绘和光锥图在展示卡里的位置与缩放。选一个角色后并排显示静态立绘和动态立绘两个取景框，直接在图上拖动改位置、滚轮改缩放，也可以填数字；两个框之间可以复制粘贴中心点。光锥部分选一把光锥后调纵向偏移和缩放。最下面是一张完整展示卡的预览，可换角色、光锥和光影预设，分别调立绘中心和背景偏移。每组数值旁都给出一段可直接贴进源码配置的文本，带复制按钮。可以打开十字准线辅助对齐，重置按钮恢复到配置里现有的值。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabMetadata/ImageCenterEditor.tsx", "symbol": "ImageCenterEditorSection" },
+        { "file": "src/lib/tabs/tabMetadata/ImageCenterEditor.tsx", "symbol": "CharacterEditor" },
+        { "file": "src/lib/tabs/tabMetadata/ImageCenterEditor.tsx", "symbol": "CharCenterControls" },
+        { "file": "src/lib/tabs/tabMetadata/ImageCenterEditor.tsx", "symbol": "LightConeCenterEditor" },
+        { "file": "src/lib/tabs/tabMetadata/ImageCenterEditor.tsx", "symbol": "CharacterPreviewEditor" },
+        { "file": "src/lib/tabs/tabMetadata/ImageCenterEditor.tsx", "symbol": "useDragInteraction" }
+      ],
+      "params": [
+        { "name": "imageCenter / spineCenter", "type": "{ x, y, z }", "default": "该角色配置里的现有值", "notes": "z 是缩放" },
+        { "name": "imageOffset", "type": "{ x: 0, y, s }", "default": "该光锥配置里的现有值，没有则 y 为 0、s 为 1.15", "notes": "s 是缩放" },
+        { "name": "backgroundOffset", "type": "{ x, y, z }", "default": "0" },
+        { "name": "preset", "type": "SHINE | NATURAL", "default": "SHINE" },
+        { "name": "showCrosshairs", "type": "boolean", "default": "false" }
+      ],
+      "conditions": "调出来的数值不会保存，也不会影响其他页面；要生效得把复制出来的文本改进源码。角色没有动态立绘数据时，对应的取景框显示提示。",
+      "runtime": "browser",
+      "state": { "owner": "ImageCenterEditor 各编辑器的本地状态", "lifecycle": "ephemeral" },
+      "sideEffects": ["点复制按钮时把配置文本写入系统剪贴板"],
+      "mcp": {
+        "status": "missing",
+        "gaps": "没有浏览器运行环境，无法按临时的中心点和缩放渲染立绘或展示卡来比对效果。",
+        "candidates": ["render(target=character_card)", "debug_utility(action=image_center)"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "给定角色和一组临时的立绘中心与缩放，渲染出的展示卡与网页端预览在同样数值下的外观一致",
+          "返回的配置文本与网页端显示的那一段逐字相同，数值按相同规则取整",
+          "不传临时数值时使用配置里的现有值，与网页端点重置后的状态一致"
+        ]
+      }
+    },
+    {
+      "id": "metadata.simulation.sets",
+      "title": "查看各角色的评分推荐套装",
+      "surface": { "page": "METADATA_TEST", "entry": "「Simulation sets」面板" },
+      "kind": "read",
+      "action": "按命途分成九张表，行是有输出类评分配置的角色，列是全部遗器套装和饰品套装，格子里有图标表示该套装在这个角色的评分推荐名单里。用来横向比较同命途角色的推荐套装。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "SimulationEquivalentSetsDashboard" },
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "generateEquivalentSetsGrid" }
+      ],
+      "conditions": "显示的是随版本发布的默认配置，与本地存档无关。四件套和二加二组合在表里不区分，只要套装出现在名单里就点亮。",
+      "runtime": "node",
+      "state": { "owner": "游戏元数据里各角色的 scoringMetadata.simulation", "lifecycle": "derived" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["get_scoring_metadata"],
+        "gaps": "get_scoring_metadata 能返回单个角色的推荐套装，但要求先载入存档、每次只能查一个角色，返回的模拟配置是叠加用户覆盖后的生效值而不是默认值，也没有跨角色的总表。",
+        "candidates": ["game://metadata/scoring"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "不载入存档即可读到每个角色的默认推荐遗器套装和饰品套装，与网页端表格里点亮的格子一致",
+          "按命途分组后的角色集合与网页端九张表一致"
+        ],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "metadata.simulation.teams",
+      "title": "查看各角色的评分默认队伍",
+      "surface": { "page": "METADATA_TEST", "entry": "「Simulation teams」面板" },
+      "kind": "read",
+      "action": "按命途分成九张表，每行一个角色，后面三格是它做输出类评分时默认搭配的三名队友及各自的光锥。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "SimulationTeamDashboard" },
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "generateTeamGrid" }
+      ],
+      "conditions": "显示的是默认配置，不反映用户在评分面板里自定义的队伍。",
+      "runtime": "node",
+      "state": { "owner": "游戏元数据里各角色的 scoringMetadata.simulation.teammates", "lifecycle": "derived" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["get_scoring_metadata"],
+        "gaps": "要求先载入存档、每次只能查一个角色；用户自定义过队伍时返回的是自定义后的队伍，读不到默认队伍。",
+        "candidates": ["game://metadata/scoring"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "不载入存档即可读到每个角色的默认三名队友及光锥，与网页端表格一致",
+          "存档里自定义过队伍的角色，默认队伍仍与网页端这张表一致"
+        ],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "metadata.simulation.combo",
+      "title": "查看各角色的评分默认循环",
+      "surface": { "page": "METADATA_TEST", "entry": "「Simulation combo」面板" },
+      "kind": "read",
+      "action": "按命途分成九张表，每行一个角色和它做输出类评分时默认使用的技能循环，写成一串按顺序排列的行动名称。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "SimulationComboDashboard" },
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "generateComboGrid" },
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "formatComboAction" }
+      ],
+      "conditions": "循环里的空行动不显示。行动名称按当前语言显示。",
+      "runtime": "node",
+      "state": { "owner": "游戏元数据里各角色的 scoringMetadata.simulation.comboTurnAbilities", "lifecycle": "derived" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["get_scoring_metadata", "default_form"],
+        "gaps": "get_scoring_metadata 要求先载入存档且每次只能查一个角色，返回的是内部行动代号；default_form 不需要存档，但循环埋在整份表单里。没有按角色列出默认循环及其可读名称的入口。",
+        "candidates": ["game://metadata/scoring"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "不载入存档即可读到每个角色的默认循环，行动顺序与网页端表格一致",
+          "同时给出行动的内部代号和可读名称，可读名称与网页端显示的一致"
+        ],
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-query.mjs"]
+      }
+    },
+    {
+      "id": "metadata.setPresets.read",
+      "title": "查看各角色的套装条件预设",
+      "surface": { "page": "METADATA_TEST", "entry": "「Conditional set presets」面板" },
+      "kind": "read",
+      "action": "按命途分成九张表，行是角色，列是全部套装。某个角色在某个套装上带有预设时，对应格子显示预设值：开关型显示一个圆点，数值型显示具体数字。这些预设决定了为该角色生成默认表单时，相关套装效果按什么状态计算。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "ConditionalSetsPresetsDashboard" },
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "generateConditionalSetsGrid" },
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "presetToSetMapping" }
+      ],
+      "conditions": "只认面板里登记过的几种预设，对应公爵、先驱、司铎、囚徒、荒地、风举、香蕉乐园这几个套装。",
+      "runtime": "node",
+      "state": { "owner": "游戏元数据里各角色的 scoringMetadata.presets", "lifecycle": "derived" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["default_form"],
+        "gaps": "预设套用后的结果可以从 default_form 返回的套装条件里看到，但没有入口直接列出每个角色带哪些预设、值是多少，也分不清一个值是预设改的还是套装本来的默认。",
+        "candidates": ["game://metadata/scoring"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "返回的每个角色的预设套装和预设值与网页端表格里有内容的格子一致",
+          "对带预设的角色，default_form 里对应套装条件的取值与预设值一致"
+        ],
+        "tests": ["mcp/scripts/smoke-query.mjs"]
+      }
+    },
+    {
+      "id": "metadata.substatWeights.read",
+      "title": "查看各角色的默认副词条权重",
+      "surface": { "page": "METADATA_TEST", "entry": "「Substat weight dashboard」面板" },
+      "kind": "read",
+      "action": "按命途分成九张表，行是角色，列是九种副词条（攻击、防御、生命的百分比，速度，暴击率，暴击伤害，效果命中，效果抵抗，击破特攻），格子里是该角色遗器评分用的默认权重，权重为 0 的留空。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "SubstatWeightDashboard" },
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "generateSubstatWeightGrid" }
+      ],
+      "conditions": "显示的是默认权重，不反映用户在评分面板里改过的权重。固定值副词条（攻击、防御、生命的固定值）不在表里。",
+      "runtime": "node",
+      "state": { "owner": "游戏元数据里各角色的 scoringMetadata.stats", "lifecycle": "derived" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["get_scoring_metadata"],
+        "gaps": "get_scoring_metadata 的 defaults.stats 就是这组默认权重，但要求先载入存档、每次只能查一个角色，没有跨角色的总表。",
+        "candidates": ["game://metadata/scoring"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "不载入存档即可读到每个角色九种副词条的默认权重，与网页端表格一致",
+          "用户改过权重的角色，默认权重仍与网页端这张表一致"
+        ],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    },
+    {
+      "id": "metadata.leaderboardTeams.read",
+      "title": "查看排行榜参评队伍配置",
+      "surface": { "page": "METADATA_TEST", "entry": "「Leaderboard teams」面板" },
+      "kind": "read",
+      "action": "按输出、辅助、治疗、护盾四种评分类型分节，列出每个五星角色在排行榜上参评的队伍：每支队伍三名队友，每名队友后面是允许的光锥，最后一列标出该队伍是否按副 C 评分。没有专门配置排行榜队伍的角色显示一行半透明的默认队伍。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "LeaderboardTeamsDashboard" },
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "LeaderboardCharacterBoard" }
+      ],
+      "conditions": "只列五星角色，按角色编号排序。某种评分类型下没有任何角色有配置时整节不显示。",
+      "runtime": "node",
+      "state": { "owner": "游戏元数据里各角色四类模拟配置的 leaderboardTeams 与 teammates", "lifecycle": "derived" },
+      "mcp": {
+        "status": "partial",
+        "tools": ["get_scoring_metadata"],
+        "gaps": "四类模拟配置里带有排行榜队伍，但要求先载入存档、每次只能查一个角色，没有按评分类型汇总的总表。",
+        "candidates": ["game://metadata/scoring"]
+      },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "不载入存档即可读到每个五星角色在各评分类型下的参评队伍、允许光锥和副 C 标记，与网页端面板一致",
+          "没有专门配置的角色标明使用默认队伍，与网页端半透明的那一行一致"
+        ],
+        "tests": ["mcp/scripts/smoke-equip.mjs"]
+      }
+    }
+  ],
+  "mechanisms": [
+    {
+      "id": "metadata.mech.accordion",
+      "title": "元数据页的面板展开与收起",
+      "upstream": [
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "MetadataTab" }
+      ],
+      "serves": [
+        "metadata.setAuditor.run",
+        "metadata.colorGrid.view",
+        "metadata.imageCenter.edit",
+        "metadata.simulation.sets",
+        "metadata.simulation.teams",
+        "metadata.simulation.combo",
+        "metadata.setPresets.read",
+        "metadata.substatWeights.read",
+        "metadata.leaderboardTeams.read"
+      ],
+      "reason": "九个面板默认全部收起，展开时才渲染内容，展开状态不保存。MCP 按面板分别提供入口，直接读取或执行对应内容，不存在展开这一步。"
+    },
+    {
+      "id": "metadata.mech.gridHover",
+      "title": "元数据表格的行列高亮",
+      "upstream": [
+        { "file": "src/lib/tabs/tabMetadata/MetadataTab.tsx", "symbol": "GridDisplay" }
+      ],
+      "serves": [
+        "metadata.simulation.sets",
+        "metadata.simulation.teams",
+        "metadata.simulation.combo",
+        "metadata.setPresets.read",
+        "metadata.substatWeights.read"
+      ],
+      "reason": "鼠标移到格子上时高亮所在行和列，只是帮人眼对齐大表格，不改变任何数据。MCP 返回的是带角色和套装标识的结构化数据，不需要这种辅助。"
+    }
+  ]
+}

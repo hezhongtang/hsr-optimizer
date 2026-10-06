@@ -1,0 +1,52 @@
+{
+  "area": "home",
+  "title": "首页",
+  "features": [
+    {
+      "id": "home.search.uid",
+      "title": "首页按 UID 搜索展示柜",
+      "surface": { "page": "HOME", "entry": "首页顶部搜索框，回车或点搜索按钮" },
+      "kind": "external",
+      "action": "校验输入为 9 位数字后 navigateTo(SHOWCASE, id=<uid>)，展示柜页据此拉取该玩家的档案；校验失败给出警告、不跳转。输入框的初值是上次查询过的 UID（savedSession.showcaseTab.scorerId）。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabHome/HomeTab.tsx", "symbol": "HeroSection" },
+        { "file": "src/lib/tabs/tabHome/HomeTab.tsx", "symbol": "handleSearchSubmit" },
+        { "file": "src/lib/utils/miscUtils.ts", "symbol": "validateUuid" }
+      ],
+      "params": [
+        { "name": "uid", "type": "string", "default": "savedSession.showcaseTab.scorerId 或空", "notes": "去掉首尾空白后必须匹配 /^\\d{9}$/" }
+      ],
+      "conditions": "空输入直接忽略；非 9 位数字提示 SearchBar.Message。",
+      "runtime": "node",
+      "state": { "owner": "外部展示柜接口 + useShowcaseTabStore", "lifecycle": "external" },
+      "sideEffects": ["跳转到展示柜页并触发一次档案拉取（详见 showcase 域）"],
+      "mcp": { "status": "implemented", "tools": ["fetch_showcase"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["同一 UID 经首页搜索进入展示柜得到的角色列表与 fetch_showcase(uid) 返回的角色摘要一致；非 9 位数字两边都拒绝"],
+        "tests": ["mcp/scripts/smoke-imports.mjs"]
+      }
+    },
+    {
+      "id": "home.content.read",
+      "title": "首页功能介绍与社区内容",
+      "surface": { "page": "HOME", "entry": "首页各分区，向下滚动浏览" },
+      "kind": "read",
+      "action": "依次展示六张功能卡片（展示柜、优化器、跃迁规划、伤害计算、基准、稀有度分析：标题、要点列表与配图）、社区卡片（Discord、GitHub、路线图、更新日志）和贡献者名单图片。文案来自 hometab 翻译命名空间。",
+      "upstream": [
+        { "file": "src/lib/tabs/tabHome/HomeTab.tsx", "symbol": "HomeTab" },
+        { "file": "src/lib/tabs/tabHome/HomeTab.tsx", "symbol": "CommunityCard" }
+      ],
+      "conditions": "「更新日志」卡片是站内跳转（普通点击走 navigateTo，按住 Ctrl/Meta/Shift 时走浏览器默认行为），其余三张社区卡片和贡献者图片是外链。",
+      "runtime": "node",
+      "state": { "owner": "无", "lifecycle": "none" },
+      "mcp": { "status": "missing", "candidates": ["site://home", "site://links"] },
+      "scope": "baseline",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": ["site://home 返回的六张功能卡片标题与要点、四张社区卡片的标题和链接与首页当前语言下的内容一致"]
+      }
+    }
+  ]
+}
