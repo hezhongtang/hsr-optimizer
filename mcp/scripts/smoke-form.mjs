@@ -347,6 +347,167 @@ try {
     described.sets.total > 0 && described.sets.entries.some((e) => e.modifiable && e.options != null),
   )
 
+  // ── 12. statSim list survives switching away from the character (P0 fix) ─
+  const simReAdd = await callTool(client, 'update_form', {
+    characterId: TARGET,
+    statSimulations: { add: [{ name: 'survivor', request: simRequest }] },
+  })
+  check('sim re-added before the switch-away probe', simReAdd.statSimulations.total === 1)
+  await callTool(client, 'update_form', { characterId: OTHER, patch: { enemyCount: 4 } })
+  const afterAway = await getForm(client, TARGET)
+  check(
+    'switching away does NOT wipe the leaving character\'s saved statSim list',
+    (afterAway.form.statSim?.simulations?.length ?? 0) === 1 && afterAway.form.statSim.simulations[0].name === 'survivor',
+    `simulations=${JSON.stringify(afterAway.form.statSim?.simulations?.map((s) => s.name))}`,
+  )
+  await callTool(client, 'update_form', { characterId: TARGET, statSimulations: { deleteAll: true } })
+
+  // ── 13. legacy weights key topPercent: warned AND actually dropped ───────
+  const legacyWarn = await callTool(client, 'update_form', {
+    characterId: TARGET,
+    patch: { weights: { 'ATK%': 0.8, 'topPercent': 0.7 } },
+  })
+  const legacyAfter = await getForm(client, TARGET)
+  check(
+    'topPercent warned and truly dropped (warning matches behavior)',
+    legacyWarn.warnings.some((w) => w.includes('topPercent')) && !('topPercent' in (legacyAfter.form.weights ?? {})),
+    `warnings=${JSON.stringify(legacyWarn.warnings)} weightsKeys=${Object.keys(legacyAfter.form.weights ?? {}).join(',')}`,
+  )
+
+  // ── 14. combo edits bounds ───────────────────────────────────────────────
+  await expectError(
+    client,
+    'update_form',
+    {
+      characterId: TARGET,
+      combo: { comboType: 'advanced', edits: [{ kind: 'setActivation', target: 'comboCharacter', id: booleanCond?.id ?? 'e1', index: 999, value: true }] },
+    },
+    '超出技能位范围',
+    'combo edit index beyond the matrix width rejected',
+  )
+
+  // ── 15. combo: setBooleanDefault / addPartition / deletePartition / sets ──
+  if (booleanCond != null) {
+    const boolEdit = await callTool(client, 'update_form', {
+      characterId: TARGET,
+      combo: { edits: [{ kind: 'setBooleanDefault', target: 'comboCharacter', id: booleanCond.id, value: false }] },
+    })
+    check('setBooleanDefault applied (combo summary echoes edit)', boolEdit.applied.comboEdits === 1 && boolEdit.updated === true)
+  }
+  const numberCond = charEntity?.conditionals.find((c) => c.type !== 'boolean' && c.partitions && c.partitions.length > 0)
+  if (numberCond != null) {
+    const added = await callTool(client, 'update_form', {
+      characterId: TARGET,
+      combo: { edits: [{ kind: 'addPartition', target: 'comboCharacter', id: numberCond.id, value: 3 }] },
+    })
+    const afterAdd = await getForm(client, TARGET, true)
+    const addedCond = afterAdd.combo?.entities.find((e) => e.sourceKey === 'comboCharacter')?.conditionals.find((c) => c.id === numberCond.id)
+    check(
+      'addPartition grows the partition list',
+      (addedCond?.partitions?.length ?? 0) === numberCond.partitions.length + 1,
+      `partitions=${addedCond?.partitions?.length}`,
+    )
+    const removed = await callTool(client, 'update_form', {
+      characterId: TARGET,
+      combo: { edits: [{ kind: 'deletePartition', target: 'comboCharacter', id: numberCond.id, partitionIndex: addedCond.partitions.length - 1 }] },
+    })
+    const afterRemove = await getForm(client, TARGET, true)
+    const removedCond = afterRemove.combo?.entities.find((e) => e.sourceKey === 'comboCharacter')?.conditionals.find((c) => c.id === numberCond.id)
+    check(
+      'deletePartition restores the partition count',
+      removed.updated === true && (removedCond?.partitions?.length ?? 0) === numberCond.partitions.length,
+      `partitions=${removedCond?.partitions?.length}`,
+    )
+  }
+  const setsEdit = await callTool(client, 'update_form', {
+    characterId: TARGET,
+    combo: { displayedSets: { relics: ['Hunter of Glacial Forest'] } },
+  })
+  const afterSets = await getForm(client, TARGET, true)
+  check(
+    'displayedSets round-trips through the drawer state',
+    setsEdit.updated === true && afterSets.combo?.displayedSets?.relics?.includes('Hunter of Glacial Forest') === true,
+    `relics=${JSON.stringify(afterSets.combo?.displayedSets?.relics)}`,
+  )
+
+  // ── 16. statSimulations overwrite + load ────────────────────────────────
+  const simSeed2 = await callTool(client, 'update_form', {
+    characterId: TARGET,
+    statSimulations: { add: [{ name: 'ow1', request: simRequest }] },
+  })
+  const owKey = simSeed2.statSimulations.simulations[0].key
+  const overwritten = await callTool(client, 'update_form', {
+    characterId: TARGET,
+    statSimulations: { overwrite: { key: owKey, request: { ...simRequest, stats: { ...simRequest.stats, SPD: 10 } } } },
+  })
+  const afterOw = await getForm(client, TARGET)
+  check(
+    'statSimulations overwrite replaces in place (total unchanged, new content)',
+    overwritten.statSimulations.total === 1 && afterOw.form.statSim.simulations[0].request.stats.SPD === 10,
+    `total=${overwritten.statSimulations.total} SPD=${afterOw.form.statSim.simulations[0].request.stats.SPD}`,
+  )
+  const loaded = await callTool(client, 'update_form', {
+    characterId: TARGET,
+    statSimulations: { load: { key: afterOw.form.statSim.simulations[0].key } },
+  })
+  check(
+    'statSimulations.load backfills the input area',
+    loaded.applied.statSimulations.loadedKey === afterOw.form.statSim.simulations[0].key && loaded.updated === true,
+  )
+
+  // ── 17. teammates: roster bring-in + lightCone switch resets LC conditionals ─
+  const rosterIn = await callTool(client, 'update_form', {
+    characterId: TARGET,
+    teammates: [{ characterId: OTHER }],
+    syncFromRoster: true,
+  })
+  const teamAfterIn = await getForm(client, TARGET)
+  const lcCondAfterIn = teamAfterIn.form.teammate0?.lightConeConditionals ?? {}
+  check(
+    'syncFromRoster brings the teammate with her lightCone (23003 seeds postSkillDmgBuff)',
+    teamAfterIn.form.teammate0?.lightCone === '23003' && lcCondAfterIn.postSkillDmgBuff === true,
+    `lc=${teamAfterIn.form.teammate0?.lightCone} cond=${JSON.stringify(lcCondAfterIn)}`,
+  )
+  const lcSwitch = await callTool(client, 'update_form', {
+    characterId: TARGET,
+    teammates: [{ lightCone: '21011' }],
+  })
+  const teamAfterSwitch = await getForm(client, TARGET)
+  const lcCondAfterSwitch = teamAfterSwitch.form.teammate0?.lightConeConditionals ?? {}
+  check(
+    'teammate lightCone switch resets LC conditionals to the new cone defaults (no stale keys)',
+    teamAfterSwitch.form.teammate0?.lightCone === '21011'
+      && lcCondAfterSwitch.alliesSameElement === true
+      && !('postSkillDmgBuff' in lcCondAfterSwitch),
+    `cond=${JSON.stringify(lcCondAfterSwitch)}`,
+  )
+  const cleared = await callTool(client, 'update_form', {
+    characterId: TARGET,
+    teammates: [null],
+  })
+  const teamAfterClear = await getForm(client, TARGET)
+  check('teammates slot null clears the slot', cleared.updated === true && (teamAfterClear.form.teammate0?.characterId ?? null) === null)
+
+  // ── 18. statDisplay / memoDisplay patch round trip + enum rejection ──────
+  const displayPatch = await callTool(client, 'update_form', {
+    characterId: TARGET,
+    patch: { statDisplay: 'base', memoDisplay: 'summoner' },
+  })
+  const displayAfter = await getForm(client, TARGET)
+  check(
+    'statDisplay/memoDisplay round-trip',
+    displayPatch.updated === true && displayAfter.form.statDisplay === 'base' && displayAfter.form.memoDisplay === 'summoner',
+    `statDisplay=${displayAfter.form.statDisplay} memoDisplay=${displayAfter.form.memoDisplay}`,
+  )
+  await expectError(
+    client,
+    'update_form',
+    { characterId: TARGET, patch: { statDisplay: 'both' } },
+    'statDisplay',
+    'invalid statDisplay enum rejected',
+  )
+  await callTool(client, 'update_form', { characterId: TARGET, patch: { statDisplay: 'combat', memoDisplay: 'memo' } })
+
   await client.close()
 } finally {
   rmSync(tempDir, { recursive: true, force: true })

@@ -12,9 +12,9 @@
 ## 2. 参数格式
 
 - 命名 camelCase，zod schema 校验，`.describe()` 中文说明。
-- 通用参数约定：分页 `offset`/`limit`（`list_*` 系）；`dryRun` 显式布尔只用于导入类；破坏性操作用显式布尔（`overwrite`）而非默认放行。
+- 通用参数约定：分页 `offset`/`limit`（`list_*` 系）；`dryRun` 显式布尔用于导入类与写路径的只读演练（`import_scanner_json(dryRun)`、`upsert_relic(dryRun)`——语义同为「完整校验+计算变更但不写入」）；破坏性操作用显式布尔（`overwrite`）而非默认放行。
 - 覆盖已注册工具的能力扩展用可选参数表达，在清单里写成 `tool(param=...)` 形式（如 `export_save(structured=true)`、`permutations(applyFixes=true)`），不新开同名替代工具。
-- ID 口径：`characterId`、`lightConeId` 等一律用上游游戏内 id 字符串；套装/词条名用 zh_CN 显示名（与 `game://metadata` 资源一致）。
+- ID 口径：`characterId`、`lightConeId` 等一律用上游游戏内 id 字符串；套装/词条名用上游内部英文名（如 `Musketeer of Wild Wheat`、`CRIT DMG`）——与 `serializeRelic`、套装注册表（`SetsRelicsNames`/`SetsOrnamentsNames`）及 `list_relics`/`score_relics` 既有筛选口径一致（自冻结起实现即为此口径，2026-10-07 勘误：原文「zh_CN 显示名」与代码不符）。zh_CN 显示名由 `game://metadata/sets` 的 `nameZh` 及各资源的中文名字段提供。
 
 ## 3. 返回结构
 
@@ -53,3 +53,4 @@
 
 - **2026-10-06 M4**：注册 4 个新工具 `get_state`/`update_state`/`get_job`/`cancel_job`（44→48）；`export_save` 落地冻结时登记的候选参数 `structured=true`（只读结构化快照）；候选清单 16→12（四个 get_state 系与 get_job/cancel_job 转正、export_save(structured) 已落地移除、site://settings 改由 update_state 的 settings 分支承接后从候选移除）；§1 补 `section` 枚举先例。`save_status` 输出加 `revision`/`generation` 字段（只加字段）。
 - **2026-10-07 M5**：注册 4 个新工具 `upsert_relic`/`delete_relics`/`update_form`/`manage_team`（48→52），候选清单 12→8（四个候选名转正）。落地候选参数：`get_form(expandCombo=true)`、`default_form(spdPreset=…)`、`describe_conditionals(includeAbilities=true, includeSets=true)`、`stat_simulate(saved=true|fromCache=…|fromRelicIds=…)`（`simulations` 转 optional）、`save_team(benchmarkSnapshot=true)`、`delete_build(all=true)`、`equip_saved_build(applyScoringTeam=true)`、`set_character_rank(sortBy=effectiveSubstats)`、`set_scoring_override(traces=…)`、`update_state/get_state` 扩 `section=showcase`。§1 记录 `update_form` 的具名子载荷形态与 `manage_team` 的 action 枚举先例；manage_team 额外提供只读 `action=get`。清单 41 行转 implemented（44→85），遗留候选参数 `optimize(resultsLimit=65536)` 仍挂 `optimizer.form.target` 行。
+- **2026-10-07 M5 六路复核修复**（read-only 复核 + 探针实证后落盘）：①`update_form` 步骤①按会话指针播种 `useOptimizerDisplayStore.statSimulations`——修复切换角色时离开角色已存假想配装列表被 display store 陈旧/空列表整体抹掉并落盘的 P0；②队友换光锥改经上游 `updateTeammate` 换锥分支（条件重置为新锥默认，旧条件键不再残留）；③`patch.weights` 旧键 `topPercent` 由「警告但照写」改为真正剥离；④`combo.edits` 的 `index`/`partitionIndex` 增上界校验（防越界写出稀疏数组后 `get_form(expandCombo)` 永久报错），矩阵序列化对存量 null 洞截断容错；⑤`save_team` 整体入 `withChange` + 可选 `baseRevision`，未拥有成员带 `benchmarkSnapshot` 时先行报错（不再「失败却补进幽灵角色」），内容零变化不再递增 revision；⑥`manage_team` 的 load/delete/move 预校验与队伍表读取移入作用域内（同批交错不再读到陈旧表/内部 TypeError），set_slot 的 roster 差值改在 body 内计算；⑦`save_build` 按上游 `buildService` 读取按角色展示偏好 `showcasePreferences.scoringType`（与 `update_state(section=showcase)` 同一落盘键）；⑧`set_scoring_override` 的 `reset` 与 `weights`/`parts` 互斥（与 traces 同款）；⑨`export_save` 写入载入路径后复位 `dirty`/`blockedWrite`（刻意的空库存持久化后 `save_status` 不再持续报警）；⑩`upsert_relic`：预览副词条数值 0 按 upstream 有效行为拒绝、存量「部位×套装类型」错配数据未触碰部位时报错而非静默换套装、`dryRun` 新建 id 不保留写入描述。§2 勘误两处（套装/词条名口径为上游内部英文名；`dryRun` 扩及写路径演练）。

@@ -22,7 +22,9 @@ import {
   copyFileSync,
   existsSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import {
@@ -374,6 +376,93 @@ try {
   )
   const finalCount = await callTool(client, 'list_relics', { limit: 1 })
   check('failed delete left the inventory untouched (162)', finalCount.total === 162)
+
+  // ── 16. duplicate substats + zero-value preview substat are rejected ──────
+  const dupSubstat = await errorTextOf(client, 'upsert_relic', {
+    part: 'Head',
+    substats: [{ stat: 'SPD', value: 5.1 }, { stat: 'SPD', value: 2.5 }],
+  })
+  check('duplicate substat rejected (Chinese)', dupSubstat != null && /重复/.test(dupSubstat), String(dupSubstat).slice(0, 130))
+  const zeroPreview = await errorTextOf(client, 'upsert_relic', {
+    part: 'Head',
+    previewSubstats: [{ stat: 'SPD', value: 0 }],
+  })
+  check('preview substat value 0 rejected like the web (Chinese)', zeroPreview != null && /必须 > 0/.test(zeroPreview), String(zeroPreview).slice(0, 130))
+
+  // ── 17. multi-id delete including an equipped relic ───────────────────────
+  const inventoryNow = await callTool(client, 'list_relics', { limit: 5 })
+  const delA = inventoryNow.relics[0].id
+  const delB = inventoryNow.relics[1].id
+  await callTool(client, 'upsert_relic', { relicId: delA, equippedBy: CHAR_EMPTY })
+  const multiDelete = await callTool(client, 'delete_relics', { relicIds: [delA, delB] })
+  check(
+    'multi-id delete removes both (one equipped)',
+    multiDelete.deleted.length === 2 && multiDelete.remaining === 160
+      && multiDelete.affectedCharacters.some((c) => c.characterId === CHAR_EMPTY),
+    `deleted=${multiDelete.deleted.length} remaining=${multiDelete.remaining}`,
+  )
+
+  // ── 18. crafted fixture: verified flip on edit + legacy part/set mismatch ──
+  const craftedPath = `${tempDir}/crafted-save.json`
+  const raw = JSON.parse(readFileSync(repoSampleSavePath, 'utf8'))
+  const verifiedRelic = raw.relics.find((r) => !r.equippedBy && (r.substats?.length ?? 0) > 0)
+  verifiedRelic.verified = true
+  const corruptRelic = raw.relics.find((r) => r.part === 'Head' && r.id !== verifiedRelic.id)
+  corruptRelic.set = 'Space Sealing Station' // ornament set on a relic part — legacy mismatch
+  writeFileSync(craftedPath, JSON.stringify(raw))
+  await callTool(client, 'load_save', { path: craftedPath })
+  const verifiedEdit = await callTool(client, 'upsert_relic', {
+    relicId: verifiedRelic.id,
+    enhance: verifiedRelic.enhance > 0 ? verifiedRelic.enhance - 1 : 1,
+  })
+  check(
+    'editing a verified relic drops verified (relicsAreDifferent)',
+    verifiedEdit.relic.verified === false,
+    `verified=${verifiedEdit.relic.verified}`,
+  )
+  const mismatchError = await errorTextOf(client, 'upsert_relic', { relicId: corruptRelic.id, enhance: 3 })
+  check(
+    'legacy part/set mismatch without touching part errors (no silent heal)',
+    mismatchError != null && /存量错配数据/.test(mismatchError),
+    String(mismatchError).slice(0, 130),
+  )
+  const healViaPart = await callTool(client, 'upsert_relic', { relicId: corruptRelic.id, part: 'Hands' })
+  check(
+    'explicit part change still triggers the set linkage (heal)',
+    healViaPart.relic.part === 'Hands' && healViaPart.relic.set !== 'Space Sealing Station',
+    `part=${healViaPart.relic.part} set=${healViaPart.relic.set}`,
+  )
+
+  // ── 19. wiping the whole inventory: block, deliberate export, marker reset ─
+  const allRelics = await callTool(client, 'list_relics', { limit: 500 })
+  const allIds = allRelics.relics.map((r) => r.id)
+  const wipe = await callTool(client, 'delete_relics', { relicIds: allIds })
+  check(
+    'wiping the whole inventory returns remaining=0 + guidance note',
+    wipe.remaining === 0 && /export_save/.test(wipe.note ?? ''),
+    String(wipe.note).slice(0, 90),
+  )
+  await new Promise((resolve) => setTimeout(resolve, 1300)) // debounce flush window
+  const blockedStatus = await callTool(client, 'save_status')
+  check(
+    'wiped flush is blocked (dirty + blockedWrite reported)',
+    blockedStatus.dirty === true && blockedStatus.blockedWrite != null,
+    `dirty=${blockedStatus.dirty} blocked=${blockedStatus.blockedWrite}`,
+  )
+  const diskBeforeExport = JSON.parse(readFileSync(craftedPath, 'utf8'))
+  check(
+    'the loaded file was NOT overwritten by the blocked flush',
+    (diskBeforeExport.relics?.length ?? 0) > 0,
+    `file relics=${diskBeforeExport.relics?.length}`,
+  )
+  await callTool(client, 'export_save', {})
+  const diskAfterExport = JSON.parse(readFileSync(craftedPath, 'utf8'))
+  const statusAfterExport = await callTool(client, 'save_status')
+  check(
+    'deliberate export persists the empty inventory AND resets dirty/blockedWrite',
+    (diskAfterExport.relics?.length ?? -1) === 0 && statusAfterExport.dirty === false && statusAfterExport.blockedWrite == null,
+    `file relics=${diskAfterExport.relics?.length} dirty=${statusAfterExport.dirty}`,
+  )
 } finally {
   await client.close()
   rmSync(tempDir, { recursive: true, force: true })

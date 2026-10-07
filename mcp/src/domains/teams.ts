@@ -304,7 +304,9 @@ export function registerTeamsTools(server: McpServer): void {
       + '不传 teamId 时新建队伍并生成新 id;传 teamId 时原地更新该队伍(name 与 characterIds 至少提供其一)。'
       + '槽位规则:characterIds 为 1-4 个槽位(null=空槽,不足 4 个自动尾部补 null);非空 id 必须存在于游戏元数据'
       + '(不要求已在角色列表中——网页端加载该队伍时会自动把缺失角色补进列表);同一队伍内不允许重复角色;全空不允许保存。'
-      + '更新时若槽位发生变化,原基准快照会被丢弃(与网页端加载时槽位不匹配即弃快照的规则一致),槽位不变则保留。',
+      + '更新时若槽位发生变化,原基准快照会被丢弃(与网页端加载时槽位不匹配即弃快照的规则一致),槽位不变则保留。'
+      + '允许保存与现有队伍完全相同的阵容(网页端保存按钮此时禁用)——重复队伍会让「活动队伍」解析产生歧义,'
+      + '后续 manage_team(action=sync_benchmarks) 将不写入任何队伍;更新既有队伍请传 teamId。',
     inputSchema: {
       teamId: z.string().optional().describe('要更新的队伍 id(list_teams 可查;不传则新建)'),
       name: z.string().optional().describe('队伍名(新建时必填;更新时省略则保留原名)'),
@@ -313,6 +315,7 @@ export function registerTeamsTools(server: McpServer): void {
         '保存时是否附带基准快照(true=按角色列表当前状态现场捕获各成员的光锥/星魂/叠影与遗器/饰品套装推断,'
           + '与网页端「同步基准队伍」同一捕获路径;要求四个槽位都有角色且都已装备光锥,缺失角色会先按默认表单补进列表。默认不带快照)',
       ),
+      baseRevision: z.number().int().optional().describe('乐观并发门:调用方读取状态时拿到的修订号;与当前不一致报冲突,需重读后重试'),
     },
     outputSchema: {
       teamId: z.string(),
@@ -322,11 +325,11 @@ export function registerTeamsTools(server: McpServer): void {
       benchmarkSnapshotAttached: z.boolean(),
       snapshot: benchmarkSnapshotSummarySchema.optional(),
     },
-  }, async ({ teamId, name, characterIds, benchmarkSnapshot }) => {
+  }, async ({ teamId, name, characterIds, benchmarkSnapshot, baseRevision }) => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
 
-    const teams = readSavedTeams()
+    // 静态参数预检(作用域外:纯输入校验,不触碰任何状态)
     const trimmedName = name?.trim()
     const updating = teamId != null
 
@@ -340,81 +343,112 @@ export function registerTeamsTools(server: McpServer): void {
 
     const slots = characterIds != null ? validateSlots(characterIds) : null
 
-    // benchmarkSnapshot=true captures a fresh snapshot from the current roster
-    // state (the same path the web's 同步基准队伍 button takes) and attaches
-    // it to the saved team — the web can only save a team that already carries
-    // a synced snapshot; MCP composes both steps. Members missing from the
-    // roster join it first with a default form (ensureRosterCharacters, the
-    // same restore the web's load/compose path uses).
-    let snapshot: TeamShowcaseBenchmarkSnapshot | undefined
-    let rosterAdded: string[] = []
-    if (benchmarkSnapshot === true) {
-      const targetSlots = slots ?? normalizeTeamSlots(findSavedTeam(teamId!).characterIds)
-      if (targetSlots.every((id) => id == null)) {
-        throw new Error('附带基准快照要求四个槽位都有角色(当前队伍全空)')
-      }
-      const rosterBefore = new Set(getCharacters().map((character) => character.id as string))
-      ensureRosterCharacters(targetSlots)
-      rosterAdded = getCharacters().map((c) => c.id as string).filter((id) => !rosterBefore.has(id))
-      snapshot = captureSnapshotForSlots(targetSlots)
-    }
+    // 整个「补员 → 快照捕获 → 写队伍表」链在同一个事务里:快照捕获对缺光锥/
+    // 缺槽位的成员抛错时,ensureRosterCharacters 已经补进的角色必须被回滚收
+    // 回,否则幽灵角色会脱离 revision/dirty 追踪、随下一次任意写操作的防抖
+    // 落盘静默写进存档文件(captureSaveStores 覆盖 character store)。
+    const outcome = await runtimeContext.withChange('save_team', () => {
+      const teams = readSavedTeams()
+      const teamsBeforeJson = JSON.stringify(teams)
 
-    let team: TeamShowcaseSavedTeam
-    if (updating) {
-      const index = teams.findIndex((candidate) => candidate.id === teamId)
-      if (index === -1) {
-        throw new Error(`队伍 ${teamId} 不存在。现有队伍:${teams.map((t) => `${t.id}(「${t.name}」)`).join('、') || '(无)'}`)
+      // benchmarkSnapshot=true captures a fresh snapshot from the current roster
+      // state (the same path the web's 同步基准队伍 button takes) and attaches
+      // it to the saved team — the web can only save a team that already carries
+      // a synced snapshot; MCP composes both steps. Members missing from the
+      // roster join it first with a default form (ensureRosterCharacters, the
+      // same restore the web's load/compose path uses).
+      let snapshot: TeamShowcaseBenchmarkSnapshot | undefined
+      let rosterAdded: string[] = []
+      if (benchmarkSnapshot === true) {
+        if (updating && teams.findIndex((candidate) => candidate.id === teamId) === -1) {
+          throw new Error(`队伍 ${teamId} 不存在。现有队伍:${teams.map((t) => `${t.id}(「${t.name}」)`).join('、') || '(无)'}`)
+        }
+        const targetSlots = slots ?? normalizeTeamSlots(teams.find((candidate) => candidate.id === teamId)!.characterIds)
+        if (targetSlots.every((id) => id == null)) {
+          throw new Error('附带基准快照要求四个槽位都有角色(当前队伍全空)')
+        }
+        // 未拥有角色按默认表单补进列表后必然没有光锥,快照捕获注定失败 — 先行
+        // 报错,避免「调用失败却补进了角色」的中间态(事务兜底之外的显式化)。
+        const owned = new Set(getCharacters().map((character) => character.id as string))
+        const unowned = [...new Set(targetSlots.filter((id) => id != null && !owned.has(id as string)).map((id) => id as string))]
+        if (unowned.length > 0) {
+          throw new Error(
+            `基准快照要求所有成员已装备光锥,但以下角色还不在角色列表中(补进列表的默认表单不带光锥):${
+              unowned.map((id) => `${id}(${getGameMetadata().characters[id as CharacterId]?.name ?? id})`).join('、')
+            } — 请先 manage_team(action=load) 载入该队伍(会补进角色),为成员装备光锥后再带基准快照保存,或不带 benchmarkSnapshot 保存`,
+          )
+        }
+        const rosterBefore = new Set(getCharacters().map((character) => character.id as string))
+        ensureRosterCharacters(targetSlots)
+        rosterAdded = getCharacters().map((c) => c.id as string).filter((id) => !rosterBefore.has(id))
+        snapshot = captureSnapshotForSlots(targetSlots)
       }
-      const existing = teams[index]
-      const nextSlots = slots ?? normalizeTeamSlots(existing.characterIds)
-      // Snapshot follows the web's load rule: keep it only when the slots it
-      // was captured against are unchanged — unless benchmarkSnapshot=true just
-      // captured a fresh one, which wins.
-      const keepSnapshot = areTeamSlotsEqual(nextSlots, existing.characterIds) ? existing.benchmarkSnapshot : undefined
-      const finalSnapshot = snapshot ?? keepSnapshot
-      team = {
-        id: existing.id,
-        name: trimmedName ?? existing.name,
-        characterIds: nextSlots,
-        ...(finalSnapshot != null ? { benchmarkSnapshot: finalSnapshot } : {}),
+
+      let team: TeamShowcaseSavedTeam
+      if (updating) {
+        const index = teams.findIndex((candidate) => candidate.id === teamId)
+        if (index === -1) {
+          throw new Error(`队伍 ${teamId} 不存在。现有队伍:${teams.map((t) => `${t.id}(「${t.name}」)`).join('、') || '(无)'}`)
+        }
+        const existing = teams[index]
+        const nextSlots = slots ?? normalizeTeamSlots(existing.characterIds)
+        // Snapshot follows the web's load rule: keep it only when the slots it
+        // was captured against are unchanged — unless benchmarkSnapshot=true just
+        // captured a fresh one, which wins.
+        const keepSnapshot = areTeamSlotsEqual(nextSlots, existing.characterIds) ? existing.benchmarkSnapshot : undefined
+        const finalSnapshot = snapshot ?? keepSnapshot
+        team = {
+          id: existing.id,
+          name: trimmedName ?? existing.name,
+          characterIds: nextSlots,
+          ...(finalSnapshot != null ? { benchmarkSnapshot: finalSnapshot } : {}),
+        }
+        teams[index] = team
+      } else {
+        team = {
+          id: uuid(),
+          name: trimmedName!,
+          characterIds: slots!,
+          ...(snapshot != null ? { benchmarkSnapshot: snapshot } : {}),
+        }
+        teams.push(team)
       }
-      teams[index] = team
-    } else {
-      team = {
-        id: uuid(),
-        name: trimmedName!,
-        characterIds: slots!,
-        ...(snapshot != null ? { benchmarkSnapshot: snapshot } : {}),
+
+      writeSavedTeams(teams)
+      // 内容零变化(重命名回原名/同槽同快照)时不递增 revision、不标脏 —
+      // 上游 writeSavedTeams 对相等表跳过写入,no-op 调用不应让持有
+      // baseRevision 的调用方收到伪冲突。
+      if (JSON.stringify(teams) !== teamsBeforeJson || rosterAdded.length > 0) {
+        runtimeContext.markDirty()
       }
-      teams.push(team)
-    }
 
-    writeSavedTeams(teams)
-    runtimeContext.markDirty()
+      // Mirror of useSavedTeams.saveCurrentTeam selecting the team it just saved:
+      // a saved team identical to the working team (slots + snapshot) becomes the
+      // active one, so a later manage_team sync_benchmarks writes into it.
+      const working = readWorkingTeam()
+      if (
+        areTeamSlotsEqual(team.characterIds, working.slots)
+        && areBenchmarkSnapshotsEqual(team.benchmarkSnapshot, working.benchmarkSnapshot)
+      ) {
+        working.selectedSavedTeamId = team.id
+      }
 
-    // Mirror of useSavedTeams.saveCurrentTeam selecting the team it just saved:
-    // a saved team identical to the working team (slots + snapshot) becomes the
-    // active one, so a later manage_team sync_benchmarks writes into it.
-    const working = readWorkingTeam()
-    if (
-      areTeamSlotsEqual(team.characterIds, working.slots)
-      && areBenchmarkSnapshotsEqual(team.benchmarkSnapshot, working.benchmarkSnapshot)
-    ) {
-      working.selectedSavedTeamId = team.id
-    }
+      return { team, totalTeams: teams.length, created: !updating, rosterAdded }
+    }, baseRevision != null ? { baseRevision } : {})
 
+    const { team, totalTeams, created, rosterAdded } = outcome
     const serialized = serializeTeam(team)
     return toolResult(
       {
         teamId: team.id,
-        created: !updating,
+        created,
         team: serialized,
-        totalTeams: teams.length,
+        totalTeams,
         benchmarkSnapshotAttached: team.benchmarkSnapshot != null,
         ...(team.benchmarkSnapshot != null ? { snapshot: serializeSnapshot(team.benchmarkSnapshot) } : {}),
       },
       `${updating ? '已更新' : '已新建'}队伍「${team.name}」(${team.id}):`
-        + `${serialized.slots.map((slot) => slot?.name ?? '空槽').join(' / ')};现存 ${teams.length} 支队伍`
+        + `${serialized.slots.map((slot) => slot?.name ?? '空槽').join(' / ')};现存 ${totalTeams} 支队伍`
         + `${team.benchmarkSnapshot != null ? ',附带基准快照' : ''}`
         + `${rosterAdded.length > 0 ? `;已把 ${rosterAdded.join('、')} 按默认表单补进角色列表` : ''}`,
     )
@@ -484,9 +518,11 @@ export function registerTeamsTools(server: McpServer): void {
 
     if (action === 'load') {
       if (teamId == null) throw new Error('manage_team(action=load):必须提供 teamId — 可先用 list_teams 查询现有队伍')
-      const saved = findSavedTeam(teamId)
-      const rosterBefore = new Set(getCharacters().map((c) => c.id as string))
-      await runtimeContext.withChange('manage_team:load', () => {
+      const outcome = await runtimeContext.withChange('manage_team:load', () => {
+        // 队伍表在作用域内重读:同一批次里先提交的 delete/save_team 可能已经
+        // 改变了队伍表,入队前的快照读会拿到陈旧引用。
+        const saved = findSavedTeam(teamId)
+        const rosterBefore = new Set(getCharacters().map((c) => c.id as string))
         // loadSavedTeamSlots restores missing roster characters (default form,
         // NewCharacterDefaultRank position, delayedSave) then sanitizes; the
         // snapshot only survives when the sanitized slots still match.
@@ -497,9 +533,12 @@ export function registerTeamsTools(server: McpServer): void {
         working.benchmarkSnapshot = areTeamSlotsEqual(loadedSlots, saved.characterIds)
           ? saved.benchmarkSnapshot
           : undefined
-        if (getCharacters().length !== rosterBefore.size) runtimeContext.markDirty()
+        // roster 差值在 body 内取(前后各一次):外部快照在并发交错下会误判
+        const rosterAdded = getCharacters().map((c) => c.id as string).filter((id) => !rosterBefore.has(id))
+        if (rosterAdded.length > 0) runtimeContext.markDirty()
+        return { saved, rosterAdded, working: serializeWorkingTeam(readWorkingTeam()) }
       }, changeOptions)
-      const rosterAdded = getCharacters().map((c) => c.id as string).filter((id) => !rosterBefore.has(id))
+      const { saved, rosterAdded } = outcome
       const working = readWorkingTeam()
       return toolResult(
         {
@@ -507,7 +546,7 @@ export function registerTeamsTools(server: McpServer): void {
           teamId,
           team: serializeTeam(saved),
           rosterAdded,
-          workingTeam: serializeWorkingTeam(working),
+          workingTeam: outcome.working,
         },
         `已载入队伍「${saved.name}」到工作区:${working.slots.map((id) => (id != null ? getGameMetadata().characters[id]?.name ?? id : '空槽')).join(' / ')}`
           + `${working.benchmarkSnapshot != null ? '(带入基准快照)' : ''}`
@@ -517,12 +556,13 @@ export function registerTeamsTools(server: McpServer): void {
 
     if (action === 'delete') {
       if (teamId == null) throw new Error('manage_team(action=delete):必须提供 teamId — 可先用 list_teams 查询现有队伍')
-      const saved = findSavedTeam(teamId)
-      await runtimeContext.withChange('manage_team:delete', () => {
+      const outcome = await runtimeContext.withChange('manage_team:delete', () => {
+        const saved = findSavedTeam(teamId)
         writeSavedTeams(readSavedTeams().filter((candidate) => candidate.id !== teamId))
         const working = readWorkingTeam()
         if (working.selectedSavedTeamId === teamId) working.selectedSavedTeamId = null
         runtimeContext.markDirty()
+        return { deletedName: saved.name }
       }, changeOptions)
       const remaining = readSavedTeams()
       return toolResult(
@@ -530,27 +570,28 @@ export function registerTeamsTools(server: McpServer): void {
           action,
           teamId,
           deletedTeamId: teamId,
-          deletedTeamName: saved.name,
+          deletedTeamName: outcome.deletedName,
           remainingTeamIds: remaining.map((t) => t.id),
           remainingTeamNames: remaining.map((t) => t.name),
           workingTeam: serializeWorkingTeam(readWorkingTeam()),
         },
-        `已删除队伍「${saved.name}」(${teamId});剩余 ${remaining.length} 支`,
+        `已删除队伍「${outcome.deletedName}」(${teamId});剩余 ${remaining.length} 支`,
       )
     }
 
     if (action === 'move') {
       if (from == null || to == null) throw new Error('manage_team(action=move):必须同时提供 from 与 to 下标')
-      const teams = readSavedTeams()
-      const outOfRange = [from, to].filter((i) => i >= teams.length)
-      if (outOfRange.length > 0) {
-        throw new Error(`manage_team(action=move):下标越界 — 现有 ${teams.length} 支队伍,合法下标 0..${teams.length - 1},收到 from=${from}, to=${to}`)
-      }
-      if (from === to) throw new Error('manage_team(action=move):from 与 to 相同,无需移动')
       let order_: string[] = []
       let names: string[] = []
       await runtimeContext.withChange('manage_team:move', () => {
+        // 越界与同位检查在作用域内做:入队前读的队伍表在同批 delete 后会失真,
+        // 越界 splice 会取出 undefined 并让上游 areSavedTeamsEqual 抛 TypeError
         const current = readSavedTeams()
+        const outOfRange = [from, to].filter((i) => i >= current.length)
+        if (outOfRange.length > 0) {
+          throw new Error(`manage_team(action=move):下标越界 — 现有 ${current.length} 支队伍,合法下标 0..${current.length - 1},收到 from=${from}, to=${to}`)
+        }
+        if (from === to) throw new Error('manage_team(action=move):from 与 to 相同,无需移动')
         const next = [...current]
         const [moved] = next.splice(from, 1)
         next.splice(to, 0, moved)
@@ -578,7 +619,7 @@ export function registerTeamsTools(server: McpServer): void {
           throw new Error('manage_team(compose set_slot):必须同时提供 index(0-3)与 characterId(null=移除该槽角色)')
         }
         if (characterId != null) requireMetadataCharacter(characterId)
-        const rosterBefore = new Set(getCharacters().map((c) => c.id as string))
+        let rosterAddedByScope: string[] = []
         let autofilled: string[] = []
         await runtimeContext.withChange('manage_team:compose:set_slot', () => {
           // useTeamShowcase.setSlot: an unowned pick joins the roster first;
@@ -586,7 +627,9 @@ export function registerTeamsTools(server: McpServer): void {
           // of an EMPTY team autofills the rest from the character's first
           // Custom benchmark team (owned characters only); any slot change
           // drops the working benchmark snapshot.
+          const rosterBefore = new Set(getCharacters().map((c) => c.id as string))
           if (characterId != null) ensureRosterCharacters([characterId as CharacterId])
+          rosterAddedByScope = getCharacters().map((c) => c.id as string).filter((id) => !rosterBefore.has(id))
           const charactersById = useCharacterStore.getState().charactersById
           const selectedCharacter = characterId != null ? charactersById[characterId as CharacterId] : undefined
           const customTeammateIds = selectedCharacter
@@ -611,9 +654,9 @@ export function registerTeamsTools(server: McpServer): void {
             working.benchmarkSnapshot = undefined
             autofilled = filled.filter((id, i) => id != null && currentSlots[i] !== id && id !== characterId) as string[]
           }
-          if (getCharacters().length !== rosterBefore.size) runtimeContext.markDirty()
+          if (rosterAddedByScope.length > 0) runtimeContext.markDirty()
         }, changeOptions)
-        const rosterAdded = getCharacters().map((c) => c.id as string).filter((id) => !rosterBefore.has(id))
+        const rosterAdded = rosterAddedByScope
         const working = readWorkingTeam()
         const summarySlots = working.slots.map((id) => (id != null ? getGameMetadata().characters[id]?.name ?? id : '空槽')).join(' / ')
         return toolResult(

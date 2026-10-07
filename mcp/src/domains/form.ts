@@ -74,6 +74,7 @@ import type {
   TeammateState,
 } from 'lib/stores/optimizerForm/optimizerFormTypes'
 import { useOptimizerRequestStore } from 'lib/stores/optimizerForm/useOptimizerRequestStore'
+import { useOptimizerDisplayStore } from 'lib/stores/optimizerUI/useOptimizerDisplayStore'
 import {
   flushComboDrawerToForm,
   persistSelectedSets,
@@ -146,12 +147,19 @@ type ComboEntityBucket = {
 }
 
 function serializeConditional(id: string, conditional: Any): SerializedComboConditional {
+  // 稀疏数组容错:历史状态可能因越界编辑留有 null 洞(输出 schema 只收 boolean),
+  // 序列化时截断到首个洞并过滤 null,让读取通道不因存量脏状态整体报错
+  const denseActivations = (activations: unknown[] | undefined): boolean[] => {
+    const list = [...(activations ?? [])]
+    const firstHole = list.findIndex((value) => value == null)
+    return (firstHole === -1 ? list : list.slice(0, firstHole)).map((value) => value === true)
+  }
   if (conditional.type === 'boolean') {
     return {
       id,
       type: 'boolean',
       defaultValue: conditional.activations?.[0] === true,
-      activations: [...(conditional.activations ?? [])],
+      activations: denseActivations(conditional.activations),
     }
   }
   return {
@@ -160,7 +168,7 @@ function serializeConditional(id: string, conditional: Any): SerializedComboCond
     defaultValue: conditional.partitions?.[0]?.value ?? 0,
     partitions: (conditional.partitions ?? []).map((partition: Any) => ({
       value: partition.value,
-      activations: [...(partition.activations ?? [])],
+      activations: denseActivations(partition.activations),
     })),
   }
 }
@@ -643,6 +651,9 @@ function validatePatchValues(patch: Record<string, unknown>): string[] {
   if (weights != null) {
     for (const [key, value] of Object.entries(weights)) {
       if (LEGACY_WEIGHT_KEYS.has(key)) {
+        // 引擎不读该键(Constants.SubStats 不含);真正从 patch 剥离,
+        // 让「已忽略」的警告与实际行为一致,否则 get_form 往返会把它带回。
+        delete weights[key]
         warnings.push(`patch.weights 中的旧字段 "${key}" 已废弃,本次写入已忽略`)
         continue
       }
@@ -1096,6 +1107,16 @@ export function registerFormTools(server: McpServer): void {
       const outgoingCharacter = sessionPointer ? getCharacterById(sessionPointer as CharacterId) : undefined
       useOptimizerRequestStore.getState().loadForm(outgoingCharacter ? outgoingCharacter.form : getDefaultForm({} as Any))
 
+      // 上游 syncFormToCharacterStore 走 getForm():form.statSim.simulations 会被
+      // display store 的列表整体覆盖(optimizerFormActions.ts:237-247)。网页端该
+      // store 与每次列表增删同步;无头环境若不播种,切换角色时离开角色的已存
+      // 列表会被 display 里的陈旧/空列表抹掉(并随 markDirty 落盘)。这里按会话
+      // 指针(即将被 sync 的角色)播种,过滤与 updateCharacter 载入新角色时同款。
+      const outgoingForm = outgoingCharacter?.form ?? getDefaultForm({} as Any)
+      useOptimizerDisplayStore.getState().setStatSimulations(
+        (outgoingForm.statSim?.simulations ?? []).filter((sim) => sim.request?.stats),
+      )
+
       // ② 切换角色:上游 switchToCharacter → updateCharacter
       //    (src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts:391/346)
       //    = 保存离开角色表单 → computeLoadForm 载入(条件默认值垫底)→ rank
@@ -1146,6 +1167,11 @@ export function registerFormTools(server: McpServer): void {
         }
         const probeState = { ...useOptimizerRequestStore.getState() } as Any
         applyFormOverrides(probeState, nonConditional)
+        // 存量表单可能带着引擎已不读的旧权重键(如 topPercent);一旦调用方
+        // 触碰 weights,顺手把死键从存储里剥掉,让 get_form 不再回传。
+        if (patch.weights != null && probeState.weights != null) {
+          for (const legacy of LEGACY_WEIGHT_KEYS) delete probeState.weights[legacy]
+        }
         useOptimizerRequestStore.setState(probeState)
         // 条件键的合法性在「非条件字段已生效」的状态下校验(如先换光锥再看光锥条件键)
         validateConditionalKeys(useOptimizerRequestStore.getState() as Any, patch)
@@ -1197,6 +1223,28 @@ export function registerFormTools(server: McpServer): void {
             if (!conditional) {
               throw new Error(`update_form: 连招矩阵中 target="${edit.target}" 下没有条件 "${edit.id}" — 现有条件见 get_form(expandCombo=true) 的对应实体`)
             }
+            // 界内校验:上游 setter 不查上界(setActivation 直接按下标赋值,
+            // useComboDrawerStore.ts:211),越界会写出稀疏数组 — 序列化产生 null
+            // 洞后 get_form(expandCombo) 对该角色永久报错,且 merge 只补洞不截断
+            const turnCount = ((conditional as { activations?: unknown[] }).activations ?? []).length
+            if ((edit.kind === 'setActivation' || edit.kind === 'setPartitionActivation') && edit.index > turnCount - 1) {
+              throw new Error(
+                `update_form: combo.edits 的 index ${edit.index} 超出技能位范围 — "${edit.target}/${edit.id}" 当前矩阵共 ${turnCount} 个技能位(下标 0..${
+                  turnCount - 1
+                },0 为默认段)`,
+              )
+            }
+            const partitionCount = (conditional as { partitions?: { value: number }[] }).partitions?.length
+            if (
+              (edit.kind === 'setPartitionActivation' || edit.kind === 'setNumberDefault' || edit.kind === 'deletePartition')
+              && partitionCount != null && edit.partitionIndex > partitionCount - 1
+            ) {
+              throw new Error(
+                `update_form: combo.edits 的 partitionIndex ${edit.partitionIndex} 超出分段范围 — "${edit.target}/${edit.id}" 当前共 ${partitionCount} 个分段(下标 0..${
+                  partitionCount - 1
+                })`,
+              )
+            }
             const drawer = useComboDrawerStore.getState()
             switch (edit.kind) {
               case 'setActivation':
@@ -1242,6 +1290,16 @@ export function registerFormTools(server: McpServer): void {
             continue
           }
           const { characterConditionals, lightConeConditionals, ...plainFields } = slot as Record<string, unknown>
+          // 换光锥必须走上游 updateTeammate 的换锥分支(updateTeammate.ts:24-45):
+          // lightConeChanged 时把 lightConeConditionals 重置为新锥默认,而不是沿用
+          // 旧锥条件键 — 键名冲突时(如 dmgBuff)残留值会静默覆盖新锥默认值。
+          if (typeof plainFields.lightCone === 'string') {
+            const current = useOptimizerRequestStore.getState().teammates[slotIndex]
+            if (current?.characterId) {
+              updateTeammate({ [`teammate${slotIndex}`]: { lightCone: plainFields.lightCone } } as Any)
+              delete plainFields.lightCone
+            }
+          }
           if (applied.syncFromRoster && typeof plainFields.characterId === 'string') {
             // 「从角色列表同步」:只传 characterId 走 updateTeammate 的选人路径
             // (带入星魂/光锥/叠影/队伍套装,换人重置条件,联动队伍感知套装预设)

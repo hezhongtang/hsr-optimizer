@@ -314,6 +314,18 @@ function buildRelicFromInput(input: UpsertInput): { relic: Relic, existing: Reli
           : `upsert_relic: 套装 "${set}" 是饰品套装,不能配在部位 ${part} — 头/手/躯干/脚只能配遗器套装(合法值见 game://metadata/sets)`,
       )
     }
+    if (!partChangedByInput && set != null) {
+      // 部位×套装类型错配的存量数据(手工篡改/外部导入产生):网页端编辑器加载
+      // 原值、提交时拒绝(SetNotOrnament/SetNotRelic)。自动换套装只发生在输入
+      // 改变了部位的联动里(computePartChangeUpdates 仅由 onPartChange 触发),
+      // 未触碰部位却静默改套,等于替调用方改了没要求改的数据。
+      throw new Error(
+        `upsert_relic: 该遗器现有部位 ${part} 与套装 "${set}" 类型不匹配(存量错配数据,网页端编辑器会拒绝保存) — `
+          + `请显式传 set 指定${
+            partIsOrnament(part) ? `饰品套装(${SetsOrnamentsNames.length} 个合法值)` : `遗器套装(${SetsRelicsNames.length} 个合法值)`
+          }(见 game://metadata/sets),或传 part 触发套装联动`,
+      )
+    }
     set = firstSetForPart(part)
   }
   if (set == null) set = firstSetForPart(part)
@@ -360,8 +372,13 @@ function buildRelicFromInput(input: UpsertInput): { relic: Relic, existing: Reli
     if (value < 0) {
       throw new Error(`upsert_relic: 副词条 ${stat} 的数值 ${value} 不能为负`)
     }
-    if (value === 0 && !isPreview) {
-      throw new Error(`upsert_relic: 副词条 ${stat} 的数值不能为 0 — 必须大于 0(尚未解锁的词条请放入 previewSubstats)`)
+    if (value <= 0) {
+      // 上游表单把 0 值预览词条当普通词条处理(isPreview=0 为 falsy,
+      // SubstatInput.tsx:121),validateRelic 一律按 SubTooSmall 拒绝 — 这里
+      // 与上游有效行为一致:预览词条同样必须 > 0。
+      throw new Error(
+        `upsert_relic: 副词条 ${stat} 的数值 ${value} 无效 — 必须 > 0 且 < 1000${isPreview ? '(预览词条同受此限)' : '(尚未解锁的词条请放入 previewSubstats)'}`,
+      )
     }
   }
 
@@ -492,7 +509,9 @@ export function registerRelicTools(server: McpServer): void {
       substats: z.array(substatInputSchema).max(4).optional().describe('副词条列表(至多 4 条,与预览词条合计);不能重复、不能与主词条相同;编辑不传保持原值'),
       previewSubstats: z.array(substatInputSchema).max(4).optional().describe('预览副词条(尚未解锁的词条,网页编辑器的「预览」标记);编辑不传保持原值'),
       previewUpgrade: z.boolean().optional().describe('升级预览:返回每条副词条各加一次低/中/高 roll 后的数值与强化后等级;设置时本调用不写入任何变更'),
-      dryRun: z.boolean().optional().describe('演练:完整校验+规范化+计算将发生的装备变更,但不写入库存、不落盘'),
+      dryRun: z.boolean().optional().describe(
+        '演练:完整校验+规范化+计算将发生的装备变更,但不写入库存、不落盘(新建场景返回的 relicId 是本次演练生成的,不会保留到真实写入时)',
+      ),
       baseRevision: z.number().int().optional().describe('乐观并发门:调用方读取状态时拿到的修订号;与当前不一致报冲突,需重读后重试'),
     },
     outputSchema: {

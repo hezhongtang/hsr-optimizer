@@ -250,6 +250,10 @@ export function registerArchiveTools(server: McpServer): void {
     } catch {
       // Keep the previous snapshot if serialization somehow produced invalid JSON
     }
+    // When the export landed on the loaded path itself (the deliberate-wipe
+    // runbook from delete_relics' note), memory and file now agree — clear the
+    // dirty/blockedWrite markers a wiped flush left behind.
+    runtimeContext.markExportedClean(target)
 
     return toolResult(
       { exported: true, path: target, bytes: stateString.length },

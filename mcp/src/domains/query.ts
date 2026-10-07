@@ -380,12 +380,12 @@ export function registerQueryTools(server: McpServer): void {
     description: '为任意角色生成一份全新默认表单(generateFullDefaultForm,即网页端“基准评分/默认条件”的表单构造):'
       + '条件默认值取自角色/光锥条件控制器,连招取评分元数据 simulation 配置。不依赖已加载存档——'
       + 'agent 未 load_save 也能起步;lightConeId 省略时依次回退:角色已保存表单的光锥(若有存档)→ 无光锥(光锥条件为空,附警告)。'
-      + '返回值经过与 get_form 相同的规范化,可直接作 formOverrides 样板;百分比为内部小数,部分 combatBuffs 覆盖加 format:”internal”。'
+      + '返回值经过与 get_form 相同的规范化,可直接作 formOverrides 样板;百分比为内部小数,部分 combatBuffs 覆盖加 format:"internal"。'
       + 'spdPreset 提供速度预设变体(网页端「推荐预设」按钮族):在默认表单上套用 applySpdPreset——'
       + '条件恢复默认、套用评分元数据推荐筛选与主词条、按档位设最低速度(0=不限速,对应主按钮),'
       + '角色有模拟评分配置时优化目标为 COMBO;可用档位以返回的 availableSpdPresets 为准(与网页端下拉一致)。',
     inputSchema: {
-      characterId: z.string().describe('Character id, e.g. “1212b1” (any character in game metadata, save not required)'),
+      characterId: z.string().describe('Character id, e.g. "1212b1" (any character in game metadata, save not required)'),
       lightConeId: z.string().optional().describe('Light cone id; defaults to the character\'s saved-form light cone when a save is loaded'),
       eidolon: z.number().int().min(0).max(6).default(0).describe('Character eidolon (default 0)'),
       superimposition: z.number().int().min(1).max(5).default(1).describe('Light cone superimposition (default 1)'),

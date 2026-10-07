@@ -303,11 +303,11 @@ function applyEquip(
 /**
  * Resolve the scoring config type + teammates the web's character-tab
  * "Save build" picks (buildService.saveBuild's non-optimizer branch):
- * showcase scoring order over the character's available simulation configs,
- * first available entry wins — NOT a hardcoded DPS. All functions in the
- * chain are pure (no UI store): the showcase tab's stored scoring preference
- * is UI state the MCP surface does not carry, so a fresh-session default
- * (scoringOrder[0]) applies.
+ * the stored per-character showcase preference (useShowcaseTabStore.
+ * showcasePreferences — the same persisted key update_state(section=showcase)
+ * writes) takes precedence, then showcase scoring order over the character's
+ * available simulation configs, first available entry wins — NOT a hardcoded
+ * DPS. Mirrors buildService.ts:68.
  */
 function resolveCharacterTabScoring(character: Character): {
   configType: ScoringConfigType | undefined,
@@ -324,7 +324,8 @@ function resolveCharacterTabScoring(character: Character): {
     getCharacterConfig(characterId)?.display.showcaseScoringOrder,
     availableSimulationConfigs,
   )
-  const effectiveScoringType = resolveShowcaseScoringType(undefined, scoringOrder)
+  const storedScoringType = (useShowcaseTabStore.getState().showcasePreferences as Record<string, { scoringType?: number }> | undefined)?.[characterId as string]?.scoringType
+  const effectiveScoringType = resolveShowcaseScoringType(storedScoringType, scoringOrder)
   const configType = configTypeForScoringType(effectiveScoringType)
   if (configType == null) {
     // e.g. SUBSTAT_SCORE first (Aventurine): the web saves no scoringConfigType
@@ -1112,8 +1113,9 @@ export function registerEquipmentTools(server: McpServer): void {
     if (gameCharacterMetadata(characterId) == null) {
       throw new Error(`Unknown character id ${characterId} (not present in game metadata)`)
     }
-    if (reset === true && traces != null) {
-      throw new Error('set_scoring_override:reset 与 traces 互斥 — reset=true 会清空包括行迹在内的全部覆盖,不要同时传 traces')
+    if (reset === true && (traces != null || weights != null || parts != null)) {
+      const extra = [weights != null && 'weights', parts != null && 'parts', traces != null && 'traces'].filter(Boolean).join('/')
+      throw new Error(`set_scoring_override:reset 与 ${extra} 互斥 — reset=true 会清空全部覆盖且忽略其它载荷,请分开调用`)
     }
     if (reset !== true && weights == null && parts == null && traces == null) {
       throw new Error('Provide at least one of: weights, parts, traces, or reset=true')

@@ -123,7 +123,12 @@ let saveGeneration = 0
 let revision = 0
 // Serializes withChange bodies: scopes run to completion in submission order,
 // so one scope's rollback can never restore stores another concurrent scope
-// already mutated. Chained promise — never awaited by callers directly.
+// already mutated. "Submission order" = handler arrival order — for several
+// frames written in ONE stdin batch the SDK validates each frame's schema
+// asynchronously, so queue order may differ from frame order (final state is
+// order-independent thanks to the dequeue-time snapshot; only ordering
+// assumptions and baseRevision conflicts are affected — cross-batch order is
+// still reliable). Chained promise — never awaited by callers directly.
 let changeQueue: Promise<unknown> = Promise.resolve()
 
 export const runtimeContext = {
@@ -198,6 +203,17 @@ export const runtimeContext = {
   markDirty(): void {
     revision++
     runtimeContext.scheduleDirtyFlush()
+  },
+
+  /** After export_save atomically wrote the loaded path, memory and file agree:
+   * clear the pending-dirty/blockedWrite markers so save_status stops reporting
+   * "changes not persisted" for state that was just deliberately persisted.
+   * Exports to a different path leave the markers alone (the loaded file is
+   * still stale). Mirrors the clean-flush reset in flushSave(). */
+  markExportedClean(target: string): void {
+    if (loadedSave?.path !== target) return
+    dirty = false
+    lastBlockedWrite = null
   },
 
   /** dirty=true + debounced flush, without a revision bump (internal: the

@@ -304,6 +304,49 @@ try {
     noLcSave.slice(0, 100),
   )
 
+  // ── 12b. failed snapshot saves leave NO trace (roster/revision/dirty) ──────
+  const revisionBefore12 = (await callTool(client, 'get_state', { section: 'revision' })).revision.revision
+  const rosterBefore12 = await callTool(client, 'list_characters', { limit: 1 })
+  const unownedPrecheck = await expectToolError(client, 'save_team', {
+    name: 'smoke-unowned-snap',
+    characterIds: ['1001', CHAR_G, CHAR_F, CHAR_E],
+    benchmarkSnapshot: true,
+  })
+  check(
+    'unowned member is rejected BEFORE any roster mutation (Chinese)',
+    unownedPrecheck.includes('不在角色列表中'),
+    unownedPrecheck.slice(0, 110),
+  )
+  const revisionAfter12 = (await callTool(client, 'get_state', { section: 'revision' })).revision.revision
+  const rosterAfter12 = await callTool(client, 'list_characters', { limit: 1 })
+  check(
+    'failed save_team attempts leave roster and revision untouched',
+    revisionAfter12 === revisionBefore12 && rosterAfter12.total === rosterBefore12.total,
+    `revision ${revisionBefore12}→${revisionAfter12}, roster ${rosterBefore12.total}→${rosterAfter12.total}`,
+  )
+
+  // ── 12c. save_team update path: keep snapshot on same slots, drop on change ─
+  const updatedSame = await callTool(client, 'save_team', {
+    teamId: savedSnap.teamId,
+    characterIds: [CHAR_G, CHAR_F, CHAR_E, CHAR_D],
+  })
+  check('update with unchanged slots keeps the snapshot', updatedSame.benchmarkSnapshotAttached === true && updatedSame.created === false)
+  const renamed = await callTool(client, 'save_team', { teamId: savedSnap.teamId, name: 'smoke-snap-renamed' })
+  check('rename-only update keeps the snapshot', renamed.benchmarkSnapshotAttached === true && renamed.team.name === 'smoke-snap-renamed')
+  const slotsChanged = await callTool(client, 'save_team', {
+    teamId: savedSnap.teamId,
+    characterIds: [CHAR_F, CHAR_G, CHAR_E, CHAR_D],
+  })
+  check('slot change drops the snapshot (web load rule)', slotsChanged.benchmarkSnapshotAttached === false)
+
+  // ── 12d. save_team honors baseRevision ─────────────────────────────────────
+  const staleTeamSave = await expectToolError(client, 'save_team', {
+    name: 'smoke-stale',
+    characterIds: [CHAR_G, CHAR_F, CHAR_E, CHAR_D],
+    baseRevision: Math.max(0, revisionAfter12 - 1),
+  })
+  check('save_team with a stale baseRevision conflicts (Chinese)', staleTeamSave.includes('修订号冲突'), staleTeamSave.slice(0, 90))
+
   // ── 13. equip_saved_build(applyScoringTeam=true) + autofill semantics ──────
   const teamBuild = await callTool(client, 'save_build', { characterId: TARGET, name: 'mcp-team-build' })
   check(
@@ -413,6 +456,11 @@ try {
         && (i === 0 || sortedRank.scores[i - 1].effectiveSubstats >= s.effectiveSubstats)
       ),
     sortedRank.scores.map((s) => `${s.characterId}:${s.effectiveSubstats.toFixed(1)}`).join(' '),
+  )
+  check(
+    'sortBy scores are real values, not a constant (scorer sanity)',
+    new Set(sortedRank.scores.map((s) => s.effectiveSubstats)).size > 1 && sortedRank.scores.some((s) => s.effectiveSubstats > 0),
+    sortedRank.scores.map((s) => s.effectiveSubstats.toFixed(1)).join(' '),
   )
   const sortedIds = sortedRank.scores.map((s) => s.characterId)
   const byScore = [...sortedRank.scores].sort((a, b) => b.effectiveSubstats - a.effectiveSubstats).map((s) => s.characterId)
