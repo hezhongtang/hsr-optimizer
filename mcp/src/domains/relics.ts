@@ -26,6 +26,7 @@
 // "Musketeer of Wild Wheat" — the exact strings serializeRelic emits.
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import i18next from 'i18next'
 import {
   Parts,
   type Parts as PartsType,
@@ -36,6 +37,7 @@ import {
   UnreleasedSets,
 } from 'lib/constants/constants'
 import { SettingOptions } from 'lib/constants/settingsConstants'
+import { buffedCharacters } from 'lib/importer/kelzFormatParser'
 import {
   calculateUpgradeValues,
   computeMainStatDisplayValue,
@@ -47,11 +49,14 @@ import {
 import type { RelicForm } from 'lib/overlays/modals/relicModal/relicModalTypes'
 import { RelicAugmenter } from 'lib/relics/relicAugmenter'
 import { partIsOrnament } from 'lib/relics/relicUtils'
+import { RelicScorer } from 'lib/relics/scoring/relicScorer'
+import { sortAlphabeticEmojiLast } from 'lib/rendering/displayUtils'
 import * as equipmentService from 'lib/services/equipmentService'
 import {
   SetsOrnamentsNames,
   SetsRelicsNames,
 } from 'lib/sets/setConfigRegistry'
+import { getGameMetadata } from 'lib/state/gameMetadata'
 import { SaveState } from 'lib/state/saveState'
 import { useGlobalStore } from 'lib/stores/app/appStore'
 import {
@@ -62,6 +67,7 @@ import {
   getRelicById,
   getRelics,
 } from 'lib/stores/relic/relicStore'
+import { useRelicLocatorStore } from 'lib/tabs/tabRelics/RelicLocator'
 import type {
   Relic,
   UnaugmentedRelic,
@@ -69,6 +75,7 @@ import type {
 import { z } from 'zod'
 
 import { runtimeContext } from '../context'
+import { ensureI18nReady } from '../i18n/i18nNode'
 import { serializeRelic } from '../serializers/builds'
 import { toolResult } from '../toolResult'
 
@@ -482,6 +489,295 @@ const substatInputSchema = z.object({
   value: z.number().describe('数值(游戏显示值:百分比词条 3.8 表示 3.8%;必须在 (0,1000) 区间)'),
 })
 
+// ─── analyze_relic (read-only insights views) ────────────────────────────────
+//
+// Three read-only views over one relic, mirroring the Relics tab's bottom dock:
+//   view=characters → RelicInsightsPanel (scoreRelicPotential per candidate
+//                     character, bestPct-desc sort, 10 percentage buckets)
+//   view=location   → RelicLocator (ageIndex-ordered backpack position, with
+//                     the part→part+set filter fallback)
+//   view=reroll     → RelicRerollModal (same relic parsed twice — original vs
+//                     rerolled substats — scored by the owner's weights when
+//                     equipped; display-only, nothing is adopted or written)
+// Pure computation: never mutates stores, never bumps the revision.
+
+/** Default backpack geometry from the persisted locator store (web: the
+ * RelicLocator popover writes these; MCP reads whatever the save restored,
+ * falling back to the upstream defaults 9×10). */
+function locatorDefaults(): { inventoryWidth: number, rowLimit: number } {
+  const state = useRelicLocatorStore.getState()
+  return { inventoryWidth: state.inventoryWidth ?? 9, rowLimit: state.rowLimit ?? 10 }
+}
+
+type LocatorResult = {
+  inventoryWidth: number,
+  rowLimit: number,
+  equippedBy: string | null,
+  ageIndex: number | null,
+  ageIndexKnown: boolean,
+  newerSamePartCount: number,
+  positionIndex: number,
+  row: number,
+  column: number,
+  filters: { part: string, set: string | null },
+  needsSetFilter: boolean,
+  note: string | undefined,
+}
+
+/** RelicLocator's useEffect computation, verbatim: count newer same-part
+ * relics (acquisition order = ageIndex), convert to backpack row/column; when
+ * the position exceeds rowLimit×inventoryWidth the count switches to
+ * part+set (the game needs the set filter applied manually in that case). */
+function computeLocator(
+  relic: Relic,
+  requested: { inventoryWidth?: number | undefined, rowLimit?: number | undefined },
+): LocatorResult {
+  const defaults = locatorDefaults()
+  const inventoryWidth = Math.max(1, requested.inventoryWidth ?? defaults.inventoryWidth)
+  const rowLimit = Math.max(1, requested.rowLimit ?? defaults.rowLimit)
+  const indexLimit = rowLimit * inventoryWidth
+
+  // The web compares `x.ageIndex! > relic.ageIndex!` — with a null relic
+  // ageIndex every comparison is NaN-false, so a relic without acquisition
+  // order counts as position 0 (row 1, column 1). Mirror that exactly and
+  // flag it, instead of inventing an order for manually added relics.
+  const ageIndex = relic.ageIndex ?? null
+  const newerRelics = ageIndex == null ? [] : getRelics().filter((x) => (x.ageIndex ?? -1) > ageIndex)
+
+  const newerSamePartCount = newerRelics.filter((x) => relic.part === x.part).length
+  let positionIndex: number
+  let filterSet: string | null
+  if (newerSamePartCount < indexLimit) {
+    positionIndex = newerSamePartCount
+    filterSet = null
+  } else {
+    positionIndex = newerRelics.filter((x) => relic.part === x.part && relic.set === x.set).length
+    filterSet = relic.set
+  }
+
+  const note = ageIndex == null
+    ? '这件遗器没有获取顺序(ageIndex 缺失,手工新增的遗器没有游戏内顺序)— 定位按「无更新遗器」口径计算,仅作参考'
+    : filterSet != null
+    ? `同部位遗器超出 行数上限×背包宽度(${rowLimit}×${inventoryWidth}),已按 部位+套装 筛选后计数 — 游戏内需手动加上套装筛选才能看到该位置`
+    : undefined
+
+  return {
+    inventoryWidth,
+    rowLimit,
+    equippedBy: relic.equippedBy ?? null,
+    ageIndex,
+    ageIndexKnown: ageIndex != null,
+    newerSamePartCount,
+    positionIndex,
+    row: Math.ceil((positionIndex + 1) / inventoryWidth),
+    column: positionIndex % inventoryWidth + 1,
+    filters: { part: relic.part, set: filterSet },
+    needsSetFilter: filterSet != null,
+    note,
+  }
+}
+
+/** RelicInsightsPanel's candidate scoring: potential per character over the
+ * requested candidate set, bestPct>0 filter, bestPct-desc sort with the
+ * emoji-last alphabetical tiebreak. BucketsPanel.getBucketIndex semantics. */
+function computeCharacterInsights(
+  relic: Relic,
+  requestedCharacterIds: string[] | undefined,
+  bucketMode: 'maximum' | 'average',
+) {
+  const scorer = new RelicScorer()
+  const metadataCharacters = getGameMetadata().characters as Record<string, { id: string }>
+
+  let candidates: Array<{ id: string }>
+  if (requestedCharacterIds != null) {
+    const unknown = requestedCharacterIds.filter((id) => metadataCharacters[id] == null)
+    if (unknown.length > 0) {
+      throw new Error(
+        `analyze_relic: 角色 id ${unknown.map((id) => `"${id}"`).join(', ')} 不在游戏元数据中 — 合法角色 id 见 game://metadata/characters 资源`,
+      )
+    }
+    candidates = requestedCharacterIds.map((id) => ({ id }))
+  } else {
+    candidates = Object.values(metadataCharacters).map((c) => ({ id: c.id }))
+  }
+
+  // buffedCharacters never participate (insights panel filter)
+  const buffedIds = new Set<string>(Object.keys(buffedCharacters))
+  const skippedBuffed = candidates.filter((c) => buffedIds.has(c.id)).map((c) => c.id)
+  const eligible = candidates.filter((c) => !buffedIds.has(c.id))
+
+  ensureI18nReady()
+  const t = i18next.getFixedT(null, 'gameData', 'Characters') as Any
+  const byName = sortAlphabeticEmojiLast('name')
+
+  const scored = eligible
+    .map((candidate) => {
+      const potential = scorer.scoreRelicPotential(relic, candidate.id as Any, true)
+      return {
+        id: candidate.id,
+        name: t(`${candidate.id}.Name`) as string,
+        owned: getCharacterById(candidate.id as Any) != undefined,
+        potential: {
+          currentPct: potential.currentPct,
+          bestPct: potential.bestPct,
+          averagePct: potential.averagePct,
+          worstPct: potential.worstPct,
+        },
+        bestAddedStats: potential.meta?.bestAddedStats ?? [],
+        bestUpgradedStats: potential.meta?.bestUpgradedStats ?? [],
+      }
+    })
+    // Web: `.filter((x) => x.score.bestPct > 0)` before sorting
+    .filter((entry) => entry.potential.bestPct > 0)
+    .sort((a, b) => (a.potential.bestPct === b.potential.bestPct ? byName(a, b) : b.potential.bestPct - a.potential.bestPct))
+
+  const bucketIndexOf = (entry: { potential: { bestPct: number, averagePct: number } }) =>
+    Math.min(9, Math.max(0, Math.floor((bucketMode === 'average' ? entry.potential.averagePct : entry.potential.bestPct) / 10)))
+
+  const characters = scored.map((entry) => ({ ...entry, bucketIndex: bucketIndexOf(entry) }))
+  const buckets = Array.from({ length: 10 }, (_, index) => ({
+    index,
+    // Y-axis label of the buckets chart: `${index * 10}%+`
+    label: `${index * 10}%+`,
+    characterIds: characters.filter((entry) => entry.bucketIndex === index).map((entry) => entry.id),
+  }))
+
+  return {
+    bucketMode,
+    considered: eligible.length,
+    characters,
+    buckets,
+    ...(skippedBuffed.length > 0 ? { skippedBuffedCharacters: skippedBuffed } : {}),
+  }
+}
+
+/** validate a reroll substat list with the editor's checks (validateRelic
+ * branches: valid names, no duplicates, not the main stat, value bounds). */
+function validateRerollSubstats(relic: Relic, substats: Array<{ stat: string, value: number }>): void {
+  const validSubstats = new Set<string>(SubStats)
+  const statNames = substats.map((s) => s.stat)
+  for (const stat of statNames) {
+    if (!validSubstats.has(stat)) {
+      throw new Error(`analyze_relic: 重掷副词条名 "${stat}" 无效 — 合法副词条:${SubStats.join(', ')}`)
+    }
+  }
+  const duplicate = statNames.find((stat, i) => statNames.indexOf(stat) !== i)
+  if (duplicate != null) {
+    throw new Error(`analyze_relic: 重掷副词条 "${duplicate}" 重复 — 每种副词条只能出现一次`)
+  }
+  if (statNames.includes(relic.main.stat)) {
+    throw new Error(`analyze_relic: 重掷副词条 "${relic.main.stat}" 与主词条相同 — 副词条不能与主词条重复`)
+  }
+  for (const { stat, value } of substats) {
+    if (!(value > 0) || value >= 1000) {
+      throw new Error(`analyze_relic: 重掷副词条 ${stat} 的数值 ${value} 无效 — 必须 > 0 且 < 1000(游戏显示值,百分比词条 3.8 表示 3.8%)`)
+    }
+  }
+}
+
+/** RelicRerollModal semantics: the same relic re-parsed with the rerolled
+ * substat list (parseRelic → RelicAugmenter.augment chain). Scored with the
+ * owner's weights only when the relic has an owner (ScoringType.SUBSTAT_SCORE
+ * vs NONE); never adopted — the modal is display-only and so is this view. */
+function computeRerollComparison(relic: Relic, rerollSubstats: Array<{ stat: string, value: number }>) {
+  validateRerollSubstats(relic, rerollSubstats)
+
+  const unaugmented: UnaugmentedRelic = {
+    equippedBy: relic.equippedBy,
+    enhance: relic.enhance,
+    grade: relic.grade,
+    part: relic.part,
+    set: relic.set,
+    main: { stat: relic.main.stat, value: relic.main.value },
+    substats: rerollSubstats.map((s) => ({ stat: s.stat as SubStatsType, value: s.value })),
+  }
+  const rerolled = RelicAugmenter.augment(unaugmented)
+  if (rerolled == null) {
+    throw new Error('analyze_relic: 重掷遗器规范化失败 — 请检查 rerollSubstats 参数(词条名与数值)')
+  }
+  rerolled.id = relic.id
+
+  const scorer = new RelicScorer()
+  const owner = relic.equippedBy
+  const scoreOf = (candidate: Relic) => {
+    if (owner == null) return null
+    const scored = scorer.getCurrentRelicScore(candidate, owner as Any)
+    return { percentScore: scored.percentScore, rating: scored.rating }
+  }
+
+  return {
+    equippedBy: owner ?? null,
+    scoredByOwner: owner != null,
+    original: {
+      relic: serializeRelicPayload(relic),
+      score: scoreOf(relic),
+    },
+    rerolled: {
+      relic: serializeRelicPayload(rerolled),
+      score: scoreOf(rerolled),
+    },
+  }
+}
+
+// ─── analyze_relic output schemas ────────────────────────────────────────────
+
+const potentialSchema = z.object({
+  currentPct: z.number(),
+  bestPct: z.number(),
+  averagePct: z.number(),
+  worstPct: z.number(),
+})
+
+const insightsCharacterSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  owned: z.boolean(),
+  potential: potentialSchema,
+  bestAddedStats: z.array(z.string()),
+  bestUpgradedStats: z.array(z.string()),
+  bucketIndex: z.number().int(),
+})
+
+const insightsViewSchema = z.object({
+  bucketMode: z.enum(['maximum', 'average']),
+  considered: z.number().int(),
+  characters: z.array(insightsCharacterSchema),
+  buckets: z.array(z.object({
+    index: z.number().int(),
+    label: z.string(),
+    characterIds: z.array(z.string()),
+  })),
+  skippedBuffedCharacters: z.array(z.string()).optional(),
+})
+
+const locationViewSchema = z.object({
+  inventoryWidth: z.number().int(),
+  rowLimit: z.number().int(),
+  equippedBy: z.string().nullable(),
+  ageIndex: z.number().nullable(),
+  ageIndexKnown: z.boolean(),
+  newerSamePartCount: z.number().int(),
+  positionIndex: z.number().int(),
+  row: z.number().int(),
+  column: z.number().int(),
+  filters: z.object({ part: z.string(), set: z.string().nullable() }),
+  needsSetFilter: z.boolean(),
+  note: z.string().optional(),
+})
+
+const rerollViewSchema = z.object({
+  equippedBy: z.string().nullable(),
+  scoredByOwner: z.boolean(),
+  original: z.object({
+    relic: relicPayloadSchema,
+    score: z.object({ percentScore: z.number(), rating: z.string() }).nullable(),
+  }),
+  rerolled: z.object({
+    relic: relicPayloadSchema,
+    score: z.object({ percentScore: z.number(), rating: z.string() }).nullable(),
+  }),
+})
+
 // ─── tool registration ───────────────────────────────────────────────────────
 
 export function registerRelicTools(server: McpServer): void {
@@ -657,5 +953,98 @@ export function registerRelicTools(server: McpServer): void {
       }`
         + `;库存剩余 ${remaining} 件,revision=${runtimeContext.getRevision()}`,
     )
+  })
+
+  // ── analyze_relic ──────────────────────────────────────────────────────────
+  server.registerTool('analyze_relic', {
+    title: '遗器分析(适配角色/背包定位/重掷对比)',
+    description: '对单件遗器的三个只读分析视图(纯计算,不写任何状态、不递增 revision):'
+      + '① view=characters — 遗器洞察面板(RelicInsightsPanel):在候选角色上逐个计算潜力'
+      + '(scoreRelicPotential,与 score_relics 同一条评分管线),去掉最高潜力为 0 的角色后按最高潜力降序'
+      + '(并列按名字字母序、表情名靠后),并按 10 个百分比区间(0%+…90%+)分桶;characterIds 可限定候选角色'
+      + '(缺省全部已上线角色;强化版角色一律排除)。'
+      + '② view=location — 背包定位(RelicLocator):按获取顺序(ageIndex)数出更新的同部位遗器,'
+      + '换算成游戏背包第几行第几列;超出 行数上限×背包宽度 时自动改为按 部位+套装 筛选后计数并提示;'
+      + 'inventoryWidth/rowLimit 缺省取存档里的定位设置(默认 9×10)。'
+      + '③ view=reroll — 重掷前后对比(RelicRerollModal):把同一件遗器按原副词条与重掷副词条'
+      + '(rerollSubstats,必填)各解析一份并排对比;遗器有佩戴者时按该角色的副词条权重各算一个当前分,'
+      + '没有佩戴者则不给分——只做展示,不采用重掷结果、不写入库存。同参数两次调用结果完全一致。',
+    inputSchema: {
+      relicId: z.string().describe('遗器 id(list_relics 可查)'),
+      view: z.enum(['characters', 'location', 'reroll']).default('characters').describe(
+        'characters=适配角色+潜力分桶;location=背包定位;reroll=重掷前后对比',
+      ),
+      characterIds: z.array(z.string()).optional().describe(
+        'characters 视图:限定候选角色 id(缺省全部已上线角色;强化版角色始终排除并在 skippedBuffedCharacters 里说明)',
+      ),
+      bucketMode: z.enum(['maximum', 'average']).default('maximum').describe(
+        'characters 视图:分桶口径——maximum=按最高潜力分桶(默认,分桶图默认档),average=按平均潜力分桶;角色列表始终按最高潜力排序',
+      ),
+      inventoryWidth: z.number().int().min(1).optional().describe('location 视图:背包宽度(缺省取存档定位设置,默认 9)'),
+      rowLimit: z.number().int().min(1).optional().describe('location 视图:行数上限(缺省取存档定位设置,默认 10)'),
+      rerollSubstats: z.array(substatInputSchema).max(4).optional().describe(
+        'reroll 视图必填:重掷后的副词条列表(至多 4 条;不能重复、不能与主词条相同,数值在 (0,1000) 区间)',
+      ),
+    },
+    outputSchema: {
+      relicId: z.string(),
+      view: z.enum(['characters', 'location', 'reroll']),
+      relic: relicPayloadSchema,
+      characters: insightsViewSchema.optional(),
+      location: locationViewSchema.optional(),
+      reroll: rerollViewSchema.optional(),
+      durationMs: z.number(),
+    },
+  }, async ({ relicId, view, characterIds, bucketMode, inventoryWidth, rowLimit, rerollSubstats }) => {
+    runtimeContext.ensureMetadataReady()
+    runtimeContext.requireSave()
+
+    const relic = getRelicById(relicId)
+    if (relic == null) {
+      throw new Error(
+        `analyze_relic: 库存中不存在遗器 id "${relicId}" — 请先用 list_relics 查询有效遗器 id`,
+      )
+    }
+    if (view === 'reroll' && rerollSubstats == null) {
+      throw new Error('analyze_relic: view=reroll 需要 rerollSubstats(重掷后的副词条列表)— 与网页端重掷弹窗的「重掷副词条」同源')
+    }
+
+    const started = performance.now()
+    const payload: Record<string, unknown> = {
+      relicId,
+      view,
+      relic: serializeRelicPayload(relic),
+    }
+    let summary = ''
+
+    if (view === 'characters') {
+      const insights = computeCharacterInsights(relic, characterIds, bucketMode)
+      payload.characters = insights
+      const top = insights.characters[0]
+      summary = `遗器 ${relicId}(${relic.part},${relic.set})的适配分析:${insights.characters.length}/${insights.considered} 个角色`
+        + `(${bucketMode === 'average' ? '平均' : '最高'}潜力分桶)`
+        + (top ? `,最适配 ${top.name}(${top.id},最高潜力 ${top.potential.bestPct.toFixed(1)}%)` : ',没有最高潜力 > 0 的角色')
+        + (insights.skippedBuffedCharacters?.length ? `;已排除强化版角色 ${insights.skippedBuffedCharacters.length} 名` : '')
+    } else if (view === 'location') {
+      const location = computeLocator(relic, { inventoryWidth, rowLimit })
+      payload.location = location
+      summary = `遗器 ${relicId} 的背包定位:第 ${location.row} 行第 ${location.column} 列`
+        + `(按${location.needsSetFilter ? ' 部位+套装 ' : '部位'}筛选,背包宽度 ${location.inventoryWidth}、行数上限 ${location.rowLimit})`
+        + `${location.equippedBy ? `,当前装备于 ${location.equippedBy}` : ',未装备'}`
+        + (location.note ? `;${location.note}` : '')
+    } else {
+      const reroll = computeRerollComparison(relic, rerollSubstats!)
+      payload.reroll = reroll
+      summary = `遗器 ${relicId} 的重掷对比:原副词条 ${relic.substats.length} 条 → 重掷 ${rerollSubstats!.length} 条`
+        + (reroll.scoredByOwner
+          ? `,按佩戴者 ${reroll.equippedBy} 权重评分 ${reroll.original.score?.percentScore.toFixed(1)}% → ${
+            reroll.rerolled.score?.percentScore.toFixed(1)
+          }%(${reroll.original.score?.rating} → ${reroll.rerolled.score?.rating})`
+          : ',遗器无佩戴者——不评分(与网页端重掷弹窗一致)')
+        + ';仅对比,不采用重掷结果'
+    }
+
+    payload.durationMs = Math.round(performance.now() - started)
+    return toolResult(payload, summary)
   })
 }

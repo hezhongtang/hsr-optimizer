@@ -12,7 +12,9 @@
 //                     extractDamageSplits on trace=true double simulations
 //   benchmark_runs  → runCustomBenchmarkOrchestrator() — the Benchmarks tab's
 //                     custom benchmark (SEQUENTIAL_BENCHMARKS inline search),
-//                     fanned out over 4pc-set × SPD-threshold presets
+//                     fanned out over 4pc-set × SPD-threshold presets; with
+//                     sweep="sets" it is the metadata-test Set Benchmark
+//                     Auditor instead (runAudit over the generated set grid)
 //
 // Damage-split labels resolve through the offline i18next bootstrap
 // (ensureI18nReady → zh_CN), the same singleton upstream reads.
@@ -82,6 +84,17 @@ import type {
   BenchmarkForm,
   SimpleCharacter,
 } from 'lib/tabs/tabBenchmarks/useBenchmarksTabStore'
+import { getErrRopePermutations } from 'lib/tabs/tabMetadata/setAuditor/setAuditorConstants'
+import {
+  generateOrnamentSetCombos,
+  generateParamCombos,
+  generateRelicSetCombos,
+  runAudit,
+} from 'lib/tabs/tabMetadata/setAuditor/setAuditorEngine'
+import type {
+  AuditorConfig,
+  AuditorResults,
+} from 'lib/tabs/tabMetadata/setAuditor/setAuditorTypes'
 import { extractDamageSplits } from 'lib/tabs/tabOptimizer/analysis/damageSplitsExtractor'
 import {
   calculateStatUpgrades,
@@ -126,6 +139,12 @@ type Any = any
 const MAX_STAT_SIM_VARIANTS = 12
 const MAX_BENCHMARK_PRESETS = 16
 const TOP_BENCHMARK_CANDIDATES = 5
+// sweep=sets grid cap (set combos × param combos + reference runs) — the
+// presets-mode MAX_BENCHMARK_PRESETS semantics applied to a generated grid:
+// refuse up front with a narrowing hint instead of running for hours.
+const MAX_SWEEP_RUNS = 512
+const DEFAULT_SWEEP_SET_TYPES = ['relic4p', 'ornament'] as const
+const DEFAULT_SWEEP_SPD_BREAKPOINTS = [0, 133, 160]
 const FORM_OVERRIDES_DESCRIPTION = '合并部分 display 表单或 get_form/default_form 内部字段,嵌套对象与队友按键合并;内部别名优先。'
   + 'flat minCr/minCd 等使用小数,nested statFilters 使用百分数;format:"internal"/"display" 指定 combatBuffs 百分比单位。'
   + '未指定 format 时有内部专有字段则 combatBuffs 用小数,否则用百分数。characterId 必须匹配调用角色。'
@@ -306,6 +325,285 @@ function echoSimRequest(request: {
     linkRope: request.simLinkRope,
     stats: { ...request.stats },
   }
+}
+
+// ─── benchmark_runs sweep="sets" (Set Benchmark Auditor, headless) ───────────
+//
+// Mirrors the metadata-test page's SetBenchmarkAuditor: runAudit over the
+// generated set grid (all 4pc / 2p2p representative pairs / ornaments × the
+// param combos), against the reference build from the character's simulation
+// scoring metadata. Same batch semantics as presets mode: one job per batch,
+// progress completedPresets/totalPresets, cooperative cancel between benchmark
+// runs, every throwing validation BEFORE registerJob (the M4 lesson — a job
+// registered earlier would stay running forever).
+
+type SweepOptionsInput = {
+  setTypes?: Array<'relic4p' | 'relic2p2p' | 'ornament'> | undefined,
+  spdBreakpoints?: number[] | undefined,
+  modes?: Array<'dps' | 'subDps'> | undefined,
+  errRope?: Array<'noErr' | 'err'> | undefined,
+  scoringModes?: Array<'benchmark' | 'perfection'> | undefined,
+}
+
+async function runSetSweep(args: {
+  character: Character,
+  characterId: string,
+  simulationMetadata: Any,
+  sweepOptions: SweepOptionsInput | undefined,
+  lightCone: string | undefined,
+  lightConeSuperimposition: number | undefined,
+  characterEidolon: number | undefined,
+  teammates:
+    | Array<{
+      characterId: string,
+      lightCone?: string,
+      characterEidolon?: number,
+      lightConeSuperimposition?: number,
+    }>
+    | undefined,
+  extra: Any,
+}): Promise<CallToolResult> {
+  const {
+    character,
+    characterId,
+    simulationMetadata,
+    sweepOptions,
+    lightCone,
+    lightConeSuperimposition,
+    characterEidolon,
+    teammates,
+    extra,
+  } = args
+
+  if (sweepOptions?.setTypes != null && sweepOptions.setTypes.length === 0) {
+    throw new Error('benchmark_runs: sweepOptions.setTypes 不能为空——至少勾选一种套装类型(网页端同样拒绝空多选)')
+  }
+  if (sweepOptions?.spdBreakpoints != null && sweepOptions.spdBreakpoints.length === 0) {
+    throw new Error('benchmark_runs: sweepOptions.spdBreakpoints 不能为空——至少勾选一个速度档位(网页端同样拒绝空多选)')
+  }
+
+  const setTypes = sweepOptions?.setTypes ?? [...DEFAULT_SWEEP_SET_TYPES]
+  const spdBreakpoints = sweepOptions?.spdBreakpoints ?? DEFAULT_SWEEP_SPD_BREAKPOINTS
+  const scoringModes = sweepOptions?.scoringModes ?? ['perfection']
+  // Web defaults: sub-DPS characters audit in subDps mode, others dps; ERR rope
+  // permutations come from the metadata (allowed at E0 → both, else noErr only)
+  const modes = sweepOptions?.modes ?? [simulationMetadata.deprioritizeBuffs ? 'subDps' : 'dps']
+  const allowedErr = getErrRopePermutations(simulationMetadata).map((v) => v ? 'err' : 'noErr') as Array<'err' | 'noErr'>
+  const errRopeModes = sweepOptions?.errRope ?? allowedErr
+
+  // Reference build: first recommended relic set + first recommended ornament
+  // (runAudit's own derivation — precomputed here for validation and the cap)
+  const defaultRelic1 = simulationMetadata.relicSets?.[0]?.[0]
+  const defaultRelic2 = simulationMetadata.relicSets?.[0]?.[1] ?? defaultRelic1
+  const defaultOrnament = simulationMetadata.ornamentSets?.[0]
+  if (defaultRelic1 == null || defaultOrnament == null) {
+    throw new Error(`角色 ${characterId} 的评分元数据没有推荐套装(relicSets/ornamentSets 为空)——无法确定套装审计的参照配装`)
+  }
+
+  const paramCombos = generateParamCombos(simulationMetadata, {
+    spdBreakpoints,
+    modes,
+    errRope: errRopeModes,
+  } as Any)
+  const setCombos = [
+    ...(setTypes.includes('relic4p') || setTypes.includes('relic2p2p')
+      ? generateRelicSetCombos(defaultOrnament).filter((combo) => setTypes.includes(combo.type))
+      : []),
+    ...(setTypes.includes('ornament') ? generateOrnamentSetCombos(defaultRelic1, defaultRelic2) : []),
+  ]
+  const totalRuns = setCombos.length * paramCombos.length + paramCombos.length
+  if (totalRuns > MAX_SWEEP_RUNS) {
+    throw new Error(
+      `benchmark_runs: 套装审计网格共 ${totalRuns} 次基准运行,超过上限 ${MAX_SWEEP_RUNS}`
+        + `(套装组合 ${setCombos.length} × 参数组合 ${paramCombos.length} + 参照 ${paramCombos.length})`
+        + ' — 请收窄 sweepOptions:减少 spdBreakpoints/modes/errRope 档位,或缩小 setTypes(例如只扫 ["ornament"])',
+    )
+  }
+
+  // Web auditor semantics: selecting a character resets eidolon to 0 and
+  // superimposition to 1; the light cone still has to come from somewhere.
+  const effectiveLightCone = lightCone ?? character.form.lightCone
+  if (!effectiveLightCone) {
+    throw new Error(`角色 ${characterId} 没有配置光锥(存档表单与覆盖项均为空)——请先 upsert_character 设置光锥或传入 lightCone`)
+  }
+  if (!(getGameMetadata().lightCones as Record<string, unknown>)[effectiveLightCone]) {
+    throw new Error(`未知光锥 id ${effectiveLightCone}`)
+  }
+
+  // Teammates: explicit overrides win, else the scoring metadata's team
+  // (same resolution as presets mode)
+  const defaultTeammates = ((simulationMetadata as Any).teammates ?? []) as Array<{
+    characterId: string,
+    lightCone?: string,
+    characterEidolon?: number,
+    lightConeSuperimposition?: number,
+  }>
+  const requestedTeammates = teammates ?? defaultTeammates.map((mate) => ({
+    characterId: mate.characterId,
+    lightCone: mate.lightCone,
+    characterEidolon: mate.characterEidolon ?? 0,
+    lightConeSuperimposition: mate.lightConeSuperimposition ?? 1,
+  }))
+  const resolvedTeammates: SimpleCharacter[] = requestedTeammates.map((mate, index) => ({
+    characterId: mate.characterId as CharacterId,
+    lightCone: (mate.lightCone ?? defaultTeammates[index]?.lightCone) as LightConeId,
+    characterEidolon: mate.characterEidolon ?? defaultTeammates[index]?.characterEidolon ?? 0,
+    lightConeSuperimposition: mate.lightConeSuperimposition ?? defaultTeammates[index]?.lightConeSuperimposition ?? 1,
+  }))
+  while (resolvedTeammates.length < 3) {
+    const fallback = defaultTeammates[resolvedTeammates.length]
+    if (!fallback) throw new Error('套装审计需要三名队友——评分元数据推荐队不完整且未通过 teammates 覆盖')
+    resolvedTeammates.push({
+      characterId: fallback.characterId as CharacterId,
+      lightCone: fallback.lightCone as LightConeId,
+      characterEidolon: fallback.characterEidolon ?? 0,
+      lightConeSuperimposition: fallback.lightConeSuperimposition ?? 1,
+    })
+  }
+  for (const mate of resolvedTeammates) {
+    if (!(getGameMetadata().characters as Record<string, unknown>)[mate.characterId]) {
+      throw new Error(`队友角色 id ${mate.characterId} 不存在于游戏元数据`)
+    }
+    if (mate.lightCone == null || !(getGameMetadata().lightCones as Record<string, unknown>)[mate.lightCone]) {
+      throw new Error(`队友 ${mate.characterId} 的光锥 "${mate.lightCone ?? ''}" 不存在——请显式传入 teammates 或修正评分元数据`)
+    }
+  }
+
+  const config: AuditorConfig = {
+    spdBreakpoints,
+    modes,
+    errRope: errRopeModes,
+    setTypes,
+    lightCone: effectiveLightCone as LightConeId,
+    characterEidolon: characterEidolon ?? 0,
+    lightConeSuperimposition: lightConeSuperimposition ?? 1,
+    teammates: resolvedTeammates,
+    scoringModes,
+  } // Inline benchmark search on the main thread (the presets-mode pattern)
+  ;(globalThis as Any).SEQUENTIAL_BENCHMARKS = true
+
+  // Everything above can throw — register the job only now (M4 lesson)
+  const jobId = nextJobId('bench')
+  const cancelController = linkedAbortController(extra.signal)
+  const cancelRef = { current: false }
+  registerJob(jobId, 'benchmark_runs', {
+    cancel: () => {
+      cancelController.abort()
+      cancelRef.current = true
+    },
+    summary: {
+      sweep: 'sets',
+      characterId,
+      setTypes,
+      spdBreakpoints,
+      modes,
+      errRope: errRopeModes,
+      scoringModes,
+      setCombos: setCombos.length,
+      paramCombos: paramCombos.length,
+      totalRuns,
+    },
+    progress: { completedPresets: 0, totalPresets: totalRuns },
+  })
+
+  const progressToken = (extra._meta as Any)?.progressToken
+  const notify = (completed: number, message: string) => {
+    updateJobProgress(jobId, { completedPresets: completed, totalPresets: totalRuns, phase: message })
+    if (progressToken == null) return
+    void extra.sendNotification({
+      method: 'notifications/progress' as const,
+      params: { progressToken, progress: completed, total: totalRuns, message },
+    } as Any).catch(() => {})
+  }
+
+  const generation = runtimeContext.getSaveGeneration()
+  const started = performance.now()
+  let results: AuditorResults
+  try {
+    results = await runAudit(
+      characterId as Any,
+      config,
+      (completed, total) => notify(completed, `audit ${completed}/${total} benchmark runs done`),
+      cancelRef,
+    )
+  } catch (e) {
+    finishJob(jobId, 'failed', { error: String((e as Error)?.message ?? e), totalRuns })
+    throw e
+  }
+
+  const durationMs = Math.round(performance.now() - started)
+  if (generation !== runtimeContext.getSaveGeneration()) {
+    finishJob(jobId, 'failed', { error: '运行期间 load_save 切换了存档,审计结果已丢弃——请对当前存档重新运行', durationMs })
+    throw new Error('A load_save changed the save while the set audit was running — results were discarded; re-run for the current save')
+  }
+
+  const cancelled = cancelRef.current && results.summaries.length === 0
+  finishJob(jobId, cancelled ? 'cancelled' : 'completed', {
+    completedPresets: cancelled ? 0 : totalRuns,
+    totalPresets: totalRuns,
+    durationMs,
+    flaggedSets: results.summaries.filter((s) => s.flag != null).length,
+  })
+
+  const summaries = results.summaries.map((summary) => ({
+    type: summary.setCombo.type,
+    label: summary.setCombo.label,
+    relicSet1: summary.setCombo.relicSet1,
+    relicSet2: summary.setCombo.relicSet2,
+    ornamentSet: summary.setCombo.ornamentSet,
+    matched: summary.matched,
+    flag: summary.flag,
+    bestDelta: summary.bestDelta,
+    bestDeltaParams: {
+      spd: summary.bestDeltaParams.spd,
+      errRope: summary.bestDeltaParams.errRope,
+      subDps: summary.bestDeltaParams.subDps,
+    },
+    results: summary.results.map((run) => ({
+      spd: run.paramCombo.spd,
+      errRope: run.paramCombo.errRope,
+      subDps: run.paramCombo.subDps,
+      modeLabel: run.modeLabel ?? null,
+      score: run.score,
+      referenceScore: run.referenceScore,
+      deltaPct: run.deltaPct,
+      flag: run.flag,
+      error: run.error === true,
+    })),
+  }))
+
+  const red = summaries.filter((s) => s.flag === 'red').length
+  const yellow = summaries.filter((s) => s.flag === 'yellow').length
+  return toolResult(
+    {
+      characterId,
+      sweep: 'sets',
+      jobId,
+      config: {
+        lightCone: effectiveLightCone,
+        characterEidolon: config.characterEidolon,
+        lightConeSuperimposition: config.lightConeSuperimposition,
+        setTypes,
+        spdBreakpoints,
+        modes,
+        errRope: errRopeModes,
+        scoringModes,
+        teammates: resolvedTeammates.map((mate) => mate.characterId),
+      },
+      reference: {
+        relic: results.relicReferenceLabel,
+        ornament: results.ornamentReferenceLabel,
+      },
+      cancelled,
+      durationMs,
+      summaries,
+    },
+    `${characterId} 套装基准审计${cancelled ? '(已取消,无汇总)' : '完成'}:${summaries.length} 个套装组合 × ${paramCombos.length} 组参数`
+      + `(${totalRuns} 次基准运行,耗时 ${(durationMs / 1000).toFixed(1)}s);`
+      + `参照 ${results.relicReferenceLabel} + ${results.ornamentReferenceLabel},`
+      + `红标 ${red}(不在推荐名单却持平或更高)、黄标 ${yellow}(差距 ≤2%)`
+      + `;任务 ${jobId} 已注册(get_job 可查)`,
+  )
 }
 
 // ─── domain registration ─────────────────────────────────────────────────────
@@ -949,34 +1247,60 @@ export function registerSimulationTools(server: McpServer): void {
     'benchmark_runs',
     {
       title: '基准测试批量跑分',
-      description: 'Benchmarks 页签的无头版(runCustomBenchmarkOrchestrator,同一条上游链路):对角色按预设集'
-        + '(4pc 候选套装 × SPD 阈值)批量跑战斗基准,返回每预设的 COMBO 伤害(100% 基准配装)、200% 极限分与百分比得分,'
-        + '并按 COMBO 排名、给出与最优预设的差距。角色/光锥/星魂默认取存档中角色表单,队友默认取该角色评分元数据的推荐队,'
-        + '均可覆盖;SPD 阈值 0 或缺省表示不限速(其余常用值如 120.000/133.334,与网页端 SPD 下拉一致)。'
-        + '长任务:提供 progressToken 时逐预设发送进度通知,取消(cancel)会在当前预设结束后停止并返回已完成部分。',
+      description: 'Benchmarks 页签的无头版(runCustomBenchmarkOrchestrator,同一条上游链路),两种模式:'
+        + '① sweep="presets"(默认)对角色按预设集(4pc 候选套装 × SPD 阈值)批量跑战斗基准,返回每预设的 COMBO 伤害'
+        + '(100% 基准配装)、200% 极限分与百分比得分,并按 COMBO 排名、给出与最优预设的差距。'
+        + '角色/光锥/星魂默认取存档中角色表单,队友默认取该角色评分元数据的推荐队,均可覆盖;'
+        + 'SPD 阈值 0 或缺省表示不限速(其余常用值如 120.000/133.334,与网页端 SPD 下拉一致)。'
+        + '② sweep="sets" 套装基准审计(metadata 页 Set Benchmark Auditor 的无头版,runAudit 同一条引擎):'
+        + '先用角色评分元数据的第一组推荐套装算参照分,再把全部候选套装(4件套/二加二代表组合/饰品套装)逐个替换进去重算,'
+        + '按与参照分的差距排序并标记——不在推荐名单里却持平或更高标 red,差距在 2% 以内标 yellow,已在名单里不标。'
+        + '扫遗器套装时饰品固定为参照饰品、扫饰品时遗器固定为参照遗器(两者联动审计不了,与网页端提示一致)。'
+        + '星魂/叠影按网页审计面板口径重置为 0/1(可覆盖);网格总运行数(套装组合×参数组合+参照)超过 512 时拒绝并提示收窄。'
+        + '长任务:提供 progressToken 时逐预设/逐组发送进度通知,取消会在当前基准结束后停止;'
+        + '任务注册进 jobs 注册表(get_job/cancel_job 可见,jobId 形如 "bench-N-…")。',
       inputSchema: {
         characterId: z.string().describe('角色 id(须有战斗评分元数据,即网页端 Benchmarks 页签可选的角色)'),
+        sweep: z.enum(['presets', 'sets']).default('presets').describe(
+          'presets=按 presets 列表逐个跑(默认);sets=套装基准审计网格(sweepOptions 配置,不接受 presets)',
+        ),
         presets: z.array(z.object({
           relicSet1: z.string().describe('遗器套装 1(与套装 2 相同即 4pc)'),
           relicSet2: z.string().describe('遗器套装 2'),
           ornamentSet: z.string().optional().describe('位面饰品套装;缺省取评分元数据的第一个推荐饰品'),
           spdThreshold: z.number().min(0).optional().describe('SPD 阈值(基础面板速度下限),0 或缺省不限速'),
-        })).min(1).max(MAX_BENCHMARK_PRESETS).describe('预设列表(4pc 候选 × SPD 阈值)'),
+        })).min(1).max(MAX_BENCHMARK_PRESETS).optional().describe('预设列表(4pc 候选套装 × SPD 阈值);sweep="presets" 时必填'),
+        sweepOptions: z.object({
+          setTypes: z.array(z.enum(['relic4p', 'relic2p2p', 'ornament'])).min(1).default([...DEFAULT_SWEEP_SET_TYPES]).describe(
+            '要扫的套装类型:relic4p=全部四件套、relic2p2p=二加二代表组合(按两件套效果归类取代表,非全部两两配对)、'
+              + 'ornament=全部饰品套装;默认 relic4p+ornament(网页端默认)',
+          ),
+          spdBreakpoints: z.array(z.number().min(0)).min(1).default(DEFAULT_SWEEP_SPD_BREAKPOINTS).describe(
+            '速度档位多选,0 表示不限速;默认 [0,133,160](网页端可选 0/133/160/200)',
+          ),
+          modes: z.array(z.enum(['dps', 'subDps'])).min(1).optional().describe('输出/副C 模式;缺省按角色配置(副C 角色为 subDps,否则 dps)'),
+          errRope: z.array(z.enum(['noErr', 'err'])).min(1).optional().describe('是否带充能绳;缺省按角色配置(允许充能绳的角色两项都选,否则只选 noErr)'),
+          scoringModes: z.array(z.enum(['benchmark', 'perfection'])).min(1).default(['perfection']).describe(
+            '比较口径:benchmark=100% 基准分、perfection=200% 极限分;默认 perfection(网页端默认)',
+          ),
+        }).optional().describe('sweep="sets" 的网格配置;其余模式忽略'),
         lightCone: z.string().optional().describe('覆盖光锥 id(缺省取角色表单)'),
         lightConeSuperimposition: z.number().int().min(1).max(5).optional().describe('覆盖光锥叠影'),
         characterEidolon: z.number().int().min(0).max(6).optional().describe('覆盖星魂'),
-        errRope: z.boolean().default(false).describe('是否强制充能绳(与网页端 ERR Rope 开关一致)'),
-        subDps: z.boolean().optional().describe('副C模式(降低队友增益权重);缺省取评分元数据默认'),
+        errRope: z.boolean().default(false).describe('是否强制充能绳(与网页端 ERR Rope 开关一致;仅 presets 模式)'),
+        subDps: z.boolean().optional().describe('副C模式(降低队友增益权重);缺省取评分元数据默认(仅 presets 模式)'),
         teammates: z.array(z.object({
           characterId: z.string(),
           lightCone: z.string().optional().describe('缺省取推荐队配置'),
           characterEidolon: z.number().int().min(0).max(6).optional(),
           lightConeSuperimposition: z.number().int().min(1).max(5).optional(),
         })).max(3).optional().describe('覆盖队友(缺省取评分元数据推荐队)'),
-        includePerfection: z.boolean().default(true).describe('是否同时跑 200% 极限模拟(更全面的得分,耗时约翻倍)'),
+        includePerfection: z.boolean().default(true).describe('是否同时跑 200% 极限模拟(更全面的得分,耗时约翻倍;仅 presets 模式)'),
       },
       outputSchema: {
         characterId: z.string(),
+        sweep: z.enum(['presets', 'sets']).optional(),
+        jobId: z.string().optional().describe('sweep="sets" 模式:jobs 注册表里的任务 id(get_job/cancel_job 可用)'),
         form: z.object({
           lightCone: z.string(),
           characterEidolon: z.number(),
@@ -984,8 +1308,8 @@ export function registerSimulationTools(server: McpServer): void {
           errRope: z.boolean(),
           subDps: z.boolean(),
           teammates: z.array(z.string()),
-        }),
-        includePerfection: z.boolean(),
+        }).optional(),
+        includePerfection: z.boolean().optional(),
         cancelled: z.boolean(),
         durationMs: z.number(),
         presets: z.array(z.object({
@@ -1016,18 +1340,68 @@ export function registerSimulationTools(server: McpServer): void {
           error: z.string().optional(),
           rank: z.number().int().optional(),
           deltaPercentVsTop: z.number().optional(),
-        })),
+        })).optional(),
         ranking: z.array(z.object({
           rank: z.number().int(),
           index: z.number().int(),
           preset: z.record(z.string(), z.unknown()),
           benchmarkScore: z.number(),
           deltaPercentVsTop: z.number(),
-        })),
+        })).optional(),
+        // sweep="sets"(套装基准审计)分支
+        config: z.object({
+          lightCone: z.string(),
+          characterEidolon: z.number(),
+          lightConeSuperimposition: z.number(),
+          setTypes: z.array(z.string()),
+          spdBreakpoints: z.array(z.number()),
+          modes: z.array(z.string()),
+          errRope: z.array(z.string()),
+          scoringModes: z.array(z.string()),
+          teammates: z.array(z.string()),
+        }).optional().describe('sweep="sets":生效的审计配置'),
+        reference: z.object({
+          relic: z.string(),
+          ornament: z.string(),
+        }).optional().describe('sweep="sets":参照套装(角色评分元数据的第一组推荐套装,网页端 "Compared to" 同款)'),
+        summaries: z.array(z.object({
+          type: z.enum(['relic4p', 'relic2p2p', 'ornament']),
+          label: z.string(),
+          relicSet1: z.string(),
+          relicSet2: z.string(),
+          ornamentSet: z.string(),
+          matched: z.boolean().describe('是否已在角色评分元数据的推荐套装名单里(绿底)'),
+          flag: z.enum(['red', 'yellow']).nullable().describe('red=不在名单却持平或更高;yellow=差距在 2% 以内;null=其余/已在名单'),
+          bestDelta: z.number().describe('与参照分的最佳差距(百分比)'),
+          bestDeltaParams: z.object({ spd: z.number(), errRope: z.boolean(), subDps: z.boolean() }),
+          results: z.array(z.object({
+            spd: z.number(),
+            errRope: z.boolean(),
+            subDps: z.boolean(),
+            modeLabel: z.string().nullable(),
+            score: z.number(),
+            referenceScore: z.number(),
+            deltaPct: z.number(),
+            flag: z.enum(['red', 'yellow']).nullable(),
+            error: z.boolean(),
+          })).describe('展开数据:每组参数下的分数、参照分与差距(网页端展开行)'),
+        })).optional().describe('sweep="sets":按 red→yellow→其余、最佳差距降序排列的套装汇总'),
       },
     },
     async (
-      { characterId, presets, lightCone, lightConeSuperimposition, characterEidolon, errRope, subDps, teammates, includePerfection },
+      {
+        characterId,
+        sweep,
+        presets,
+        sweepOptions,
+        lightCone,
+        lightConeSuperimposition,
+        characterEidolon,
+        errRope,
+        subDps,
+        teammates,
+        includePerfection,
+      },
       extra,
     ): Promise<CallToolResult> => {
       runtimeContext.ensureMetadataReady()
@@ -1038,6 +1412,25 @@ export function registerSimulationTools(server: McpServer): void {
         ?? (getGameMetadata().characters as Record<string, Any>)[characterId]?.scoringMetadata?.simulation
       if (!simulationMetadata) {
         throw new Error(`角色 ${characterId} 没有战斗基准评分元数据(网页端 Benchmarks 页签不支持该角色)——无法跑基准测试`)
+      }
+
+      // ── sweep="sets":套装基准审计(metadata 页 Set Benchmark Auditor) ──────
+      if (sweep === 'sets') {
+        return await runSetSweep({
+          character,
+          characterId,
+          simulationMetadata,
+          sweepOptions,
+          lightCone,
+          lightConeSuperimposition,
+          characterEidolon,
+          teammates,
+          extra,
+        })
+      }
+
+      if (presets == null) {
+        throw new Error('benchmark_runs: sweep="presets"(默认)需要 presets(预设列表)——或改用 sweep="sets" 跑套装审计网格')
       }
 
       for (const [index, preset] of presets.entries()) {
@@ -1275,6 +1668,7 @@ export function registerSimulationTools(server: McpServer): void {
       return toolResult(
         {
           characterId,
+          sweep: 'presets',
           form: {
             lightCone: baseBenchmarkForm.lightCone,
             characterEidolon: baseBenchmarkForm.characterEidolon,

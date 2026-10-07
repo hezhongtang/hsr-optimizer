@@ -154,7 +154,7 @@
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "get_form", "update_form"], "candidates": ["optimize(resultsLimit=65536)"] },
+      "mcp": { "status": "implemented", "tools": ["optimize", "get_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -162,7 +162,7 @@
           "同一表单下把 resultSort 分别设为 COMBO 与 SPD，返回的首行与网页端相同目标下的首行一致",
           "保留 4096 条时返回的行数与网页端相同设置下结果表格的总行数一致"
         ],
-        "tests": ["mcp/scripts/parity.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": ["mcp/scripts/parity.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs", "mcp/scripts/smoke-analysis.mjs"]
       }
     },
     {
@@ -742,12 +742,7 @@
       "runtime": "node",
       "state": { "owner": "useOptimizerDisplayStore 的运行状态 + OptimizerTabController 的结果行", "lifecycle": "session" },
       "sideEffects": ["表单写回 characters[].form（见 optimizer.form.persist）", "上一轮的结果被替换", "SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize"],
-        "gaps": "引擎与结果和网页端 CPU 引擎一致，差别在入口：不做网页端的表单校验，缺光锥、缺优化目标或权重全为 0 时不会像网页端那样拒绝并说明原因；规模闸门不同，网页端在 CPU 引擎且部位数量乘积达到 10 亿时要求确认，MCP 在有效排列超过 5e7 时拒绝并要求 force；只有 CPU 引擎（见 optimizer.engine.select）；开始时不把表单写回角色；只保留最近一轮结果。",
-        "candidates": ["optimize(validate=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -756,7 +751,7 @@
           "缺光锥、缺优化目标、权重全为 0 三种表单分别被拒绝，原因与网页端的提示对应",
           "超过规模闸门时返回 rejected 及各部位数量，force 后可以运行"
         ],
-        "tests": ["mcp/scripts/parity.mjs", "mcp/scripts/smoke.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-optimizer-generation.mjs"]
+        "tests": ["mcp/scripts/parity.mjs", "mcp/scripts/smoke.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-optimizer-generation.mjs", "mcp/scripts/smoke-analysis.mjs"]
       }
     },
     {
@@ -834,11 +829,7 @@
       "conditions": "两种 GPU 引擎需要浏览器提供 WebGPU。用 GPU 引擎时开始搜索不受排列过多确认弹窗的限制。",
       "runtime": "browser",
       "state": { "owner": "useGlobalStore.savedSession.computeEngine", "lifecycle": "persisted", "saveKey": "savedSession.global.computeEngine" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "MCP 的搜索固定用 CPU 多线程引擎，结果与网页端相同但大规模搜索慢得多；存档里记的引擎偏好读不到也改不了。",
-        "candidates": ["optimize(engine=gpu)", "get_state(section=session)", "update_state(section=session)"]
-      },
+      "mcp": { "status": "partial", "tools": ["get_state", "update_state"], "gaps": "引擎选择状态(computeEngine)已可经 session 段读写;GPU 路径的实际执行与能力报告属 M7(optimize(engine=gpu) 候选保留)。", "candidates": ["optimize(engine=gpu)"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -846,7 +837,8 @@
           "在受管浏览器里用 GPU 引擎跑同一表单，返回的结果行与 CPU 引擎一致",
           "运行环境没有 WebGPU 时明确报告不可用并回退到 CPU",
           "改动引擎偏好后，网页端打开时下拉菜单显示同一选项"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-state.mjs"]
       }
     },
     {
@@ -1004,19 +996,14 @@
       ],
       "runtime": "node",
       "state": { "owner": "结果表格的固定行（AG Grid 的 pinnedTopRowData）", "lifecycle": "ephemeral" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["get_results"],
-        "gaps": "调用方可以自己留着想对比的行，但不能按行 id 把指定的几行重新取回来，只能靠排序加翻页去找。",
-        "candidates": ["get_results(rowIds=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_results"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "按行 id 取回三行，内容与这三行在网页端固定到顶部后显示的一致，且不受当前排序与筛选影响"
         ],
-        "tests": ["mcp/scripts/smoke.mjs"]
+        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/smoke-analysis.mjs"]
       }
     },
     {
@@ -1233,18 +1220,15 @@
       "runtime": "node",
       "state": { "owner": "由当前表单推导", "lifecycle": "derived" },
       "sideEffects": ["点清除按钮直接改表单里对应的上下限"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "optimize 搜完一行结果都没有时只返回空结果，不说明是哪些上下限造成的。",
-        "candidates": ["optimize(diagnose=true)", "optimize(applyFixes=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "设一个不可能达到的最低速度后搜索，返回的原因列表与网页端弹窗列出的一致",
           "按返回的修复清掉对应上下限后重新搜索有结果"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-analysis.mjs"]
       }
     },
     {

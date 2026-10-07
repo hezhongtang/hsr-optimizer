@@ -26,6 +26,10 @@
 // only equippedBy/ageIndex may change; character equipment and saved-build
 // relic id references are re-linked. Import-layer stats (added/updated/skipped)
 // replay exactly those rules, so they report what the persisted merge did.
+//
+// M6-A: planAndRunImport is exported for the live scanner domain (domains/
+// scanner.ts) — a scanner InitialScan merges through this same machine (union
+// mode), so file imports and live frames share one merge semantics.
 
 import {
   existsSync,
@@ -278,7 +282,7 @@ function importWouldChange(incoming: Relic, found: Relic, charactersImported: bo
   return false
 }
 
-type ImportOutcome = {
+export type ImportOutcome = {
   added: number,
   updated: number,
   skipped: number,
@@ -288,7 +292,7 @@ type ImportOutcome = {
   charactersTouched: number,
 }
 
-function planAndRunImport(relics: Relic[], characters: Form[], merge: MergeMode, dryRun: boolean): ImportOutcome {
+export function planAndRunImport(relics: Relic[], characters: Form[], merge: MergeMode, dryRun: boolean): ImportOutcome {
   const existingRelics = getRelics()
   const totalBefore = existingRelics.length
   const charactersImported = characters.length > 0
@@ -353,16 +357,22 @@ async function runImportTool(
   merge: MergeMode,
   existingCharactersOnly: boolean | undefined,
   dryRun: boolean,
+  includeCharacters: boolean | undefined,
 ) {
   runtimeContext.requireSave()
 
-  let characters = normalizeImportedCharacters(parsed.characters)
-  if (existingCharactersOnly) characters = filterExistingCharacters(characters)
+  // includeCharacters=false = 网页确认页「导入遗器」按钮(mergeRelicsConfirmed →
+  // mergeRelics(relics, [])):只导入遗器,不新增也不修改角色;hash 命中的库存件
+  // 因 charactersImported=false 只可能更新 ageIndex,佩戴者保持不变。
+  const relicsOnly = includeCharacters === false
+  let characters = relicsOnly ? [] : normalizeImportedCharacters(parsed.characters)
+  if (existingCharactersOnly && !relicsOnly) characters = filterExistingCharacters(characters)
 
   const outcome = planAndRunImport(parsed.relics, characters, merge, dryRun)
 
-  const summary = `${dryRun ? '[dryRun] ' : ''}${merge === 'union' ? '并集合并' : '替换合并'}(${parsed.source}):`
-    + `新增 ${outcome.added}、更新 ${outcome.updated}、跳过 ${outcome.skipped}、移除 ${outcome.removed} 件遗器,`
+  const summary = `${dryRun ? '[dryRun] ' : ''}${merge === 'union' ? '并集合并' : '替换合并'}(${parsed.source})`
+    + (relicsOnly ? '[仅遗器]' : '')
+    + `:新增 ${outcome.added}、更新 ${outcome.updated}、跳过 ${outcome.skipped}、移除 ${outcome.removed} 件遗器,`
     + `库存 ${outcome.totalBefore} → ${outcome.totalAfter} 件,角色 ${outcome.charactersTouched} 个`
     + (dryRun ? '(未落盘)' : '')
     + (parsed.warnings.length ? `;${parsed.warnings.length} 条警告` : '')
@@ -373,6 +383,7 @@ async function runImportTool(
       dryRun,
       merge,
       source: parsed.source,
+      includeCharacters: !relicsOnly,
       added: outcome.added,
       updated: outcome.updated,
       skipped: outcome.skipped,
@@ -395,6 +406,7 @@ const importOutcomeShape = {
   dryRun: z.boolean(),
   merge: z.enum(['union', 'replace']),
   source: z.string(),
+  includeCharacters: z.boolean(),
   added: z.number().int(),
   updated: z.number().int(),
   skipped: z.number().int(),
@@ -414,6 +426,7 @@ export function registerImportTools(server: McpServer): void {
       + 'merge=union(默认):保留库存中未被本次导入覆盖的遗器(合成完整并集清单后走上游整库写入;并集清单意外小于现有库存时拒绝落盘);'
       + 'merge=replace:与网页端原生行为完全一致——库存重置为导入件,未被覆盖的旧遗器会被丢弃(仅角色无遗器的导入除外)。'
       + 'dryRun=true 只解析并统计,不写入。existingCharactersOnly=true 仅导入库存中已存在的角色(遗器不受影响)。'
+      + 'includeCharacters=false 对应网页确认页「导入遗器」按钮:只导入遗器,不新增也不修改角色(默认 true=「导入角色与遗器」,与既有行为一致)。'
       + 'source=auto(默认)按 JSON 的 source 字段判别格式,也接受 hoyolab 形状并提示改用 import_hoyolab。',
     inputSchema: {
       source: z.enum(['auto', 'kelz', 'reliquary', 'yas']).default('auto').describe(
@@ -422,11 +435,16 @@ export function registerImportTools(server: McpServer): void {
       path: z.string().optional().describe('扫描器 JSON 文件路径(HSRScanData.json / archiver_output.json / hsr.json)'),
       inline: z.unknown().optional().describe('内联扫描器 JSON(对象或 JSON 字符串,与 path 二选一)'),
       merge: z.enum(['union', 'replace']).default('union').describe('合并模式:union=按 hash 并集保留现有库存;replace=整库替换为导入件'),
-      existingCharactersOnly: z.boolean().optional().describe('只导入库存中已存在的角色(与网页端「仅导入现有角色」勾选一致),遗器不受影响'),
+      existingCharactersOnly: z.boolean().optional().describe(
+        '只导入库存中已存在的角色(与网页端「仅导入现有角色」勾选一致),遗器不受影响;仅在 includeCharacters=true 时有意义',
+      ),
+      includeCharacters: z.boolean().optional().describe(
+        '是否连同导入角色(默认 true=网页「导入角色与遗器」);false=只导入遗器(网页确认页「导入遗器」按钮):角色不新增不修改,hash 命中件的佩戴者也保持不变',
+      ),
       dryRun: z.boolean().optional().describe('只解析与统计,不落盘'),
     },
     outputSchema: importOutcomeShape,
-  }, async ({ source, path, inline, merge, existingCharactersOnly, dryRun }) => {
+  }, async ({ source, path, inline, merge, existingCharactersOnly, includeCharacters, dryRun }) => {
     runtimeContext.ensureMetadataReady()
     // Parser errors (source/version mismatch) are localized via i18next —
     // initialize the offline bundle first so they come back in Chinese.
@@ -434,7 +452,7 @@ export function registerImportTools(server: McpServer): void {
 
     const json = readImportPayload(path, inline, '扫描器 JSON')
     const parsed = parseScannerJson(json, source)
-    return runImportTool(parsed, merge, existingCharactersOnly ?? false, dryRun ?? false)
+    return runImportTool(parsed, merge, existingCharactersOnly ?? false, dryRun ?? false, includeCharacters)
   })
 
   server.registerTool('import_hoyolab', {
@@ -442,20 +460,24 @@ export function registerImportTools(server: McpServer): void {
     description: '导入 HoYoLAB 网页端角色战绩导出的 JSON(含 data.avatar_list)——对应网页端「导入」标签页的 Hoyolab 上传入口与确认页「导入角色与角色遗器」按钮。'
       + '遗器按 hash 与现有库存匹配,合并/替换/dryRun/existingCharactersOnly 语义与 import_scanner_json 完全一致:'
       + 'union(默认)按 hash 并集保留现有库存(并集清单意外小于现有库存时拒绝落盘);replace 整库替换,未被导入件覆盖的旧遗器会被丢弃;'
-      + 'hoyolab 导入件未验证,同 hash 库存件只更新佩戴者/顺序,不覆盖副词条。导入角色的等级与光锥等级一律规范化为 80(与网页端一致)。',
+      + 'hoyolab 导入件未验证,同 hash 库存件只更新佩戴者/顺序,不覆盖副词条。导入角色的等级与光锥等级一律规范化为 80(与网页端一致)。'
+      + 'includeCharacters=false 对应网页确认页「导入遗器」按钮:只导入遗器,不新增也不修改角色(默认 true,与既有行为一致)。',
     inputSchema: {
       path: z.string().optional().describe('Hoyolab 战绩导出 JSON 文件路径'),
       inline: z.unknown().optional().describe('内联 Hoyolab 导出 JSON(对象或 JSON 字符串,与 path 二选一)'),
       merge: z.enum(['union', 'replace']).default('union').describe('合并模式:union=按 hash 并集保留现有库存;replace=整库替换为导入件'),
-      existingCharactersOnly: z.boolean().optional().describe('只导入库存中已存在的角色,遗器不受影响'),
+      existingCharactersOnly: z.boolean().optional().describe('只导入库存中已存在的角色,遗器不受影响;仅在 includeCharacters=true 时有意义'),
+      includeCharacters: z.boolean().optional().describe(
+        '是否连同导入角色(默认 true=网页「导入角色与角色遗器」);false=只导入遗器(网页确认页「导入遗器」按钮):角色不新增不修改,hash 命中件的佩戴者也保持不变',
+      ),
       dryRun: z.boolean().optional().describe('只解析与统计,不落盘'),
     },
     outputSchema: importOutcomeShape,
-  }, async ({ path, inline, merge, existingCharactersOnly, dryRun }) => {
+  }, async ({ path, inline, merge, existingCharactersOnly, includeCharacters, dryRun }) => {
     runtimeContext.ensureMetadataReady()
 
     const json = readImportPayload(path, inline, 'Hoyolab 战绩导出')
     const parsed = parseHoyolabJson(json)
-    return runImportTool(parsed, merge, existingCharactersOnly ?? false, dryRun ?? false)
+    return runImportTool(parsed, merge, existingCharactersOnly ?? false, dryRun ?? false, includeCharacters)
   })
 }

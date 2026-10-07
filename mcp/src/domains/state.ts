@@ -17,6 +17,7 @@
 // scanner action setters) inside runtimeContext.withChange, then markDirty.
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import i18next from 'i18next'
 import { editShowcasePreferences } from 'lib/characterPreview/customization/showcaseCustomizationController'
 import { ShowcasePreset } from 'lib/characterPreview/debugVisualConfigStore'
 import {
@@ -55,6 +56,7 @@ import type {
 import { z } from 'zod'
 
 import { runtimeContext } from '../context'
+import { MCP_I18N_LANGUAGE } from '../i18n/i18nNode'
 import { toolResult } from '../toolResult'
 
 // ─── sections ────────────────────────────────────────────────────────────────
@@ -63,6 +65,32 @@ const GET_SECTIONS = ['revision', 'settings', 'session', 'flags', 'scanner', 'sh
 const UPDATE_SECTIONS = ['settings', 'session', 'flags', 'scanner', 'showcase'] as const
 type GetSection = (typeof GET_SECTIONS)[number]
 type UpdateSection = (typeof UPDATE_SECTIONS)[number]
+
+// ─── language (global.language.switch / global.language persistence) ─────────
+// 查证结论:上游语言不落在存档里——i18n.ts 用 i18next-browser-languagedetector
+// 初始化,changeLanguage 后由 detector 写入自己的缓存键 localStorage['i18nextLng']
+// (detector 默认 lookup,上游未覆写;src/lib/i18n/i18n.ts:48-49 的 .use(LanguageDetector)
+// 不带 options)。GlobalSavedSession(src/types/store.ts:43-56)没有 language 字段,
+// SaveState.save() 也不序列化它。因此 MCP 侧 language 属于「会话临时态」:
+//   - 读:detector 缓存键,缺省回落到本进程当前渲染语言(MCP 启动固定 zh_CN);
+//   - 写:只写同一个缓存键(镜像 detector 的 cacheUserLanguage 行为),由
+//     localStorage shim(文件后端)跨进程持久化;本进程已初始化的 i18n 语言
+//     不因此切换——ensureI18nReady 固定 zh_CN,切不切由调用方进程决定。
+// 正式站语言清单 completedLocales 转写自 src/lib/i18n/i18n.ts:14(该模块在
+// import 时即初始化网页版 i18next/http-backend,MCP 不能引入,故按上游同值
+// 转写,与 SETTING_LABELS 的转写先例一致);测试站(BETA)另有 de_DE/it_IT/
+// tr_TR/zh_TW/aa_ER 等 WIP 语言,不在正式站枚举内。
+const I18NEXT_LOOKUP_KEY = 'i18nextLng'
+const COMPLETED_LOCALES = ['en_US', 'es_ES', 'fr_FR', 'ja_JP', 'ko_KR', 'pt_BR', 'ru_RU', 'vi_VN', 'zh_CN'] as const
+type LanguageLocale = (typeof COMPLETED_LOCALES)[number]
+
+function activeI18nLanguage(): string {
+  return (i18next.isInitialized && i18next.resolvedLanguage) || MCP_I18N_LANGUAGE
+}
+
+function readLanguagePreference(): string {
+  return localStorage.getItem(I18NEXT_LOOKUP_KEY) ?? activeI18nLanguage()
+}
 
 // ─── section readers (payload shapes mirror SaveState.save()) ───────────────
 
@@ -153,11 +181,17 @@ function sessionSection() {
       global: { ...globalState.savedSession },
     },
     defaults: { ...savedSessionDefaults },
-    // 会话临时态:存在于内存 store、但 SaveState.save() 不落盘的字段
+    // 会话临时态:存在于内存 store、但 SaveState.save() 不落盘的字段。
+    // language 是网页端 i18next 语言选择器的持久偏好(上游经
+    // LanguageDetector 缓存在 localStorage['i18nextLng'],不在存档里);
+    // activeLanguage 是本进程当前实际渲染语言(MCP 固定 zh_CN,写入
+    // language 不改变它——见 update_state 的 describe)。
     ephemeral: {
       activeKey: globalState.activeKey,
       scoringAlgorithmFocusCharacter: globalState.scoringAlgorithmFocusCharacter ?? null,
       statTracesDrawerFocusCharacter: globalState.statTracesDrawerFocusCharacter ?? null,
+      language: readLanguagePreference(),
+      activeLanguage: activeI18nLanguage(),
     },
   }
 }
@@ -210,8 +244,11 @@ const sectionSummaries: Record<GetSection, (data: Record<string, unknown>) => st
     }${r.blockedWrite ? `,写回被拦截:${r.blockedWrite.reason}` : ''}`
   },
   settings: () => '设置已返回:每项含当前值、枚举值、上游默认值与中文说明(默认值派生自上游 DefaultSettingOptions)',
-  session: () =>
-    '持久化会话字段已返回(savedSession.showcaseTab + savedSession.global,与存档落盘字段一致);defaults 为上游默认值;ephemeral 为会话临时态,不写入存档',
+  session: (data) => {
+    const s = data as ReturnType<typeof sessionSection>
+    return `持久化会话字段已返回(savedSession.showcaseTab + savedSession.global,与存档落盘字段一致);defaults 为上游默认值;`
+      + `ephemeral 为会话临时态,不写入存档(语言偏好 language=${s.ephemeral.language},当前渲染语言 activeLanguage=${s.ephemeral.activeLanguage})`
+  },
   flags: (data) => {
     const f = data as ReturnType<typeof flagsSection>
     return `已读特性标记 ${f.seenFeatures.length} 项;当前活跃的新特性键:${f.activeNewFeatures.join(', ') || '(无)'}`
@@ -284,6 +321,8 @@ const sessionSectionSchema = z.object({
     activeKey: z.string(),
     scoringAlgorithmFocusCharacter: z.string().nullable(),
     statTracesDrawerFocusCharacter: z.string().nullable(),
+    language: z.string().describe('语言偏好(上游 LanguageDetector 缓存键 i18nextLng 的值,不在存档里)'),
+    activeLanguage: z.string().describe('本进程当前实际渲染语言(ensureI18nReady 固定 zh_CN,写 language 不改变它)'),
   }),
 })
 
@@ -338,7 +377,9 @@ const GRID_DENSITY_KEYS = Object.keys(characterGridPresets) as [CharacterGridDen
 const showcaseTabSessionKeys = new Set<string>(Object.keys(useShowcaseTabStore.getInitialState().savedSession))
 
 // Record<联合键, ...> 让本表对上游类型穷尽:上游新增会话键时 tsgo 直接报错,直到补到这里。
-type SessionFieldKey = keyof GlobalSavedSession | keyof ShowcaseTabSavedSession
+// `language` 是 MCP 侧新增的会话键:上游语言偏好不在 GlobalSavedSession 里(由
+// i18next LanguageDetector 缓存在 localStorage['i18nextLng']),见文件头部查证注释。
+type SessionFieldKey = keyof GlobalSavedSession | keyof ShowcaseTabSavedSession | 'language'
 const sessionFieldSpecs: Record<SessionFieldKey, FieldSpec> = {
   optimizerCharacterId: { schema: z.string().nullable(), expected: '角色 id 字符串(如 "1003")或 null(清除)' },
   scoringType: {
@@ -369,6 +410,10 @@ const sessionFieldSpecs: Record<SessionFieldKey, FieldSpec> = {
   },
   scorerId: { schema: z.string().nullable(), expected: '展示页评分器 id 字符串或 null' },
   sidebarOpen: booleanSpec('布尔(showcaseTab 侧栏)'),
+  language: {
+    schema: z.enum(COMPLETED_LOCALES),
+    expected: `语言 locale 枚举:${COMPLETED_LOCALES.join(' | ')}(上游正式站 completedLocales;测试站专属的 de_DE/it_IT/tr_TR/zh_TW/aa_ER 不支持)`,
+  },
 }
 
 type ScannerFieldKey = 'ingest' | 'ingestCharacters' | 'ingestOnlyExistingCharacters' | 'ingestWarpResources' | 'websocketUrl' | 'customUrl'
@@ -477,10 +522,20 @@ function applyPatch(section: UpdateSection, patch: Record<string, unknown>): voi
       return
     }
     case 'session': {
+      // language 走单独通道:镜像 i18next-browser-languagedetector 的
+      // cacheUserLanguage(语言切换后 detector 写 localStorage['i18nextLng'])——
+      // 只写缓存键,不进 savedSession(上游存档不含该字段),也不调用
+      // i18next.changeLanguage(本进程渲染语言固定 zh_CN,切不切由调用方进程
+      // 决定)。持久化由 localStorage shim 的文件后端完成,markDirty 已由
+      // update_state 的 withChange 统一负责。
+      if (patch['language'] != null) {
+        localStorage.setItem(I18NEXT_LOOKUP_KEY, String(patch['language']))
+      }
       // global 走 useGlobalStore.setSavedSession(上游载入/引擎切换同款完整对象语义),
       // showcaseTab 走 useShowcaseTabStore.setSavedSession(上游部分合并语义)。
-      const globalPatch = Object.fromEntries(Object.entries(patch).filter(([key]) => !showcaseTabSessionKeys.has(key))) as Partial<GlobalSavedSession>
-      const showcasePatch = Object.fromEntries(Object.entries(patch).filter(([key]) => showcaseTabSessionKeys.has(key))) as Partial<ShowcaseTabSavedSession>
+      const restPatch = Object.fromEntries(Object.entries(patch).filter(([key]) => key !== 'language'))
+      const globalPatch = Object.fromEntries(Object.entries(restPatch).filter(([key]) => !showcaseTabSessionKeys.has(key))) as Partial<GlobalSavedSession>
+      const showcasePatch = Object.fromEntries(Object.entries(restPatch).filter(([key]) => showcaseTabSessionKeys.has(key))) as Partial<ShowcaseTabSavedSession>
       if (Object.keys(globalPatch).length > 0) {
         useGlobalStore.getState().setSavedSession({
           ...savedSessionDefaults,
@@ -560,7 +615,8 @@ export function registerStateTools(server: McpServer): void {
       + 'section=revision:变更修订号与存档概况(loaded/path/dirty/revision/generation/blockedWrite,口径同 save_status);'
       + 'section=settings:六项用户设置 + 每项定义(枚举值/上游默认值/中文说明);'
       + 'section=session:存档真正落盘的会话字段(savedSession:showcaseTab + global,含 sidebarCollapsed 等)与上游默认值,'
-      + 'ephemeral 子对象为会话临时态(不写入存档);'
+      + 'ephemeral 子对象为会话临时态(不写入存档),其中 language=语言偏好(上游经 i18next LanguageDetector 缓存在'
+      + ' localStorage 键「i18nextLng」,不在存档里),activeLanguage=本进程当前实际渲染语言(MCP 固定 zh_CN);'
       + 'section=flags:已读特性标记 seenFeatures 数组(附当前活跃的新特性键);'
       + 'section=scanner:扫描器接入配置六字段(ingest/ingestCharacters/ingestOnlyExistingCharacters/ingestWarpResources/websocketUrl/customUrl);'
       + 'section=showcase:各角色的展示评分偏好 showcasePreferences(含 scoringType,角色页展示卡与组队面板槽位卡共用,随存档落盘)。'
@@ -588,6 +644,9 @@ export function registerStateTools(server: McpServer): void {
       + 'patch 的键必须是该 section 的已知字段,未知键报错并列出全部合法键;'
       + 'settings/session/scanner 按字段覆盖合并(未提及字段保持不变),flags 的 seenFeatures 为整组替换,'
       + 'showcase 写单角色展示评分偏好(patch 必须同时提供 characterId + scoringType,对应组队面板槽位卡「基准」下拉,与角色页展示卡共用)。'
+      + 'session.language 写语言偏好(枚举 en_US/es_ES/fr_FR/ja_JP/ko_KR/pt_BR/ru_RU/vi_VN/zh_CN):镜像网页端语言下拉经 '
+      + 'i18next LanguageDetector 的缓存行为,只更新 localStorage 键「i18nextLng」(不在存档里,由 shim 的文件后端跨进程持久化),'
+      + '本进程已初始化的 i18n 语言不因此切换——ensureI18nReady 固定 zh_CN,是否按该偏好切换由调用方进程决定;'
       + '可选 baseRevision 做乐观并发检查:与当前修订号不一致即报冲突(消息含两个修订号),需重读状态后重试。'
       + '变更经事务协调器提交:任一步失败整体回滚;成功后标记 dirty、revision 递增,由防抖写回落盘。'
       + '注意:revision 域只读不可写(枚举里没有它);scanner.customUrl 是派生标记——置 false 会把地址重置为默认,置 true 需同时在 patch 中提供自定义 websocketUrl。',

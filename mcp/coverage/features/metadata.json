@@ -31,12 +31,7 @@
       "runtime": "node",
       "state": { "owner": "SetBenchmarkAuditor 的本地状态；队友借用 useBenchmarksTabStore.teammate0..2", "lifecycle": "ephemeral" },
       "sideEffects": ["换角色会改写基准生成器页的三名队友"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["benchmark_runs"],
-        "gaps": "benchmark_runs 能对指定套装逐个出基准分，但一次最多 16 组、要求角色已在存档里，也没有「全部套装对参照套装」的批量扫描、差距计算和标记。",
-        "candidates": ["benchmark_runs(sweep=sets)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["benchmark_runs"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -46,7 +41,7 @@
           "展开数据（每组参数下的分数、参照分、差距）与网页端展开行一致",
           "带进度令牌时按已完成的基准数发送进度，取消后不返回半截结果"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-analysis.mjs"]
       }
     },
     {
@@ -129,12 +124,7 @@
       "conditions": "显示的是随版本发布的默认配置，与本地存档无关。四件套和二加二组合在表里不区分，只要套装出现在名单里就点亮。",
       "runtime": "node",
       "state": { "owner": "游戏元数据里各角色的 scoringMetadata.simulation", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["get_scoring_metadata"],
-        "gaps": "get_scoring_metadata 能返回单个角色的推荐套装，但要求先载入存档、每次只能查一个角色，返回的模拟配置是叠加用户覆盖后的生效值而不是默认值，也没有跨角色的总表。",
-        "candidates": ["game://metadata/scoring"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_scoring_metadata"], "resources": ["game://metadata/scoring"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -142,7 +132,7 @@
           "不载入存档即可读到每个角色的默认推荐遗器套装和饰品套装，与网页端表格里点亮的格子一致",
           "按命途分组后的角色集合与网页端九张表一致"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs"]
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -158,12 +148,7 @@
       "conditions": "显示的是默认配置，不反映用户在评分面板里自定义的队伍。",
       "runtime": "node",
       "state": { "owner": "游戏元数据里各角色的 scoringMetadata.simulation.teammates", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["get_scoring_metadata"],
-        "gaps": "要求先载入存档、每次只能查一个角色；用户自定义过队伍时返回的是自定义后的队伍，读不到默认队伍。",
-        "candidates": ["game://metadata/scoring"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_scoring_metadata"], "resources": ["game://metadata/scoring"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -171,7 +156,7 @@
           "不载入存档即可读到每个角色的默认三名队友及光锥，与网页端表格一致",
           "存档里自定义过队伍的角色，默认队伍仍与网页端这张表一致"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs"]
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -188,12 +173,7 @@
       "conditions": "循环里的空行动不显示。行动名称按当前语言显示。",
       "runtime": "node",
       "state": { "owner": "游戏元数据里各角色的 scoringMetadata.simulation.comboTurnAbilities", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["get_scoring_metadata", "default_form"],
-        "gaps": "get_scoring_metadata 要求先载入存档且每次只能查一个角色，返回的是内部行动代号；default_form 不需要存档，但循环埋在整份表单里。没有按角色列出默认循环及其可读名称的入口。",
-        "candidates": ["game://metadata/scoring"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_scoring_metadata", "default_form"], "resources": ["game://metadata/scoring"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -201,7 +181,7 @@
           "不载入存档即可读到每个角色的默认循环，行动顺序与网页端表格一致",
           "同时给出行动的内部代号和可读名称，可读名称与网页端显示的一致"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-query.mjs"]
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -218,12 +198,7 @@
       "conditions": "只认面板里登记过的几种预设，对应公爵、先驱、司铎、囚徒、荒地、风举、香蕉乐园这几个套装。",
       "runtime": "node",
       "state": { "owner": "游戏元数据里各角色的 scoringMetadata.presets", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["default_form"],
-        "gaps": "预设套用后的结果可以从 default_form 返回的套装条件里看到，但没有入口直接列出每个角色带哪些预设、值是多少，也分不清一个值是预设改的还是套装本来的默认。",
-        "candidates": ["game://metadata/scoring"]
-      },
+      "mcp": { "status": "implemented", "tools": ["default_form"], "resources": ["game://metadata/scoring"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -231,7 +206,7 @@
           "返回的每个角色的预设套装和预设值与网页端表格里有内容的格子一致",
           "对带预设的角色，default_form 里对应套装条件的取值与预设值一致"
         ],
-        "tests": ["mcp/scripts/smoke-query.mjs"]
+        "tests": ["mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -247,12 +222,7 @@
       "conditions": "显示的是默认权重，不反映用户在评分面板里改过的权重。固定值副词条（攻击、防御、生命的固定值）不在表里。",
       "runtime": "node",
       "state": { "owner": "游戏元数据里各角色的 scoringMetadata.stats", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["get_scoring_metadata"],
-        "gaps": "get_scoring_metadata 的 defaults.stats 就是这组默认权重，但要求先载入存档、每次只能查一个角色，没有跨角色的总表。",
-        "candidates": ["game://metadata/scoring"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_scoring_metadata"], "resources": ["game://metadata/scoring"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -260,7 +230,7 @@
           "不载入存档即可读到每个角色九种副词条的默认权重，与网页端表格一致",
           "用户改过权重的角色，默认权重仍与网页端这张表一致"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs"]
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -276,12 +246,7 @@
       "conditions": "只列五星角色，按角色编号排序。某种评分类型下没有任何角色有配置时整节不显示。",
       "runtime": "node",
       "state": { "owner": "游戏元数据里各角色四类模拟配置的 leaderboardTeams 与 teammates", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["get_scoring_metadata"],
-        "gaps": "四类模拟配置里带有排行榜队伍，但要求先载入存档、每次只能查一个角色，没有按评分类型汇总的总表。",
-        "candidates": ["game://metadata/scoring"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_scoring_metadata"], "resources": ["game://metadata/scoring"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -289,7 +254,7 @@
           "不载入存档即可读到每个五星角色在各评分类型下的参评队伍、允许光锥和副 C 标记，与网页端面板一致",
           "没有专门配置的角色标明使用默认队伍，与网页端半透明的那一行一致"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs"]
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     }
   ],

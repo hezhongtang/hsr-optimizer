@@ -19,6 +19,7 @@ import {
 } from 'node:path'
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import sampleSave from 'data/sample-save.json' with { type: 'json' }
 import * as persistenceService from 'lib/services/persistenceService'
 import { SaveState } from 'lib/state/saveState'
 import { getCharacters } from 'lib/stores/character/characterStore'
@@ -60,11 +61,16 @@ export function registerArchiveTools(server: McpServer): void {
   server.registerTool('load_save', {
     title: '载入存档文件',
     description: '载入一份 fribbels-optimizer-save.json 格式的存档文件,替换服务器当前已加载的全部状态——对应网页端把存档文件导入浏览器/换号载入的动作。'
-      + '提供 path(绝对路径,或相对服务器工作目录)或内联 json 二选一,完整执行上游迁移链(旧版格式迁移、主词条迁移、配装迁移、装备重互链)。'
+      + '提供 path(绝对路径,或相对服务器工作目录)、内联 json 或 sample=true(网页端「入门」抽屉「试一试」按钮载入的内置示例存档,'
+      + '即仓库 src/data/sample-save.json 的深拷贝,与网页端 GettingStartedDrawer.tryItOutClicked 同一数据源,构建产物内嵌、仓库外安装也可用)三选一,'
+      + '完整执行上游迁移链(旧版格式迁移、主词条迁移、配装迁移、装备重互链)。'
+      + 'sample=true 会整体替换当前数据(与网页端「试一试」语义一致,网页端须经确认框,MCP 侧由调用方自行确认);'
+      + '载入后语义同普通 load_save(示例来源无文件路径,视同内联 JSON,导出需显式 path)。'
       + '载入后即可用 list_relics / optimize 等工具操作这份数据。',
     inputSchema: {
       path: z.string().optional().describe('存档文件路径(fribbels-optimizer-save.json)'),
       json: z.unknown().optional().describe('内联存档对象(与存档文件内容同 schema)'),
+      sample: z.boolean().optional().describe('载入网页端「入门」抽屉「试一试」的内置示例存档(与 path/json 互斥,三选一)'),
     },
     outputSchema: {
       loaded: z.boolean(),
@@ -74,12 +80,17 @@ export function registerArchiveTools(server: McpServer): void {
       characterIds: z.array(z.string()),
       // 直读用户存档文件的 version 字段——上游迁移链可能写出任意形状,不收紧
       version: z.unknown(),
+      sample: z.boolean().optional().describe('sample=true 载入内置示例存档时为 true(echo)'),
     },
-  }, async ({ path, json }) => {
+  }, async ({ path, json, sample }) => {
     runtimeContext.ensureMetadataReady()
 
-    if ((path == null) === (json == null)) {
-      throw new Error('Provide exactly one of: path (file to load) or json (inline save object)')
+    // sample=false 与缺省同义(不是来源);path/json/true 的 sample 三者必须恰好一个
+    const sources = (path != null ? 1 : 0) + (json != null ? 1 : 0) + (sample === true ? 1 : 0)
+    if (sources !== 1) {
+      throw new Error(
+        `存档来源必须三选一:当前收到 ${sources} 个 — 请只提供 path(存档文件路径)、json(内联存档对象)或 sample=true(内置示例存档)中的一个`,
+      )
     }
 
     let data: HsrOptimizerSaveFormat
@@ -91,16 +102,24 @@ export function registerArchiveTools(server: McpServer): void {
         throw new Error(`Save file not found: ${resolvedPath}`)
       }
       data = parseSave(readFileSync(resolvedPath, 'utf8'), resolvedPath)
-    } else {
+    } else if (json != null) {
       if (typeof json === 'string') {
         data = parseSave(json, 'inline json string')
-      } else if (typeof json === 'object' && json !== null) {
+      } else if (typeof json === 'object') {
         data = json as HsrOptimizerSaveFormat
         if (!Array.isArray(data.relics) || !Array.isArray(data.characters)) {
           throw new Error('Invalid inline save object: missing "relics" or "characters" array')
         }
       } else {
         throw new Error('json must be a save object or a JSON string')
+      }
+    } else {
+      // 网页端「试一试」:loadSaveData(sample-save.json 深拷贝, autosave=false)
+      // (GettingStartedDrawer.tsx tryItOutClicked)——逐字同款深拷贝(也避免
+      // 迁移链改动构建产物内嵌的 JSON 模块对象)
+      data = JSON.parse(JSON.stringify(sampleSave)) as HsrOptimizerSaveFormat
+      if (!Array.isArray(data.relics) || !Array.isArray(data.characters)) {
+        throw new Error('Invalid built-in sample save: missing "relics" or "characters" array')
       }
     }
 
@@ -136,14 +155,18 @@ export function registerArchiveTools(server: McpServer): void {
     runtimeContext.setSave({ path: resolvedPath, data: pristine, loadedAt: Date.now() })
 
     const counts = saveCounts()
+    const fromSample = sample === true
     return toolResult(
       {
         loaded: true,
         path: resolvedPath,
         ...counts,
         version: data.version ?? null,
+        ...(fromSample ? { sample: true } : {}),
       },
-      `已载入存档:${counts.relics} 件遗器、${counts.characters} 个角色${resolvedPath ? `(来自 ${resolvedPath})` : '(内联 JSON)'}`,
+      `已载入存档:${counts.relics} 件遗器、${counts.characters} 个角色${
+        resolvedPath ? `(来自 ${resolvedPath})` : fromSample ? '(内置示例存档,网页端「入门」抽屉「试一试」同源)' : '(内联 JSON)'
+      }`,
     )
   })
 

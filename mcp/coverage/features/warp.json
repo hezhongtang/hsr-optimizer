@@ -32,12 +32,7 @@
       "runtime": "node",
       "state": { "owner": "useWarpCalculatorStore.request", "lifecycle": "persisted", "saveKey": "warpRequest" },
       "sideEffects": ["SaveState.delayedSave(10000)"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["warp_plan"],
-        "gaps": "这些字段都能作为 warp_plan 的参数传入，fromSaved 也能读出存档里保存的请求，但工具是纯计算，不会把改动写回存档，网页端看不到。",
-        "candidates": ["warp_plan(save=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["warp_plan"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -46,7 +41,7 @@
           "要求保存后，导出的存档里 warpRequest 与网页端填同样数值后的内容一致",
           "传入不存在的收入选项 id 时报错并列出合法 id"
         ],
-        "tests": ["mcp/scripts/smoke-misc.mjs"]
+        "tests": ["mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke-calculators.mjs"]
       }
     },
     {
@@ -67,12 +62,7 @@
       "conditions": "简单模式下忽略目标列表，改用一个从零到 E6S5 的内置目标。",
       "runtime": "node",
       "state": { "owner": "useWarpCalculatorStore.request.plannerMode / strategy", "lifecycle": "persisted", "saveKey": "warpRequest" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["warp_plan"],
-        "gaps": "warp_plan 不看 plannerMode，始终按传入的 targets 计算。要得到网页端简单模式的结果，调用方得自己构造那个从零到 E6S5 的目标；用 fromSaved 读一份处于简单模式的存档时，算出来的是存档里多目标列表的结果，与网页端显示的不同。",
-        "candidates": ["warp_plan(applyPlannerMode=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["warp_plan"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -80,7 +70,7 @@
           "八种策略下各里程碑的期望抽数与达成概率，与网页端简单模式结果表逐行一致",
           "对一份处于简单模式的存档按网页端口径计算，结果与页面显示一致"
         ],
-        "tests": ["mcp/scripts/smoke-misc.mjs"]
+        "tests": ["mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke-calculators.mjs"]
       }
     },
     {
@@ -116,12 +106,7 @@
       "runtime": "node",
       "state": { "owner": "useWarpCalculatorStore.request.targets", "lifecycle": "persisted", "saveKey": "warpRequest" },
       "sideEffects": ["SaveState.delayedSave(10000)"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["warp_plan"],
-        "gaps": "targets 要调用方按最终形态完整给出。网页端在增删改目标时自动维持的规则（同一角色或光锥的目标首尾相接、新目标从存档里已有的星魂起算、可选范围限于限定五星）不会替调用方做，也不会校验；改动同样不会写回存档。",
-        "candidates": ["warp_plan(normalizeTargets=true)", "warp_plan(save=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["warp_plan"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -131,7 +116,7 @@
           "只给角色 id 新增目标时，起点等于存档里该角色的星魂",
           "交换两个目标的顺序后，结果与网页端拖动后的表格一致"
         ],
-        "tests": ["mcp/scripts/smoke-misc.mjs"]
+        "tests": ["mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke-calculators.mjs"]
       }
     },
     {
@@ -178,18 +163,15 @@
       "runtime": "host",
       "state": { "owner": "useWarpCalculatorStore.request（由扫描器事件改写）", "lifecycle": "persisted", "saveKey": "warpRequest" },
       "sideEffects": ["改写规划器里的星琼、专票、已垫抽数与必中状态", "SaveState.delayedSave(10000)"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "MCP 还没有实时扫描器客户端，抽卡与资源事件进不来，规划器里的这些数只能手工传。",
-        "candidates": ["scanner(action=connect|disconnect|status|events)", "warp_plan(save=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["scanner"], "candidates": ["scanner(action=connect|disconnect|status|events)", "warp_plan(save=true)"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "回放一段含资源更新与抽卡结果的扫描器事件后，存档里 warpRequest 的星琼、专票、两个卡池的已垫抽数与必中状态与网页端回放同一段事件后一致",
           "ingestWarpResources 关闭时同样的事件不改动 warpRequest"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-scanner.mjs"]
       }
     }
   ]

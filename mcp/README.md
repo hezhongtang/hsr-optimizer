@@ -1,6 +1,6 @@
 # HSR Optimizer MCP Server
 
-让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **52 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4 + M5 角色/遗器/表单/队伍域 4)与 **6 个 `game://` 元数据资源**,覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4/M5 的状态基础和角色、遗器、表单、队伍操作。
+让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **56 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4 + M5 角色/遗器/表单/队伍域 4 + M6 扫描器/评分/榜单/分析域 4)与 **7 个 `game://` 元数据资源**,覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4/M5/M6 的状态基础、角色/遗器/表单/队伍操作,以及实时导入、四配置角色评分、排行榜数据层与遗器分析。
 
 - 设计与分期依据:[`hsr-optimizer-MCP-实施方案.md`](./hsr-optimizer-MCP-实施方案.md)(§6.1 规模闸门、§6.2 一致性验收、§7 验收标准)
 - 可行性实测背景(spike)已删除,历史见 commit `81f0789a`(见文末「与 spike 的关系」)
@@ -32,6 +32,11 @@ npm run smoke:form-overrides # 表单覆盖回归:get_form 内部字段与显示
 npm run smoke:form      # M5 表单域:update_form 全参数面(切换自动保存/预设/连招同步/假想配装)
 npm run smoke:relics    # M5 遗器 CRUD:编辑器保存语义/装备转移/预览不落盘/删除清引用
 npm run smoke:teams     # M5 队伍域:manage_team 五动作/基准快照/traces 级联/自动排序/评分队伍联动
+npm run smoke:scanner      # M6 扫描器:假 Archiver ws 服务端推帧/连接/重连/事件日志/只导遗器
+npm run smoke:score        # M6 评分域:score_character 四配置/临时队伍/速度基准/trace/评分资源
+npm run smoke:leaderboard  # M6 排行榜:本地 fixture 五视图/过滤分页/UID 排名/失败不作空榜成功
+npm run smoke:calculators  # M6 计算器:阿哈反解与底稿/EHR 概率与热图/跃迁三模式/语言/示例存档
+npm run smoke:analysis     # M6 分析域:analyze_relic 三视图/优化诊断修复/resultsLimit/rowIds/套装审计
 npm run smoke:equip    # 装备+评分域:equip/unequip/switch/builds/score_relics/dps_score/scoring override
                         # + 缓存世代拒绝 / fromCache 表单回写 / 缺失遗器跳过 / 奶妈评分配置解析
 npm run smoke:shutdown # 关停路径:stdin EOF 干净退出(exit 0,毫秒级)+ 防抖写回不丢
@@ -44,7 +49,7 @@ npm run smoke:imports  # 导入 + 展示柜:union 并集语义(1+162→163)、dr
                         # 解析错误路径;showcase 全部错误路径(离线 stub fetch)+ 内联档案导入
 npm run smoke:misc     # 计算器(warp_plan/calc_aha/calc_ehr 对拍上游公式)/ teams(list/save 往返与
                         # 快照保留规则)/ 同步桥(ws 帧逐字段校验、回灌上游解析器、变更驱动重推)
-npm run smoke:all      # 依次跑全部十九份
+npm run smoke:all      # 依次跑全部二十四份
 ```
 
 ## 质量门(须从仓库根执行)
@@ -68,7 +73,7 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | `HSR_MCP_HOME`        | `~/.hsr-optimizer-mcp`            | 状态目录:未显式指定 `HSR_MCP_STATE_FILE` 时,localStorage 后端文件落在此目录下                                                                                                                              |
 | `HSR_MCP_LOCALES_DIR` | 自动定位(见说明)                  | i18n 翻译目录(`public/locales` 形状,含 `<语言>/<ns>.yaml`)的显式覆盖;缺省从构建产物位置逐级向上查找(dist→mcp→仓库根),即 dist 须留在仓库内运行——要把构建产物挪到仓库外时用本变量指向仓库的 `public/locales` |
 
-## 工具清单(52 个,按域)
+## 工具清单(56 个,按域)
 
 ### M1 基础域(26 个)
 
@@ -241,18 +246,47 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `manage_team` | `action=load / delete / move / compose / sync_benchmarks / get`:已保存队伍的载入(缺失角色按网页规则补进角色列表)、删除(显式 teamId)、重排;`compose` 工作队伍编排(`op=set_slot / reorder / clear`,含未拥有角色补入与空队自动补队,槽位变更弃基准快照);`sync_benchmarks` 把工作队伍基准快照写回活动已保存队伍;`get` 只读工作态(会话级内存态,换档重置——网页刷新的对应物) |
 
-### game:// 资源(6 项)
+### M6 扫描器、评分、榜单与分析域(4 个)
+
+**扫描器域(scanner)** — 网页端「实时导入」的 ws 客户端对应物(MCP 主动外连真实扫描器):
+
+| 工具      | 功能                                                                                                                                                                                                                                                                                                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `scanner` | `action=connect(url?) / disconnect / status / events`:连接 Reliquary Archiver 等扫描器的 WebSocket;事件帧按网页 scannerStore 同一条链应用(InitialScan 走 union 合并、UpdateRelics 仅 5★ 落库、DeleteRelics 清引用、UpdateGachaFunds 写跃迁底稿;GachaResult 按网站行为忽略仅记录);事件日志环形缓冲可查,畸形帧不断连 |
+
+**角色评分域(scoring 扩展)** — 展示卡模拟评分引擎的完整接入:
+
+| 工具              | 功能                                                                                                                                                                                                                                                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `score_character` | `source=roster / build / showcase`(展示柜来源支持角色/光锥覆写);`config=auto / dps / buffer / heal / shield`(BUFFER/HEAL/SHIELD 首次接入,auto=展示卡默认评分类型,无模拟配置的角色报可操作中文错);`teammates` 临时队伍不落盘、`team=default` 强制官方队;`spdBenchmark` 临时基准速度;`deprioritizeBuffs` 覆写;`trace=true` 动作/标签增益汇总 |
+
+**排行榜域(leaderboard)** — 只读数据层(上游 import.meta.url 定位在 headless 不可用,改为显式来源):
+
+| 工具          | 功能                                                                                                                                                                                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `leaderboard` | `view=characters / board / entry / timeline / my_ranks`;`source=auto / network / url`(network=上游发布地址,与网页 localhost 的 beta fallback 同源;url=自定义 base);进程内缓存带版本,返回体带 source/version/fetchedAt;**拉取失败不作空榜成功** |
+
+**遗器分析域(relics 扩展)** — 遗器页三个分析面板:
+
+| 工具            | 功能                                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `analyze_relic` | `view=characters`(适配角色推荐+潜力分桶,与网页洞察面板同序同过滤)、`view=location`(背包定位网格)、`view=reroll`(重掷前后对比,纯计算) |
+
+本里程碑同时落地大量既有工具扩展(全部 add-only):`optimize(validate / diagnose / applyFixes / resultsLimit≤65536)`(诊断与修复复用上游 suggestionsEngine,修复走 withChange 事务)、`get_results(rowIds=…)`(按行 id 固定取行)、`import_scanner_json/import_hoyolab(includeCharacters=false)`(只导入遗器)、`set_scoring_override(configs=… / resetAll / linkFlatAndPercent)`(评分队伍编辑/重置/同步/增益优先级)、`score_relics(scope / rollsSummary)`、`list_relics(sortBy)`、`fetch_showcase(remember=true)`(多缓存)、`calc_aha(desiredAha / save / fromSaved)`、`calc_ehr(mode=probability / grid)`、`warp_plan(applyPlannerMode / normalizeTargets / save)`、`benchmark_runs(sweep=sets)`(套装基准审计)、`update_state/get_state(session)` 扩 `language`、`load_save(sample=true)`,以及新资源 `game://metadata/scoring`(评分元数据六面板)。
+
+### game:// 资源(7 项)
 
 只读元数据面,与工具同进程注册(`src/resources.ts`);列表资源只带摘要,单实体详情走 URI 模板(模板不占 resources/list,经 templates/list 发现):
 
-| URI                               | 内容                                                                               |
-| --------------------------------- | ---------------------------------------------------------------------------------- |
-| `game://metadata/characters`      | 全角色列表摘要:id、中文名、稀有度、命途/属性(规范英文值)、unreleased、preNovaflare |
-| `game://metadata/characters/{id}` | 单角色详情:80 级基础属性、行迹树完整结构、行迹加成汇总、max_sp、中文名/长名        |
-| `game://metadata/lightcones`      | 全光锥列表摘要:id、中文名、稀有度、命途、unreleased                                |
-| `game://metadata/lightcones/{id}` | 单光锥详情:基础属性 + S1-S5 叠影属性表(可读属性名口径)                             |
-| `game://metadata/sets`            | 62 项遗器/饰品套装表:id、中文名、2pc/4pc 中文效果文本、英文合并文本(附口径 note)   |
-| `game://changelog`                | Changelog 页签原文(上游仅英文,53 期约 77KB JSON)                                   |
+| URI                               | 内容                                                                                                              |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `game://metadata/characters`      | 全角色列表摘要:id、中文名、稀有度、命途/属性(规范英文值)、unreleased、preNovaflare                                |
+| `game://metadata/characters/{id}` | 单角色详情:80 级基础属性、行迹树完整结构、行迹加成汇总、max_sp、中文名/长名                                       |
+| `game://metadata/lightcones`      | 全光锥列表摘要:id、中文名、稀有度、命途、unreleased                                                               |
+| `game://metadata/lightcones/{id}` | 单光锥详情:基础属性 + S1-S5 叠影属性表(可读属性名口径)                                                            |
+| `game://metadata/sets`            | 62 项遗器/饰品套装表:id、中文名、2pc/4pc 中文效果文本、英文合并文本(附口径 note)                                  |
+| `game://metadata/scoring`         | 评分元数据六面板(随版本发布的默认配置,不反映本地覆盖):substatWeights/sets/teams/combo/setPresets/leaderboardTeams |
+| `game://changelog`                | Changelog 页签原文(上游仅英文,53 期约 77KB JSON)                                                                  |
 
 「行→配装」不另设 resource:optimize/get_results 已随行返回 builds 字段(每行 6 槽遗器 id),再设一个 resource 只会复制同一份缓存。
 
@@ -315,7 +349,7 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 - `fetch_showcase` / `import_showcase`(enka/mihomo 档案)✅
 - teams 数据面(`save_team`/`list_teams`)✅
 - stats 归约器(`ComputedStatsContainer → JSON`,随 simulate_build/stat_simulate 返回)✅;套装效果描述面(`game://metadata/sets`)✅;「行→配装」按方案有意折叠进 optimize/get_results 的行内 builds 字段,不另设 resource
-- 全部工具的 outputSchema 声明(§9 D7)✅(52 个工具全覆盖;6 个 `game://` 资源不适用——SDK 的资源配置无 outputSchema 参数,见方案 §10 D12)
+- 全部工具的 outputSchema 声明(§9 D7)✅(56 个工具全覆盖;7 个 `game://` 资源不适用——SDK 的资源配置无 outputSchema 参数,见方案 §10 D12)
 - 追加交付:同步桥 `sync_bridge_start/status/stop/push`(MCP→网页端单向推送,变更驱动自动重推)与 6 项 `game://` 元数据资源
 
 留尾巴(未做成/未覆盖,如实登记):

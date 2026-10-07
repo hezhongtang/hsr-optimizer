@@ -34,11 +34,14 @@
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import i18next from 'i18next'
+import { Stats } from 'lib/constants/constants'
+import { toTurnAbility } from 'lib/optimization/rotation/turnAbilityConfig'
 import {
   getGameMetadata,
   isPreNovaflare,
 } from 'lib/state/gameMetadata'
 import { getChangelogContent } from 'lib/tabs/tabChangelog/changelogData'
+import { toI18NVisual } from 'lib/utils/displayUtils'
 import type { CharacterId } from 'types/character'
 import type { LightConeId } from 'types/lightCone'
 import type {
@@ -49,6 +52,9 @@ import type {
 
 import { runtimeContext } from './context'
 import { ensureI18nReady } from './i18n/i18nNode'
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type Any = any
 
 const JSON_MIME_TYPE = 'application/json'
 
@@ -176,6 +182,165 @@ function lightConeDetail(lightCone: DBMetadataLightCone): Record<string, unknown
 /** Sets have no `unreleased` flag in game_data.json (characters/light cones do). */
 type SetEntryWithSkills = DBMetadataSets & { skills?: string }
 
+// ── game://metadata/scoring panel builders (Metadata 页签六个评分面板) ──────
+
+/** SubstatWeightDashboard 的九列:百分比类副词条(固定值不在网页表内)。 */
+const WEIGHT_DASHBOARD_STATS = [
+  Stats.ATK_P,
+  Stats.DEF_P,
+  Stats.HP_P,
+  Stats.SPD,
+  Stats.CR,
+  Stats.CD,
+  Stats.EHR,
+  Stats.RES,
+  Stats.BE,
+] as const
+
+const LEADERBOARD_CONFIG_SECTIONS = [
+  ['dps', 'simulation'],
+  ['buffer', 'supportSimulation'],
+  ['heal', 'healSimulation'],
+  ['shield', 'shieldSimulation'],
+] as const
+
+/** optimizerTab/ComboFilter 前缀翻译器(formatComboAction 的 t,离线 zh_CN)。 */
+function comboFilterT(): Any {
+  ensureI18nReady()
+  return i18next.getFixedT(null, 'optimizerTab', 'ComboFilter') as Any
+}
+
+function scoringPanelEntryBase(character: DBMetadataCharacter): Record<string, unknown> {
+  const t = gameDataT()
+  return {
+    characterId: character.id,
+    name: character.name,
+    nameZh: zhText(t, `Characters.${character.id}.Name`),
+    path: character.path,
+    element: character.element,
+    rarity: character.rarity,
+  }
+}
+
+/**
+ * game://metadata/scoring 的载荷:Metadata 页签「Substat weight / Simulation
+ * sets / Simulation teams / Simulation combo / Conditional set presets /
+ * Leaderboard teams」六个面板的数据聚合。全部读默认 scoringMetadata
+ * (getGameMetadata),不掺用户覆盖——单角色生效值走 get_scoring_metadata。
+ */
+function buildScoringMetadataPanel(): Record<string, unknown> {
+  const characters = Object.values(getGameMetadata().characters)
+    .filter((character) => character.scoringMetadata != null)
+    .sort((a, b) => compareCharacterIds(a.id, b.id))
+
+  const substatWeights: Array<Record<string, unknown>> = []
+  const sets: Array<Record<string, unknown>> = []
+  const teams: Array<Record<string, unknown>> = []
+  const combo: Array<Record<string, unknown>> = []
+  const setPresets: Array<Record<string, unknown>> = []
+  const t = comboFilterT()
+
+  for (const character of characters) {
+    const scoring = character.scoringMetadata
+    const base = scoringPanelEntryBase(character)
+
+    // SubstatWeightDashboard:九种百分比类副词条的默认权重
+    const weights: Record<string, number> = {}
+    for (const stat of WEIGHT_DASHBOARD_STATS) {
+      weights[stat] = scoring.stats?.[stat] ?? 0
+    }
+    substatWeights.push({ ...base, weights })
+
+    const simulation = scoring.simulation
+    if (simulation != null) {
+      // SimulationEquivalentSetsDashboard:四件套与 2+2 不区分,点亮 = 套装在名单里
+      const litCells = new Set<string>()
+      for (const allowedSets of simulation.relicSets ?? []) {
+        for (const set of allowedSets) litCells.add(set)
+      }
+      for (const set of simulation.ornamentSets ?? []) litCells.add(set)
+      sets.push({
+        ...base,
+        relicSets: simulation.relicSets ?? [],
+        ornamentSets: simulation.ornamentSets ?? [],
+        setNames: [...litCells],
+      })
+
+      // SimulationTeamDashboard:默认队伍三名队友及光锥
+      teams.push({
+        ...base,
+        teammates: (simulation.teammates ?? []).map((teammate) => ({
+          characterId: teammate.characterId,
+          lightCone: teammate.lightCone,
+          characterEidolon: teammate.characterEidolon,
+          lightConeSuperimposition: teammate.lightConeSuperimposition,
+          ...(teammate.teamRelicSet != null ? { teamRelicSet: teammate.teamRelicSet } : {}),
+          ...(teammate.teamOrnamentSet != null ? { teamOrnamentSet: teammate.teamOrnamentSet } : {}),
+        })),
+      })
+
+      // SimulationComboDashboard:内部代号 + 可读名称,空行动不显示
+      const abilities = (simulation.comboTurnAbilities ?? []).filter((action) => typeof action === 'string' && action.length > 0)
+      combo.push({
+        ...base,
+        comboTurnAbilities: abilities,
+        comboNames: abilities.map((action) => toI18NVisual(toTurnAbility(action), t)),
+      })
+    }
+
+    // ConditionalSetsPresetsDashboard:预设名/套装/预设值(⚪=true,数值型为具体数字)
+    const presets = (scoring.presets ?? []).map((preset) => ({
+      name: preset.name,
+      set: preset.set,
+      value: preset.value,
+    }))
+    if (presets.length > 0) setPresets.push({ ...base, presets })
+  }
+
+  // LeaderboardTeamsDashboard:四节按评分类型,只列五星角色,按角色编号排序;
+  // 没有专门配置排行榜队伍的角色给默认队伍行(usesDefaultTeam=true,半透明那行)
+  const leaderboardTeams: Record<string, Array<Record<string, unknown>>> = {}
+  const fiveStars = characters.filter((character) => character.rarity === 5)
+  for (const [sectionKey, metadataField] of LEADERBOARD_CONFIG_SECTIONS) {
+    const section = fiveStars
+      .filter((character) => (character.scoringMetadata as Record<string, unknown>)[metadataField] != null)
+      .map((character) => {
+        const sim = (character.scoringMetadata as Record<string, Any>)[metadataField]
+        const registered = (sim.leaderboardTeams ?? []) as Array<{
+          teammates: Array<{ characterId: string, lightCones: string[], teamRelicSet?: string, teamOrnamentSet?: string }>,
+          deprioritizeBuffs?: boolean,
+        }>
+        return {
+          ...scoringPanelEntryBase(character),
+          usesDefaultTeam: registered.length === 0,
+          teams: registered.map((team) => ({
+            teammates: team.teammates.map((teammate) => ({
+              characterId: teammate.characterId,
+              lightCones: [...teammate.lightCones],
+              ...(teammate.teamRelicSet != null ? { teamRelicSet: teammate.teamRelicSet } : {}),
+              ...(teammate.teamOrnamentSet != null ? { teamOrnamentSet: teammate.teamOrnamentSet } : {}),
+            })),
+            ...(team.deprioritizeBuffs === true ? { deprioritizeBuffs: true } : {}),
+          })),
+          defaultTeammates: (sim.teammates ?? []).map((teammate: Any) => teammate.characterId as string),
+        }
+      })
+    if (section.length > 0) leaderboardTeams[sectionKey] = section
+  }
+
+  return {
+    characterCount: characters.length,
+    note: '全部为随版本发布的默认配置(游戏元数据),不反映本地存档的用户覆盖;单角色生效值请用 get_scoring_metadata 工具。'
+      + 'sets/teams/combo 各条带 path 字段,按命途过滤即得网页端的九张分表。',
+    substatWeights,
+    sets,
+    teams,
+    combo,
+    setPresets,
+    leaderboardTeams,
+  }
+}
+
 const SETS_EFFECT_TEXT_NOTE = '套装效果文本以 gameData 命名空间翻译(zh_CN)与 game_data.json 结构化条目为准;'
   + '部分 2pc/4pc 效果的实际数值由 TS 条件函数实现,只能经引擎执行获得,不在本文本面 —— 文本中的数字不应视为引擎实现的数值口径。'
 
@@ -293,6 +458,25 @@ export function registerGameResources(server: McpServer): void {
       note: SETS_EFFECT_TEXT_NOTE,
       sets: ids.map((id) => setEntry(relicSets[id])),
     })
+  })
+
+  // -- game://metadata/scoring — Metadata tab scoring dashboards -------------
+  server.registerResource('scoring-metadata', 'game://metadata/scoring', {
+    title: '评分元数据总表',
+    description: '网页端 Metadata 页签六个评分面板的聚合只读表(全部来自随版本发布的默认配置,与本地存档/用户覆盖无关):'
+      + 'substatWeights 各角色的默认副词条权重(九种百分比类副词条,固定值不在网页表内);'
+      + 'sets 各输出类评分角色的推荐遗器/饰品套装(relicSets 原始名单 + setNames 点亮格子的并集,四件套与 2+2 不区分);'
+      + 'teams 各角色的评分默认队伍(三名队友及光锥);'
+      + 'combo 各角色的评分默认循环(comboTurnAbilities 内部代号 + comboNames 可读名称,空行动不显示);'
+      + 'setPresets 各角色的套装条件预设(预设名/套装/预设值——决定默认表单里相关套装效果按什么状态计算);'
+      + 'leaderboardTeams 排行榜参评队伍配置(按 dps/buffer/heal/shield 四节,只列五星角色;'
+      + '没有专门配置的角色给 usesDefaultTeam=true 与默认队伍)。'
+      + 'sets/teams/combo 三节每条带 path(网页端按命途分成九张表,过滤 path 即得)。'
+      + '不载入存档即可读;单角色的用户覆盖后生效值用 get_scoring_metadata。',
+    mimeType: JSON_MIME_TYPE,
+  }, (uri) => {
+    runtimeContext.ensureMetadataReady()
+    return jsonResource(uri.toString(), buildScoringMetadataPanel())
   })
 
   // -- game://changelog — Changelog tab, verbatim ---------------------------

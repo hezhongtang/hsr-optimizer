@@ -262,12 +262,12 @@ try {
   // ── H. resources/list + templates/list ─────────────────────────────────────
   const list = await client.listResources()
   const listedUris = list.resources.map((r) => r.uri)
-  for (const uri of ['game://metadata/characters', 'game://metadata/lightcones', 'game://metadata/sets', 'game://changelog']) {
+  for (const uri of ['game://metadata/characters', 'game://metadata/lightcones', 'game://metadata/sets', 'game://metadata/scoring', 'game://changelog']) {
     check(`resources/list contains ${uri}`, listedUris.includes(uri), listedUris.join(', '))
   }
   check(
     'resources/list stays summary-only (no per-id template instances)',
-    listedUris.length === 4 && !listedUris.some((uri) => /\/\d+$/.test(uri)),
+    listedUris.length === 5 && !listedUris.some((uri) => /\/\d+$/.test(uri)),
     `${listedUris.length} URIs`,
   )
   const templates = await client.listResourceTemplates()

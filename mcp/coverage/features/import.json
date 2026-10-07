@@ -131,17 +131,12 @@
       "runtime": "node",
       "state": { "owner": "useRelicStore / useCharacterStore", "lifecycle": "persisted", "saveKey": "relics" },
       "sideEffects": ["重写遗器库存并同步角色装备、已存配装里的遗器引用", "SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["import_scanner_json", "import_hoyolab"],
-        "gaps": "两个导入工具总是连同文件里的角色一起导入，没有只导入遗器的分支。",
-        "candidates": ["import_scanner_json(includeCharacters=false)", "import_hoyolab(includeCharacters=false)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["import_scanner_json", "import_hoyolab"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["includeCharacters=false、merge=replace 导入后，角色列表不变、遗器库存与网页点「导入遗器」之后的存档一致"],
-        "tests": ["mcp/scripts/smoke-imports.mjs"]
+        "tests": ["mcp/scripts/smoke-imports.mjs", "mcp/scripts/smoke-scanner.mjs"]
       }
     },
     {
@@ -199,19 +194,15 @@
       "runtime": "node",
       "state": { "owner": "useScannerState", "lifecycle": "persisted", "saveKey": "scannerSettings" },
       "sideEffects": ["已连接时可能触发一次整库重新导入", "SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["get_state", "update_state"],
-        "gaps": "设置读写已实现（get_state/update_state 的 scanner 分支，含 customUrl 派生语义）；「已连接时」的重新导入副作用需要实时扫描器客户端（M6），当前没有连接路径。",
-        "candidates": ["scanner(action=connect)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state", "scanner"], "candidates": ["scanner(action=connect)"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "逐项修改后导出的存档 scannerSettings（含 customUrl）与网页拨动同一开关后的存档一致",
           "已连接状态下打开 ingestCharacters 会触发一次按角色的重新导入，结果与网页一致"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-scanner.mjs"]
       }
     },
     {
@@ -228,14 +219,15 @@
       "conditions": "只在 ingest 打开期间保持连接；组件卸载时把 connected 置回 false。连接状态不落盘。",
       "runtime": "node",
       "state": { "owner": "useScannerState.connected", "lifecycle": "external" },
-      "mcp": { "status": "missing", "candidates": ["scanner(action=connect)", "scanner(action=disconnect)", "scanner(action=status)"] },
+      "mcp": { "status": "implemented", "tools": ["scanner"], "candidates": ["scanner(action=connect)", "scanner(action=disconnect)", "scanner(action=status)"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "对本地假扫描器服务：connect 后 status 报告已连接，服务端断开后报告未连接并自动重连",
           "目标地址不可达时返回明确的连接失败原因，而不是空成功"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-scanner.mjs"]
       }
     },
     {
@@ -271,11 +263,7 @@
         "当前页是优化器时重绘结果网格",
         "SaveState.delayedSave()"
       ],
-      "mcp": {
-        "status": "missing",
-        "gaps": "现有 sync_bridge_* 是反方向（MCP 扮演扫描器向网页推送），不能接收真实扫描器的事件。",
-        "candidates": ["scanner(action=events)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["scanner"], "candidates": ["scanner(action=events)"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -283,7 +271,8 @@
           "向 MCP 与网页回放同一段事件序列（InitialScan、UpdateRelics、UpdateCharacters、DeleteRelics、UpdateMaterials、UpdateGachaFunds、UpdateLightCones、DeleteLightCones、GachaResult），两边导出的存档一致",
           "四种开关组合（ingest × ingestCharacters × ingestOnlyExistingCharacters）下 UpdateRelics 的佩戴者处理与网页一致",
           "非 5★ 遗器的更新与删除事件不改动库存"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-scanner.mjs"]
       }
     },
     {
@@ -299,11 +288,12 @@
       "conditions": "只在导入页挂载了 websocket 客户端（ingest 打开）时出现。弹窗只做展示，不提供「采用重掷」之类的操作。",
       "runtime": "node",
       "state": { "owner": "ScannerWebsocket 组件内的弹窗状态", "lifecycle": "ephemeral" },
-      "mcp": { "status": "missing", "candidates": ["analyze_relic(view=reroll)", "scanner(action=events)"] },
+      "mcp": { "status": "implemented", "tools": ["analyze_relic", "scanner"], "candidates": ["analyze_relic(view=reroll)", "scanner(action=events)"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["对带 reroll_substats 的遗器事件，返回原/重掷两组副词条及各自的当前分，与弹窗里两张遗器卡的数值一致；无佩戴者时不给分"]
+        "cases": ["对带 reroll_substats 的遗器事件，返回原/重掷两组副词条及各自的当前分，与弹窗里两张遗器卡的数值一致；无佩戴者时不给分"],
+       "tests": ["mcp/scripts/smoke-analysis.mjs", "mcp/scripts/smoke-scanner.mjs"]
       }
     },
     {

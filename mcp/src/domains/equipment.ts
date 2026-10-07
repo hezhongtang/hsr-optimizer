@@ -40,6 +40,10 @@ import {
 import * as equipmentService from 'lib/services/equipmentService'
 import { upsertCharacterFromForm } from 'lib/services/persistenceService'
 import {
+  SetsOrnamentsNames,
+  SetsRelicsNames,
+} from 'lib/sets/setConfigRegistry'
+import {
   resolveSimulationMetadata,
 } from 'lib/simulations/orchestrator/runDpsScoreBenchmarkOrchestrator'
 import { getGameMetadata } from 'lib/state/gameMetadata'
@@ -83,6 +87,16 @@ type RelicMove = {
 }
 
 type CachedRowRef = { cacheId: string, rowId: number }
+
+/**
+ * ScoringModal 的联动权重对:弹窗里攻击/生命/防御各一行,保存时固定值与百分比
+ * (ATK↔ATK%…)同值落盘(StatValueRow 语义)。linkFlatAndPercent=true 按此展开。
+ */
+const FLAT_PERCENT_STAT_PAIRS: Array<[string, string]> = [
+  ['ATK', 'ATK%'],
+  ['HP', 'HP%'],
+  ['DEF', 'DEF%'],
+]
 
 // outputSchema 形状——以各 handler 实际 return 的对象为准(equipment 域自带的
 // serializeSavedBuild 摘要与 applyEquip 的返回结构)。
@@ -324,7 +338,8 @@ function resolveCharacterTabScoring(character: Character): {
     getCharacterConfig(characterId)?.display.showcaseScoringOrder,
     availableSimulationConfigs,
   )
-  const storedScoringType = (useShowcaseTabStore.getState().showcasePreferences as Record<string, { scoringType?: number }> | undefined)?.[characterId as string]?.scoringType
+  const storedScoringType = (useShowcaseTabStore.getState().showcasePreferences as Record<string, { scoringType?: number }> | undefined)
+    ?.[characterId as string]?.scoringType
   const effectiveScoringType = resolveShowcaseScoringType(storedScoringType, scoringOrder)
   const configType = configTypeForScoringType(effectiveScoringType)
   if (configType == null) {
@@ -1080,45 +1095,121 @@ export function registerEquipmentTools(server: McpServer): void {
     title: '设置角色评分覆盖',
     description: '对应网页端评分设置面板与行迹抽屉的保存(scoringStore.updateCharacterOverrides 的 delta 合并语义):'
       + '`weights` 只覆盖传入的副词条权重(其余保持),`parts` 只覆盖传入部件的主词条候选;与默认值相同的项会被剪掉;'
+      + '`linkFlatAndPercent=true` 复刻评分算法弹窗的联动保存——ATK/HP/DEF 的固定值与百分比共用一行,'
+      + '传入任一侧都会把另一侧写成相同值(两侧都传且不同则报错);'
       + '`traces` 整组替换行迹开关(scoringMetadataOverrides[].traces.deactivated,写入的是最终停用节点 id 列表,'
       + '会按网页端勾选规则向下级联——关闭某节点自动连同其全部后代一起关闭,最终列表在返回值里;节点 id 与树结构来自 game://metadata/characters/{id} 资源;'
       + '传空数组=全部启用,与网页端全勾选保存的落盘结果一致)。'
-      + '`reset=true` 清空该角色全部覆盖恢复默认。影响 stat 评分、遗器潜力计算与行迹加成(进而影响优化、模拟与评分)。',
+      + '`configs` 编辑评分配置(展示卡评分队伍)——`editTeammate` 换当前配置队伍的一名队友(角色与光锥必填,'
+      + '对应展示卡队友头像的编辑弹窗),`resetConfig=true` 清掉该配置整段覆盖恢复默认队,'
+      + '`syncTeam=true` 把队伍里每位队友的星魂/光锥/叠影同步成角色列表里同名角色的值(列表里没装光锥时保留原光锥,'
+      + '对应队伍设置菜单的「同步」),`deprioritizeBuffs` 写 DPS 配置的增益优先级(主 C=false 队友增益优先给它/副 C=true,'
+      + '仅 configType=dps 可用)。写入走 scoringStore.updateScoringConfigOverride/clearScoringConfigOverride,'
+      + '会话态的队伍选择同步切换(编辑/同步→自定义队,重置→默认队)。'
+      + '`reset=true` 清空该角色全部覆盖恢复默认;`resetAll=true` 清空全部角色的评分覆盖'
+      + '(评分弹窗底部「重置所有角色」,破坏性,此时不传 characterId 与其它载荷)。'
+      + '影响 stat 评分、遗器潜力计算与行迹加成(进而影响优化、模拟与评分)。',
     inputSchema: {
-      characterId: z.string(),
+      characterId: z.string().optional().describe('目标角色 id(resetAll=true 时不传)'),
       weights: z.record(z.string(), z.number().min(0).max(1)).optional().describe('副词条权重 delta,键为副词条名(如 "CRIT DMG"、"SPD"),值 0-1'),
+      linkFlatAndPercent: z.boolean().optional().describe('true=ATK/HP/DEF 固定值与百分比联动写入相同值(与评分弹窗同一行编辑一致;仅作用于 weights)'),
       parts: z.record(z.string(), z.array(z.string())).optional().describe('主词条候选 delta,键为 Body/Feet/PlanarSphere/LinkRope'),
       traces: z.object({
         deactivated: z.array(z.string()).describe('要停用的行迹节点 id 列表(会自动向下级联到全部后代)'),
       }).optional().describe('行迹开关:整组替换停用节点列表'),
+      configs: z.object({
+        configType: z.enum(['dps', 'buffer', 'heal', 'shield']).default('dps').describe(
+          '要编辑的评分配置段(写入 simulation/supportSimulation/healSimulation/shieldSimulation 之一)',
+        ),
+        editTeammate: z.object({
+          index: z.number().int().min(0).max(2).describe('队友位置 0-2'),
+          characterId: z.string().describe('队友角色 id(必填,须存在于游戏元数据)'),
+          lightCone: z.string().describe('队友光锥 id(必填,须存在于游戏元数据)'),
+          characterEidolon: z.number().int().min(0).max(6).optional().describe('星魂(默认 0)'),
+          lightConeSuperimposition: z.number().int().min(1).max(5).optional().describe('叠影(默认 1)'),
+          teamRelicSet: z.string().nullable().optional().describe('队伍遗器套装(传 null 清除)'),
+          teamOrnamentSet: z.string().nullable().optional().describe('队伍饰品套装(传 null 清除)'),
+        }).optional().describe('替换当前配置队伍的一名队友(展示卡队友头像的编辑弹窗)'),
+        resetConfig: z.boolean().optional().describe('true=清掉该配置整段覆盖(队友与该配置下的其它覆盖一起清),恢复默认队'),
+        syncTeam: z.boolean().optional().describe('true=把每位队友的星魂/光锥/叠影同步成角色列表里同名角色的值'),
+        deprioritizeBuffs: z.boolean().optional().describe('DPS 增益优先级:false=主 C(队友增益优先),true=副 C;仅 configType=dps'),
+      }).optional().describe('评分配置编辑(editTeammate/resetConfig/syncTeam/deprioritizeBuffs 至少一项)'),
       reset: z.boolean().optional().describe('清空该角色全部评分覆盖(含行迹),恢复默认'),
+      resetAll: z.boolean().optional().describe('清空全部角色的评分覆盖(破坏性;与 characterId 及其它载荷互斥)'),
     },
     outputSchema: {
-      characterId: z.string(),
+      characterId: z.string().optional(),
       reset: z.boolean(),
-      stats: z.record(z.string(), z.number()),
-      parts: z.record(z.string(), z.array(z.string())),
-      modified: z.boolean(),
-      override: z.unknown(),
+      resetAll: z.boolean().optional(),
+      clearedCharacters: z.number().int().optional(),
+      stats: z.record(z.string(), z.number()).optional(),
+      parts: z.record(z.string(), z.array(z.string())).optional(),
+      modified: z.boolean().optional(),
+      override: z.unknown().optional(),
       traces: z.object({
         deactivated: z.array(z.string()),
         totalNodes: z.number().int(),
         expanded: z.boolean(),
       }).optional(),
+      configs: z.object({
+        configType: z.enum(['dps', 'buffer', 'heal', 'shield']),
+        changed: z.array(z.string()),
+        teammates: z.array(z.string()),
+        sessionTeamPreference: z.enum(['Default', 'Custom']).nullable(),
+        deprioritizeBuffs: z.boolean().optional(),
+      }).optional(),
     },
-  }, async ({ characterId, weights, parts, traces, reset }) => {
+  }, async ({ characterId, weights, linkFlatAndPercent, parts, traces, configs, reset, resetAll }) => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
 
+    // ── payload arbitration:resetAll / reset / 具名载荷,恰好一组 ──
+    if (resetAll === true) {
+      const extra = [
+        characterId != null && 'characterId',
+        weights != null && 'weights',
+        parts != null && 'parts',
+        traces != null && 'traces',
+        configs != null && 'configs',
+        reset === true && 'reset',
+      ].filter(Boolean).join('/')
+      if (extra) {
+        throw new Error(`set_scoring_override:resetAll 与 ${extra} 互斥 — resetAll=true 清空全部角色的评分覆盖,请单独调用`)
+      }
+      const overrides = useScoringStore.getState().scoringMetadataOverrides as Record<string, unknown>
+      const clearedCharacters = Object.keys(overrides).length
+      useScoringStore.getState().setScoringMetadataOverrides({})
+      runtimeContext.markDirty()
+      return toolResult(
+        {
+          resetAll: true,
+          reset: false,
+          clearedCharacters,
+        },
+        `已清空全部 ${clearedCharacters} 个角色的评分覆盖(权重/主词条候选/评分队伍/行迹),恢复默认`,
+      )
+    }
+
+    if (characterId == null) {
+      throw new Error('set_scoring_override:请提供 characterId(或改用 resetAll=true 清空全部角色)')
+    }
     if (gameCharacterMetadata(characterId) == null) {
       throw new Error(`Unknown character id ${characterId} (not present in game metadata)`)
     }
-    if (reset === true && (traces != null || weights != null || parts != null)) {
-      const extra = [weights != null && 'weights', parts != null && 'parts', traces != null && 'traces'].filter(Boolean).join('/')
+    if (reset === true && (traces != null || weights != null || parts != null || configs != null)) {
+      const extra = [weights != null && 'weights', parts != null && 'parts', traces != null && 'traces', configs != null && 'configs'].filter(Boolean).join('/')
       throw new Error(`set_scoring_override:reset 与 ${extra} 互斥 — reset=true 会清空全部覆盖且忽略其它载荷,请分开调用`)
     }
-    if (reset !== true && weights == null && parts == null && traces == null) {
-      throw new Error('Provide at least one of: weights, parts, traces, or reset=true')
+    const hasConfigAction = configs != null
+      && (configs.editTeammate != null || configs.resetConfig === true || configs.syncTeam === true || configs.deprioritizeBuffs != null)
+    if (reset !== true && !hasConfigAction && weights == null && parts == null && traces == null) {
+      throw new Error('Provide at least one of: weights, parts, traces, configs, reset=true (or resetAll=true)')
+    }
+    if (configs != null && !hasConfigAction) {
+      throw new Error('set_scoring_override:configs 需要 editTeammate/resetConfig/syncTeam/deprioritizeBuffs 至少一项')
+    }
+    if (linkFlatAndPercent === true && weights == null) {
+      throw new Error('set_scoring_override:linkFlatAndPercent 只修饰 weights — 请同时传入 weights(或去掉 linkFlatAndPercent)')
     }
 
     if (weights != null) {
@@ -1133,6 +1224,26 @@ export function registerEquipmentTools(server: McpServer): void {
       const unknown = Object.keys(parts).filter((k) => !valid.has(k))
       if (unknown.length) {
         throw new Error(`Unknown part(s): ${unknown.join(', ')}. Valid: ${MainStatPartsArray.join(', ')}`)
+      }
+    }
+
+    // ScoringModal 的联动保存:固定值与百分比共用一行,写入时两侧同值。
+    // 两侧都传且不同 = 网页保存不出来的状态,直接拒绝。
+    if (weights != null && linkFlatAndPercent === true) {
+      for (const [flat, percent] of FLAT_PERCENT_STAT_PAIRS) {
+        const flatValue = weights[flat]
+        const percentValue = weights[percent]
+        if (flatValue != null && percentValue != null && flatValue !== percentValue) {
+          throw new Error(
+            `set_scoring_override:linkFlatAndPercent 下 ${flat}(${flatValue}) 与 ${percent}(${percentValue}) 不能不同 —`
+              + ` 网页端两者共用一行,请只传一侧或传相同值`,
+          )
+        }
+        const value = flatValue ?? percentValue
+        if (value != null) {
+          weights[flat] = value
+          weights[percent] = value
+        }
       }
     }
 
@@ -1154,6 +1265,135 @@ export function registerEquipmentTools(server: McpServer): void {
       }
       finalDeactivated = deactivateWithDescendants(traces.deactivated, nodes)
       traceExpanded = finalDeactivated.length !== traces.deactivated.length
+    }
+
+    // ── configs:评分配置(评分队伍/增益优先级)编辑 ──
+    let configOutcome: {
+      configType: 'dps' | 'buffer' | 'heal' | 'shield',
+      changed: string[],
+      teammates: string[],
+      sessionTeamPreference: 'Default' | 'Custom' | null,
+      deprioritizeBuffs?: boolean,
+    } | null = null
+    if (configs != null && hasConfigAction) {
+      const configType = configs.configType as ScoringConfigType
+      const metadataField = SCORING_CONFIG_REGISTRY[configType].metadataField
+      const defaults = (getGameMetadata().characters as Record<string, Any>)[characterId]?.scoringMetadata
+      if (defaults?.[metadataField] == null) {
+        const available = CONFIG_DISPLAY_ORDER
+          .filter((ct) =>
+            (getGameMetadata().characters as Record<string, Any>)[characterId]?.scoringMetadata?.[SCORING_CONFIG_REGISTRY[ct].metadataField] != null
+          )
+        throw new Error(
+          `set_scoring_override:角色 ${characterId} 没有 ${configType} 评分配置(游戏元数据缺 ${metadataField})— 可用配置: ${
+            available.length ? available.join(', ') : '(无)'
+          }`,
+        )
+      }
+
+      const changed: string[] = []
+      // 展示卡显示的队伍 = 生效队伍(覆盖优先,缺省回落默认队,始终 3 人)
+      const effectiveTeam = (getScoringMetadata(characterId as Any)[metadataField] as Any)?.teammates
+        ?? defaults[metadataField].teammates
+
+      if (configs.resetConfig === true) {
+        if (configs.editTeammate != null || configs.syncTeam === true || configs.deprioritizeBuffs != null) {
+          throw new Error('set_scoring_override:configs.resetConfig 与 editTeammate/syncTeam/deprioritizeBuffs 互斥 — 重置会清掉该配置整段覆盖,请分开调用')
+        }
+        useScoringStore.getState().clearScoringConfigOverride(characterId as Any, configType)
+        useShowcaseTabStore.getState().setShowcaseTeamPreference(characterId as Any, configType, DEFAULT_TEAM)
+        changed.push('resetConfig')
+      } else {
+        let nextTeam:
+          | Array<
+            {
+              characterId: string,
+              lightCone: string,
+              characterEidolon: number,
+              lightConeSuperimposition: number,
+              teamRelicSet?: string,
+              teamOrnamentSet?: string,
+            }
+          >
+          | null = null
+
+        if (configs.editTeammate != null) {
+          const edit = configs.editTeammate
+          if ((getGameMetadata().characters as Record<string, unknown>)[edit.characterId] == null) {
+            throw new Error(`set_scoring_override:队友角色 id ${edit.characterId} 不存在于游戏元数据`)
+          }
+          if ((getGameMetadata().lightCones as Record<string, unknown>)[edit.lightCone] == null) {
+            throw new Error(`set_scoring_override:队友 ${edit.characterId} 的光锥 id ${edit.lightCone} 不存在于游戏元数据`)
+          }
+          if (edit.teamRelicSet != null && !SetsRelicsNames.includes(edit.teamRelicSet as never)) {
+            throw new Error(`set_scoring_override:未知遗器套装 "${edit.teamRelicSet}" — 须为游戏内套装名(如 "Scholar Lost in Erudition")`)
+          }
+          if (edit.teamOrnamentSet != null && !SetsOrnamentsNames.includes(edit.teamOrnamentSet as never)) {
+            throw new Error(`set_scoring_override:未知饰品套装 "${edit.teamOrnamentSet}" — 须为游戏内饰品套装名(如 "Firmament Frontline: Glamoth")`)
+          }
+          // createOnCharacterModalOk:整支队伍写回覆盖(编辑那一位,其余保持)
+          nextTeam = effectiveTeam.map((teammate: Any, i: number) =>
+            i === edit.index
+              ? {
+                characterId: edit.characterId,
+                lightCone: edit.lightCone,
+                characterEidolon: edit.characterEidolon ?? 0,
+                lightConeSuperimposition: edit.lightConeSuperimposition ?? 1,
+                teamRelicSet: edit.teamRelicSet ?? undefined,
+                teamOrnamentSet: edit.teamOrnamentSet ?? undefined,
+              }
+              : { ...teammate }
+          )
+          changed.push('editTeammate')
+        }
+
+        if (configs.syncTeam === true) {
+          // ShowcaseSimScore.onSync:队伍里每位队友,角色列表有同名角色时同步
+          // 星魂/光锥/叠影(没装光锥保留原光锥与叠影);套装不受影响。
+          const synced = (nextTeam ?? effectiveTeam).map((teammate: Any) => {
+            const roster = getCharacterById(teammate.characterId as Any)
+            if (!roster) return { ...teammate }
+            return {
+              ...teammate,
+              characterEidolon: roster.form.characterEidolon ?? 0,
+              ...(roster.form.lightCone != null
+                ? { lightCone: roster.form.lightCone, lightConeSuperimposition: roster.form.lightConeSuperimposition ?? 1 }
+                : {}),
+            }
+          })
+          nextTeam = synced
+          changed.push('syncTeam')
+        }
+
+        if (nextTeam != null) {
+          useScoringStore.getState().updateScoringConfigOverride(characterId as Any, configType, {
+            teammates: nextTeam as Any,
+          })
+          useShowcaseTabStore.getState().setShowcaseTeamPreference(characterId as Any, configType, CUSTOM_TEAM)
+        }
+
+        if (configs.deprioritizeBuffs != null) {
+          if (!SCORING_CONFIG_REGISTRY[configType].supportsDeprioritizeBuffs) {
+            throw new Error('set_scoring_override:deprioritizeBuffs 只属于 DPS 评分配置(simulation 段)— 请传 configs.configType="dps"')
+          }
+          useScoringStore.getState().updateScoringConfigOverride(characterId as Any, configType, {
+            deprioritizeBuffs: configs.deprioritizeBuffs,
+          })
+          changed.push('deprioritizeBuffs')
+        }
+      }
+
+      const effectiveAfter = getScoringMetadata(characterId as Any)[metadataField] as Any
+      const teamActionRan = changed.includes('editTeammate') || changed.includes('syncTeam') || changed.includes('resetConfig')
+      configOutcome = {
+        configType: configs.configType,
+        changed,
+        teammates: (effectiveAfter?.teammates ?? []).map((t: Any) => t.characterId as string),
+        // 会话态队伍选择只在队伍动作后翻转(编辑/同步→Custom,重置→Default);
+        // 只写 deprioritizeBuffs 不动队伍选择。
+        sessionTeamPreference: teamActionRan ? (configs.resetConfig === true ? DEFAULT_TEAM : CUSTOM_TEAM) : null,
+        ...(configs.deprioritizeBuffs != null ? { deprioritizeBuffs: effectiveAfter?.deprioritizeBuffs ?? false } : {}),
+      }
     }
 
     if (reset === true) {
@@ -1180,10 +1420,12 @@ export function registerEquipmentTools(server: McpServer): void {
         ...(finalDeactivated != null
           ? { traces: { deactivated: finalDeactivated, totalNodes, expanded: traceExpanded } }
           : {}),
+        ...(configOutcome != null ? { configs: configOutcome } : {}),
       },
       `${reset === true ? '已清空' : '已更新'} ${characterId} 的评分覆盖 `
         + `(modified=${effective.modified === true},覆盖 ${override ? '存在' : '无'})`
-        + (finalDeactivated != null ? `;行迹停用 ${finalDeactivated.length}/${totalNodes} 个节点${traceExpanded ? '(已按勾选规则向下级联补全后代)' : ''}` : ''),
+        + (finalDeactivated != null ? `;行迹停用 ${finalDeactivated.length}/${totalNodes} 个节点${traceExpanded ? '(已按勾选规则向下级联补全后代)' : ''}` : '')
+        + (configOutcome != null ? `;${configOutcome.configType} 配置:${configOutcome.changed.join('+')},队伍 ${configOutcome.teammates.join(', ')}` : ''),
     )
   })
 }

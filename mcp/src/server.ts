@@ -11,9 +11,11 @@ import { registerEquipmentTools } from './domains/equipment'
 import { registerFormTools } from './domains/form'
 import { registerImportTools } from './domains/imports'
 import { registerJobsTools } from './domains/jobs'
+import { registerLeaderboardTools } from './domains/leaderboard'
 import { registerOptimizerTools } from './domains/optimizer'
 import { registerQueryTools } from './domains/query'
 import { registerRelicTools } from './domains/relics'
+import { registerScannerTools } from './domains/scanner'
 import { registerScoringTools } from './domains/scoring'
 import { registerShowcaseTools } from './domains/showcase'
 import { registerSimulationTools } from './domains/simulation'
@@ -39,9 +41,11 @@ export function createMcpServer(): McpServer {
   registerFormTools(server)
   registerImportTools(server)
   registerJobsTools(server)
+  registerLeaderboardTools(server)
   registerOptimizerTools(server)
   registerQueryTools(server)
   registerRelicTools(server)
+  registerScannerTools(server)
   registerScoringTools(server)
   registerShowcaseTools(server)
   registerSimulationTools(server)

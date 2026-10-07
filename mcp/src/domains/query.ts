@@ -15,6 +15,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { applySpdPreset } from 'lib/conditionals/evaluation/applyPresets'
 import { PartsArray } from 'lib/constants/constants'
+import { RelicScorer } from 'lib/relics/scoring/relicScorer'
 import { generateFullDefaultForm } from 'lib/simulations/utils/benchmarkForm'
 import { getGameMetadata } from 'lib/state/gameMetadata'
 import {
@@ -550,7 +551,8 @@ export function registerQueryTools(server: McpServer): void {
       + '(含 roll 反解 high/mid/low 与 addedRolls)、套装、部件、强化等级、星级、归属。'
       + '输出中的 weightScore 恒为 null:加权分仅在优化管线内部计算,主线程不维护;'
       + '存档文件可能残留网页端历史保存的 weightScore(不代表任何当前角色),不予透出。需要按角色打分用 score_relics。'
-      + '所有筛选条件为 AND 组合;可按 characterId 只看某角色装备的 6 件,可按 enhance/grade 排序,offset/limit 分页。',
+      + '所有筛选条件为 AND 组合;可按 characterId 只看某角色装备的 6 件;'
+      + 'sortBy 排序对应表格列头点击(enhance/grade/initialRolls/substatCount,以及评分列 currentScore/potentialBest——后者需 scoreBy 指定评分角色),offset/limit 分页。',
     inputSchema: {
       part: z.string().optional().describe('Filter by part: Head | Hands | Body | Feet | PlanarSphere | LinkRope'),
       set: z.string().optional().describe('Filter by set name, e.g. "Hunter of Glacial Forest"'),
@@ -561,9 +563,13 @@ export function registerQueryTools(server: McpServer): void {
       equippedBy: z.string().optional().describe('Character id the relic is equipped by, or "none" for unequipped'),
       characterId: z.string().optional().describe('Only relics equipped by this character (its up-to-6 slots); errors if the character is not loaded'),
       verified: z.boolean().optional().describe('Filter by scanner-verified flag'),
-      sortBy: z.enum(['enhance', 'grade']).optional().describe(
-        'Sort the filtered list before paging (weightScore is optimizer-pipeline-internal and always null here — not sortable; use score_relics for per-character scores)',
+      sortBy: z.enum(['enhance', 'grade', 'initialRolls', 'substatCount', 'currentScore', 'potentialBest']).optional().describe(
+        'Sort the filtered list before paging, like clicking a relics-grid column header: '
+          + 'enhance/grade/initialRolls/substatCount are intrinsic; currentScore(当前分)/potentialBest(最高潜力) '
+          + 'are the selected-character score columns and require scoreBy (any character in game metadata, 不限已拥有——遗器页左上角的评分角色)。'
+          + 'weightScore is optimizer-pipeline-internal and always null here — not sortable; per-relic score payloads use score_relics',
       ),
+      scoreBy: z.string().optional().describe('Score focus character id for sortBy=currentScore|potentialBest (relics 页的评分角色,任意角色,不限已拥有)'),
       sortDir: z.enum(['asc', 'desc']).default('desc'),
       offset: z.number().int().min(0).default(0),
       limit: z.number().int().min(1).max(500).default(100),
@@ -572,11 +578,29 @@ export function registerQueryTools(server: McpServer): void {
       total: z.number().int(),
       offset: z.number().int(),
       limit: z.number().int(),
-      sort: z.object({ by: z.enum(['enhance', 'grade']), dir: z.enum(['asc', 'desc']) }).optional(),
+      sort: z.object({
+        by: z.enum(['enhance', 'grade', 'initialRolls', 'substatCount', 'currentScore', 'potentialBest']),
+        dir: z.enum(['asc', 'desc']),
+        scoreBy: z.string().optional(),
+      }).optional(),
       relics: z.array(serializedRelicSchema),
     },
   }, async (input) => {
     runtimeContext.requireSave()
+
+    const SCORE_SORT_KEYS = ['currentScore', 'potentialBest'] as const
+    if (input.sortBy != null && (SCORE_SORT_KEYS as readonly string[]).includes(input.sortBy)) {
+      if (input.scoreBy == null) {
+        throw new Error(
+          `list_relics:sortBy=${input.sortBy} 是评分列,需要同时传 scoreBy(评分基准角色 id,任意角色不限已拥有)——或改用 enhance/grade/initialRolls/substatCount`,
+        )
+      }
+      if (characterMeta(input.scoreBy) == null) {
+        throw new Error(`list_relics:scoreBy 的角色 id ${input.scoreBy} 不在游戏元数据中`)
+      }
+    } else if (input.scoreBy != null) {
+      throw new Error('list_relics:scoreBy 只在 sortBy=currentScore|potentialBest 时使用——请同时传对应的 sortBy')
+    }
 
     let characterRelicIds: Set<string> | null = null
     if (input.characterId != null) {
@@ -606,7 +630,21 @@ export function registerQueryTools(server: McpServer): void {
     if (input.sortBy != null) {
       const sortBy = input.sortBy
       const dir = input.sortDir === 'asc' ? 1 : -1
-      matches.sort((a, b) => (a[sortBy] - b[sortBy]) * dir)
+      if (sortBy === 'currentScore' || sortBy === 'potentialBest') {
+        // 遗器页表格的评分列排序:同一 RelicScorer 对过滤后的全部遗器打分(同步,快)
+        const scorer = new RelicScorer()
+        const scoreOf = (relic: Relic) =>
+          sortBy === 'currentScore'
+            ? scorer.getCurrentRelicScore(relic, input.scoreBy as never).percentScore
+            : scorer.scoreRelicPotential(relic, input.scoreBy as never).bestPct
+        matches.sort((a, b) => (scoreOf(a) - scoreOf(b)) * dir)
+      } else if (sortBy === 'substatCount') {
+        matches.sort((a, b) => (a.substats.length - b.substats.length) * dir)
+      } else if (sortBy === 'initialRolls') {
+        matches.sort((a, b) => ((a.initialRolls ?? 3) - (b.initialRolls ?? 3)) * dir)
+      } else {
+        matches.sort((a, b) => (a[sortBy] - b[sortBy]) * dir)
+      }
     }
 
     const page = matches.slice(input.offset, input.offset + input.limit)
@@ -615,10 +653,17 @@ export function registerQueryTools(server: McpServer): void {
         total: matches.length,
         offset: input.offset,
         limit: input.limit,
-        ...(input.sortBy != null ? { sort: { by: input.sortBy, dir: input.sortDir } } : {}),
+        ...(input.sortBy != null
+          ? { sort: { by: input.sortBy, dir: input.sortDir, ...(input.scoreBy != null ? { scoreBy: input.scoreBy } : {}) } }
+          : {}),
         relics: page.map(serializeRelic),
       },
-      `${matches.length} 件遗器匹配${input.characterId ? `(角色 ${input.characterId})` : ''}; `
+      `${matches.length} 件遗器匹配${input.characterId ? `(角色 ${input.characterId})` : ''}`
+        + `${
+          input.sortBy != null
+            ? `,按 ${input.sortBy} ${input.sortDir === 'asc' ? '升' : '降'}序${input.scoreBy != null ? `(评分角色 ${input.scoreBy})` : ''}`
+            : ''
+        }; `
         + `返回第 ${input.offset} 件起的 ${page.length} 件`,
     )
   })

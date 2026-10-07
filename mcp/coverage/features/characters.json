@@ -312,16 +312,12 @@
       ],
       "runtime": "node",
       "state": { "owner": "BuildsModal 组件内的选中项", "lifecycle": "ephemeral" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["list_builds", "simulate_build"],
-        "gaps": "list_builds 只给配装的静态内容；simulate_build 与 dps_score 用的是角色当前的表单与光锥，不是配装里记录的光锥、星魂和队伍，算不出配装自己的属性与评分。",
-        "candidates": ["score_character(source=build)", "render(target=saved_build)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["list_builds", "simulate_build", "score_character"], "candidates": ["render(target=saved_build)"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["对一个光锥、星魂与当前角色不同的已存配装，返回的属性与评分和弹窗里这张展示卡上的数值一致"]
+        "cases": ["对一个光锥、星魂与当前角色不同的已存配装，返回的属性与评分和弹窗里这张展示卡上的数值一致"],
+       "tests": ["mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -466,12 +462,7 @@
       "runtime": "node",
       "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides" },
       "sideEffects": ["评分版本号递增，遗器评分与潜力缓存失效", "SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["get_scoring_metadata", "set_scoring_override"],
-        "gaps": "set_scoring_override 把 12 个副词条权重各自独立写入：只改 ATK 时 ATK% 不会跟着变，还能写出 ATK 与 ATK% 不同这种网页保存不出来的状态。",
-        "candidates": ["set_scoring_override(linkFlatAndPercent=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_scoring_metadata", "set_scoring_override"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -480,7 +471,7 @@
           "修改部位主词条候选后两边存档一致，与默认值相同的项被剪掉",
           "恢复默认后该角色在 scoringMetadataOverrides 里没有任何条目"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs"]
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -497,16 +488,12 @@
       "runtime": "node",
       "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["set_scoring_override"],
-        "gaps": "reset 只能逐个角色做，没有一次清空全部的入口。",
-        "candidates": ["set_scoring_override(resetAll=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["set_scoring_override"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["重置后两边存档的 scoringMetadataOverrides 都是空对象"]
+        "cases": ["重置后两边存档的 scoringMetadataOverrides 都是空对象"],
+       "tests": ["mcp/scripts/smoke-score.mjs"]
       }
     },
     {

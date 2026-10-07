@@ -21,12 +21,7 @@
       "conditions": "SHOWCASE_TAB 来源的遗器取自拉取到的档案而不是库存；BUILDS_MODAL 用配装记录的遗器、星魂与光锥；LEADERBOARD 强制默认肖像与 AUTO 配色、不显示 UID。getShowcaseStats 对缺失的部件按空处理。",
       "runtime": "node",
       "state": { "owner": "useCharacterStore + useRelicStore + useScoringStore（派生）", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["get_character", "score_relics"],
-        "gaps": "卡上的面板属性、副词条评分视图的套装与逐副词条 roll 汇总没有一次性读取：要分别调 get_character、score_relics、simulate_build 自行拼装，拼装口径没有和网页对过。",
-        "candidates": ["score_character(source=roster)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_character", "score_relics", "score_character"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -34,7 +29,7 @@
           "同一角色返回的面板属性与展示卡上各项数值逐项一致",
           "副词条评分视图下，逐副词条的 roll 数与卡上的 roll 汇总一致，逐件遗器评分与卡上右侧遗器分数一致"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-query.mjs"]
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -62,14 +57,15 @@
       "runtime": "node",
       "state": { "owner": "useShowcaseTabStore.showcasePreferences", "lifecycle": "persisted", "saveKey": "showcasePreferences[].scoringType" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "missing", "candidates": ["get_state(section=showcase)", "update_state(section=showcase)"] },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "切到副词条评分后，两边存档的 showcasePreferences[角色].scoringType 都是 1",
           "给一个没有治疗配置的角色写入 HEAL_SCORE，读回的生效类型回退到该角色可选项的第一项，与网页一致"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-state.mjs"]
       }
     },
     {
@@ -93,12 +89,7 @@
       "conditions": "角色需要光锥和至少一件遗器；六件齐全且全部 verified 才可能得到最高评级。基准与完美两套的搜索在 worker 里异步完成，卡片先显示占位。",
       "runtime": "node",
       "state": { "owner": "SimScoringContext（按角色与配置缓存的评测结果）", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["dps_score"],
-        "gaps": "dps_score 固定用 DPS 配置，辅助、治疗、护盾三类评分没有入口；不接受临时基准速度；只返回原始与基准两套的模拟请求，不含完美配装，也不含四套配装各自的战斗属性与逐技能伤害。",
-        "candidates": ["score_character(source=roster)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["dps_score", "score_character"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -107,7 +98,7 @@
           "对一个带治疗配置的角色，返回的治疗评分与网页切到治疗评分后的结果一致",
           "四张升级表的条目与增量和构筑分析里的表格逐行一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-equip.mjs"]
+        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -128,12 +119,7 @@
       "conditions": "LEADERBOARD 与 TEAM 来源不显示；BUILDS_MODAL 里只读并固定显示自定义队。控件的第三个选项是设置菜单，见 preview.team.reset 与 preview.team.sync。",
       "runtime": "node",
       "state": { "owner": "useShowcaseTabStore.showcaseTeamPreferenceByConfig", "lifecycle": "session" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["dps_score"],
-        "gaps": "dps_score 的 team 缺省是 default；网页在存有与默认不同的自定义队友时缺省用自定义队，两边不传参数时结果会不同。只有 DPS 配置能选队。",
-        "candidates": ["score_character(team=auto)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["dps_score", "score_character"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -141,7 +127,7 @@
           "角色存有自定义队友时，不指定队伍得到的分数与网页首次打开展示卡时一致（自定义队）",
           "显式指定默认队后得到的分数与网页切到默认队后一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -169,18 +155,15 @@
       "runtime": "node",
       "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides[].simulation.teammates（及另外三类配置的同名字段）" },
       "sideEffects": ["SaveState.delayedSave()", "该角色该配置的队伍选择变为自定义队（仅会话）", "评分版本号递增"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "自定义评分队伍现在只能随存档载入，dps_score 的说明里也写明了没有工具可以设置。",
-        "candidates": ["set_scoring_override(configs=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["set_scoring_override"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "替换第二位队友后，两边存档的 scoringMetadataOverrides[角色].simulation.teammates 一致",
           "随后以自定义队评分，分数与网页一致"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -198,15 +181,12 @@
       "runtime": "node",
       "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides[].simulation（及另外三类配置）" },
       "sideEffects": ["SaveState.delayedSave()", "队伍选择回到默认队（仅会话）"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "set_scoring_override(reset=true) 清的是该角色的全部覆盖（权重、主词条候选、行迹一并清掉），做不到只重置一类评分配置。",
-        "candidates": ["set_scoring_override(configs=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["set_scoring_override"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["重置 DPS 队伍后，存档里该角色的 simulation 覆盖消失，而副词条权重覆盖保持不变，与网页一致"]
+        "cases": ["重置 DPS 队伍后，存档里该角色的 simulation 覆盖消失，而副词条权重覆盖保持不变，与网页一致"],
+       "tests": ["mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -224,11 +204,12 @@
       "runtime": "node",
       "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides[].simulation.teammates（及另外三类配置的同名字段）" },
       "sideEffects": ["SaveState.delayedSave()", "队伍选择变为自定义队（仅会话）"],
-      "mcp": { "status": "missing", "candidates": ["set_scoring_override(configs=...)"] },
+      "mcp": { "status": "implemented", "tools": ["set_scoring_override"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["同步后三位队友的星魂、光锥、叠影与角色列表里的对应角色一致，列表里没有的队友不变，两边存档相同"]
+        "cases": ["同步后三位队友的星魂、光锥、叠影与角色列表里的对应角色一致，列表里没有的队友不变，两边存档相同"],
+       "tests": ["mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -247,14 +228,15 @@
       "runtime": "node",
       "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides[].simulation.deprioritizeBuffs" },
       "sideEffects": ["SaveState.delayedSave()", "评分版本号递增，DPS 评分重新计算"],
-      "mcp": { "status": "missing", "candidates": ["set_scoring_override(configs=...)"] },
+      "mcp": { "status": "implemented", "tools": ["set_scoring_override"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "切到副 C 后两边存档的 simulation.deprioritizeBuffs 都是 true，DPS 评分与网页一致",
           "对一个元数据标为副 C、队里没有其他输出位的角色，未覆盖时读到的生效值是 false"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -294,11 +276,12 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.showcasePreciseSpd" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "missing", "candidates": ["get_state(section=session)", "update_state(section=session)"] },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["打开后两边存档的 savedSession.global.showcasePreciseSpd 都是 true，渲染出的展示卡速度显示三位小数"]
+        "cases": ["打开后两边存档的 savedSession.global.showcasePreciseSpd 都是 true，渲染出的展示卡速度显示三位小数"],
+       "tests": ["mcp/scripts/smoke-state.mjs"]
       }
     },
     {
@@ -318,15 +301,12 @@
       "runtime": "node",
       "state": { "owner": "useShowcaseTabStore.showcaseTemporaryOptionsByCharacter", "lifecycle": "session" },
       "sideEffects": ["该角色的模拟评分重新计算"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "dps_score 调用评测时传的是空的临时选项，没有办法指定基准速度。",
-        "candidates": ["score_character(spdBenchmark=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["score_character"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["把基准速度设为某个阈值后，返回的基准速度、分数与网页在同一输入下的展示卡一致"]
+        "cases": ["把基准速度设为某个阈值后，返回的基准速度、分数与网页在同一输入下的展示卡一致"],
+       "tests": ["mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -384,11 +364,12 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.showcasePreset / showcaseDarkMode / showcaseUID / showcaseL2D" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "missing", "candidates": ["get_state(section=session)", "update_state(section=session)"] },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["逐个修改四个开关后，两边存档的 savedSession.global 对应四个键一致；渲染出的展示卡外观随之变化"]
+        "cases": ["逐个修改四个开关后，两边存档的 savedSession.global 对应四个键一致；渲染出的展示卡外观随之变化"],
+       "tests": ["mcp/scripts/smoke-state.mjs"]
       }
     },
     {
@@ -478,18 +459,15 @@
       "runtime": "node",
       "state": { "owner": "useRelicStore + useCharacterStore", "lifecycle": "persisted", "saveKey": "relics / characters[].equipped" },
       "sideEffects": ["SaveState.delayedSave()", "新增的遗器直接装备到当前角色，按全局装备行为处理原持有者"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有新增或编辑单件遗器的工具，遗器只能随扫描器、展示柜或存档整批导入。",
-        "candidates": ["upsert_relic(equippedBy=characterId)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["upsert_relic"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "给空的头部槽位新增一件遗器后，两边存档的 relics 多出同一件且 equippedBy 为该角色，角色的 equipped.Head 指向它",
           "编辑一件已装备遗器的副词条后两边存档一致"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-relics.mjs"]
       }
     },
     {
@@ -511,17 +489,12 @@
       ],
       "runtime": "node",
       "state": { "owner": "BuffsAnalysisDisplay 组件内的选中项", "lifecycle": "ephemeral" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["simulate_build"],
-        "gaps": "simulate_build(trace=true) 给的是优化器表单下的逐动作增益快照；展示卡分析的是评测用的模拟表单（评分队伍与基准条件），两者输入不同，结果不能直接对照。也不能按伤害标签过滤。",
-        "candidates": ["score_character(trace=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["simulate_build", "score_character"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["对同一角色的评测模拟，返回的某个动作的增益条目（来源、属性、数值）与增益分析里选中该动作时显示的条目一致"],
-        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -541,17 +514,12 @@
       "conditions": "只对 5 星遗器估算天数。评分权重取该角色生效的评分元数据。",
       "runtime": "node",
       "state": { "owner": "EstimatedTbpRelicsDisplay 组件内的 worker 结果", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["score_relics"],
-        "gaps": "score_relics 覆盖天数估算与潜力（includeEstTbp=true）；每件的逐副词条 roll 反解与六件合计没有输出字段——roll 数据只在 get_character/list_relics 的遗器序列化里，调用方需自行汇总。",
-        "candidates": ["score_relics(rollsSummary=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["score_relics"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["score_relics(characterId, includeEstTbp=true) 对角色已装备的六件返回的天数与潜力，和这一栏逐件显示的数值一致；补齐汇总后每件 roll 数与六件合计与网页逐件统计一致"],
-        "tests": ["mcp/scripts/smoke-equip.mjs"]
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -568,11 +536,12 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.settings", "lifecycle": "persisted", "saveKey": "settings.ShowComboDmgWarning" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "missing", "candidates": ["update_state(section=settings)"] },
+      "mcp": { "status": "implemented", "tools": ["update_state"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["关闭提示后两边存档的 settings.ShowComboDmgWarning 都是 HideV2"]
+        "cases": ["关闭提示后两边存档的 settings.ShowComboDmgWarning 都是 HideV2"],
+       "tests": ["mcp/scripts/smoke-state.mjs"]
       }
     },
     {

@@ -30,12 +30,7 @@
       "runtime": "node",
       "state": { "owner": "外部展示柜接口 + useShowcaseTabStore.availableCharacters；上次查询的 UID 在 useShowcaseTabStore.savedSession.scorerId", "lifecycle": "persisted", "saveKey": "savedSession.showcaseTab.scorerId" },
       "sideEffects": ["向展示柜代理接口发一次 GET 请求", "把 UID 写进地址栏参数", "SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["fetch_showcase"],
-        "gaps": "拉取、解析与去重和网页端同一条链路，差别有三处：UID 校验更严（只接受 9 位数字，网页端只看长度）；没有网页端两次提交间隔 10 秒的节流；不会把这次查询的 UID 记进存档，网页端下次进入展示柜页不会自动加载它。",
-        "candidates": ["fetch_showcase(remember=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["fetch_showcase"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -45,7 +40,7 @@
           "连续两次拉取之间不足 10 秒时第二次被拒绝并说明还要等多久",
           "要求记住 UID 后，导出的存档里 savedSession.showcaseTab.scorerId 等于该 UID"
         ],
-        "tests": ["mcp/scripts/smoke-imports.mjs"]
+        "tests": ["mcp/scripts/smoke-imports.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -65,12 +60,7 @@
       "conditions": "这里的展示卡显示 UID（可在展示设置里关闭），不能换装备的遗器。",
       "runtime": "node",
       "state": { "owner": "useShowcaseTabStore.selectedIndex", "lifecycle": "session" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["fetch_showcase"],
-        "gaps": "fetch_showcase 只返回每个角色的摘要。对还没导入存档的展示柜角色，算不了遗器评分、属性汇总和 DPS 评分，要先用 import_showcase 导入才能调用 score_relics、dps_score。",
-        "candidates": ["score_character(source=showcase)", "render(target=character_card)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["fetch_showcase", "score_character"], "candidates": ["render(target=character_card)"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -78,7 +68,7 @@
           "不导入的情况下，对展示柜里某个角色算出的遗器评分、属性汇总与 DPS 评分，与网页端该角色展示卡上的数值一致",
           "算完之后存档里的角色与遗器没有任何变化"
         ],
-        "tests": ["mcp/scripts/smoke-imports.mjs"]
+        "tests": ["mcp/scripts/smoke-imports.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -138,11 +128,7 @@
       "conditions": "没选角色或没选光锥时提示并不替换。同一个角色可以出现在多个位置。预设名单随游戏版本手工维护，元数据里不存在的角色不显示。",
       "runtime": "node",
       "state": { "owner": "useShowcaseTabStore.availableCharacters[selectedIndex]", "lifecycle": "session" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有「拿一套遗器换一个角色和光锥来评分」的入口；simulate_build 与 dps_score 都要求角色已在存档里并使用它保存的表单。",
-        "candidates": ["score_character(source=showcase, override=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["score_character"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -150,7 +136,8 @@
           "把展示柜里某个角色换成另一个角色与光锥后，算出的属性汇总、遗器评分与 DPS 评分和网页端替换后的展示卡一致",
           "缺角色或缺光锥时被拒绝，原因与网页端的提示对应",
           "计算不改动存档，也不改动缓存里的原始档案"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -170,17 +157,14 @@
       "runtime": "node",
       "state": { "owner": "useShowcaseTabStore.savedSession.sidebarOpen", "lifecycle": "persisted", "saveKey": "savedSession.showcaseTab.sidebarOpen" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "存档里的这项界面状态读不到也改不了。",
-        "candidates": ["get_state(section=session)", "update_state(section=session)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "读到的展开状态与网页端一致；改动后网页端重新打开展示柜页按新状态显示"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-state.mjs"]
       }
     }
   ],

@@ -94,8 +94,43 @@ type ShowcaseCache = {
 let lastFetch: ShowcaseCache | null = null
 let cacheCounter = 0
 
+/**
+ * remember=true 保留的缓存条目（旧的最先淘汰）。M6-B「缓存读取/选择」：
+ * 默认行为不变（进程内只保留最近一次，import_showcase 读 lastFetch），
+ * remember 的条目额外按 cacheId 可寻址，供 score_character(source=showcase)
+ * 从历史档案里选角色而不必重新拉取。
+ */
+const rememberedCaches: ShowcaseCache[] = []
+const REMEMBERED_CACHE_LIMIT = 8
+
 function nextCacheId(): string {
   return `showcase-${++cacheCounter}-${Date.now().toString(36)}`
+}
+
+/** 按选择键取缓存：cacheId 命中 remembered 列表或最近一次；缺省返回最近一次。 */
+export function getShowcaseCache(cacheId?: string): ShowcaseCache | null {
+  if (cacheId != null) {
+    return rememberedCaches.find((cache) => cache.cacheId === cacheId)
+      ?? (lastFetch?.cacheId === cacheId ? lastFetch : null)
+  }
+  return lastFetch
+}
+
+/** 缓存清单（fetch_showcase 的选择键列表）。 */
+export function listShowcaseCaches(): Array<{ cacheId: string, uid: string | null, source: ShowcaseSource, fetchedAt: number, characterCount: number }> {
+  const latest = lastFetch
+  return [
+    ...rememberedCaches.map((cache) => ({
+      cacheId: cache.cacheId,
+      uid: cache.uid,
+      source: cache.source,
+      fetchedAt: cache.fetchedAt,
+      characterCount: cache.characters.length,
+    })),
+    ...(latest != null && !rememberedCaches.some((cache) => cache.cacheId === latest.cacheId)
+      ? [{ cacheId: latest.cacheId, uid: latest.uid, source: latest.source, fetchedAt: latest.fetchedAt, characterCount: latest.characters.length }]
+      : []),
+  ]
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -236,22 +271,37 @@ export function registerShowcaseTools(server: McpServer): void {
     description: '按 UID 拉取玩家展示柜档案——对应网页端 Showcase(展示)页签输入 UID 后点提交:'
       + '调用同一个上游代理端点(/profile/{uid}),按返回数据的 source 字段(enka|mihomo)选择解析器,'
       + '经 CharacterConverter 转换并按角色去重(同一角色可能同时出现在支援位与展示位)。'
-      + '本工具只拉取与缓存,不改动存档;返回角色摘要(名称/命途/属性/等级/星魂/光锥/已穿遗器概览),'
-      + '成功结果缓存在进程内(返回 cacheId),随后用 import_showcase 导入当前存档。'
+      + '本工具只拉取与缓存,不改动存档(remember 除外,见下);返回角色摘要(名称/命途/属性/等级/星魂/光锥/已穿遗器概览),'
+      + '成功结果缓存在进程内(返回 cacheId),随后用 import_showcase 导入当前存档、score_character(source=showcase) 直接评分。'
       + '展示柜数据由 enka/mihomo 扫描器维护:从未被扫描的 UID 会得到空档案,游戏内未公开展示信息则查不到。'
-      + '超时与 HTTP 错误以结构化中文错误返回(type + message + hint),不会抛异常。',
+      + '超时与 HTTP 错误以结构化中文错误返回(type + message + hint),不会抛异常。'
+      + 'uid 与 json 二选一:json 内联传入同一格式的 showcase 响应(零网络,走同一条校验与转换链,适合重放/测试)。'
+      + '刷新 = 对同一 UID 再次调用(没有网页端的 10 秒节流)。'
+      + 'remember=true 对应网页端「记住上次查询的 UID」:把 UID 写进存档的 savedSession.showcaseTab.scorerId'
+      + '(需要已载入存档),同时把这份缓存保留在进程内供后续按 cacheId 选用(否则只保留最近一次);返回的 cached 列表即缓存清单/选择键。',
     inputSchema: {
-      uid: z.string().describe('游戏内 UID(仅接受 9 位数字——比网页端更严,网页端展示页签只校验长度)'),
+      uid: z.string().optional().describe('游戏内 UID(仅接受 9 位数字——比网页端更严;与 json 二选一)'),
+      json: z.unknown().optional().describe('内联 showcase 原始响应({source:"enka"|"mihomo", detailInfo:{…}});与 uid 二选一,零网络'),
       source: z.enum(['enka', 'mihomo']).optional().describe(
         '期望的数据源;不传则按上游逻辑由响应的 source 字段决定;传入且与实际返回不一致时返回 source_mismatch 结构化错误(该次结果不写缓存)',
       ),
+      remember: z.boolean().default(false).describe('记住本次档案:UID 写入存档会话项 + 缓存保留在进程内按 cacheId 可选(默认只保留最近一次)'),
       includeRaw: z.boolean().default(false).describe('返回中附带上游原始 JSON 响应(可能很大,一般仅在排障时开启)'),
       timeoutMs: z.number().int().min(1_000).max(120_000).default(DEFAULT_TIMEOUT_MS).describe('网络超时毫秒数(默认 30000)'),
     },
     // 拉取成功与结构化失败两种形状:status/uid 恒有,其余字段按分支 .optional()
     outputSchema: {
       status: z.enum(['ok', 'error']),
-      uid: z.string(),
+      uid: z.string().nullable(),
+      dataOrigin: z.enum(['network', 'inline']).optional(),
+      remembered: z.boolean().optional(),
+      cached: z.array(z.object({
+        cacheId: z.string(),
+        uid: z.string().nullable(),
+        source: z.enum(['enka', 'mihomo']),
+        fetchedAt: z.number(),
+        characterCount: z.number().int(),
+      })).optional(),
       cacheId: z.string().optional(),
       source: z.enum(['enka', 'mihomo']).optional(),
       fetchedAt: z.number().optional(),
@@ -291,61 +341,104 @@ export function registerShowcaseTools(server: McpServer): void {
         hint: z.string().optional(),
       }).optional(),
     },
-  }, async ({ uid, source, includeRaw, timeoutMs }) => {
+  }, async ({ uid, json, source, remember, includeRaw, timeoutMs }) => {
     runtimeContext.ensureMetadataReady()
 
-    const trimmed = uid.trim()
-    if (!UID_PATTERN.test(trimmed)) {
-      throw new Error(`无效的 UID:「${trimmed}」——需要 9 位数字(比网页端更严:网页端只校验长度,本工具仅接受 9 位数字)`)
-    }
-
-    let response: Response
-    try {
-      // Same request shape as submitForm: plain GET, no extra headers
-      response = await fetch(`${SHOWCASE_API_ENDPOINT}/profile/${trimmed}`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-    } catch (e) {
-      const name = (e as Error)?.name
-      if (name === 'TimeoutError' || name === 'AbortError') {
-        return fetchError(trimmed, 'timeout', `请求超过 ${timeoutMs}ms 未完成`, '上游代理冷启动可能较慢,可增大 timeoutMs 后重试')
+    // 载荷归一化:uid(网络)与 json(内联)二选一,同一条 source 校验 + 转换链。
+    // 网络路径的数据问题保持结构化错误(不抛异常);内联 json 是调用方自己的
+    // 载荷,问题直接抛中文错误(与 import_showcase 的 json 分支一致)。
+    let parsed: Record<string, unknown> | undefined
+    let trimmed: string | null
+    const dataOrigin: 'network' | 'inline' = json != null ? 'inline' : 'network'
+    if (json != null) {
+      if (uid != null) {
+        throw new Error('fetch_showcase:uid 与 json 二选一 — 内联数据不走网络,不需要 UID')
       }
-      return fetchError(trimmed, 'network', `网络请求失败:${(e as Error)?.message ?? String(e)}`, '请检查服务器网络出口能否访问该上游端点(us-west-2)')
+      if (!isRecord(json)) {
+        throw new Error('json 必须是 showcase API 响应对象({source, detailInfo})')
+      }
+      parsed = json
+      trimmed = null
+    } else {
+      if (uid == null) {
+        throw new Error('fetch_showcase:请提供 uid(9 位数字)或内联 json 数据(二选一)')
+      }
+      trimmed = uid.trim()
+      if (!UID_PATTERN.test(trimmed)) {
+        throw new Error(`无效的 UID:「${trimmed}」——需要 9 位数字(比网页端更严:网页端只校验长度,本工具仅接受 9 位数字)`)
+      }
     }
 
-    if (!response.ok) {
-      const hint = response.status === 404 || response.status === 400
-        ? '该 UID 暂无扫描数据:确认 UID 正确、游戏内已公开展示信息,且被 enka/mihomo 至少扫描过一次,稍后重试'
-        : '上游服务暂时不可用或限流,请稍后重试'
-      return fetchError(trimmed, 'http', `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`, hint)
+    if (dataOrigin === 'inline') {
+      const inline = json as Record<string, unknown>
+      if (inline.source !== 'enka' && inline.source !== 'mihomo') {
+        throw new Error(`json 的数据源字段必须是 "enka" 或 "mihomo"(实际为 ${String(inline.source)})`)
+      }
+      if (source != null && inline.source !== source) {
+        throw new Error(`期望数据源 ${source},json 实际为 ${inline.source}`)
+      }
     }
 
-    let parsed: unknown
-    try {
-      parsed = await response.json()
-    } catch (e) {
-      return fetchError(trimmed, 'invalid_response', `响应不是合法 JSON:${(e as Error)?.message ?? String(e)}`)
+    if (dataOrigin === 'network') {
+      const uidValue = trimmed!
+      let response: Response
+      try {
+        // Same request shape as submitForm: plain GET, no extra headers
+        response = await fetch(`${SHOWCASE_API_ENDPOINT}/profile/${uidValue}`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(timeoutMs),
+        })
+      } catch (e) {
+        const name = (e as Error)?.name
+        if (name === 'TimeoutError' || name === 'AbortError') {
+          return fetchError(uidValue, 'timeout', `请求超过 ${timeoutMs}ms 未完成`, '上游代理冷启动可能较慢,可增大 timeoutMs 后重试')
+        }
+        return fetchError(uidValue, 'network', `网络请求失败:${(e as Error)?.message ?? String(e)}`, '请检查服务器网络出口能否访问该上游端点(us-west-2)')
+      }
+
+      if (!response.ok) {
+        const hint = response.status === 404 || response.status === 400
+          ? '该 UID 暂无扫描数据:确认 UID 正确、游戏内已公开展示信息,且被 enka/mihomo 至少扫描过一次,稍后重试'
+          : '上游服务暂时不可用或限流,请稍后重试'
+        return fetchError(uidValue, 'http', `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`, hint)
+      }
+
+      let body: unknown
+      try {
+        body = await response.json()
+      } catch (e) {
+        return fetchError(uidValue, 'invalid_response', `响应不是合法 JSON:${(e as Error)?.message ?? String(e)}`)
+      }
+      if (!isRecord(body)) {
+        return fetchError(uidValue, 'invalid_response', `响应不是 JSON 对象(实际为 ${body === null ? 'null' : typeof body})`)
+      }
+      if (body.source !== 'enka' && body.source !== 'mihomo') {
+        return fetchError(
+          uidValue,
+          'unsupported_source',
+          `上游返回了未知数据源:${String(body.source)}`,
+          '该端点应返回 source 为 "enka" 或 "mihomo" 的数据;持续出现请上报',
+        )
+      }
+      if (source != null && body.source !== source) {
+        return fetchError(
+          uidValue,
+          'source_mismatch',
+          `期望数据源 ${source},实际返回 ${body.source}`,
+          `去掉 source 参数重试即可使用这份 ${body.source} 数据(不匹配的结果不写缓存)`,
+        )
+      }
+      parsed = body
     }
-    if (!isRecord(parsed)) {
-      return fetchError(trimmed, 'invalid_response', `响应不是 JSON 对象(实际为 ${parsed === null ? 'null' : typeof parsed})`)
+
+    // tsgo's definite-assignment analysis can't see through the await-heavy
+    // network block above (every path in it either returns or assigns), so
+    // narrow explicitly. Genuinely unreachable: inline assigns before the
+    // network block, network assigns-or-returns inside it.
+    if (parsed == null) {
+      throw new Error('fetch_showcase: 内部错误 — inline/network 分支都未解析出响应对象')
     }
-    if (parsed.source !== 'enka' && parsed.source !== 'mihomo') {
-      return fetchError(
-        trimmed,
-        'unsupported_source',
-        `上游返回了未知数据源:${String(parsed.source)}`,
-        '该端点应返回 source 为 "enka" 或 "mihomo" 的数据;持续出现请上报',
-      )
-    }
-    if (source != null && parsed.source !== source) {
-      return fetchError(
-        trimmed,
-        'source_mismatch',
-        `期望数据源 ${source},实际返回 ${parsed.source}`,
-        `去掉 source 参数重试即可使用这份 ${parsed.source} 数据(不匹配的结果不写缓存)`,
-      )
-    }
+    const payload: Record<string, unknown> = parsed
 
     // A source-validated payload the upstream processors/converter reject (e.g.
     // {source:"mihomo"} without detailInfo — an empty/half-scanned profile) must
@@ -354,16 +447,32 @@ export function registerShowcaseTools(server: McpServer): void {
     try {
       converted = convertShowcaseResponse(parsed)
     } catch (e) {
+      if (dataOrigin === 'inline') {
+        throw new Error(`json 转换失败:${(e as Error).message}`)
+      }
       return fetchError(
-        trimmed,
+        trimmed!,
         'invalid_response',
-        `数据源 ${String(parsed.source)} 的响应结构无法解析:${(e as Error)?.message ?? String(e)}`,
+        `数据源 ${String(payload.source)} 的响应结构无法解析:${(e as Error)?.message ?? String(e)}`,
         '空档案或半扫描档案是现实输入:稍后重试,或去掉 source 参数改由响应自证数据源',
       )
     }
     const { source: resolvedSource, characters, rawCharacters } = converted
     if (characters.length === 0) {
-      return fetchError(trimmed, 'empty_profile', '档案中没有任何角色', '展示柜为空或该 UID 从未被扫描过;可在游戏内更新展示柜后稍后重试')
+      if (dataOrigin === 'inline') {
+        throw new Error('json 中没有任何角色(展示柜为空?)')
+      }
+      return fetchError(trimmed!, 'empty_profile', '档案中没有任何角色', '展示柜为空或该 UID 从未被扫描过;可在游戏内更新展示柜后稍后重试')
+    }
+
+    // remember:网页端「记住上次查询的 UID」——savedSession.showcaseTab.scorerId
+    // 随存档落盘(initializeShowcaseOnMount 据此自动重拉)。需要已载入存档。
+    if (remember === true && dataOrigin === 'network') {
+      if (runtimeContext.getSave() == null) {
+        throw new Error('fetch_showcase:remember=true 需要已载入存档(记住的 UID 写进存档的 savedSession.showcaseTab.scorerId)——先 load_save,或去掉 remember')
+      }
+      useShowcaseTabStore.getState().setScorerId(trimmed!)
+      runtimeContext.markDirty()
     }
 
     lastFetch = {
@@ -373,24 +482,32 @@ export function registerShowcaseTools(server: McpServer): void {
       fetchedAt: Date.now(),
       characters,
       rawCharacters,
-      raw: parsed,
+      raw: payload,
+    }
+    if (remember === true) {
+      rememberedCaches.push(lastFetch)
+      if (rememberedCaches.length > REMEMBERED_CACHE_LIMIT) rememberedCaches.shift()
     }
 
     const overviews = characters.map((character, i) => characterOverview(character, rawCharacters[i]))
     return toolResult(
       {
         status: 'ok',
+        dataOrigin,
+        ...(remember === true ? { remembered: true } : {}),
+        ...(remember === true ? { cached: listShowcaseCaches() } : {}),
         cacheId: lastFetch.cacheId,
         uid: trimmed,
         source: resolvedSource,
         fetchedAt: lastFetch.fetchedAt,
         characterCount: characters.length,
         characters: overviews,
-        ...(includeRaw ? { raw: parsed } : {}),
+        ...(includeRaw ? { raw: payload } : {}),
       },
-      `已拉取 ${trimmed}(${resolvedSource})的展示柜:${characters.length} 个角色,`
+      `已${dataOrigin === 'inline' ? '载入内联' : `拉取 ${trimmed}`}(${resolvedSource})的展示柜:${characters.length} 个角色,`
         + `共装备 ${overviews.reduce((count, c) => count + c.equippedCount, 0)} 件遗器;`
-        + `缓存标识 ${lastFetch.cacheId},可用 import_showcase 导入`,
+        + `缓存标识 ${lastFetch.cacheId},可用 import_showcase 导入或 score_character(source=showcase) 评分`
+        + (remember === true ? '(已记住,可按 cacheId 选用)' : ''),
     )
   })
 

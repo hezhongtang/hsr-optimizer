@@ -22,11 +22,7 @@
       "runtime": "node",
       "state": { "owner": "leaderboardDataLoader 的模块级缓存 + useLeaderboardTabStore", "lifecycle": "session" },
       "sideEffects": ["向站点所在域名发起两次只读下载"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "MCP 没有任何排行榜入口。上游加载函数按网页自身所在地址拼出文件路径，在 Node 里解析不到线上地址，需要自带一份按线上地址下载的实现。",
-        "candidates": ["leaderboard(view=characters)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["leaderboard"], "candidates": ["leaderboard(view=characters)"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -34,7 +30,8 @@
           "下载并解压后得到的角色数、每个角色的最高分和参与人数与网页端角色列表一致",
           "同一会话内多次查询只下载一次",
           "下载失败时返回明确的错误，而不是空榜单"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-leaderboard.mjs"]
       }
     },
     {
@@ -60,11 +57,7 @@
       "conditions": "公开展示人数只统计分数不低于 150% 的玩家，最多显示 100。搜索词和标签只在组件里保留，离开页面即清空。",
       "runtime": "node",
       "state": { "owner": "useLeaderboardTabStore.availableCharacters / topScores / totalEntries；搜索与标签是 CharacterListPanel 的本地状态", "lifecycle": "derived" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有入口列出上榜角色及其最高分和人数。",
-        "candidates": ["leaderboard(view=characters)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["leaderboard"], "candidates": ["leaderboard(view=characters)"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -72,7 +65,8 @@
           "返回的角色顺序、最高分（保留一位小数、向下截断）和人数与网页端列表逐行一致",
           "按评分类型筛选后的角色集合与网页端点对应标签后一致",
           "未开榜的角色单独标出，与网页端「数据不足」一组一致"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-leaderboard.mjs"]
       }
     },
     {
@@ -99,11 +93,7 @@
       "conditions": "线上站点只显示分数不低于 150% 的配装；本地开发地址下不做这条过滤，「数据不足」的角色也能点开。同分时按配装编号排序。进入榜单后没有切换评分类型的控件，要换类型得回到角色列表改标签再进。",
       "runtime": "node",
       "state": { "owner": "useLeaderboardTabStore.selectedCharacterId / activeConfigType / visibleEntries", "lifecycle": "session" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有入口读取某个角色的榜单。",
-        "candidates": ["leaderboard(view=board)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["leaderboard"], "candidates": ["leaderboard(view=board)"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -111,7 +101,8 @@
           "同一角色、同一评分类型下返回的名次、分数、星魂、叠影、光锥和队友与网页端名次列表逐行一致",
           "不指定评分类型时取到的类型与网页端直接点该角色时一致",
           "结果不超过 100 行，且不含分数低于 150% 的配装"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-leaderboard.mjs"]
       }
     },
     {
@@ -136,11 +127,7 @@
       "conditions": "星魂筛选在取前 100 名之后进行，名次数字保持筛选前的总名次，所以筛选后的名次可能不连续，行数也可能远少于 100。",
       "runtime": "node",
       "state": { "owner": "useLeaderboardTabStore.activeTeamId / filterCharacterEidolon", "lifecycle": "session" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有入口按队伍或星魂档位读取榜单，也没有入口列出某个角色有哪些参评队伍。",
-        "candidates": ["leaderboard(view=board)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["leaderboard"], "candidates": ["leaderboard(view=board)"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -148,7 +135,8 @@
           "指定队伍后返回的行和名次与网页端选中该队伍后一致",
           "指定星魂档位后返回的行与网页端一致，名次保持筛选前的数字",
           "返回的可选队伍列表（队友与顺序）与网页端下拉面板一致"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-leaderboard.mjs"]
       }
     },
     {
@@ -174,11 +162,7 @@
       "conditions": "链接里的配装已不在榜上时不选中任何配装。配装只在自己的队伍榜上够得着名次时，落在那支队伍的榜单上。",
       "runtime": "node",
       "state": { "owner": "useLeaderboardTabStore.selectedBuildId / selectedEntry / expandedCharacter + 地址栏的 b 参数", "lifecycle": "session" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有入口按配装编号取出上榜配装的遗器、光锥、队伍和记录的分数，也不能对它生成角色卡或做评分分析。",
-        "candidates": ["leaderboard(view=entry)", "score_character(source=leaderboard)", "render(target=character_card)"]
-      },
+      "mcp": { "status": "partial", "tools": ["leaderboard"], "gaps": "榜单条目的配装数据已可读(view=entry);对榜单配装的本地评分重算与角色卡渲染未实现(M7/后续)。", "candidates": ["score_character(source=leaderboard)", "render(target=character_card)"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -187,7 +171,8 @@
           "返回的分数是榜单记录的数值，不随本地评分设置变化",
           "返回结果指明这套配装所在的榜单是全部队伍还是某支队伍，与网页端落到的榜单一致",
           "配装编号不在榜上时返回明确的未找到"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-leaderboard.mjs"]
       }
     },
     {
@@ -207,11 +192,7 @@
       "conditions": "格式不合法的动态条目被丢弃。涨幅从 150% 起算：上一次分数低于 150% 时按 150% 计。时间不足一小时显示为一小时前，满 24 小时后按天显示。",
       "runtime": "node",
       "state": { "owner": "useLeaderboardTabStore.timelineEvents", "lifecycle": "session" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有入口读取排行榜动态。",
-        "candidates": ["leaderboard(view=timeline)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["leaderboard"], "candidates": ["leaderboard(view=timeline)"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -219,7 +200,8 @@
           "返回的动态条目（角色、评分类型、名次、分数、涨幅、是否新开榜）与网页端列表逐条一致，顺序相同",
           "每条动态带配装编号，可以直接用来读取配装详情",
           "动态文件不可用时返回空列表并说明原因"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-leaderboard.mjs"]
       }
     },
     {
@@ -242,11 +224,7 @@
       "conditions": "没有记住 UID 时提示找不到已保存的 UID；UID 不是 9 位数字时提示无效；榜单数据不可用时提示暂不可用；查到零条时整张卡片不显示。",
       "runtime": "node",
       "state": { "owner": "LeaderboardUserRanksCard 的本地状态，依赖 useShowcaseTabStore.savedSession.scorerId", "lifecycle": "derived" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有入口按 UID 查询上榜名次。",
-        "candidates": ["leaderboard(view=my_ranks)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["leaderboard"], "candidates": ["leaderboard(view=my_ranks)"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -254,7 +232,8 @@
           "同一 UID 返回的名次、角色、评分类型、分数和是否为队伍内名次与网页端卡片一致",
           "不传 UID 时使用存档里展示柜页记住的 UID，没有则返回需要 UID 的提示",
           "查询过程不产生任何带 UID 的网络请求"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-leaderboard.mjs"]
       }
     }
   ]

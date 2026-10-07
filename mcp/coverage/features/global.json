@@ -196,18 +196,15 @@
       "conditions": "测试站（BASE_PATH 为 BETA）额外列出未完成的语言并带 WIP 标记；aa_ER 是 Crowdin 行内翻译伪语言，只在测试站出现，切入切出时启动/停止 window.jipt。",
       "runtime": "node",
       "state": { "owner": "i18next（由 LanguageDetector 自行缓存，不在存档里）", "lifecycle": "session" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "MCP 输出的标签固定取 zh_CN，没有切换语言的入口；浏览器运行环境渲染的图片也需要可指定语言。",
-        "candidates": ["update_state(section=session, language=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "切到 en_US 后 describe_conditionals 等返回的标签与网页英文界面一致，切回 zh_CN 后恢复",
           "浏览器运行环境在指定语言下渲染的角色卡文字与网页同语言截图一致"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-calculators.mjs"]
       }
     },
     {
@@ -225,17 +222,12 @@
       "runtime": "node",
       "state": { "owner": "全部 store", "lifecycle": "persisted", "saveKey": "*" },
       "sideEffects": ["替换全部角色、遗器与设置", "立即 SaveState.save()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["load_save"],
-        "gaps": "load_save 能载入这份文件，但 Agent 得自己知道仓库里的样例路径，安装到仓库外后该路径不存在；没有「示例存档」这个可发现的入口。",
-        "candidates": ["load_save(sample=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["load_save"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["load_save(sample=true) 之后导出的存档与网页点击「试一试」之后的存档一致，且在仓库外的安装目录下同样可用"],
-        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/smoke-archive.mjs"]
+        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-calculators.mjs"]
       }
     },
     {

@@ -58,18 +58,15 @@
       "runtime": "node",
       "state": { "owner": "useAhaTuningStore", "lifecycle": "persisted", "saveKey": "ahaSpeedTuner" },
       "sideEffects": ["每次改动后延迟写盘"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "载入和保存存档时这组数值会原样带过去，但没有入口读出来或改写它；calc_aha 每次都要调用方自己给速度。",
-        "candidates": ["calc_aha(fromSaved=true)", "calc_aha(save=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["calc_aha"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "载入网页端导出的存档后，按存档取值计算得到的阿哈速度与网页端打开该面板时显示的一致",
           "写回四个队友速度和目标值后导出存档，网页端载入后面板里显示的就是这组数值"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-calculators.mjs"]
       }
     },
     {
@@ -121,11 +118,7 @@
       "conditions": "四格都填了就不出结果。目标值为空也不出结果。新队友的名次不固定：它可能排在已有队友之间，所需速度按它实际落到的名次计算。",
       "runtime": "node",
       "state": { "owner": "由 useAhaTuningStore 推导", "lifecycle": "derived" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "calc_aha 只做正向计算，没有按目标阿哈速度反解下一名队友速度的入口。",
-        "candidates": ["calc_aha(desiredAha=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["calc_aha"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -133,7 +126,8 @@
           "已有队友 180 与 135、目标 135 时返回第三名队友需要 110 速度，与网页端求解器显示的一致",
           "已填满四名队友时明确返回没有空位，而不是给出一个数",
           "当前阿哈速度已经不低于目标时标明已满足，数值与网页端一致"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-calculators.mjs"]
       }
     },
     {
@@ -163,11 +157,7 @@
       "conditions": "输入框清空后失焦会恢复成默认值。显示的概率限制在 0 到 100 之间。这组输入只在本次会话里保留，不写进存档。",
       "runtime": "node",
       "state": { "owner": "useEhrTuningStore", "lifecycle": "session" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "calc_ehr 只做反解（给目标概率求所需效果命中），没有给定效果命中求施加概率的正向计算；它的 effectHitRate 参数目前不参与任何计算。",
-        "candidates": ["calc_ehr(mode=probability)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["calc_ehr"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -175,7 +165,8 @@
           "效果命中 50、基础概率 100、效果抵抗 40、减益抵抗 0、施加 1 次时返回 90，与网页端公式一行的结果一致",
           "施加次数改为 3 时同时返回单次概率和三次内至少成功一次的概率，与网页端两个数值一致",
           "计算结果超过 100 时返回 100"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-calculators.mjs"]
       }
     },
     {
@@ -195,11 +186,7 @@
       "conditions": "当前效果命中向下取到 5 的倍数作为中心行；下界不低于 0。表里每格用的基础概率、减益抵抗和施加次数取自上面的输入。",
       "runtime": "node",
       "state": { "owner": "由 useEhrTuningStore 推导；范围是 EhrPanelContent 的本地状态", "lifecycle": "derived" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有入口一次返回整张对照表，调用方只能自己逐格计算，而正向计算本身也还没有（见 calculators.ehr.probability）。",
-        "candidates": ["calc_ehr(mode=grid)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["calc_ehr"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -207,7 +194,8 @@
           "默认输入、范围 50 时返回 21 行乘 9 列，行从 100 降到 0，各格数值与网页端表格逐格一致",
           "效果命中 52 时中心行是 50，效果抵抗 40 所在列被标为当前列",
           "范围改为 10 时只返回中心行上下各两档"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-calculators.mjs"]
       }
     },
     {

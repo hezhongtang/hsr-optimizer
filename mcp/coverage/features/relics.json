@@ -17,12 +17,7 @@
       "conditions": "评分列依赖选中角色（见 relics.focusCharacter.set）和排除列表（见 relics.potential.excludeCharacters）；评分权重变化后整表重算。没选角色时选中角色相关的列为空。",
       "runtime": "node",
       "state": { "owner": "useRelicStore + scoreRelicsAsync 的结果", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["list_relics", "score_relics"],
-        "gaps": "score_relics 只给针对一个角色的当前分、潜力与重掷期望；表格里「自定义角色集」「全部角色」两个范围的最高潜力与重掷列、重掷相对已装备遗器的差值都没有。排序只支持强化和星级，不能按分数或副词条排。list_relics 的说明把它写成优化器页左侧的遗器浏览，实际对应的是这张表。",
-        "candidates": ["score_relics(scope=selected|custom|all)", "list_relics(sortBy=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["list_relics", "score_relics"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -31,7 +26,7 @@
           "「全部角色」范围的最高潜力与表格里 potentialAllAll.bestPct 列一致",
           "按最高潜力降序返回的前 20 件与表格按该列排序后的前 20 行一致"
         ],
-        "tests": ["mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-imports.mjs"]
+        "tests": ["mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-imports.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -99,17 +94,12 @@
       ],
       "runtime": "node",
       "state": { "owner": "useRelicsTabStore.valueColumns", "lifecycle": "session" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["score_relics"],
-        "gaps": "返回的字段是固定的一组，不能点名要哪些列，而且缺的正是表格里可选的那些范围列（见 relics.grid.read）。",
-        "candidates": ["score_relics(scope=selected|custom|all)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["score_relics"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["要求返回 17 个评分列里的任意一列时，数值与表格勾选该列后显示的一致"],
-        "tests": ["mcp/scripts/smoke-equip.mjs"]
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {
@@ -329,14 +319,15 @@
       "runtime": "node",
       "state": { "owner": "useRelicLocatorStore", "lifecycle": "persisted", "saveKey": "relicLocator" },
       "sideEffects": ["关闭设置弹出层时 SaveState.delayedSave()"],
-      "mcp": { "status": "missing", "candidates": ["analyze_relic(view=location)", "update_state(section=relicsTab)"] },
+      "mcp": { "status": "implemented", "tools": ["analyze_relic"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "同一件遗器返回的行、列与是否需要套装筛选，和位置提示条显示的一致",
           "把背包宽度改为 8 后两边存档的 relicLocator.inventoryWidth 都是 8，行列随之变化"
-        ]
+        ],
+       "tests": ["mcp/scripts/smoke-analysis.mjs"]
       }
     },
     {
@@ -368,12 +359,7 @@
       "conditions": "没有选中遗器时面板为空。强化版角色（buffedCharacters）不参与。三个切换都只在会话内保留。",
       "runtime": "node",
       "state": { "owner": "useRelicsTabStore（insightsMode、insightsCharacters、bucketPotentialMode）", "lifecycle": "session" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["score_relics"],
-        "gaps": "score_relics 是「一个角色看多件遗器」；这里是反过来「一件遗器看全部角色」。现在只能对每个角色各调一次自行汇总，也没有角色范围和分桶。",
-        "candidates": ["analyze_relic(view=characters)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["score_relics", "analyze_relic"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -382,7 +368,7 @@
           "角色范围选「已拥有」时结果只含角色列表里的角色，与面板一致",
           "分桶结果里每个区间的角色集合与分桶图一致，切到平均潜力后同样一致"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs"]
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-analysis.mjs"]
       }
     }
   ]
