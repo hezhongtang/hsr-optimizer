@@ -333,10 +333,16 @@
       "surface": { "page": "IMPORT", "entry": "现有桥只单向推送扫描帧（MCP → 网页，仅 5 星遗器与装备）；完整双向同步是独立增强" },
       "kind": "external",
       "action": "本机完整状态桥：网页端增加客户端，同步角色、遗器、表单、配装、评分配置、队伍、设置、会话与媒体引用。协议含 snapshot/operation/ack/conflict/resync，操作带 sessionId、opId 与 baseRevision；去重回传，断线重连取增量或完整快照，旧版本写入明确冲突。保留现有扫描桥作为兼容通道。",
-      "upstream": [],
+      "upstream": [
+    { "file": "src/lib/sync/fullStateSyncClient.ts", "symbol": "initFullStateSync" },
+    { "file": "src/lib/sync/fullSyncTypes.ts", "symbol": "FULL_SYNC_PROTOCOL_VERSION" },
+    { "file": "src/index.tsx", "symbol": "initFullStateSync" },
+    { "file": "mcp/src/bridge/fullSyncServer.ts", "symbol": "fullSyncNotifyCommitted" },
+    { "file": "mcp/src/bridge/fullSyncProtocol.ts", "symbol": "FullSyncOp" }
+  ],
       "runtime": "node",
       "state": { "owner": "MCP 状态协调方与网页客户端（待建）", "lifecycle": "external" },
-      "mcp": { "status": "missing", "candidates": ["sync_bridge_start(bidirectional=true)"] },
+      "mcp": { "status": "implemented", "tools": ["sync_bridge_start", "sync_bridge_status", "sync_bridge_stop"] },
       "scope": "enhancement",
       "upstreamChange": "export",
       "acceptance": {
@@ -345,7 +351,8 @@
           "断线重连与服务重启后两端收敛到同一 revision",
           "切换存档不串档，原扫描桥继续可用"
         ]
-      }
+      ,
+        "tests": ["mcp/scripts/smoke-m8.mjs", "mcp/scripts/smoke-misc.mjs"]}
     }
   ]
 }

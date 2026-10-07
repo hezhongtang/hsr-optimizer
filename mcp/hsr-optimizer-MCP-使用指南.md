@@ -94,6 +94,10 @@ npm --prefix mcp run build   # 构建 MCP server → mcp/dist/
 
 MCP 可以脱离仓库运行,需要三件东西:①`mcp/dist` + `mcp/node_modules` + `mcp/package.json`(npm 依赖已完整声明全部运行时 external);②站点构建产物(`HSR_MCP_SITE_DIST` 指向);③翻译目录(`HSR_MCP_LOCALES_DIR` 指向站点产物内的 `locales`)。`node scripts/check-packaged.mjs` 就是这套组装+四断言(i18n/媒体渲染/GPU/重启恢复)的自动验收。
 
+## 7. 网页双向同步(M8)
+
+想让浏览器里的网页与 MCP 实时互通:①MCP 侧 `sync_bridge_start(bidirectional=true)` 取回 url;②网页控制台 `localStorage.setItem('hsr-full-sync-url', '<url>')` 后刷新(或 `__HSR_FULL_SYNC.connect(url)` 免刷新)。此后双方的角色/遗器/队伍/设置等编辑互相同步,修订冲突会弹「重载/重新应用」二选一;原扫描器单向桥照常可用。断线自动退避重连,服务重启后自动收敛到同一 revision。
+
 ## 7. 常见错误速查
 
 - `No save loaded — call load_save…`:只读工具要求先载入存档;或检查 `HSR_MCP_STATE_FILE` 是否指向了新文件(boot-load 只在文件里已有 `state` 键时恢复)。

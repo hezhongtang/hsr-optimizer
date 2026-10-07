@@ -11,7 +11,7 @@
 | global | 15 | 1 | 1 | 13 | 0 | 4 |
 | home | 2 | 0 | 0 | 2 | 0 | 0 |
 | changelog | 1 | 0 | 0 | 1 | 0 | 0 |
-| import | 13 | 1 | 0 | 12 | 0 | 0 |
+| import | 13 | 0 | 0 | 13 | 0 | 0 |
 | characters | 22 | 0 | 0 | 22 | 0 | 0 |
 | preview | 21 | 0 | 0 | 21 | 0 | 4 |
 | teams | 13 | 0 | 0 | 13 | 0 | 2 |
@@ -25,7 +25,7 @@
 | webgpu | 1 | 0 | 0 | 1 | 0 | 0 |
 | metadata | 9 | 0 | 0 | 9 | 0 | 2 |
 | shared | 2 | 0 | 0 | 2 | 0 | 3 |
-| **合计** | 185 | 5 | 1 | 179 | 0 | 21 |
+| **合计** | 185 | 4 | 1 | 180 | 0 | 21 |
 
 网站基线条目 175 个：implemented 175 · partial 0 · missing 0 · verified 0。
 
@@ -34,7 +34,7 @@
 - global.debug.consoleUtilities：implemented
 - global.state.categorizedClear：missing
 - import.bridge.push：implemented
-- import.bridge.fullSync：missing
+- import.bridge.fullSync：implemented
 - optimizer.results.history：missing
 - optimizer.run.resume：missing
 - optimizer.analysis.chartExport：missing
@@ -52,7 +52,7 @@
 - 已注册工具 61 个（被条目引用 61 个），已注册资源 11 个。
 - 候选新工具 0 个：无。
 - 候选新资源 0 个：无。
-- 需扩展参数的现有工具 10 个：`analyze_relic`、`get_results`、`leaderboard`、`optimize`、`render`、`reset_all`、`scanner`、`sync_bridge_start`、`update_state`、`warp_plan`。
+- 需扩展参数的现有工具 9 个：`analyze_relic`、`get_results`、`leaderboard`、`optimize`、`render`、`reset_all`、`scanner`、`update_state`、`warp_plan`。
 - 全部建成后工具数 61，预算 70。
 
 ## 普查对照
@@ -62,8 +62,8 @@
 | controls | 546 | 518 | 0 | 28 | 0 |
 | storeActions | 179 | 150 | 20 | 9 | 0 |
 | exports | 155 | 129 | 0 | 26 | 0 |
-| interactions | 146 | 129 | 0 | 17 | 0 |
-| persistence | 81 | 81 | 0 | 0 | 0 |
+| interactions | 151 | 134 | 0 | 17 | 0 |
+| persistence | 84 | 84 | 0 | 0 | 0 |
 
 ## 机制项
 

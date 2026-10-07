@@ -17,6 +17,10 @@ import {
 } from 'node:fs'
 import type { HsrOptimizerSaveFormat } from 'types/store'
 
+import {
+  fullSyncNotifyCommitted,
+  fullSyncNotifySaveSwapped,
+} from './bridge/fullSyncServer'
 import { bridgeNotifyChange } from './domains/bridge'
 import {
   captureSaveStores,
@@ -222,6 +226,7 @@ export const runtimeContext = {
     lastBlockedWrite = null
     saveGeneration++
     revision++
+    fullSyncNotifySaveSwapped()
   },
 
   /** Drop the loaded save entirely (load_save rollback with no previous save). */
@@ -232,6 +237,7 @@ export const runtimeContext = {
     lastBlockedWrite = null
     saveGeneration++
     revision++
+    fullSyncNotifySaveSwapped()
   },
 
   /** Generation of the currently loaded save; caches stamped with an older
@@ -457,6 +463,15 @@ export const runtimeContext = {
       bridgeNotifyChange()
     } catch (e) {
       console.error(`[mcp] bridge change notify failed: ${String(e)}`)
+    }
+    // Full-sync commit hook (M8, same clean-flush gate): broadcast the
+    // entity-level diff since the last broadcast to the bidirectional
+    // clients. Idempotent no-op while the full-sync server is not running;
+    // also never lets a push failure break the flush itself.
+    try {
+      fullSyncNotifyCommitted()
+    } catch (e) {
+      console.error(`[mcp] fullSync commit notify failed: ${String(e)}`)
     }
     return { bytes: stateString.length, path, blockedWipe }
   },

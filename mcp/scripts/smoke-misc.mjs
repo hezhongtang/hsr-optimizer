@@ -1,6 +1,8 @@
 // End-to-end smoke test for the misc tool surface:
 //   calculators (warp_plan / calc_aha / calc_ehr) + teams (list_teams /
-//   save_team) + sync bridge (sync_bridge_start/status/stop/push).
+//   save_team) + sync bridge (sync_bridge_start/status/stop/push) + the M8
+//   bidirectional full-sync bridge's tool surface (start/status/stop with
+//   bidirectional=true — protocol behavior lives in smoke-m8.mjs, task D).
 //
 // calculators: deterministic inputs, outputs compared against the upstream
 //   formulas re-implemented here from the sources (ahaCalculations.ts:7,
@@ -1088,6 +1090,88 @@ try {
     const finalStop = await callTool(client, 'sync_bridge_stop', {})
     const refusal3 = await portRefused(`ws://127.0.0.1:${port3}/ws`)
     check('final stop releases the switched port too', finalStop.wasRunning === true && refusal3.refused)
+
+    // ── 4b. full sync bridge — M8 tool surface only ──────────────────────────
+    // Protocol-level behavior (hello/welcome/snapshot/ops/conflicts/resync) is
+    // exercised end-to-end by scripts/smoke-m8.mjs (task D) against the real
+    // web client; here we only pin the tool registration surface: the
+    // bidirectional listener lifecycle, its status section, coexistence with
+    // the one-way bridge, and stop-all semantics.
+    const fsPort = randomPort()
+    const fsUrl = `ws://127.0.0.1:${fsPort}/sync`
+    const fsStarted = await callTool(client, 'sync_bridge_start', { port: fsPort, bidirectional: true })
+    check(
+      'sync_bridge_start bidirectional starts the full sync server',
+      // 161 relics: the shrinking import earlier in this section dropped one
+      // from the sample save's 162
+      fsStarted.running === true && fsStarted.alreadyRunning === false && fsStarted.bidirectional === true
+        && fsStarted.port === fsPort && fsStarted.url === fsUrl && fsStarted.clients === 0
+        && fsStarted.relics === 161 && fsStarted.characters === 8,
+      JSON.stringify({ port: fsStarted.port, url: fsStarted.url, relics: fsStarted.relics, characters: fsStarted.characters }),
+    )
+    check(
+      'bidirectional start reports the one-way bridge as not running',
+      fsStarted.archiver != null && fsStarted.archiver.running === false && fsStarted.archiver.port === null,
+      JSON.stringify(fsStarted.archiver),
+    )
+    const fsAgain = await callTool(client, 'sync_bridge_start', { port: fsPort, bidirectional: true })
+    check(
+      'sync_bridge_start bidirectional same port is idempotent',
+      fsAgain.alreadyRunning === true && fsAgain.bidirectional === true && fsAgain.port === fsPort,
+    )
+    const fsStatus = await callTool(client, 'sync_bridge_status', {})
+    check(
+      'sync_bridge_status carries a live fullSync section',
+      fsStatus.fullSync != null && fsStatus.fullSync.running === true && fsStatus.fullSync.port === fsPort
+        && fsStatus.fullSync.url === fsUrl && fsStatus.fullSync.sessions === 0
+        && Number.isInteger(fsStatus.fullSync.revision) && fsStatus.fullSync.revision >= 1
+        && Number.isInteger(fsStatus.fullSync.saveGeneration) && fsStatus.fullSync.saveGeneration >= 1
+        && fsStatus.fullSync.bufferedOps === 0,
+      JSON.stringify(fsStatus.fullSync),
+    )
+    check(
+      'sync_bridge_status one-way section unchanged while full sync runs',
+      fsStatus.running === false && fsStatus.port === null && fsStatus.saveLoaded === true,
+    )
+    const fsPort2 = randomPort()
+    const fsRestarted = await callTool(client, 'sync_bridge_start', { port: fsPort2, bidirectional: true })
+    check(
+      'sync_bridge_start bidirectional on a different port restarts the full sync server',
+      fsRestarted.running === true && fsRestarted.restarted === true && fsRestarted.bidirectional === true && fsRestarted.port === fsPort2,
+    )
+    const fsRefused = await portRefused(fsUrl)
+    check('switching the full sync port releases the old listener', fsRefused.refused, fsRefused.refused ? `code ${fsRefused.code}` : fsRefused.reason)
+
+    // coexistence: the one-way archiver bridge runs on its own port next to the
+    // full sync server, and its start result keeps the original shape (no
+    // bidirectional marker)
+    const port4 = randomPort()
+    const started4 = await callTool(client, 'sync_bridge_start', { port: port4 })
+    check(
+      'one-way bridge starts in parallel with the full sync server (original shape)',
+      started4.running === true && started4.alreadyRunning === false && started4.port === port4
+        && started4.url === `ws://127.0.0.1:${port4}/ws` && started4.bidirectional === undefined,
+    )
+    const dualStatus = await callTool(client, 'sync_bridge_status', {})
+    check(
+      'status shows both bridges live',
+      dualStatus.running === true && dualStatus.port === port4 && dualStatus.fullSync.running === true && dualStatus.fullSync.port === fsPort2,
+    )
+    const stopAll = await callTool(client, 'sync_bridge_stop', {})
+    const fsRefused2 = await portRefused(`ws://127.0.0.1:${fsPort2}/sync`)
+    const archRefused = await portRefused(`ws://127.0.0.1:${port4}/ws`)
+    check(
+      'sync_bridge_stop stops both bridges and releases both ports',
+      stopAll.stopped === true && stopAll.wasRunning === true
+        && stopAll.fullSyncStopped === true && stopAll.fullSyncWasRunning === true
+        && fsRefused2.refused && archRefused.refused,
+      `fullSync ${fsRefused2.refused ? 'refused' : fsRefused2.reason}; archiver ${archRefused.refused ? 'refused' : archRefused.reason}`,
+    )
+    const idleStatus = await callTool(client, 'sync_bridge_status', {})
+    check(
+      'status idle again after stop-all (both sections down)',
+      idleStatus.running === false && idleStatus.port === null && idleStatus.fullSync.running === false && idleStatus.fullSync.port === null,
+    )
   } finally {
     try {
       collector.ws.close()

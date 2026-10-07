@@ -5,6 +5,12 @@
 // 的实时导入功能,让它像连上真扫描器一样把数据吃进来;正式的数据回流路径仍然是
 // 网页端导出存档 → load_save。
 //
+// M8 扩展(add-only):sync_bridge_start(bidirectional=true) 启动「全量双向同步服务」
+// (bridge/fullSyncServer.ts,FullSync 协议,默认端口 23314)——网页端与 MCP 双向同步
+// 全部存档实体;sync_bridge_status 附 fullSync 子对象;sync_bridge_stop 一并停止两桥;
+// closeBridge 级联关闭全量服务(进程退出钩子只挂了本函数)。缺省(不传 bidirectional)
+// 时本文件的原单向桥行为零变化。
+//
 // 协议与上游严格同源(字段语义全部对照 src/lib/importer/kelzFormatParser.tsx):
 //   - 帧为 {event, data} JSON 文本;事件联合见 scannerStore.ts:413 ScannerEvent
 //   - 网页端客户端(ScannerWebsocketClient.tsx)不发握手:一连上(含断线重连 ——
@@ -54,6 +60,13 @@ import {
 } from 'ws'
 import { z } from 'zod'
 
+import {
+  closeFullSyncServer,
+  FULL_SYNC_DEFAULT_PORT,
+  getFullSyncStatus,
+  startFullSyncServer,
+  stopFullSyncServer,
+} from '../bridge/fullSyncServer'
 import { runtimeContext } from '../context'
 import { toolResult } from '../toolResult'
 
@@ -148,10 +161,15 @@ export function bridgeNotifyChange(): void {
 /**
  * 干净关闭监听(供 server 进程退出钩子接线,参考 mcp/src/index.ts 的退出处理)。
  * 同步尽力而为:先断开全部客户端再关监听。
+ * M8 起本函数同时终结全量同步服务(bridge/fullSyncServer.ts)——进程退出钩子只挂了
+ * 本函数,在这里级联关闭,让双向客户端也拿到干净的断开;全量服务未启动时是幂等空操作。
  */
 export function closeBridge(): void {
   const active = bridge
-  if (active == null) return
+  if (active == null) {
+    closeFullSyncServer()
+    return
+  }
   bridge = null
   for (const client of active.clients) {
     try {
@@ -167,6 +185,7 @@ export function closeBridge(): void {
     // 监听已关闭时无需处理
   }
   console.error(`[bridge] 同步桥已关闭(端口 ${active.port})`)
+  closeFullSyncServer()
 }
 
 function bridgeUrl(port: number): string {
@@ -468,69 +487,148 @@ const BEHAVIOR_NOTES = '行为:网页端一连上立即收到全量 InitialScan(
 
 export function registerBridgeTools(server: McpServer): void {
   server.registerTool('sync_bridge_start', {
-    title: '启动同步桥(推送存档到网页端)',
+    title: '启动同步桥(推送存档到网页端;可选全量双向)',
     description: '启动伪 Reliquary Archiver websocket 服务(默认端口 23313,仅监听 127.0.0.1),'
       + '把 MCP 当前载入的存档推送给网页端「导入」页的实时导入(扫描器联动)功能 —— 方向为 MCP→网页 单向便利推送。'
-      + START_GUIDE + BEHAVIOR_NOTES,
+      + START_GUIDE + BEHAVIOR_NOTES
+      + 'M8 扩展:bidirectional=true 时本调用改为启动全量双向同步服务(FullSync 协议,独立 ws 监听,默认端口 23314):'
+      + '网页端与 MCP 双向同步角色/遗器/队伍/评分覆盖/设置等全部存档实体,冲突带回执(reload/reapply 二选一)、'
+      + '断线重连按环形缓冲补发或整份快照收敛、切换存档自动推送新快照(世代隔离);返回的 url 指向该服务,'
+      + '网页端把 localStorage 键 hsr-full-sync-url 设为它即自动连接。单向桥不受影响,可在另一端口并行运行。',
     inputSchema: {
-      port: z.number().int().min(1).max(65535).default(BRIDGE_DEFAULT_PORT).describe('监听端口,默认 23313(网页端默认 Websocket 地址指向它)'),
+      port: z.number().int().min(1).max(65535).optional().describe(
+        '监听端口:单向桥默认 23313(网页端默认 Websocket 地址指向它);bidirectional=true 时默认 23314',
+      ),
+      bidirectional: z.boolean().optional().describe(
+        'true=启动全量双向同步服务(FullSync 协议,独立 ws 监听,网页端经 localStorage 键 hsr-full-sync-url 自动连接);'
+          + '缺省/false=单向 Archiver 桥(原行为不变)',
+      ),
     },
-    // 已在运行(幂等返回)与本次启动两种形状:restarted 仅新启动分支携带
+    // 已在运行(幂等返回)与本次启动两种形状:restarted 仅新启动分支携带;
+    // bidirectional 分支额外携带 bidirectional 标记与单向桥并行状态
     outputSchema: {
       running: z.boolean(),
       alreadyRunning: z.boolean(),
       restarted: z.boolean().optional(),
+      bidirectional: z.boolean().optional(),
       port: z.number().int(),
       url: z.string(),
       clients: z.number().int(),
       relics: z.number().int(),
       characters: z.number().int(),
+      archiver: z.object({
+        running: z.boolean(),
+        port: z.number().int().nullable(),
+        url: z.string().nullable(),
+        clients: z.number().int(),
+      }).optional(),
     },
-  }, async ({ port }) => {
+  }, async ({ port, bidirectional }) => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
 
+    if (bidirectional === true) {
+      // ── bidirectional: the M8 full-sync server (own listener) ─────────────
+      const fullPort = port ?? FULL_SYNC_DEFAULT_PORT
+      const current = getFullSyncStatus()
+      let restarted = false
+      if (current.running) {
+        if (current.port === fullPort) {
+          const again = getFullSyncStatus()
+          return toolResult(
+            {
+              running: true,
+              alreadyRunning: true,
+              bidirectional: true,
+              port: fullPort,
+              url: again.url ?? `ws://127.0.0.1:${fullPort}/sync`,
+              clients: again.sessions,
+              relics: getRelics().length,
+              characters: getCharacters().length,
+              archiver: {
+                running: bridge != null,
+                port: bridge?.port ?? null,
+                url: bridge != null ? bridgeUrl(bridge.port) : null,
+                clients: bridge?.clients.size ?? 0,
+              },
+            },
+            `全量同步服务已在端口 ${fullPort} 运行(在线会话 ${again.sessions} 个),无需重复启动`,
+          )
+        }
+        await stopFullSyncServer()
+        restarted = true
+      }
+      await startFullSyncServer(fullPort)
+      const started = getFullSyncStatus()
+      return toolResult(
+        {
+          running: true,
+          alreadyRunning: false,
+          restarted,
+          bidirectional: true,
+          port: fullPort,
+          url: started.url ?? `ws://127.0.0.1:${fullPort}/sync`,
+          clients: started.sessions,
+          relics: getRelics().length,
+          characters: getCharacters().length,
+          archiver: {
+            running: bridge != null,
+            port: bridge?.port ?? null,
+            url: bridge != null ? bridgeUrl(bridge.port) : null,
+            clients: bridge?.clients.size ?? 0,
+          },
+        },
+        `全量同步服务已启动:${started.url ?? `ws://127.0.0.1:${fullPort}/sync`}(协议 v1,revision ${started.revision},`
+          + `generation ${started.saveGeneration})—— 网页端把 localStorage 键 hsr-full-sync-url 设为该地址即自动连接;`
+          + '冲突都会收到回执,断线重连按环形缓冲补发,切换存档自动推送新快照',
+      )
+    }
+
+    // ── original one-way archiver bridge (unchanged behavior) ────────────────
+    const listenPort = port ?? BRIDGE_DEFAULT_PORT
     let restarted = false
     if (bridge != null) {
-      if (bridge.port === port) {
+      if (bridge.port === listenPort) {
         return toolResult(
           {
             running: true,
             alreadyRunning: true,
-            port,
-            url: bridgeUrl(port),
+            port: listenPort,
+            url: bridgeUrl(listenPort),
             clients: bridge.clients.size,
             relics: getRelics().length,
             characters: getCharacters().length,
           },
-          `同步桥已在端口 ${port} 运行(在线客户端 ${bridge.clients.size} 个),无需重复启动`,
+          `同步桥已在端口 ${listenPort} 运行(在线客户端 ${bridge.clients.size} 个),无需重复启动`,
         )
       }
       await stopBridge()
       restarted = true
     }
 
-    await startBridge(port)
+    await startBridge(listenPort)
 
     return toolResult(
       {
         running: true,
         alreadyRunning: false,
         restarted,
-        port,
-        url: bridgeUrl(port),
+        port: listenPort,
+        url: bridgeUrl(listenPort),
         clients: 0,
         relics: getRelics().length,
         characters: getCharacters().length,
       },
-      `同步桥已启动:${bridgeUrl(port)} —— 请在网页端「导入」页打开「实时导入控制」的开关(至少开启「启用实时导入」),网页端连接后即收到全量数据`,
+      `同步桥已启动:${bridgeUrl(listenPort)} —— 请在网页端「导入」页打开「实时导入控制」的开关(至少开启「启用实时导入」),网页端连接后即收到全量数据`,
     )
   })
 
   server.registerTool('sync_bridge_status', {
     title: '同步桥状态',
     description: '报告同步桥(伪 Reliquary Archiver websocket 服务)的运行状况:监听端口与地址、'
-      + '在线网页端客户端数、累计/最近一次全量推送统计、当前可推送的遗器与角色数量。',
+      + '在线网页端客户端数、累计/最近一次全量推送统计、当前可推送的遗器与角色数量。'
+      + '返回同时附 fullSync 子对象:M8 全量双向同步服务的运行状况(端口/会话数/当前 revision 与存档世代、'
+      + '环形缓冲与广播/快照/冲突计数)——未启动时 running=false,其余为当前上下文值。',
     inputSchema: {},
     outputSchema: {
       running: z.boolean(),
@@ -544,10 +642,26 @@ export function registerBridgeTools(server: McpServer): void {
       savePath: z.string().nullable(),
       relics: z.number().int(),
       characters: z.number().int(),
+      fullSync: z.object({
+        running: z.boolean(),
+        port: z.number().int().nullable(),
+        url: z.string().nullable(),
+        sessions: z.number().int(),
+        revision: z.number().int(),
+        saveGeneration: z.number().int(),
+        bufferedOps: z.number().int(),
+        broadcasts: z.number().int(),
+        snapshots: z.number().int(),
+        resyncs: z.number().int(),
+        opsApplied: z.number().int(),
+        conflicts: z.number().int(),
+        jobEvents: z.number().int(),
+      }),
     },
   }, async () => {
     const active = bridge
     const save = runtimeContext.getSave()
+    const fullSync = getFullSyncStatus()
     return toolResult(
       {
         running: active != null,
@@ -561,30 +675,45 @@ export function registerBridgeTools(server: McpServer): void {
         savePath: save?.path ?? null,
         relics: getRelics().length,
         characters: getCharacters().length,
+        fullSync,
       },
-      active
+      (active
         ? `同步桥运行中(${
           bridgeUrl(active.port)
         }):在线客户端 ${active.clients.size} 个,已推送 ${pushCount} 次,待推遗器 ${getRelics().length} 件、角色 ${getCharacters().length} 个`
-        : '同步桥未启动(调用 sync_bridge_start 启动)',
+        : '同步桥未启动(调用 sync_bridge_start 启动)')
+        + (fullSync.running
+          ? `;全量同步服务运行中(${fullSync.url},会话 ${fullSync.sessions} 个,revision ${fullSync.revision})`
+          : ';全量同步服务未启动(sync_bridge_start bidirectional=true 启动)'),
     )
   })
 
   server.registerTool('sync_bridge_stop', {
     title: '停止同步桥',
     description: '停止伪 Reliquary Archiver websocket 服务并断开所有网页端客户端 —— 对应网页端断开实时导入连接的反向操作。'
-      + '未启动时调用是幂等空操作。停止后网页端的「实时导入」会显示已断开。',
+      + '未启动时调用是幂等空操作。停止后网页端的「实时导入」会显示已断开。'
+      + 'M8 起 sync_bridge_stop 同时停止全量双向同步服务(若在运行)并断开其会话——两个桥一并关闭。',
     inputSchema: {},
     outputSchema: {
       stopped: z.boolean(),
       wasRunning: z.boolean(),
       running: z.boolean(),
+      fullSyncStopped: z.boolean().optional(),
+      fullSyncWasRunning: z.boolean().optional(),
     },
   }, async () => {
     const stopped = await stopBridge()
+    const fullStopped = await stopFullSyncServer()
     return toolResult(
-      { stopped: true, wasRunning: stopped, running: false },
-      stopped ? '同步桥已停止,所有客户端已断开' : '同步桥本就未启动(幂等)',
+      {
+        stopped: true,
+        wasRunning: stopped,
+        running: false,
+        fullSyncStopped: true,
+        fullSyncWasRunning: fullStopped,
+      },
+      (stopped ? '同步桥已停止,所有客户端已断开' : '同步桥本就未启动(幂等)')
+        + (fullStopped ? ';全量同步服务已停止,全部会话已断开' : ';全量同步服务本就未启动'),
     )
   })
 

@@ -49,7 +49,8 @@ npm run smoke:imports  # 导入 + 展示柜:union 并集语义(1+162→163)、dr
                         # 解析错误路径;showcase 全部错误路径(离线 stub fetch)+ 内联档案导入
 npm run smoke:misc     # 计算器(warp_plan/calc_aha/calc_ehr 对拍上游公式)/ teams(list/save 往返与
                         # 快照保留规则)/ 同步桥(ws 帧逐字段校验、回灌上游解析器、变更驱动重推)
-npm run smoke:all      # 依次跑全部二十九份(浏览器套件在缺 Chrome/dist 的环境自动 [SKIP];视觉回归对基线 PNG 容差比对)
+npm run smoke:m8       # M8 双向同步端到端:受管浏览器载真实站点连全量桥,六条验收(缺 Chrome/dist 自动 [SKIP])
+npm run smoke:all      # 依次跑全部三十份(浏览器套件在缺 Chrome/dist 的环境自动 [SKIP];视觉回归对基线 PNG 容差比对)
 npm run check:packaged # M9 仓库外完整安装验收:组装便携树 → 空目录启动 → i18n/媒体渲染/GPU/重启恢复断言
 ```
 
@@ -304,6 +305,14 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 - `update_state(section=showcase)`:`color/colorMode` 写入口(STANDARD 全局联动,默认色不保存)。
 - 资源:`game://metadata/characters` 增 `nameZhLong/hasSimulation/signatureLightCone`,光锥详情 `signatureOf` 反查。
 - 验收基建:coverage-check 强制 implemented 行有真实冒烟链接 + 基线分母/增强项独立报告;`smoke:visual` 视觉回归(基线 PNG 容差比对,`--update-baseline` 再生成);`check:packaged` 仓库外完整安装验收;mcp 依赖补齐至全部运行时 external(14 个,便携运行自包含)。
+
+### M8 完整状态双向同步(增强项,sync_bridge 扩展)
+
+`sync_bridge_start(bidirectional=true)` 启动全量同步桥(缺省端口 23314,`ws://127.0.0.1:<port>/sync`;原单向 Archiver 桥不受影响,status/stop 双桥联动)。网页端内置客户端:设置 `localStorage['hsr-full-sync-url']` 后自动连接(普通用户零打扰;`window.__HSR_FULL_SYNC` 提供 connect/status/事件订阅等测试接口)。
+
+- **协议**(`src/bridge/fullSyncProtocol.ts`,网页侧形状镜像):语义操作带 sessionId/opId/baseRevision——过期修订**明确冲突**回执(网页弹「重载快照/重新应用」二选一,绝不静默覆盖);断线重连按环形缓冲补增量、跨世代/重启发快照;`load_save` 切档清缓冲并推新世代快照(不串档);回声双向抑制。
+- **同步面**:角色(表单/配装/肖像随行)、遗器、队伍、评分覆盖、设置、会话、展示偏好、分区折叠、遗器页状态;优化任务生命周期事件(completed 带 resultRef)与结果行按需 `resource/fetch` 拉取。
+- 已知残余:同一防抖窗口内网页操作与无关 MCP 写合并广播时,来源会话会被整条排除到下次广播/重连收敛(代码注释在案);通知文案暂为内置英文。
 
 ### game:// 与 site:// 资源(11 项)
 

@@ -898,11 +898,11 @@ export function registerOptimizerTools(server: McpServer): void {
       throw new Error('A load_save changed the save while optimization was running — results were discarded; re-run optimize for the current save')
     }
 
-    finishJob(cacheId, run.summary.cancelled ? 'cancelled' : 'completed', {
-      searched: run.summary.searched,
-      durationMs: run.summary.durationMs,
-      rows: run.rows.length,
-    })
+    // Cache BEFORE finishJob: the completion event fans out to job listeners
+    // (jobs registry → full-sync job events with resultRef), and the ref is
+    // only meaningful once getLastOptimizeResult() holds THIS run. The old
+    // order left resultRef permanently null (finishJob fired first, the cache
+    // still held the previous run — or nothing).
     runtimeContext.cacheOptimizeResult({
       summary: {
         cacheId,
@@ -920,6 +920,12 @@ export function registerOptimizerTools(server: McpServer): void {
       displayState: state,
       generation,
       at: Date.now(),
+    })
+
+    finishJob(cacheId, run.summary.cancelled ? 'cancelled' : 'completed', {
+      searched: run.summary.searched,
+      durationMs: run.summary.durationMs,
+      rows: run.rows.length,
     })
 
     const rows = run.rows.map((row, index) => ({

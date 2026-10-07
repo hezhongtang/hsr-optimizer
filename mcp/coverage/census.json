@@ -2,17 +2,17 @@
   "schema": 1,
   "source": {
     "srcTree": "838f222f2f33b1d76b986d6eb3ab7b5f57403197",
-    "dirty": false,
-    "files": 937
+    "dirty": true,
+    "files": 939
   },
   "totals": {
     "controls": 546,
-    "interactions": 146,
+    "interactions": 151,
     "stores": 22,
     "storeActions": 179,
     "actionModules": 28,
     "actionExports": 155,
-    "persistence": 81
+    "persistence": 84
   },
   "controls": [
     {
@@ -7108,6 +7108,36 @@
       "text": "setRelicsGrid(ref: RefObject<AgGridReact<ScoredRelic> | null>) {"
     },
     {
+      "key": "src/lib/sync/fullStateSyncClient.ts#storage#1",
+      "file": "src/lib/sync/fullStateSyncClient.ts",
+      "kind": "storage",
+      "text": "const existing = localStorage.getItem(HSR_FULL_SYNC_CLIENT_KEY)"
+    },
+    {
+      "key": "src/lib/sync/fullStateSyncClient.ts#storage#2",
+      "file": "src/lib/sync/fullStateSyncClient.ts",
+      "kind": "storage",
+      "text": "localStorage.setItem(HSR_FULL_SYNC_CLIENT_KEY, created)"
+    },
+    {
+      "key": "src/lib/sync/fullStateSyncClient.ts#websocket#1",
+      "file": "src/lib/sync/fullStateSyncClient.ts",
+      "kind": "websocket",
+      "text": "ws = new WebSocket(configuredUrl)"
+    },
+    {
+      "key": "src/lib/sync/fullStateSyncClient.ts#storage#3",
+      "file": "src/lib/sync/fullStateSyncClient.ts",
+      "kind": "storage",
+      "text": "localStorage.setItem(HSR_FULL_SYNC_URL_KEY, target)"
+    },
+    {
+      "key": "src/lib/sync/fullStateSyncClient.ts#storage#4",
+      "file": "src/lib/sync/fullStateSyncClient.ts",
+      "kind": "storage",
+      "text": "return localStorage.getItem(HSR_FULL_SYNC_URL_KEY)"
+    },
+    {
       "key": "src/lib/tabs/navigation/constants.ts#storage#1",
       "file": "src/lib/tabs/navigation/constants.ts",
       "kind": "storage",
@@ -8840,6 +8870,24 @@
       "key": "src/lib/stores/newFeatureStore.ts#resetSeenFeatures#SaveState.delayedSave#1",
       "file": "src/lib/stores/newFeatureStore.ts",
       "scope": "resetSeenFeatures",
+      "call": "SaveState.delayedSave"
+    },
+    {
+      "key": "src/lib/sync/fullStateSyncClient.ts#captureNow#SaveState.save#1",
+      "file": "src/lib/sync/fullStateSyncClient.ts",
+      "scope": "captureNow",
+      "call": "SaveState.save"
+    },
+    {
+      "key": "src/lib/sync/fullStateSyncClient.ts#applyRemoteOps#SaveState.delayedSave#1",
+      "file": "src/lib/sync/fullStateSyncClient.ts",
+      "scope": "applyRemoteOps",
+      "call": "SaveState.delayedSave"
+    },
+    {
+      "key": "src/lib/sync/fullStateSyncClient.ts#applySnapshot#SaveState.delayedSave#1",
+      "file": "src/lib/sync/fullStateSyncClient.ts",
+      "scope": "applySnapshot",
       "call": "SaveState.delayedSave"
     },
     {

@@ -72,6 +72,50 @@ const MAX_JOBS = 50
 const jobs = new Map<string, JobRecord>()
 let jobSeq = 0
 
+// ─── registry change events (M8, additive) ──────────────────────────────────
+//
+// The bidirectional full-sync server (bridge/fullSyncServer.ts) subscribes to
+// these to push FullSyncJobEvent frames to its web clients; nothing else in
+// the MCP server consumes them. Callbacks are isolated (a throwing subscriber
+// never disturbs the registry) and the subscription returns its own removal.
+
+/** Snapshot of a registry transition, taken AFTER the mutation settled. */
+export type JobRegistryEvent = {
+  jobId: string,
+  kind: JobKind,
+  status: JobStatus,
+  progress: JobProgress,
+  summary: JobSummary,
+}
+
+export type JobEventCallback = (event: JobRegistryEvent) => void
+
+const jobEventCallbacks = new Set<JobEventCallback>()
+
+/** Subscribe to registry transitions; returns the unsubscribe function. */
+export function onJobEvent(callback: JobEventCallback): () => void {
+  jobEventCallbacks.add(callback)
+  return () => jobEventCallbacks.delete(callback)
+}
+
+function emitJobEvent(job: JobRecord): void {
+  if (jobEventCallbacks.size === 0) return
+  const event: JobRegistryEvent = {
+    jobId: job.jobId,
+    kind: job.kind,
+    status: job.status,
+    progress: { ...job.progress },
+    summary: { ...job.summary },
+  }
+  for (const callback of [...jobEventCallbacks]) {
+    try {
+      callback(event)
+    } catch (e) {
+      console.error(`[jobs] 任务事件回调异常(${job.jobId}): ${String(e)}`)
+    }
+  }
+}
+
 /** Fresh job id for kinds without a natural one (optimize reuses its cacheId). */
 export function nextJobId(prefix: string): string {
   return `${prefix}-${++jobSeq}-${Date.now().toString(36)}`
@@ -115,6 +159,7 @@ export function registerJob(
     summary: options.summary ?? {},
     cancel: options.cancel ?? null,
   })
+  emitJobEvent(jobs.get(jobId)!)
 }
 
 /** Merge partial progress into a RUNNING job; ended jobs ignore it. */
@@ -122,6 +167,7 @@ export function updateJobProgress(jobId: string, progress: JobProgress): void {
   const job = jobs.get(jobId)
   if (job == null || job.status !== 'running') return
   job.progress = { ...job.progress, ...progress }
+  emitJobEvent(job)
 }
 
 /** Settle a job: terminal status, endedAt, merged summary, cancel hook dropped. */
@@ -132,6 +178,7 @@ export function finishJob(jobId: string, status: JobEndStatus, summary?: JobSumm
   job.endedAt = Date.now()
   job.cancel = null
   if (summary != null) job.summary = { ...job.summary, ...summary }
+  emitJobEvent(job)
 }
 
 export function getJobRecord(jobId: string): JobRecord | null {

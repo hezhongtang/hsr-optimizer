@@ -1,4 +1,6 @@
 // This file must be a module for `declare global` to work
+import type { HsrFullSyncApi } from 'lib/sync/fullSyncTypes'
+
 export {}
 
 type Jipt = {
@@ -32,6 +34,9 @@ declare global {
 
     // Debug console access — consolidated from individual window.X exports
     __HSR_DEBUG: Record<string, unknown>
+
+    // M8 full-state sync client hook (opt-in; independent of __HSR_DEBUG)
+    __HSR_FULL_SYNC?: HsrFullSyncApi
 
     title: string
     WEBGPU_DEBUG: boolean
