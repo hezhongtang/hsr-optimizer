@@ -6,8 +6,8 @@
 
 - 语法：`^[a-z][a-z0-9_]*$`（允许数字，如 `benchmark_top100` 类命名必须可注册且被覆盖校验看见）。`coverage-check.mjs` 的注册扫描与此语法一致。
 - 风格：动词_域或域_动词（`load_save`、`equip_build`、`score_relics`），一条用户动作一个工具。
-- 合并式域工具：当一族动作天然属于同一域且参数同构时，用单工具 + 枚举切子域参数——已落地的 `section` 形态（`get_state(section=…)`/`update_state(section=…)`）与候选 `action` 形态（`scanner(action=connect|disconnect|status|events)`、`manage_team`、`update_form`、`debug_utility`）同构；新增子域优先扩枚举值而非新工具。
-- 已冻结：48 个已注册工具名（`coverage/summary.md` 工具面段落为权威清单）与 12 个候选名。新候选入册必须先落 `coverage/features/*.json` 的 `candidates` 字段，`toolBudget=70` 由 `coverage-check.mjs` 强制（当前 48+12=60）。
+- 合并式域工具：当一族动作天然属于同一域且参数同构时，用单工具 + 枚举切子域参数——已落地的 `section` 形态（`get_state(section=…)`/`update_state(section=…)`，M5 扩 `showcase` 枚举值）与已落地的 `action` 形态（`manage_team(action=load|delete|move|compose|sync_benchmarks|get)`）同构；`update_form` 采用「单工具 + 具名子载荷参数」（`patch`/`preset`/`reset`/`combo`/`teammates`/`statSimulations`/`fromBuild`/`characterId`）而非 action 枚举，因各子载荷形状异构；候选 `scanner(action=…)`、`debug_utility` 沿用 action 形态。新增子域优先扩枚举值或子载荷参数而非新工具。
+- 已冻结：52 个已注册工具名（`coverage/summary.md` 工具面段落为权威清单）与 8 个候选名。新候选入册必须先落 `coverage/features/*.json` 的 `candidates` 字段，`toolBudget=70` 由 `coverage-check.mjs` 强制（当前 52+8=60）。
 
 ## 2. 参数格式
 
@@ -18,7 +18,7 @@
 
 ## 3. 返回结构
 
-- 双通道（`src/toolResult.ts`，全工具强制）：`content` 一段中文文本摘要 + `structuredContent` 完整机器载荷；48 个工具全部声明 `outputSchema`，新增工具必须带。
+- 双通道（`src/toolResult.ts`，全工具强制）：`content` 一段中文文本摘要 + `structuredContent` 完整机器载荷；52 个工具全部声明 `outputSchema`，新增工具必须带。
 - 载荷顶层是平铺字段（`total`/`rows`/`score`…），大结果用分页或引用，不一次塞满响应。
 
 ## 4. 数值与百分比口径
@@ -41,7 +41,7 @@
 
 ## 7. 兼容策略
 
-- 已注册 48 工具的参数名、类型与默认值冻结：新行为走可选参数、显式模式（如 `warp_plan(applyPlannerMode=true)` 复刻网页 simple 行为而不改默认计算）或新工具，绝不静默改旧默认值。
+- 已注册 52 工具的参数名、类型与默认值冻结：新行为走可选参数、显式模式（如 `warp_plan(applyPlannerMode=true)` 复刻网页 simple 行为而不改默认计算）或新工具，绝不静默改旧默认值。
 - 输出只加字段不删不改语义；确需破坏性变更时新开工具名，旧工具标注弃用期。
 - 网页行为与 MCP 行为存在合理分歧时（如 save_build 的 overwrite 宽松语义），登记在对应 feature 行 `gaps`，不为复刻 UI 容错放宽 API 校验（全站覆盖计划 §4.1）。
 
@@ -52,3 +52,4 @@
 ## 9. 变更记录
 
 - **2026-10-06 M4**：注册 4 个新工具 `get_state`/`update_state`/`get_job`/`cancel_job`（44→48）；`export_save` 落地冻结时登记的候选参数 `structured=true`（只读结构化快照）；候选清单 16→12（四个 get_state 系与 get_job/cancel_job 转正、export_save(structured) 已落地移除、site://settings 改由 update_state 的 settings 分支承接后从候选移除）；§1 补 `section` 枚举先例。`save_status` 输出加 `revision`/`generation` 字段（只加字段）。
+- **2026-10-07 M5**：注册 4 个新工具 `upsert_relic`/`delete_relics`/`update_form`/`manage_team`（48→52），候选清单 12→8（四个候选名转正）。落地候选参数：`get_form(expandCombo=true)`、`default_form(spdPreset=…)`、`describe_conditionals(includeAbilities=true, includeSets=true)`、`stat_simulate(saved=true|fromCache=…|fromRelicIds=…)`（`simulations` 转 optional）、`save_team(benchmarkSnapshot=true)`、`delete_build(all=true)`、`equip_saved_build(applyScoringTeam=true)`、`set_character_rank(sortBy=effectiveSubstats)`、`set_scoring_override(traces=…)`、`update_state/get_state` 扩 `section=showcase`。§1 记录 `update_form` 的具名子载荷形态与 `manage_team` 的 action 枚举先例；manage_team 额外提供只读 `action=get`。清单 41 行转 implemented（44→85），遗留候选参数 `optimize(resultsLimit=65536)` 仍挂 `optimizer.form.target` 行。

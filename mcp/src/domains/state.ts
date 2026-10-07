@@ -17,6 +17,7 @@
 // scanner action setters) inside runtimeContext.withChange, then markDirty.
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { editShowcasePreferences } from 'lib/characterPreview/customization/showcaseCustomizationController'
 import { ShowcasePreset } from 'lib/characterPreview/debugVisualConfigStore'
 import {
   COMPUTE_ENGINE_CPU,
@@ -58,8 +59,8 @@ import { toolResult } from '../toolResult'
 
 // ─── sections ────────────────────────────────────────────────────────────────
 
-const GET_SECTIONS = ['revision', 'settings', 'session', 'flags', 'scanner'] as const
-const UPDATE_SECTIONS = ['settings', 'session', 'flags', 'scanner'] as const
+const GET_SECTIONS = ['revision', 'settings', 'session', 'flags', 'scanner', 'showcase'] as const
+const UPDATE_SECTIONS = ['settings', 'session', 'flags', 'scanner', 'showcase'] as const
 type GetSection = (typeof GET_SECTIONS)[number]
 type UpdateSection = (typeof UPDATE_SECTIONS)[number]
 
@@ -182,12 +183,23 @@ function scannerSection() {
   }
 }
 
+// 展示评分偏好(useShowcaseTabStore.showcasePreferences,SaveState.save 落盘为
+// save.showcasePreferences;角色页展示卡与组队面板槽位卡共用同一份数据)。
+function showcaseSection() {
+  const preferences = useShowcaseTabStore.getState().showcasePreferences
+  return {
+    preferences: { ...preferences },
+    count: Object.keys(preferences).length,
+  }
+}
+
 const sectionReaders: Record<GetSection, () => Record<string, unknown>> = {
   revision: revisionSection,
   settings: settingsSection,
   session: sessionSection,
   flags: flagsSection,
   scanner: scannerSection,
+  showcase: showcaseSection,
 }
 
 const sectionSummaries: Record<GetSection, (data: Record<string, unknown>) => string> = {
@@ -208,6 +220,10 @@ const sectionSummaries: Record<GetSection, (data: Record<string, unknown>) => st
     const s = data as ReturnType<typeof scannerSection>
     return `扫描器配置:websocketUrl=${s.websocketUrl}${s.customUrl ? '(自定义)' : '(默认)'},ingest=${s.ingest},ingestCharacters=${s.ingestCharacters}`
       + `,ingestOnlyExistingCharacters=${s.ingestOnlyExistingCharacters},ingestWarpResources=${s.ingestWarpResources}`
+  },
+  showcase: (data) => {
+    const s = data as ReturnType<typeof showcaseSection>
+    return `已返回 ${s.count} 个角色的展示评分偏好(showcasePreferences,与存档落盘字段一致)`
   },
 }
 
@@ -286,11 +302,17 @@ const scannerSectionSchema = z.object({
   defaultWebsocketUrl: z.string(),
 })
 
+const showcaseSectionSchema = z.object({
+  preferences: z.record(z.string(), z.unknown()),
+  count: z.number().int(),
+})
+
 const sectionEchoSchemas = {
   settings: settingsSectionSchema.optional(),
   session: sessionSectionSchema.optional(),
   flags: flagsSectionSchema.optional(),
   scanner: scannerSectionSchema.optional(),
+  showcase: showcaseSectionSchema.optional(),
 } as const
 
 // ─── patch field specs (key allowlist + per-field zod partial schemas) ──────
@@ -369,11 +391,26 @@ const flagsFieldSpecs = {
   },
 } satisfies Record<string, FieldSpec>
 
+// showcase 段写的是「单个角色的展示评分偏好」(editShowcasePreferences,
+// 组队面板槽位卡的「基准」下拉,与角色页展示卡共用):patch 必须同时携带
+// characterId + scoringType,见 validatePatch 的附加校验。
+const showcaseFieldSpecs = {
+  characterId: {
+    schema: z.string().min(1),
+    expected: '角色 id 字符串(必须存在于游戏元数据,如 "1212b1")',
+  },
+  scoringType: {
+    schema: z.nativeEnum(ScoringType),
+    expected: '评分类型枚举:0=DPS_SCORE,1=SUBSTAT_SCORE,2=NONE,3=BUFFER_SCORE,4=HEAL_SCORE,5=SHIELD_SCORE',
+  },
+} satisfies Record<string, FieldSpec>
+
 const sectionFieldSpecs: Record<UpdateSection, Record<string, FieldSpec>> = {
   settings: settingsFieldSpecs,
   session: sessionFieldSpecs,
   flags: flagsFieldSpecs,
   scanner: scannerFieldSpecs,
+  showcase: showcaseFieldSpecs,
 }
 
 function validatePatch(section: UpdateSection, patch: Record<string, unknown>): void {
@@ -395,6 +432,21 @@ function validatePatch(section: UpdateSection, patch: Record<string, unknown>): 
     if (!parsed.success) {
       throw new Error(
         `update_state(section=${section}): 字段 ${key} 的值无效 — 期望 ${spec.expected},实际收到 ${JSON.stringify(patch[key])}`,
+      )
+    }
+  }
+  // showcase 段的 patch 是「单角色偏好」:characterId 与 scoringType 必须同时
+  // 提供(characterId 单独出现没有意义),且角色必须存在于游戏元数据。
+  if (section === 'showcase') {
+    if (patch['characterId'] == null || patch['scoringType'] == null) {
+      throw new Error(
+        `update_state(section=showcase): patch 必须同时提供 characterId 与 scoringType — 该段写单个角色的展示评分偏好(组队面板槽位卡「基准」下拉,与角色页展示卡共用)`,
+      )
+    }
+    const showcaseId = patch['characterId'] as string
+    if (!getGameMetadata().characters[showcaseId as CharacterId]) {
+      throw new Error(
+        `update_state(section=showcase): 字段 characterId 的值 "${showcaseId}" 不在游戏元数据中 — 请使用有效的角色 id`,
       )
     }
   }
@@ -487,6 +539,15 @@ function applyPatch(section: UpdateSection, patch: Record<string, unknown>): voi
       useScannerState.setState(update)
       return
     }
+    case 'showcase': {
+      // editShowcasePreferences(useTeamShowcase.setSlotScoringType 与角色页
+      // 展示卡共用路径):按角色浅合并偏好并 SaveState.delayedSave;空槽位
+      // 不动作的界面约束在 MCP 侧不存在——这里直接写角色级偏好。
+      editShowcasePreferences(patch['characterId'] as CharacterId, {
+        scoringType: patch['scoringType'] as number,
+      })
+      return
+    }
   }
 }
 
@@ -501,11 +562,12 @@ export function registerStateTools(server: McpServer): void {
       + 'section=session:存档真正落盘的会话字段(savedSession:showcaseTab + global,含 sidebarCollapsed 等)与上游默认值,'
       + 'ephemeral 子对象为会话临时态(不写入存档);'
       + 'section=flags:已读特性标记 seenFeatures 数组(附当前活跃的新特性键);'
-      + 'section=scanner:扫描器接入配置六字段(ingest/ingestCharacters/ingestOnlyExistingCharacters/ingestWarpResources/websocketUrl/customUrl)。'
+      + 'section=scanner:扫描器接入配置六字段(ingest/ingestCharacters/ingestOnlyExistingCharacters/ingestWarpResources/websocketUrl/customUrl);'
+      + 'section=showcase:各角色的展示评分偏好 showcasePreferences(含 scoringType,角色页展示卡与组队面板槽位卡共用,随存档落盘)。'
       + '只读无副作用,不递增 revision。',
     inputSchema: {
       section: z.enum(GET_SECTIONS).describe(
-        '要读取的状态域:revision=修订与存档概况,settings=用户设置,session=持久化会话字段,flags=已读特性标记,scanner=扫描器接入配置',
+        '要读取的状态域:revision=修订与存档概况,settings=用户设置,session=持久化会话字段,flags=已读特性标记,scanner=扫描器接入配置,showcase=角色展示评分偏好',
       ),
     },
     outputSchema: {
@@ -524,12 +586,13 @@ export function registerStateTools(server: McpServer): void {
     title: '更新状态域字段',
     description: '按 section 覆盖更新状态字段——对应网页端设置抽屉改设置、收缩侧栏、扫描器设置等写入动作。'
       + 'patch 的键必须是该 section 的已知字段,未知键报错并列出全部合法键;'
-      + 'settings/session/scanner 按字段覆盖合并(未提及字段保持不变),flags 的 seenFeatures 为整组替换。'
+      + 'settings/session/scanner 按字段覆盖合并(未提及字段保持不变),flags 的 seenFeatures 为整组替换,'
+      + 'showcase 写单角色展示评分偏好(patch 必须同时提供 characterId + scoringType,对应组队面板槽位卡「基准」下拉,与角色页展示卡共用)。'
       + '可选 baseRevision 做乐观并发检查:与当前修订号不一致即报冲突(消息含两个修订号),需重读状态后重试。'
       + '变更经事务协调器提交:任一步失败整体回滚;成功后标记 dirty、revision 递增,由防抖写回落盘。'
       + '注意:revision 域只读不可写(枚举里没有它);scanner.customUrl 是派生标记——置 false 会把地址重置为默认,置 true 需同时在 patch 中提供自定义 websocketUrl。',
     inputSchema: {
-      section: z.enum(UPDATE_SECTIONS).describe('要更新的状态域:settings/session/flags/scanner(revision 只读,不在此列)'),
+      section: z.enum(UPDATE_SECTIONS).describe('要更新的状态域:settings/session/flags/scanner/showcase(revision 只读,不在此列)'),
       patch: z.record(z.string(), z.unknown()).describe('字段 patch 对象:键为该 section 的已知字段,值为新值(合法字段与枚举见 get_state 对应 section 的返回)'),
       baseRevision: z.number().int().optional().describe('乐观并发门:调用方读取状态时拿到的修订号;与当前不一致报冲突,需重读后重试'),
     },

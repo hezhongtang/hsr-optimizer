@@ -8,10 +8,12 @@ import { registerBridgeTools } from './domains/bridge'
 import { registerCalculatorsTools } from './domains/calculators'
 import { registerConditionalsTools } from './domains/conditionals'
 import { registerEquipmentTools } from './domains/equipment'
+import { registerFormTools } from './domains/form'
 import { registerImportTools } from './domains/imports'
 import { registerJobsTools } from './domains/jobs'
 import { registerOptimizerTools } from './domains/optimizer'
 import { registerQueryTools } from './domains/query'
+import { registerRelicTools } from './domains/relics'
 import { registerScoringTools } from './domains/scoring'
 import { registerShowcaseTools } from './domains/showcase'
 import { registerSimulationTools } from './domains/simulation'
@@ -34,10 +36,12 @@ export function createMcpServer(): McpServer {
   registerCalculatorsTools(server)
   registerConditionalsTools(server)
   registerEquipmentTools(server)
+  registerFormTools(server)
   registerImportTools(server)
   registerJobsTools(server)
   registerOptimizerTools(server)
   registerQueryTools(server)
+  registerRelicTools(server)
   registerScoringTools(server)
   registerShowcaseTools(server)
   registerSimulationTools(server)

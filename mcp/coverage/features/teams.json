@@ -26,11 +26,7 @@
       "runtime": "node",
       "state": { "owner": "useTeamShowcase 组件内的 workingTeam", "lifecycle": "ephemeral" },
       "sideEffects": ["选了未拥有的角色时把它加进角色列表（位置遵守 NewCharacterDefaultRank）并 SaveState.delayedSave()"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "MCP 没有「当前编辑的队伍」这个状态，也没有自动补位。save_team 能直接写入一支已保存队伍，但不会把缺失的角色补进角色列表。",
-        "candidates": ["manage_team(action=compose)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -38,7 +34,8 @@
           "空队伍里给第一个槽位选一个存有自定义评分队伍的角色，返回的四个槽位与网页自动补位后的结果一致",
           "选一个未拥有的角色后，两边存档的 characters 都多出该角色（默认表单、空装备）",
           "把已在第三槽的角色选进第一槽后，第三槽变空"
-        ]
+        ],
+        "tests": ["mcp/scripts/smoke-teams.mjs"]
       }
     },
     {
@@ -56,15 +53,12 @@
       "params": [{ "name": "order", "type": "number[]", "notes": "新排列里每个位置取原来的哪个槽位" }],
       "runtime": "node",
       "state": { "owner": "useTeamShowcase 组件内的 workingTeam", "lifecycle": "ephemeral" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有工作队伍状态。对已保存队伍用 save_team 改 characterIds 的顺序会丢掉基准快照，而网页拖拽后快照还在。",
-        "candidates": ["manage_team(action=compose)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["把第三槽角色换到第一槽后，该角色按主 C、原第一槽角色按副 C 评分，分数与网页拖拽后的两张卡一致"]
+        "cases": ["把第三槽角色换到第一槽后，该角色按主 C、原第一槽角色按副 C 评分，分数与网页拖拽后的两张卡一致"],
+        "tests": ["mcp/scripts/smoke-teams.mjs"]
       }
     },
     {
@@ -81,11 +75,12 @@
       "conditions": "队伍为空时按钮禁用。",
       "runtime": "node",
       "state": { "owner": "useTeamShowcase 组件内的 workingTeam", "lifecycle": "ephemeral" },
-      "mcp": { "status": "missing", "candidates": ["manage_team(action=compose)"] },
+      "mcp": { "status": "implemented", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["清空后读到的工作队伍四槽皆空、没有基准快照，已保存队伍列表不变"]
+        "cases": ["清空后读到的工作队伍四槽皆空、没有基准快照，已保存队伍列表不变"],
+        "tests": ["mcp/scripts/smoke-teams.mjs"]
       }
     },
     {
@@ -139,11 +134,12 @@
       "runtime": "node",
       "state": { "owner": "useShowcaseTabStore.showcasePreferences", "lifecycle": "persisted", "saveKey": "showcasePreferences[].scoringType" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "missing", "candidates": ["update_state(section=showcase)"] },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["在队伍面板把某槽位切到副词条评分后，两边存档里该角色的 showcasePreferences.scoringType 都是 1"]
+        "cases": ["在队伍面板把某槽位切到副词条评分后，两边存档里该角色的 showcasePreferences.scoringType 都是 1"],
+        "tests": ["mcp/scripts/smoke-teams.mjs", "mcp/scripts/smoke-state.mjs"]
       }
     },
     {
@@ -164,18 +160,15 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams[].benchmarkSnapshot" },
       "sideEffects": ["四张卡的模拟评分按新快照重算", "有对应的已保存队伍时 SaveState.delayedSave()"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "list_teams 能读出快照，但没有工具可以生成；save_team 新建的队伍不带快照，改槽位还会把已有快照丢掉。",
-        "candidates": ["manage_team(action=sync_benchmarks)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "对同一支四人队伍同步后，两边存档里该队伍的 benchmarkSnapshot.members 逐项一致（含推断出的套装）",
           "有成员没装光锥时两边都拒绝并给出同类错误"
-        ]
+        ],
+        "tests": ["mcp/scripts/smoke-teams.mjs"]
       }
     },
     {
@@ -197,12 +190,7 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["save_team"],
-        "gaps": "save_team 新建时必须显式给名字，没有网页的默认命名；新建的队伍不能带基准快照。",
-        "candidates": ["save_team(benchmarkSnapshot=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["save_team"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -210,7 +198,7 @@
           "保存同样的四槽后，两边存档的 teamShowcaseSavedTeams 末尾多出的队伍除 id 外一致",
           "带着已同步的基准保存时，两边队伍里的 benchmarkSnapshot 一致"
         ],
-        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke.mjs"]
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke.mjs", "mcp/scripts/smoke-teams.mjs"]
       }
     },
     {
@@ -254,18 +242,15 @@
       "runtime": "node",
       "state": { "owner": "useTeamShowcase 组件内的 workingTeam", "lifecycle": "ephemeral" },
       "sideEffects": ["把缺失的角色加进角色列表并 SaveState.delayedSave()"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "list_teams 能读出队伍内容，但「把缺失角色补进角色列表」这一步没有对应操作，后续对这些角色评分会因角色不存在而失败。",
-        "candidates": ["manage_team(action=load)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "载入一支含未拥有角色的队伍后，两边存档的 characters 都多出该角色，返回的四槽与网页一致",
           "队伍里有一个元数据中不存在的角色 id 时，该槽位为空且不带基准快照"
-        ]
+        ],
+        "tests": ["mcp/scripts/smoke-teams.mjs"]
       }
     },
     {
@@ -310,15 +295,12 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "save_team 只能新建和更新，建错的队伍删不掉。",
-        "candidates": ["manage_team(action=delete)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["删除一支队伍后两边存档的 teamShowcaseSavedTeams 一致，其余队伍顺序不变"]
+        "cases": ["删除一支队伍后两边存档的 teamShowcaseSavedTeams 一致，其余队伍顺序不变"],
+        "tests": ["mcp/scripts/smoke-teams.mjs"]
       }
     },
     {
@@ -340,11 +322,12 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "missing", "candidates": ["manage_team(action=move)"] },
+      "mcp": { "status": "implemented", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["把第三支队伍移到最前后，两边存档的 teamShowcaseSavedTeams 顺序一致"]
+        "cases": ["把第三支队伍移到最前后，两边存档的 teamShowcaseSavedTeams 顺序一致"],
+        "tests": ["mcp/scripts/smoke-teams.mjs"]
       }
     },
     {

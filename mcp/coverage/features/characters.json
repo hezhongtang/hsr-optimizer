@@ -73,11 +73,12 @@
       "runtime": "node",
       "state": { "owner": "useOptimizerDisplayStore.focusCharacterId", "lifecycle": "persisted", "saveKey": "savedSession.global.optimizerCharacterId" },
       "sideEffects": ["离开的角色表单被保存（详见 optimizer.character.switch）"],
-      "mcp": { "status": "missing", "candidates": ["update_state(section=session)"] },
+      "mcp": { "status": "implemented", "tools": ["update_state", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["与 optimizer.character.switch 同一用例：切换后存档里的 optimizerCharacterId 与离开角色的表单都与网页一致"]
+        "cases": ["与 optimizer.character.switch 同一用例：切换后存档里的 optimizerCharacterId 与离开角色的表单都与网页一致"],
+        "tests": ["mcp/scripts/smoke-form.mjs", "mcp/scripts/smoke-state.mjs"]
       }
     },
     {
@@ -122,16 +123,12 @@
       "runtime": "node",
       "state": { "owner": "useCharacterStore.characters（数组顺序）", "lifecycle": "persisted", "saveKey": "characters" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["set_character_rank"],
-        "gaps": "只能逐个移动角色，没有一次性按有效副词条重排的入口；Agent 自己用 score_relics 算分再逐个移动，既慢又未必与网页算法一致。",
-        "candidates": ["set_character_rank(sortBy=effectiveSubstats)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["set_character_rank"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["同一存档排序后，两边导出存档的 characters 顺序一致（含得分相同时的稳定顺序）"]
+        "cases": ["同一存档排序后，两边导出存档的 characters 顺序一致（含得分相同时的稳定顺序）"],
+        "tests": ["mcp/scripts/smoke-teams.mjs"]
       }
     },
     {
@@ -347,12 +344,7 @@
         "showcaseTeamPreferenceByConfig[角色].DPS 置为自定义（会话状态，不落盘）",
         "SaveState.delayedSave()"
       ],
-      "mcp": {
-        "status": "partial",
-        "tools": ["equip_saved_build"],
-        "gaps": "只装备遗器，不写评分队伍：网页装备带 3 名队友的配装后 DPS 评分改用配装队伍，MCP 装备后评分仍用原队伍，两边存档的 scoringMetadataOverrides 不一致。",
-        "candidates": ["equip_saved_build(applyScoringTeam=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["equip_saved_build"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -361,7 +353,7 @@
           "队友不足 3 人的配装不改评分覆盖",
           "配装遗器被他人佩戴时，Replace 与 Swap 两种设置下的归属变化与网页一致"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs"]
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-teams.mjs"]
       }
     },
     {
@@ -377,11 +369,12 @@
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore + savedSession.global.optimizerCharacterId", "lifecycle": "persisted", "saveKey": "savedSession.global.optimizerCharacterId" },
       "sideEffects": ["优化器表单被整体替换（表单本身要等下一次保存表单才写回角色）", "SaveState.delayedSave()"],
-      "mcp": { "status": "missing", "candidates": ["update_form(fromBuild=name)"] },
+      "mcp": { "status": "implemented", "tools": ["update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["载入同一配装后，get_form 返回的工作表单与网页优化器表单逐字段一致，optimizerCharacterId 指向该角色"]
+        "cases": ["载入同一配装后，get_form 返回的工作表单与网页优化器表单逐字段一致，optimizerCharacterId 指向该角色"],
+        "tests": ["mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -420,16 +413,12 @@
       "runtime": "node",
       "state": { "owner": "useCharacterStore（character.builds）", "lifecycle": "persisted", "saveKey": "characters[].builds" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["delete_build"],
-        "gaps": "只能按名称逐个删除，没有一次清空的入口。",
-        "candidates": ["delete_build(all=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["delete_build"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["清空后两边存档里该角色的 builds 都是空数组"]
+        "cases": ["清空后两边存档里该角色的 builds 都是空数组"],
+        "tests": ["mcp/scripts/smoke-teams.mjs"]
       }
     },
     {
@@ -542,13 +531,7 @@
       "runtime": "node",
       "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides[].traces.deactivated" },
       "sideEffects": ["角色基础属性随之变化，影响优化、模拟与评分", "SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["get_scoring_metadata"],
-        "resources": ["game://metadata/characters/{id}"],
-        "gaps": "行迹树的节点、前置关系和数值可以从角色详情资源读到，当前关闭了哪些节点可以从 get_scoring_metadata 的 override.traces.deactivated 读到，但没有入口写入：关闭行迹会改变所有计算结果，现在只能改存档文件再 load_save。",
-        "candidates": ["set_scoring_override(traces=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_scoring_metadata", "set_scoring_override"], "resources": ["game://metadata/characters/{id}"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -558,7 +541,7 @@
           "关闭行迹后 simulate_build 的基础属性与网页优化器里同一角色的数值一致",
           "角色详情资源返回的行迹树节点、前置关系和数值与网页抽屉里显示的树一致"
         ],
-        "tests": ["mcp/scripts/smoke-conditionals.mjs"]
+        "tests": ["mcp/scripts/smoke-conditionals.mjs", "mcp/scripts/smoke-teams.mjs"]
       }
     },
     {
@@ -597,11 +580,12 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.characterGridDensity" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "missing", "candidates": ["get_state(section=session)", "update_state(section=session)"] },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["写入 compact 后导出的存档与网页切到紧凑后的存档在该键上一致；非法取值被拒绝"]
+        "cases": ["写入 compact 后导出的存档与网页切到紧凑后的存档在该键上一致；非法取值被拒绝"],
+        "tests": ["mcp/scripts/smoke-state.mjs"]
       }
     }
   ]

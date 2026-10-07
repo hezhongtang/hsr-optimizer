@@ -18,12 +18,26 @@
 // English text outside i18n — they are passed through verbatim, same as web.
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import i18next from 'i18next'
 import { CharacterConditionalsResolver } from 'lib/conditionals/resolver/characterConditionalsResolver'
 import { getCharacterConfig } from 'lib/conditionals/resolver/characterConfigRegistry'
 import { LightConeConditionalsResolver } from 'lib/conditionals/resolver/lightConeConditionalsResolver'
 import { generateConditionalResolverMetadata } from 'lib/optimization/combo/comboInitializers'
+import { defaultSetConditionals } from 'lib/optimization/defaultForm'
+import { ConditionalSetMetadata } from 'lib/optimization/rotation/setConditionalContent'
+import {
+  AbilityKind,
+  ComboOptionsLabelMapping,
+  createAbility,
+  TurnMarker,
+} from 'lib/optimization/rotation/turnAbilityConfig'
+import {
+  SetsOrnamentsNames,
+  SetsRelicsNames,
+} from 'lib/sets/setConfigRegistry'
 import { getGameMetadata } from 'lib/state/gameMetadata'
 import { getCharacterById } from 'lib/stores/character/characterStore'
+import { toI18NVisual } from 'lib/utils/displayUtils'
 import type { CharacterId } from 'types/character'
 import type {
   ConditionalsController,
@@ -223,6 +237,66 @@ function serializeProbedConditionals(source: ConditionalSource, probe: Map<numbe
   return output
 }
 
+/**
+ * 连招技能格下拉的同源清单(TurnAbilitySelector.generateAbilityGroupedOptions):
+ * 角色声明的动作 ∪ 恒含的 SKILL/ULT,每个技能 × 四种回合标记,带 zh_CN 标签。
+ */
+function serializeAbilityOptions(characterId: string, eidolon: number) {
+  const controller = CharacterConditionalsResolver.get({
+    characterId: characterId as CharacterId,
+    characterEidolon: eidolon,
+  })
+  const declared = controller.actionDeclaration ? controller.actionDeclaration() : []
+  // SKILL 和 ULT 恒在选项里:轮次代表完整角色回合(含增益技/变身终结技)
+  const alwaysIncludedKinds: string[] = [AbilityKind.SKILL, AbilityKind.ULT]
+  const actions = [...new Set([...declared, ...alwaysIncludedKinds])]
+
+  const t = i18next.getFixedT(null, 'optimizerTab', 'ComboFilter')
+  const groups = actions.map((kind) => {
+    const options = Object.values(TurnMarker).map((marker) => {
+      const ability = createAbility(kind, marker)
+      return {
+        name: ability.name,
+        label: toI18NVisual(ability, t as never),
+        marker: String(marker),
+      }
+    })
+    return {
+      kind: String(kind),
+      label: String(t(`ComboOptions.${ComboOptionsLabelMapping[kind as keyof typeof ComboOptionsLabelMapping]}`)),
+      options,
+    }
+  })
+  return { groups, includedKinds: actions.map(String), alwaysIncludedKinds }
+}
+
+/** 套装条件抽屉的同源清单(setConfigRegistry 的 display 定义 + zh_CN 选项标签)。 */
+function serializeSetConditionals() {
+  const relicNames = new Set<string>(SetsRelicsNames)
+  const t = i18next.getFixedT(null, 'optimizerTab', 'SetConditionals.SelectOptions')
+  const entries = Object.entries(ConditionalSetMetadata)
+    .map(([setName, metadata]) => ({
+      set: setName,
+      kind: (relicNames.has(setName) ? 'relic' : 'ornament') as 'relic' | 'ornament',
+      type: metadata.type as 'boolean' | 'number' | 'select',
+      modifiable: metadata.modifiable === true,
+      defaultValue: (defaultSetConditionals as Record<string, [undefined, boolean | number] | undefined>)[setName]?.[1] ?? false,
+      options: metadata.selectionOptions
+        ? (metadata.selectionOptions(t as never) ?? []).map((option) => ({
+          value: option.value,
+          label: option.label,
+          display: option.display,
+        }))
+        : null,
+    }))
+    .sort((a, b) => (a.kind === b.kind ? a.set.localeCompare(b.set) : a.kind === 'relic' ? -1 : 1))
+  return {
+    total: entries.length,
+    modifiableCount: entries.filter((entry) => entry.modifiable).length,
+    entries,
+  }
+}
+
 export function registerConditionalsTools(server: McpServer): void {
   server.registerTool('describe_conditionals', {
     title: '条件定义查询',
@@ -233,7 +307,11 @@ export function registerConditionalsTools(server: McpServer): void {
       + 'lightConeId/superimposition 缺省依次回退:存档表单中该角色的当前光锥与叠影 → 角色配置默认光锥(叠影 1);'
       + 'eidolon 缺省取存档表单星魂,无存档为 0。不需要先 load_save。'
       + '光锥命途与角色不符时按网页端行为返回空光锥条件并附警告。'
-      + '改条件值请把 key/value 写进 optimize 的 formOverrides.characterConditionals / lightConeConditionals(参考返回的 defaultConditionals)。',
+      + '改条件值请把 key/value 写进 optimize 的 formOverrides.characterConditionals / lightConeConditionals(参考返回的 defaultConditionals)。'
+      + 'includeAbilities=true 额外列出该角色在当前星魂下可选的连招技能名(网页端连招技能格下拉的选项,按技能类型分组,'
+      + '供 update_form(combo.turnAbilities) / formOverrides.comboTurnAbilities 使用);'
+      + 'includeSets=true 额外列出全部套装条件的定义(类型/可选值/默认值/是否可调,即套装条件抽屉的内容,'
+      + '供 setConditionals 取值参考)。',
     inputSchema: {
       characterId: z.string().describe('Character id, e.g. "1212b1" (any character in game metadata, save not required)'),
       eidolon: z.number().int().min(0).max(6).optional().describe(
@@ -245,6 +323,8 @@ export function registerConditionalsTools(server: McpServer): void {
       superimposition: z.number().int().min(1).max(5).optional().describe(
         'Light cone superimposition; defaults to the saved-form superimposition when the light cone comes from the save, else 1',
       ),
+      includeAbilities: z.boolean().default(false).describe('是否列出该角色可选的连招技能名(连招技能格下拉同源;默认 false)'),
+      includeSets: z.boolean().default(false).describe('是否列出全部套装条件的定义(套装条件抽屉同源;默认 false)'),
     },
     outputSchema: {
       character: z.object({
@@ -275,8 +355,33 @@ export function registerConditionalsTools(server: McpServer): void {
       defaultConditionals: z.record(z.string(), z.record(z.string(), z.union([z.number(), z.boolean()]))),
       warnings: z.array(z.string()),
       notes: z.array(z.string()),
+      abilities: z.object({
+        groups: z.array(z.object({
+          kind: z.string(),
+          label: z.string(),
+          options: z.array(z.object({
+            name: z.string(),
+            label: z.string(),
+            marker: z.string(),
+          })),
+        })),
+        includedKinds: z.array(z.string()),
+        alwaysIncludedKinds: z.array(z.string()),
+      }).optional(),
+      sets: z.object({
+        total: z.number().int(),
+        modifiableCount: z.number().int(),
+        entries: z.array(z.object({
+          set: z.string(),
+          kind: z.enum(['relic', 'ornament']),
+          type: z.enum(['boolean', 'number', 'select']),
+          modifiable: z.boolean(),
+          defaultValue: z.union([z.boolean(), z.number()]),
+          options: z.array(z.object({ value: z.number(), label: z.string(), display: z.string() })).nullable(),
+        })),
+      }).optional(),
     },
-  }, async ({ characterId, eidolon: eidolonInput, lightConeId, superimposition: superimpositionInput }) => {
+  }, async ({ characterId, eidolon: eidolonInput, lightConeId, superimposition: superimpositionInput, includeAbilities, includeSets }) => {
     // Labels are translated inside the resolver calls — i18next must be ready
     // before any withContent=true invocation (idempotent; no-op when the entry
     // chunk already booted it).
@@ -381,6 +486,9 @@ export function registerConditionalsTools(server: McpServer): void {
     const gated = characterConditionals.filter((item) => item.threshold.requiresEidolon != null || item.disabled).length
       + lightConeConditionals.filter((item) => item.threshold.requiresSuperimposition != null || item.disabled).length
 
+    const abilities = includeAbilities ? serializeAbilityOptions(characterId, eidolon) : undefined
+    const sets = includeSets ? serializeSetConditionals() : undefined
+
     return toolResult(
       {
         character: {
@@ -423,12 +531,18 @@ export function registerConditionalsTools(server: McpServer): void {
           '条件面板同源:数据取自优化器实际使用的条件 resolver(withContent=true),中文标签/描述与网页端同一翻译源(zh_CN conditionals.yaml);个别旧文件(如 Pearl)上游硬编码英文,原样透出',
           'scopes=队友 表示该条件在「该角色作为队友」时生效(队友面板),defaultValue.teammate 为队友视角默认值;来源 source=角色技能(character)/光锥(lightCone)',
           'threshold.requiresEidolon/requiresSuperimposition=解锁所需最低星魂/叠影(由各档位 disabled 状态探测);eidolonValueUpgrades/superimpositionValueUpgrades=描述或数值发生变化的档位(如 E3/E5 技能升级)',
-          '改条件值:把 key → value(type=boolean 填布尔,slider 填 min..max 内数值,select 填 options 里的 value)写进 optimize 的 formOverrides.characterConditionals / formOverrides.lightConeConditionals',
+          '改条件值:把 key → value(type=boolean 填布尔,slider 填 min..max 内数值,select 填 options 里的 value)写进 optimize 的 formOverrides.characterConditionals / lightConeConditionals',
         ],
+        ...(abilities != null ? { abilities } : {}),
+        ...(sets != null ? { sets } : {}),
       },
       `${characterMeta.name}(${characterId}):${characterConditionals.length} 项角色条件 + ${lightConeConditionals.length} 项光锥条件`
         + `(e${eidolon},光锥 ${lightConeMeta?.name ?? lightCone} s${superimposition});`
-        + `${gated} 项有星魂/叠影门槛或当前档位下禁用`,
+        + `${gated} 项有星魂/叠影门槛或当前档位下禁用`
+        + (abilities != null
+          ? `;可选连招技能 ${abilities.groups.reduce((sum, group) => sum + group.options.length, 0)} 项(按 ${abilities.groups.length} 个技能类型分组)`
+          : '')
+        + (sets != null ? `;套装条件 ${sets.total} 项(可调 ${sets.modifiableCount} 项)` : ''),
     )
   })
 }

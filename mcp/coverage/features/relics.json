@@ -246,11 +246,7 @@
       "runtime": "node",
       "state": { "owner": "useRelicStore + useCharacterStore", "lifecycle": "persisted", "saveKey": "relics / characters[].equipped" },
       "sideEffects": ["SaveState.delayedSave()", "编辑后重算优化器排列数（recalculatePermutations）", "内容变化的遗器 verified 置为 false", "RelicAugmenter.augment 补全派生字段"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有按弹窗语义新增或编辑单件遗器的工具（按 id 编辑、弹窗校验、预览词条、换部位先卸下）。equip_build 能改装备关系但改不了词条；单件「新增」可粗放地经 import_scanner_json(inline, merge=union) 内联合成达成（见 import.scanner.mergeRelicsOnly），与弹窗语义不同。",
-        "candidates": ["upsert_relic", "upsert_relic(equippedBy=null)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["upsert_relic"] },
       "scope": "baseline",
       "upstreamChange": "export",
       "acceptance": {
@@ -259,7 +255,8 @@
           "强化等级超过星级允许的上限、副词条重复、副词条与主词条相同、套装与部位类型不符时，两边都拒绝",
           "把一件已装备的遗器改到别的部位后，原装备者对应槽位清空，两边一致",
           "编辑已校验遗器的副词条数值后 verified 变为 false"
-        ]
+        ],
+        "tests": ["mcp/scripts/smoke-relics.mjs"]
       }
     },
     {
@@ -279,14 +276,15 @@
       "runtime": "node",
       "state": { "owner": "useRelicStore + useCharacterStore", "lifecycle": "persisted", "saveKey": "relics / characters[].equipped" },
       "sideEffects": ["SaveState.permitEmptySave()", "SaveState.delayedSave()"],
-      "mcp": { "status": "missing", "candidates": ["delete_relics"] },
+      "mcp": { "status": "implemented", "tools": ["delete_relics"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "删除两件遗器（其中一件已装备）后，两边存档的 relics 少了这两件，原装备者对应槽位为空",
           "删光全部遗器后存档仍能保存且 relics 为空数组"
-        ]
+        ],
+        "tests": ["mcp/scripts/smoke-relics.mjs"]
       }
     },
     {

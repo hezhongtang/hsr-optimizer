@@ -42,12 +42,14 @@ import {
   GlobalRegister,
   StatKey,
 } from 'lib/optimization/engine/config/keys'
+import { SortOption } from 'lib/optimization/sortOptions'
 import { RelicFilters } from 'lib/relics/relicFilters'
 import {
   SetsOrnamentsNames,
   SetsRelicsNames,
 } from 'lib/sets/setConfigRegistry'
 import { aggregatePerActionBuffs } from 'lib/simulations/combatBuffsAnalysis'
+import { transformOptimizerDisplayData } from 'lib/simulations/optimizerDisplayDataTransform'
 import { runCustomBenchmarkOrchestrator } from 'lib/simulations/orchestrator/runCustomBenchmarkOrchestrator'
 import {
   precomputeSetState,
@@ -58,11 +60,19 @@ import { StatSimTypes } from 'lib/simulations/statSimulationTypes'
 import type {
   Simulation,
   SimulationRelicByPart,
+  SimulationRequest,
 } from 'lib/simulations/statSimulationTypes'
+import {
+  convertRelicsToSimulation,
+  ornamentSetIndexToName,
+  relicSetIndexToNames,
+} from 'lib/simulations/statSimulationUtils'
+import { blankSimRequest } from 'lib/simulations/utils/requestUtils'
 import { getGameMetadata } from 'lib/state/gameMetadata'
 import {
   getCharacterById,
   getCharacters,
+  useCharacterStore,
 } from 'lib/stores/character/characterStore'
 import { displayToInternal } from 'lib/stores/optimizerForm/optimizerFormConversions'
 import { computeLoadForm } from 'lib/stores/optimizerForm/optimizerFormStoreActions'
@@ -78,7 +88,11 @@ import {
   calculateTeammateUpgrades,
 } from 'lib/tabs/tabOptimizer/analysis/expandedDataPanelController'
 import type { OptimizerResultAnalysis } from 'lib/tabs/tabOptimizer/analysis/expandedDataPanelController'
-import { clone } from 'lib/utils/objectUtils'
+import { uuid } from 'lib/utils/miscUtils'
+import {
+  clone,
+  objectHash,
+} from 'lib/utils/objectUtils'
 import type {
   Character,
   CharacterId,
@@ -431,7 +445,11 @@ export function registerSimulationTools(server: McpServer): void {
       + 'simBody/simFeet/simPlanarSphere/simLinkRope/stats);stats 在 substatRolls 模式下是各副词条的 roll 数'
       + '(SPD 每 roll 取 speedRollValue,默认 2.6),benchmarks 模式下直接取数值。'
       + '基准表单取角色已保存的优化表单(可传 formOverrides)。每个变体返回 COMBO 伤害(simScore)、战斗/面板属性归约、'
-      + '逐技能与轮次伤害,以及相对基准变体(默认第 0 个,可指定 baselineIndex)的差值与全部变体排名。',
+      + '逐技能与轮次伤害,以及相对基准变体(默认第 0 个,可指定 baselineIndex)的差值与全部变体排名。'
+      + '变体来源四选一:simulations(显式定义,默认)/ saved=true(直接运行角色表单里已保存的全部假想配装,'
+      + '按表单 resultSort 排序返回,与网页端点「模拟」后的结果表格一致——已保存列表用 update_form(statSimulations=…) 管理)/ '
+      + 'fromCache(把最近一次 optimize 的某行结果「导入」为模拟:取套装与四个主词条、副词条折算成词条数,'
+      + '保存为一条新模拟并运行,重复内容会被拒绝——网页端「导入」按钮同款)/ fromRelicIds(按遗器 id 折算成模拟,保存并运行)。',
     inputSchema: {
       characterId: z.string().describe('角色 id,如 "1212b1"'),
       simulations: z.array(z.object({
@@ -445,7 +463,15 @@ export function registerSimulationTools(server: McpServer): void {
         simPlanarSphere: z.string().describe('PlanarSphere 主词条'),
         simLinkRope: z.string().describe('LinkRope 主词条'),
         stats: z.record(z.string(), z.number()).default({}).describe('副词条 → 数值/roll 数映射,键如 "CRIT DMG"、"SPD"'),
-      })).min(1).max(MAX_STAT_SIM_VARIANTS).describe('变体列表(上游 SimulationRequest 字段名)'),
+      })).min(1).max(MAX_STAT_SIM_VARIANTS).optional().describe('变体列表(上游 SimulationRequest 字段名);与 saved/fromCache/fromRelicIds 四选一'),
+      saved: z.boolean().optional().describe('直接运行角色表单里已保存的全部假想配装(characters[].form.statSim.simulations);无需传 simulations'),
+      fromCache: z.object({
+        cacheId: z.string().describe('optimize 返回的 cacheId'),
+        rowId: z.number().describe('目标行的 row id(optimize 返回行中的 id 字段;模拟行不能导入)'),
+      }).optional().describe('把最近一次 optimize 的某行结果导入为模拟并运行(与 simulations 四选一)'),
+      fromRelicIds: z.array(z.string()).min(1).max(6).optional().describe(
+        '按遗器 id(每部件一件,须含躯干/脚部/位面球/连结绳四个主词条部位)折算成一条模拟,保存并运行(与 simulations 四选一)',
+      ),
       formOverrides: z.record(z.string(), z.unknown()).optional().describe(FORM_OVERRIDES_DESCRIPTION),
       quality: z.number().min(0).max(1).default(1).describe('副词条品质(1=最高 roll,上游默认)'),
       speedRollValue: z.number().min(0).default(2.6).describe('SPD 每 roll 数值(上游默认 2.6)'),
@@ -453,6 +479,7 @@ export function registerSimulationTools(server: McpServer): void {
     },
     outputSchema: {
       characterId: z.string(),
+      source: z.enum(['explicit', 'saved', 'imported']),
       baselineIndex: z.number().int(),
       params: z.object({ quality: z.number(), speedRollValue: z.number() }),
       durationMs: z.number(),
@@ -468,39 +495,190 @@ export function registerSimulationTools(server: McpServer): void {
         rotationDamage: z.array(rotationDamageStepSchema),
       })),
       ranking: z.array(z.object({ index: z.number().int(), name: z.string(), simScore: z.number() })),
+      orderedByResultSort: z.boolean().optional(),
+      importedSimulation: z.object({
+        key: z.string(),
+        name: z.string(),
+        simType: z.string(),
+        request: echoedSimRequestSchema,
+      }).optional(),
     },
-  }, async ({ characterId, simulations, formOverrides, quality, speedRollValue, baselineIndex }): Promise<CallToolResult> => {
+  }, async ({ characterId, simulations, saved, fromCache, fromRelicIds, formOverrides, quality, speedRollValue, baselineIndex }): Promise<CallToolResult> => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
 
-    const character = requireCharacter(characterId)
-    if (baselineIndex >= simulations.length) {
-      throw new Error(`baselineIndex ${baselineIndex} 超出范围(共 ${simulations.length} 个变体,合法范围 0..${simulations.length - 1})`)
+    const provided = [simulations, saved === true, fromCache, fromRelicIds].filter((x) => x != null && x !== false).length
+    if (provided !== 1) {
+      throw new Error('stat_simulate: 变体来源必须四选一 — simulations(显式定义)/ saved=true / fromCache / fromRelicIds')
     }
 
-    // Validate before simulating: sets, mains per part, substat keys
-    for (const [index, sim] of simulations.entries()) {
-      assertRelicSetName(sim.simRelicSet1)
-      assertRelicSetName(sim.simRelicSet2)
-      assertOrnamentSetName(sim.simOrnamentSet)
-      const mainChecks: Array<[string, string]> = [
-        ['simBody', sim.simBody],
-        ['simFeet', sim.simFeet],
-        ['simPlanarSphere', sim.simPlanarSphere],
-        ['simLinkRope', sim.simLinkRope],
-      ]
-      for (const [field, mainStat] of mainChecks) {
-        const part = field === 'simBody' ? Parts.Body : field === 'simFeet' ? Parts.Feet : field === 'simPlanarSphere' ? Parts.PlanarSphere : Parts.LinkRope
-        const valid = PartsMainStats[part as Parts]
-        if (!valid.includes(mainStat as never)) {
-          throw new Error(`变体 ${index} 的 ${field}="${mainStat}" 不是该部件的合法主词条——可选: ${valid.join(', ')}`)
+    const character = requireCharacter(characterId)
+    let source: 'explicit' | 'saved' | 'imported' = 'explicit'
+    let importedEcho: { key: string, name: string, simType: string, request: ReturnType<typeof echoSimRequest> } | undefined
+
+    let sims: Simulation[]
+    if (simulations != null) {
+      if (baselineIndex >= simulations.length) {
+        throw new Error(`baselineIndex ${baselineIndex} 超出范围(共 ${simulations.length} 个变体,合法范围 0..${simulations.length - 1})`)
+      }
+      // Validate before simulating: sets, mains per part, substat keys
+      for (const [index, sim] of simulations.entries()) {
+        assertRelicSetName(sim.simRelicSet1)
+        assertRelicSetName(sim.simRelicSet2)
+        assertOrnamentSetName(sim.simOrnamentSet)
+        const mainChecks: Array<[string, string]> = [
+          ['simBody', sim.simBody],
+          ['simFeet', sim.simFeet],
+          ['simPlanarSphere', sim.simPlanarSphere],
+          ['simLinkRope', sim.simLinkRope],
+        ]
+        for (const [field, mainStat] of mainChecks) {
+          const part = field === 'simBody' ? Parts.Body : field === 'simFeet' ? Parts.Feet : field === 'simPlanarSphere' ? Parts.PlanarSphere : Parts.LinkRope
+          const valid = PartsMainStats[part as Parts]
+          if (!valid.includes(mainStat as never)) {
+            throw new Error(`变体 ${index} 的 ${field}="${mainStat}" 不是该部件的合法主词条——可选: ${valid.join(', ')}`)
+          }
+        }
+        for (const stat of Object.keys(sim.stats)) {
+          if (!SUBSTAT_NAMES.has(stat)) {
+            throw new Error(`变体 ${index} 的副词条 "${stat}" 不存在——可用: ${SubStats.join(', ')}`)
+          }
         }
       }
-      for (const stat of Object.keys(sim.stats)) {
-        if (!SUBSTAT_NAMES.has(stat)) {
-          throw new Error(`变体 ${index} 的副词条 "${stat}" 不存在——可用: ${SubStats.join(', ')}`)
+      sims = simulations.map((sim, index) => ({
+        name: sim.name ?? `variant-${index}`,
+        key: sim.name ?? `variant-${index}`,
+        simType: sim.simType === 'benchmarks' ? StatSimTypes.Benchmarks : StatSimTypes.SubstatRolls,
+        // Set/main names are validated against the registries above; the branded
+        // literal unions (SetsRelics/SetsOrnaments/…) are satisfied by that check.
+        request: {
+          name: sim.name ?? '',
+          simRelicSet1: sim.simRelicSet1,
+          simRelicSet2: sim.simRelicSet2,
+          simOrnamentSet: sim.simOrnamentSet,
+          simBody: sim.simBody,
+          simFeet: sim.simFeet,
+          simPlanarSphere: sim.simPlanarSphere,
+          simLinkRope: sim.simLinkRope,
+          stats: sim.stats,
+        } as Simulation['request'],
+      }))
+    } else if (saved === true) {
+      // 直接运行表单里已保存的模拟(网页端「模拟」按钮);只计算 request 完整的条目
+      source = 'saved'
+      const savedSims = (character.form?.statSim?.simulations ?? []).filter((sim) => sim.request?.stats)
+      if (savedSims.length === 0) {
+        throw new Error(`stat_simulate: 角色 ${characterId} 的表单里没有已保存的假想配装 — 先用 update_form(statSimulations={add:…}) 添加,或直接传 simulations`)
+      }
+      if (baselineIndex >= savedSims.length) {
+        throw new Error(`baselineIndex ${baselineIndex} 超出范围(共 ${savedSims.length} 个已保存模拟,合法范围 0..${savedSims.length - 1})`)
+      }
+      sims = savedSims
+    } else {
+      // 「从结果导入」:fromCache(最近一次 optimize 的某行)或 fromRelicIds(显式遗器)
+      source = 'imported'
+      let byPart: Partial<Record<string, string | undefined>>
+      let relicSetIndex: number | undefined
+      let ornamentSetIndex: number | undefined
+      if (fromCache != null) {
+        const cached = runtimeContext.getLastOptimizeResult()
+        if (!cached || cached.summary.cacheId !== fromCache.cacheId) {
+          throw new Error(`fromCache: 找不到 cacheId ${fromCache.cacheId} 的结果缓存 — 请使用最近一次 optimize 返回的 cacheId`)
+        }
+        if (cached.generation !== runtimeContext.getSaveGeneration()) {
+          throw new Error('fromCache: 结果缓存属于上一次 load_save 之前的存档 — 请对当前存档重新运行 optimize')
+        }
+        if (cached.summary.characterId !== characterId) {
+          throw new Error(`fromCache: 缓存归属角色 ${cached.summary.characterId} 与请求角色 ${characterId} 不一致`)
+        }
+        const rowIndex = cached.rows.findIndex((row) => row.id === fromCache.rowId)
+        if (rowIndex === -1) {
+          throw new Error(`fromCache: 缓存中没有 row id ${fromCache.rowId} 的结果行`)
+        }
+        const row = cached.rows[rowIndex]
+        // 网页端:选中的是模拟行时不导入(statSimulationController.importOptimizerBuild)
+        if ((row as Any).statSim) {
+          throw new Error('fromCache: 选中的是模拟行,不能导入为模拟 — 请选择一条真实配装行')
+        }
+        byPart = cached.builds[rowIndex]
+        relicSetIndex = (row as Any).relicSetIndex
+        ornamentSetIndex = (row as Any).ornamentSetIndex
+      } else {
+        byPart = resolveBuildByPart(characterId, fromRelicIds!)
+      }
+
+      // 套装名:行内索引经 relicSetIndexToNames/ornamentSetIndexToName 反解
+      // (fromRelicIds 用 precomputeSetState 编码,同一条链路);遗器用原始
+      // (未 condense)克隆,convertRelicsToSimulation 直接读 main/substats。
+      const rawByPart: Record<string, Any> = {}
+      for (const [part, relicId] of Object.entries(byPart)) {
+        if (!relicId) continue
+        const relic = getRelicById(relicId)
+        if (!relic) throw new Error(`遗器 ${relicId} 不在当前库存中——请检查 id 或重新 load_save`)
+        rawByPart[part] = clone(relic)
+      }
+      if (relicSetIndex == null || ornamentSetIndex == null) {
+        const condensed = toSimulationRelics(byPart)
+        const indices = precomputeSetState(condensed as unknown as SimulationRelicByPart)
+        relicSetIndex = indices.relicSetIndex
+        ornamentSetIndex = indices.ornamentSetIndex
+      }
+      const relicSetNames = relicSetIndexToNames(relicSetIndex)
+      const ornamentSetName = ornamentSetIndexToName(ornamentSetIndex)
+      const importedRequest = convertRelicsToSimulation(
+        rawByPart as Any,
+        relicSetNames[0],
+        relicSetNames[1],
+        ornamentSetName,
+        1,
+      ) as SimulationRequest
+      for (const [part, field] of [['Body', 'simBody'], ['Feet', 'simFeet'], ['PlanarSphere', 'simPlanarSphere'], ['LinkRope', 'simLinkRope']] as const) {
+        if (!importedRequest[field as keyof SimulationRequest]) {
+          throw new Error(`导入失败: 配装缺少 ${part} 部位的遗器,无法折算主词条 — 请补全该部位后重试`)
         }
       }
+
+      // 网页端「导入」即保存:内容重复直接拒绝(statSimulationController)
+      const simType = StatSimTypes.SubstatRolls
+      const cleaned: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(importedRequest as unknown as Record<string, unknown>)) {
+        if (value != null) cleaned[key] = value
+      }
+      const hash = objectHash({ simType, request: cleaned })
+      for (const existing of character.form?.statSim?.simulations ?? []) {
+        const existingCleaned: Record<string, unknown> = {}
+        for (const [key, value] of Object.entries(existing.request as unknown as Record<string, unknown>)) {
+          if (value != null) existingCleaned[key] = value
+        }
+        if (hash === objectHash({ simType: existing.simType, request: existingCleaned })) {
+          throw new Error(`导入失败: 内容与已保存模拟「${existing.name ?? existing.key}」完全相同 — 网页端不允许重复保存`)
+        }
+      }
+      const simulation: Simulation = {
+        name: importedRequest.name ?? '',
+        key: uuid(),
+        simType,
+        request: importedRequest,
+      }
+      await runtimeContext.withChange('stat_simulate', () => {
+        const current = requireCharacter(characterId)
+        const statSim = current.form?.statSim
+        useCharacterStore.getState().setCharacter({
+          ...current,
+          form: {
+            ...current.form,
+            statSim: {
+              key: statSim?.key ?? '',
+              benchmarks: statSim?.benchmarks ?? blankSimRequest(),
+              substatRolls: statSim?.substatRolls ?? blankSimRequest(),
+              simulations: [...(statSim?.simulations ?? []), simulation],
+            },
+          },
+        })
+        runtimeContext.markDirty()
+      })
+      sims = [simulation]
+      importedEcho = { key: simulation.key!, name: simulation.name ?? '', simType: String(simType), request: echoSimRequest(importedRequest) }
     }
 
     const form = buildCharacterForm(character, formOverrides)
@@ -508,25 +686,6 @@ export function registerSimulationTools(server: McpServer): void {
     if (!context.defaultActions?.length) {
       throw new Error(`角色 ${characterId} 的配置未生成任何默认战斗动作——请检查角色/光锥配置后再试`)
     }
-
-    const sims: Simulation[] = simulations.map((sim, index) => ({
-      name: sim.name ?? `variant-${index}`,
-      key: sim.name ?? `variant-${index}`,
-      simType: sim.simType === 'benchmarks' ? StatSimTypes.Benchmarks : StatSimTypes.SubstatRolls,
-      // Set/main names are validated against the registries above; the branded
-      // literal unions (SetsRelics/SetsOrnaments/…) are satisfied by that check.
-      request: {
-        name: sim.name ?? '',
-        simRelicSet1: sim.simRelicSet1,
-        simRelicSet2: sim.simRelicSet2,
-        simOrnamentSet: sim.simOrnamentSet,
-        simBody: sim.simBody,
-        simFeet: sim.simFeet,
-        simPlanarSphere: sim.simPlanarSphere,
-        simLinkRope: sim.simLinkRope,
-        stats: sim.stats,
-      } as Simulation['request'],
-    }))
 
     const started = performance.now()
     // stabilize:true clones each result so per-variant stats can't alias the
@@ -536,40 +695,66 @@ export function registerSimulationTools(server: McpServer): void {
 
     const baselineScore = results[baselineIndex]?.simScore ?? 0
     const bestScore = Math.max(...results.map((r) => r.simScore))
-    const variants = results.map((result, index) => ({
-      index,
-      name: sims[index].name,
-      request: echoSimRequest(sims[index].request),
-      simScore: result.simScore,
-      deltaVsBaseline: {
-        simScore: result.simScore - baselineScore,
-        pct: baselineScore !== 0 ? ((result.simScore - baselineScore) / baselineScore) * 100 : 0,
-      },
-      deltaVsBest: {
-        simScore: result.simScore - bestScore,
-        pct: bestScore !== 0 ? ((result.simScore - bestScore) / bestScore) * 100 : 0,
-      },
-      stats: serializeComputedStats(result.x),
-      actionDamage: result.actionDamage ? serializeActionDamage(result.actionDamage) : null,
-      rotationDamage: (result.rotationDamage ?? []).map(serializeRotationDamageStep),
-    }))
 
-    const ranking = variants
+    // saved 模式按表单 resultSort 排序返回(startOptimizerStatSimulation 同款);
+    // 其余模式保持输入顺序。
+    let orderedIndices = results.map((_, index) => index)
+    let orderedByResultSort = false
+    if (source === 'saved') {
+      const sortOption = form.resultSort != null ? SortOption[form.resultSort] : undefined
+      if (sortOption) {
+        const gridSortColumn = (form.statDisplay === 'base' ? sortOption.basicGridColumn : sortOption.combatGridColumn) as Any
+        const rows: Any[] = results.map((result, index) => transformOptimizerDisplayData(result.x, sims[index].key))
+        orderedIndices = rows
+          .map((_, index) => index)
+          .sort((a, b) => (rows[b][gridSortColumn] as number) - (rows[a][gridSortColumn] as number))
+        orderedByResultSort = true
+      }
+    }
+
+    const variants = orderedIndices.map((index) => {
+      const result = results[index]
+      return {
+        index,
+        name: sims[index].name ?? '',
+        request: echoSimRequest(sims[index].request),
+        simScore: result.simScore,
+        deltaVsBaseline: {
+          simScore: result.simScore - baselineScore,
+          pct: baselineScore !== 0 ? ((result.simScore - baselineScore) / baselineScore) * 100 : 0,
+        },
+        deltaVsBest: {
+          simScore: result.simScore - bestScore,
+          pct: bestScore !== 0 ? ((result.simScore - bestScore) / bestScore) * 100 : 0,
+        },
+        stats: serializeComputedStats(result.x),
+        actionDamage: result.actionDamage ? serializeActionDamage(result.actionDamage) : null,
+        rotationDamage: (result.rotationDamage ?? []).map(serializeRotationDamageStep),
+      }
+    })
+
+    const ranking = [...variants]
       .map((v) => ({ index: v.index, name: v.name, simScore: v.simScore }))
       .sort((a, b) => b.simScore - a.simScore)
 
     return toolResult(
       {
         characterId,
+        source,
         baselineIndex,
         params: { quality, speedRollValue },
         durationMs,
         variants,
         ranking,
+        ...(orderedByResultSort ? { orderedByResultSort } : {}),
+        ...(importedEcho != null ? { importedSimulation: importedEcho } : {}),
       },
-      `${characterId} 的 ${variants.length} 个假想配装模拟完成,耗时 ${durationMs}ms:`
+      `${characterId} 的 ${variants.length} 个假想配装模拟完成(${
+        source === 'saved' ? '已保存列表' : source === 'imported' ? '导入并保存' : '显式定义'
+      }),耗时 ${durationMs}ms:`
         + `最佳变体 #${ranking[0]?.index}(${ranking[0]?.name},COMBO ${ranking[0]?.simScore.toLocaleString()}),`
-        + `基准变体 #${baselineIndex} 为 ${baselineScore.toLocaleString()}`,
+        + `基准变体 #${baselineIndex} 为 ${baselineScore.toLocaleString()}`
+        + (importedEcho != null ? `;已保存为新模拟 key=${importedEcho.key}` : ''),
     )
   })
 

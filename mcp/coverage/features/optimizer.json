@@ -26,13 +26,7 @@
       "runtime": "node",
       "state": { "owner": "useOptimizerDisplayStore.focusCharacterId + useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "savedSession.global.optimizerCharacterId" },
       "sideEffects": ["上一个角色的表单写回 characters[].form", "结果表格与已选行被清空", "SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["get_form", "default_form"],
-        "resources": ["game://metadata/characters"],
-        "gaps": "MCP 的每个工具都显式带 characterId，没有「当前角色」这个会话状态，网页端下次打开时选中哪个角色读不到也改不了。不在角色列表里的角色只能用 default_form 看默认表单，不能直接拿来优化（optimize 要求角色已在存档里）。",
-        "candidates": ["get_state(section=session)", "update_state(section=session)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_form", "default_form", "update_form", "update_state"], "resources": ["game://metadata/characters"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -41,7 +35,7 @@
           "对不在角色列表里的角色，default_form 的结果与网页端选中它时生成的默认表单一致",
           "把会话里的当前角色改成另一个后，网页端重新打开优化器页显示的就是那个角色"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-conditionals.mjs"]
+        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-conditionals.mjs", "mcp/scripts/smoke-form.mjs", "mcp/scripts/smoke-state.mjs"]
       }
     },
     {
@@ -89,12 +83,7 @@
       "runtime": "node",
       "state": { "owner": "useCharacterStore.characters[].form", "lifecycle": "persisted", "saveKey": "characters[].form" },
       "sideEffects": ["不在角色列表里的角色在「开始」或「装备」时被加入列表", "SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["equip_build", "save_build"],
-        "gaps": "optimize、permutations、simulate_build 等工具的 formOverrides 用完即弃，不写回角色表单。只有 equip_build(fromCache) 会把那次运行实际用的表单写回角色，save_build(fromCache) 把它存进配装快照；没有单独保存表单改动的入口，所以下面各表单条目里的改动都留不到下一次调用，网页端也看不到。",
-        "candidates": ["update_form(patch=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["equip_build", "save_build", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -103,7 +92,7 @@
           "导出的存档里 characters[].form 与网页端做同样改动并点「开始」后的存档一致",
           "equip_build(fromCache) 之后角色表单等于那次运行合并 formOverrides 后的表单"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-optimizer-generation.mjs"]
+        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-optimizer-generation.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -165,12 +154,7 @@
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "get_form"],
-        "gaps": "排序目标可经 formOverrides.resultSort 指定，但只在那一次调用里生效。保留条数是 optimize 自己的参数，默认 50、上限 1024，表单里保存的 resultsLimit 被忽略，网页端最多可保留 65536 条。",
-        "candidates": ["update_form(patch=...)", "optimize(resultsLimit=65536)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "get_form", "update_form"], "candidates": ["optimize(resultsLimit=65536)"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -178,7 +162,7 @@
           "同一表单下把 resultSort 分别设为 COMBO 与 SPD，返回的首行与网页端相同目标下的首行一致",
           "保留 4096 条时返回的行数与网页端相同设置下结果表格的总行数一致"
         ],
-        "tests": ["mcp/scripts/parity.mjs", "mcp/scripts/smoke-form-overrides.mjs"]
+        "tests": ["mcp/scripts/parity.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -206,12 +190,7 @@
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "permutations", "get_form"],
-        "gaps": "只能经 formOverrides 在单次调用里生效，不会写回角色表单。",
-        "candidates": ["update_form(patch=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "permutations", "get_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -219,7 +198,7 @@
           "逐项改动这八个选项后，permutations 返回的各部位数量与网页端侧栏显示的一致",
           "关闭 includeEquippedRelics 时返回的每行配装都不含别人身上的遗器"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-query.mjs"]
+        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -270,19 +249,14 @@
       "conditions": "头部和手部主词条固定，界面不提供选择。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "permutations", "get_form"],
-        "gaps": "只能经 formOverrides 在单次调用里生效，不会写回角色表单。",
-        "candidates": ["update_form(patch=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "permutations", "get_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "躯干限定暴击率与暴击伤害、脚部限定速度时，各部位数量与网页端侧栏一致，返回行的主词条都在限定范围内"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs"]
+        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -319,13 +293,7 @@
       "conditions": "三类都留空表示不限套装。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore.setFilters", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "permutations", "get_form"],
-        "resources": ["game://metadata/sets"],
-        "gaps": "只能经 formOverrides 在单次调用里生效，不会写回角色表单。",
-        "candidates": ["update_form(patch=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "permutations", "get_form", "update_form"], "resources": ["game://metadata/sets"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -334,7 +302,7 @@
           "二件组合的槽位用属性标签时，结果与网页端选同一标签时一致",
           "内部格式的 relicSets / ornamentSets 与显示格式的 setFilters 表达同一条件时结果相同"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-conditionals.mjs"]
+        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-conditionals.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -355,12 +323,7 @@
       "conditions": "所有副词条权重都为 0 时不能开始优化。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore.weights", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "permutations", "get_form"],
-        "gaps": "只能经 formOverrides 在单次调用里生效，不会写回角色表单。",
-        "candidates": ["update_form(patch=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "permutations", "get_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -368,7 +331,7 @@
           "改动权重后返回行的 WEIGHT 列与网页端同设置下一致",
           "把最低加权词条数调到 3 时，各部位数量与网页端侧栏一致"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs"]
+        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -389,12 +352,7 @@
       "conditions": "属性门槛比较的是面板属性还是战斗属性，取决于当前的属性视图（见 optimizer.grid.display）。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore.statFilters / ratingFilters", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "get_form"],
-        "gaps": "只能经 formOverrides 在单次调用里生效，不会写回角色表单。",
-        "candidates": ["update_form(patch=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "get_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -403,7 +361,7 @@
           "显示格式（百分数）与内部格式（小数）表达同一门槛时结果相同",
           "把某项门槛显式置空后，该门槛不再生效"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/parity.mjs"]
+        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/parity.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -432,12 +390,7 @@
       "conditions": "有哪些条件、取值范围、默认值以及星魂和叠影门槛都由角色与光锥决定；未解锁的条件显示为禁用。网页端改角色/光锥（含队友）条件时只联动补丁连招的默认首分段（patchComboConditionalDefault），不覆盖逐回合的自定义值；MCP 侧要复刻这一联动而不能整段重写连招。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["describe_conditionals", "optimize", "simulate_build", "get_form"],
-        "gaps": "只能经 formOverrides 在单次调用里生效，不会写回角色表单。",
-        "candidates": ["update_form(patch=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["describe_conditionals", "optimize", "simulate_build", "get_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -445,7 +398,7 @@
           "describe_conditionals 列出的条件键、类型、默认值和门槛与网页端条件面板逐项一致，主角色视角和队友视角各自正确",
           "改动一个开关型和一个数值型条件后，simulate_build 的 COMBO 与网页端做同样改动后选中当前装备行的数值一致"
         ],
-        "tests": ["mcp/scripts/smoke-conditionals.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-simulation.mjs"]
+        "tests": ["mcp/scripts/smoke-conditionals.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -469,12 +422,7 @@
       "conditions": "没有可调状态的套装显示为固定生效。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore.setConditionals", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "simulate_build", "get_form"],
-        "gaps": "值可以经 formOverrides.setConditionals 传入，但没有入口列出每个套装条件的类型、可选值与默认值（describe_conditionals 只管角色和光锥，game://metadata/sets 只有效果文本），调用方只能照 get_form 的现值猜。改动也不会写回角色表单。",
-        "candidates": ["describe_conditionals(includeSets=true)", "update_form(patch=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "simulate_build", "get_form", "update_form", "describe_conditionals"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -482,7 +430,7 @@
           "列出的每个套装条件的类型、选项与默认值与抽屉里的控件逐项一致",
           "把一个下拉型套装条件改成非默认档位后，simulate_build 的 COMBO 与网页端做同样改动后的数值一致"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-simulation.mjs"]
+        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -512,12 +460,7 @@
       "conditions": "角色有模拟评分配置而队友位没填满时，开始优化会给出警告但不阻止。队友的条件开关见 optimizer.form.conditionals。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore.teammates", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "simulate_build", "get_form"],
-        "gaps": "经 formOverrides.teammates 换队友时，只按传入的字段合并，不会像网页端那样自动带入该角色在列表里的星魂、光锥、叠影和队伍套装，也不会在换光锥时重置光锥条件，这些都要调用方自己填全。改动同样不会写回角色表单。",
-        "candidates": ["update_form(teammates=..., syncFromRoster=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "simulate_build", "get_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -526,7 +469,7 @@
           "把某个队友位置空后，该位的全部字段回到默认值",
           "换一名队友后 simulate_build 的 COMBO 与网页端做同样更换后的数值一致"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-simulation.mjs"]
+        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -553,19 +496,14 @@
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "simulate_build", "get_form"],
-        "gaps": "只能经 formOverrides 在单次调用里生效，不会写回角色表单。",
-        "candidates": ["update_form(patch=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "simulate_build", "get_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "把敌人数量改成 3、关闭属性弱点后，simulate_build 的各技能伤害与网页端同设置下选中当前装备行的数值一致"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-simulation.mjs"]
+        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -587,12 +525,7 @@
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore.combatBuffs", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "simulate_build", "get_form"],
-        "gaps": "只能经 formOverrides 在单次调用里生效，不会写回角色表单。",
-        "candidates": ["update_form(patch=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "simulate_build", "get_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -600,7 +533,7 @@
           "显示格式传攻击力百分比 50 与内部格式传 0.5 得到同一结果，且与网页端填 50 时的 COMBO 一致",
           "只覆盖其中一项时，其余已保存的增益保持不变"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs"]
+        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -620,18 +553,15 @@
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "default_form 给的是全新默认表单，不是在现有表单上套预设；没有入口列出速度档位，也没有入口把预设应用到角色表单。",
-        "candidates": ["update_form(preset=...)", "default_form(spdPreset=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["update_form", "default_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "对同一角色套用某个速度档位后，得到的表单与网页端点同一预设后的表单逐字段一致",
           "列出的速度档位与下拉菜单里的选项一致"
-        ]
+        ],
+        "tests": ["mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -650,17 +580,14 @@
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有把已保存表单的筛选部分恢复默认的入口；调用方只能自己把这些字段的默认值逐个放进 formOverrides。",
-        "candidates": ["update_form(reset=filters)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "重置后 get_form 里上述筛选字段全部等于默认值，其余字段保持原值，与网页端点「重置」后的表单一致"
-        ]
+        ],
+        "tests": ["mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -688,12 +615,7 @@
       "conditions": "简单模式下技能格、增删、重置和预设开关都禁用。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "simulate_build", "get_form", "default_form"],
-        "gaps": "三个字段可以经 formOverrides 传入，但没有入口列出某个角色可选的技能名，调用方只能照 get_form 或 default_form 里已有的序列改；改动不会写回角色表单。",
-        "candidates": ["describe_conditionals(includeAbilities=true)", "update_form(patch=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "simulate_build", "get_form", "default_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -702,7 +624,7 @@
           "高级模式下给出一串六个技能的序列时，simulate_build 的 COMBO 与轮次伤害与网页端排同一序列后的数值一致",
           "简单模式下的 COMBO 等于角色默认序列的 COMBO"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form-overrides.mjs"]
+        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -735,12 +657,7 @@
       "conditions": "只在高级模式下能打开；简单模式下按钮禁用。",
       "runtime": "node",
       "state": { "owner": "useComboDrawerStore，关闭时写入 useOptimizerRequestStore.comboStateJson", "lifecycle": "persisted", "saveKey": "characters[].form.comboStateJson" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "simulate_build", "get_form"],
-        "gaps": "矩阵只能作为一整串 comboStateJson 手写后经 formOverrides 传入，get_form 也只原样给出这串文本。没有按「条件 × 技能」读取矩阵、改单格、增删分段的入口，改动也不会写回角色表单。",
-        "candidates": ["get_form(expandCombo=true)", "update_form(combo=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "simulate_build", "get_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -749,7 +666,7 @@
           "把某个开关型条件在第 2、3 个技能上关掉后，simulate_build 的轮次伤害与网页端做同样勾选后的数值一致",
           "给一个数值型条件加一段并只在终结技上生效后，保存的 comboStateJson 与网页端做同样操作后存档里的内容等价"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -766,18 +683,14 @@
       "conditions": "只在高级模式下可用。",
       "runtime": "node",
       "state": { "owner": "useComboDrawerStore，写入 useOptimizerRequestStore.comboStateJson", "lifecycle": "persisted", "saveKey": "characters[].form.comboStateJson" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "get_form"],
-        "gaps": "与矩阵本身一样只能整串手写 comboStateJson，没有单独增减套装行的入口。",
-        "candidates": ["update_form(combo=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "get_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "加入一个套装行并设定它只在战技上生效后，保存的 comboStateJson 与网页端做同样操作后存档里的内容等价"
-        ]
+        ],
+        "tests": ["mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -1038,18 +951,15 @@
       "conditions": "编辑的校验规则与遗器页的编辑弹窗相同（见 relics.upsert）。",
       "runtime": "node",
       "state": { "owner": "useRelicStore", "lifecycle": "persisted", "saveKey": "relics" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有修改单件遗器的工具。",
-        "candidates": ["upsert_relic"]
-      },
+      "mcp": { "status": "implemented", "tools": ["upsert_relic"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "按 id 修改结果配装里某件遗器的副词条后，库存里这件遗器的内容与网页端在弹窗里做同样修改后一致",
           "修改后重新 simulate_build 这套配装，数值反映新的副词条"
-        ]
+        ],
+        "tests": ["mcp/scripts/smoke-relics.mjs"]
       }
     },
     {
@@ -1128,12 +1038,7 @@
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore.statDisplay / memoDisplay", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["optimize", "get_results", "get_form"],
-        "gaps": "结果行同时带着两组属性列，不需要切换显示；决定上下限比较对象的 statDisplay 可以经 formOverrides 指定，但不会写回角色表单。",
-        "candidates": ["update_form(patch=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "get_results", "get_form", "update_form"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -1141,7 +1046,7 @@
           "statDisplay 为 base 时最低速度门槛按面板速度判定，为 combat 时按战斗速度判定，两种情况下的结果都与网页端对应视图一致",
           "返回行里的面板属性列与战斗属性列分别与网页端两种视图下的列一致"
         ],
-        "tests": ["mcp/scripts/parity.mjs", "mcp/scripts/smoke-form-overrides.mjs"]
+        "tests": ["mcp/scripts/parity.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -1210,12 +1115,7 @@
       "conditions": "只有已保存的模拟会被计算（见 optimizer.statSim.saved）。条件、队友、敌人等沿用当前表单。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore.statSim 的输入 + useOptimizerDisplayStore.statSimulationDisplay", "lifecycle": "session" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["stat_simulate"],
-        "gaps": "每次都要把模拟定义完整传入，不能直接跑表单里已保存的那些；结果按 COMBO 排名返回，不按表单的优化目标排序。",
-        "candidates": ["stat_simulate(saved=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["stat_simulate"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -1223,7 +1123,7 @@
           "同一份模拟定义得到的 COMBO、各技能伤害与属性，与网页端保存同一模拟后点「模拟」得到的那一行一致",
           "直接运行表单里已保存的全部模拟时，返回的行数与顺序与网页端结果表格一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -1249,11 +1149,7 @@
       ],
       "runtime": "node",
       "state": { "owner": "useOptimizerDisplayStore.statSimulations，写入角色表单的 statSim.simulations", "lifecycle": "persisted", "saveKey": "characters[].form.statSim" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "stat_simulate 不读也不写角色保存的模拟列表，没有入口新增、覆盖或删除它们。",
-        "candidates": ["update_form(statSimulations=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["update_form"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -1261,7 +1157,8 @@
           "保存两条模拟后，存档里 characters[].form.statSim.simulations 与网页端保存同样两条后的内容等价",
           "保存内容相同的模拟被拒绝，主词条不全的模拟被拒绝，原因与网页端的提示对应",
           "覆盖、删除单条、全部删除之后的列表分别与网页端一致"
-        ]
+        ],
+        "tests": ["mcp/scripts/smoke-form.mjs"]
       }
     },
     {
@@ -1277,17 +1174,14 @@
       "conditions": "必须先选中一行真实配装，选中的是模拟行时不导入。",
       "runtime": "node",
       "state": { "owner": "useOptimizerRequestStore.statSim + useOptimizerDisplayStore.statSimulations", "lifecycle": "persisted", "saveKey": "characters[].form.statSim" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有把一套真实配装折算成模拟定义的入口，调用方要自己从遗器明细里算词条数。",
-        "candidates": ["stat_simulate(fromCache=...)", "stat_simulate(fromRelicIds=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["stat_simulate"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "由结果行折算出的套装、主词条与各副词条词条数，与网页端选中同一行点「导入」后输入区里的值一致"
-        ]
+        ],
+        "tests": ["mcp/scripts/smoke-form.mjs"]
       }
     },
     {

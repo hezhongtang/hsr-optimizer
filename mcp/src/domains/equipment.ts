@@ -27,6 +27,7 @@ import {
   SubStats,
 } from 'lib/constants/constants'
 import { SettingOptions } from 'lib/constants/settingsConstants'
+import { RelicScorer } from 'lib/relics/scoring/relicScorer'
 import {
   CONFIG_DISPLAY_ORDER,
   configTypeForScoringType,
@@ -56,10 +57,14 @@ import {
   getScoringMetadata,
   useScoringStore,
 } from 'lib/stores/scoring/scoringStore'
+import { useShowcaseTabStore } from 'lib/tabs/tabShowcase/useShowcaseTabStore'
 import { objectHash } from 'lib/utils/objectUtils'
 import type { Character } from 'types/character'
 import type { Teammate } from 'types/form'
-import type { ScoringConfigType } from 'types/metadata'
+import {
+  ScoringConfigType,
+  type TraceNode,
+} from 'types/metadata'
 import type { SavedBuild } from 'types/savedBuild'
 import { z } from 'zod'
 
@@ -372,6 +377,57 @@ function serializeSavedBuild(build: SavedBuild) {
   }
 }
 
+/**
+ * characterTabController.sortByEffectiveSubstats' per-character score: the sum
+ * of every equipped relic's current potential percent
+ * (scoreRelicPotential().currentPct, engine units passthrough).
+ */
+function scoreEquippedRelics(character: Character, scorer: RelicScorer): number {
+  let score = 0
+  for (const relicId of Object.values(character.equipped)) {
+    const relic = getRelicById(relicId)
+    if (relic) score += scorer.scoreRelicPotential(relic, character.id as Any).currentPct
+  }
+  return score
+}
+
+/** Collect the character's stat-trace tree nodes (id → node) — the same walk
+ * StatTracesDrawer performs over game metadata (nodes + `pre`/children links). */
+function collectTraceNodes(characterId: string): Map<string, TraceNode> {
+  const tree = (getGameMetadata().characters as Record<string, { traceTree?: TraceNode[] }>)[characterId]?.traceTree ?? []
+  const nodes = new Map<string, TraceNode>()
+  const stack = [...tree]
+  while (stack.length) {
+    const node = stack.pop()!
+    nodes.set(node.id, node)
+    for (const child of node.children) stack.push(child)
+  }
+  return nodes
+}
+
+/**
+ * The drawer's uncheck cascade as a state normalization: unchecking a node
+ * unchecks all of its descendants, and re-checking one re-checks its
+ * ancestors — so every UI-reachable deactivated set is downward-closed in the
+ * tree, and closing the caller's list downward maps any input onto exactly
+ * those reachable states (the storage layer itself accepts anything).
+ */
+function deactivateWithDescendants(ids: string[], nodes: Map<string, TraceNode>): string[] {
+  const deactivated = new Set<string>(ids)
+  const stack = [...ids]
+  while (stack.length) {
+    const node = nodes.get(stack.pop()!)
+    if (!node) continue
+    for (const child of node.children) {
+      if (!deactivated.has(child.id)) {
+        deactivated.add(child.id)
+        stack.push(child.id)
+      }
+    }
+  }
+  return [...deactivated]
+}
+
 export function registerEquipmentTools(server: McpServer): void {
   // ── equip_build ────────────────────────────────────────────────────────────
   server.registerTool('equip_build', {
@@ -624,20 +680,65 @@ export function registerEquipmentTools(server: McpServer): void {
   // ── set_character_rank ─────────────────────────────────────────────────────
   server.registerTool('set_character_rank', {
     title: '调整角色优先级',
-    description: '对应网页端角色列表的拖拽排序(characterStore.insertCharacter 语义):把角色移动到指定位置。'
-      + 'index 传 -1 表示移到末尾。角色顺序即优先级,影响优化器的 rank 过滤(只搜索排序不低于当前角色的遗器归属)。',
+    description: '对应网页端角色列表的排序入口,两种模式二选一:'
+      + '默认(characterId + index)对应拖拽排序(characterStore.insertCharacter 语义),把角色移动到指定位置,index 传 -1 表示移到末尾;'
+      + '传 `sortBy="effectiveSubstats"` 对应角色菜单的「按有效副词条排序」(characterTabController.sortByEffectiveSubstats):'
+      + '把每个角色身上各件遗器的潜力当前值(scoreRelicPotential().currentPct)相加,按总分从高到低一次性重排全部角色(得分相同时保持原顺序),此时不再传 characterId/index。'
+      + '角色顺序即优先级,影响优化器的 rank 过滤(只搜索排序不低于当前角色的遗器归属)。',
     inputSchema: {
-      characterId: z.string(),
-      index: z.number().int().min(-1).describe('目标位置(0 起);-1 表示移到末尾'),
+      characterId: z.string().optional().describe('要移动的角色 id(sortBy 模式下不传)'),
+      index: z.number().int().min(-1).optional().describe('目标位置(0 起);-1 表示移到末尾(sortBy 模式下不传)'),
+      sortBy: z.literal('effectiveSubstats').optional().describe('按有效副词条总分自动重排全部角色(与 characterId/index 互斥)'),
     },
     outputSchema: {
-      characterId: z.string(),
-      index: z.number().int(),
+      characterId: z.string().optional(),
+      index: z.number().int().optional(),
+      sortBy: z.literal('effectiveSubstats').optional(),
       order: z.array(z.string()),
+      scores: z.array(z.object({
+        characterId: z.string(),
+        effectiveSubstats: z.number(),
+      })).optional(),
     },
-  }, async ({ characterId, index }) => {
+  }, async ({ characterId, index, sortBy }) => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
+
+    if (sortBy === 'effectiveSubstats') {
+      if (characterId != null || index != null) {
+        throw new Error('set_character_rank:sortBy 与 characterId/index 互斥 — 按有效副词条排序作用于全部角色,请只传 sortBy')
+      }
+      // Mirror of sortByEffectiveSubstats: score every character by the sum of
+      // its equipped relics' current potential, sort desc (stable for ties),
+      // replace the whole roster order.
+      const scorer = new RelicScorer()
+      const scored = getCharacters()
+        .map((character) => ({ score: scoreEquippedRelics(character, scorer), character }))
+        .sort((a, b) => b.score - a.score)
+      useCharacterStore.getState().setCharacters(scored.map((entry) => entry.character))
+      runtimeContext.markDirty()
+
+      const order = getCharacters().map((c) => c.id as string)
+      const scores = scored.map((entry) => ({
+        characterId: entry.character.id as string,
+        effectiveSubstats: entry.score,
+      }))
+      return toolResult(
+        {
+          sortBy,
+          order,
+          scores,
+        },
+        `已按有效副词条总分重排 ${order.length} 个角色(降序):`
+          + `${order.map((id) => (gameCharacterMetadata(id) as { name?: string } | null)?.name ?? id).slice(0, 5).join(' > ')}${
+            order.length > 5 ? ' > …' : ''
+          }`,
+      )
+    }
+
+    if (characterId == null || index == null) {
+      throw new Error('set_character_rank:请提供 characterId 与 index(移动单个角色),或改传 sortBy="effectiveSubstats" 按有效副词条整体排序')
+    }
     requireCharacter(characterId)
 
     const ids = getCharacters().map((c) => c.id as string)
@@ -765,22 +866,47 @@ export function registerEquipmentTools(server: McpServer): void {
   // ── delete_build ───────────────────────────────────────────────────────────
   server.registerTool('delete_build', {
     title: '删除已保存配装',
-    description: '对应网页端角色页配装卡片的删除按钮(buildService.deleteBuild)。',
+    description: '对应网页端角色页配装的删除入口,两种模式二选一:'
+      + '默认按 name 删除单个配装(配装卡片的删除按钮,buildService.deleteBuild);'
+      + '传 `all=true` 清空该角色全部配装(配装弹窗底部「全部删除」按钮,buildService.clearBuilds;破坏性,与 name 互斥)。',
     inputSchema: {
       characterId: z.string(),
-      name: z.string(),
+      name: z.string().optional().describe('要删除的配装名(与 all 二选一)'),
+      all: z.boolean().optional().describe('true=清空该角色全部配装(破坏性,与 name 二选一)'),
     },
     outputSchema: {
       characterId: z.string(),
-      deleted: z.string(),
+      deleted: z.string().optional(),
+      clearedAll: z.boolean(),
+      deletedBuilds: z.array(z.string()),
       remaining: z.number().int(),
     },
-  }, async ({ characterId, name }) => {
+  }, async ({ characterId, name, all }) => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
     const character = requireCharacter(characterId)
-
     const builds = character.builds ?? []
+
+    if (all === true) {
+      if (name != null) {
+        throw new Error('delete_build:name 与 all 互斥 — 删除单个配装只传 name,清空全部只传 all=true')
+      }
+      useCharacterStore.getState().setCharacter({ ...character, builds: [] })
+      runtimeContext.markDirty()
+      return toolResult(
+        {
+          characterId,
+          clearedAll: true,
+          deletedBuilds: builds.map((b) => b.name),
+          remaining: 0,
+        },
+        `已清空 ${characterId} 的全部 ${builds.length} 个配装`,
+      )
+    }
+
+    if (name == null) {
+      throw new Error('delete_build:请提供要删除的配装 name,或传 all=true 清空该角色全部配装')
+    }
     if (!builds.some((x) => x.name === name)) {
       throw new Error(`Build "${name}" not found for ${characterId}. Saved: ${builds.map((b) => b.name).join(', ') || '(none)'}`)
     }
@@ -795,6 +921,8 @@ export function registerEquipmentTools(server: McpServer): void {
       {
         characterId,
         deleted: name,
+        clearedAll: false,
+        deletedBuilds: [name],
         remaining: builds.length - 1,
       },
       `已从 ${characterId} 删除配装「${name}」`,
@@ -805,17 +933,27 @@ export function registerEquipmentTools(server: McpServer): void {
   server.registerTool('equip_saved_build', {
     title: '装备已保存配装',
     description: '对应网页端角色页配装卡片的「装备」按钮(buildService.equipBuildRelics):把已保存配装的六槽遗器'
-      + '装备到该角色。装备行为与 equip_build 相同(遵守全局 Replace/Swap 设置)。',
+      + '装备到该角色。装备行为与 equip_build 相同(遵守全局 Replace/Swap 设置)。'
+      + '传 `applyScoringTeam=true` 时同时复刻网页端装备按钮的评分队伍副作用(BuildsModal.handleEquip):配装记录了完整 3 名队友时,'
+      + '把它写成该角色 DPS 评分配置的自定义队伍(scoringMetadataOverrides[角色].simulation.teammates,落盘)并把 DPS 队伍选择切到自定义(会话态);'
+      + '队友不足 3 名时不触发(与网页一致)。默认不改动评分配置。',
     inputSchema: {
       characterId: z.string(),
       buildName: z.string(),
+      applyScoringTeam: z.boolean().optional().describe('true=装备后把配装的 3 名队友写成 DPS 评分配置的自定义队伍(与网页端装备按钮一致;默认不改动评分配置)'),
     },
     outputSchema: {
       characterId: z.string(),
       buildName: z.string(),
       ...equipOutcomeFields,
+      scoringTeam: z.object({
+        requested: z.boolean(),
+        applied: z.boolean(),
+        reason: z.enum(['not-requested', 'insufficient-teammates']).optional(),
+        teammates: z.array(z.string().nullable()).optional(),
+      }),
     },
-  }, async ({ characterId, buildName }) => {
+  }, async ({ characterId, buildName, applyScoringTeam }) => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
     const character = requireCharacter(characterId)
@@ -826,6 +964,31 @@ export function registerEquipmentTools(server: McpServer): void {
     }
 
     const outcome = applyEquip(characterId, build.equipped)
+
+    // BuildsModal.handleEquip's scoring-team side effect: only for a full
+    // 3-teammate build, always onto the DPS config regardless of the scoring
+    // config the build was saved under; the team preference flip is
+    // showcase-session state (not persisted by SaveState.save).
+    const requested = applyScoringTeam === true
+    let scoringTeam: {
+      requested: boolean,
+      applied: boolean,
+      reason?: 'not-requested' | 'insufficient-teammates',
+      teammates?: Array<string | null>,
+    } = requested
+      ? { requested, applied: false, reason: 'insufficient-teammates' }
+      : { requested, applied: false, reason: 'not-requested' }
+    if (requested && build.team.filter((teammate) => teammate !== null).length === 3) {
+      useScoringStore.getState().updateScoringConfigOverride(characterId as Any, ScoringConfigType.DPS, {
+        teammates: build.team as Any,
+      })
+      useShowcaseTabStore.getState().setShowcaseTeamPreference(characterId as Any, ScoringConfigType.DPS, CUSTOM_TEAM)
+      scoringTeam = {
+        requested,
+        applied: true,
+        teammates: build.team.map((teammate) => teammate?.characterId ?? null),
+      }
+    }
     runtimeContext.markDirty()
 
     return toolResult(
@@ -841,8 +1004,11 @@ export function registerEquipmentTools(server: McpServer): void {
         conflicts: outcome.conflicts,
         skipped: outcome.skipped,
         build: outcome.build,
+        scoringTeam,
       },
       `已把配装「${buildName}」装备到 ${characterId}(行为 ${outcome.behavior})`
+        + (scoringTeam.applied ? ';已把配装队伍写成 DPS 评分的自定义队伍' : '')
+        + (requested && !scoringTeam.applied ? ';配装队友不足 3 名,未改动评分配置' : '')
         + (outcome.skipped.length > 0
           ? `;跳过 ${outcome.skipped.length} 件库存中不存在的遗器(${outcome.skipped.map((s) => `${s.part}=${s.relicId}`).join(', ')})`
           : ''),
@@ -911,14 +1077,20 @@ export function registerEquipmentTools(server: McpServer): void {
   // ── set_scoring_override ───────────────────────────────────────────────────
   server.registerTool('set_scoring_override', {
     title: '设置角色评分覆盖',
-    description: '对应网页端评分设置面板的保存(scoringStore.updateCharacterOverrides 的 delta 合并语义):'
-      + '`weights` 只覆盖传入的副词条权重(其余保持),`parts` 只覆盖传入部件的主词条候选;与默认值相同的项会被剪掉。'
-      + '`reset=true` 清空该角色全部覆盖恢复默认。影响 stat 评分与遗器潜力计算。',
+    description: '对应网页端评分设置面板与行迹抽屉的保存(scoringStore.updateCharacterOverrides 的 delta 合并语义):'
+      + '`weights` 只覆盖传入的副词条权重(其余保持),`parts` 只覆盖传入部件的主词条候选;与默认值相同的项会被剪掉;'
+      + '`traces` 整组替换行迹开关(scoringMetadataOverrides[].traces.deactivated,写入的是最终停用节点 id 列表,'
+      + '会按网页端勾选规则向下级联——关闭某节点自动连同其全部后代一起关闭,最终列表在返回值里;节点 id 与树结构来自 game://metadata/characters/{id} 资源;'
+      + '传空数组=全部启用,与网页端全勾选保存的落盘结果一致)。'
+      + '`reset=true` 清空该角色全部覆盖恢复默认。影响 stat 评分、遗器潜力计算与行迹加成(进而影响优化、模拟与评分)。',
     inputSchema: {
       characterId: z.string(),
       weights: z.record(z.string(), z.number().min(0).max(1)).optional().describe('副词条权重 delta,键为副词条名(如 "CRIT DMG"、"SPD"),值 0-1'),
       parts: z.record(z.string(), z.array(z.string())).optional().describe('主词条候选 delta,键为 Body/Feet/PlanarSphere/LinkRope'),
-      reset: z.boolean().optional().describe('清空该角色全部评分覆盖,恢复默认'),
+      traces: z.object({
+        deactivated: z.array(z.string()).describe('要停用的行迹节点 id 列表(会自动向下级联到全部后代)'),
+      }).optional().describe('行迹开关:整组替换停用节点列表'),
+      reset: z.boolean().optional().describe('清空该角色全部评分覆盖(含行迹),恢复默认'),
     },
     outputSchema: {
       characterId: z.string(),
@@ -927,16 +1099,24 @@ export function registerEquipmentTools(server: McpServer): void {
       parts: z.record(z.string(), z.array(z.string())),
       modified: z.boolean(),
       override: z.unknown(),
+      traces: z.object({
+        deactivated: z.array(z.string()),
+        totalNodes: z.number().int(),
+        expanded: z.boolean(),
+      }).optional(),
     },
-  }, async ({ characterId, weights, parts, reset }) => {
+  }, async ({ characterId, weights, parts, traces, reset }) => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
 
     if (gameCharacterMetadata(characterId) == null) {
       throw new Error(`Unknown character id ${characterId} (not present in game metadata)`)
     }
-    if (reset !== true && weights == null && parts == null) {
-      throw new Error('Provide at least one of: weights, parts, or reset=true')
+    if (reset === true && traces != null) {
+      throw new Error('set_scoring_override:reset 与 traces 互斥 — reset=true 会清空包括行迹在内的全部覆盖,不要同时传 traces')
+    }
+    if (reset !== true && weights == null && parts == null && traces == null) {
+      throw new Error('Provide at least one of: weights, parts, traces, or reset=true')
     }
 
     if (weights != null) {
@@ -954,12 +1134,33 @@ export function registerEquipmentTools(server: McpServer): void {
       }
     }
 
+    // Traces: validate node ids against the character's trace tree, then close
+    // the list downward (the drawer's uncheck cascade) so the stored set is
+    // always one the web UI could have produced.
+    let finalDeactivated: string[] | null = null
+    let traceExpanded = false
+    let totalNodes = 0
+    if (traces != null) {
+      const nodes = collectTraceNodes(characterId)
+      totalNodes = nodes.size
+      const unknown = traces.deactivated.filter((id) => !nodes.has(id))
+      if (unknown.length > 0) {
+        throw new Error(
+          `未知行迹节点 id:${unknown.join(', ')}。角色 ${characterId} 的行迹树共有 ${nodes.size} 个节点,`
+            + `节点 id 与前置/后代关系见 game://metadata/characters/${characterId} 资源`,
+        )
+      }
+      finalDeactivated = deactivateWithDescendants(traces.deactivated, nodes)
+      traceExpanded = finalDeactivated.length !== traces.deactivated.length
+    }
+
     if (reset === true) {
       useScoringStore.getState().clearCharacterOverrides(characterId as Any)
     } else {
       useScoringStore.getState().updateCharacterOverrides(characterId as Any, {
         ...(weights != null ? { stats: weights as Any } : {}),
         ...(parts != null ? { parts: parts as Any } : {}),
+        ...(finalDeactivated != null ? { traces: { deactivated: finalDeactivated } } : {}),
       })
     }
     runtimeContext.markDirty()
@@ -974,9 +1175,13 @@ export function registerEquipmentTools(server: McpServer): void {
         parts: effective.parts,
         modified: effective.modified === true,
         override,
+        ...(finalDeactivated != null
+          ? { traces: { deactivated: finalDeactivated, totalNodes, expanded: traceExpanded } }
+          : {}),
       },
       `${reset === true ? '已清空' : '已更新'} ${characterId} 的评分覆盖 `
-        + `(modified=${effective.modified === true},覆盖 ${override ? '存在' : '无'})`,
+        + `(modified=${effective.modified === true},覆盖 ${override ? '存在' : '无'})`
+        + (finalDeactivated != null ? `;行迹停用 ${finalDeactivated.length}/${totalNodes} 个节点${traceExpanded ? '(已按勾选规则向下级联补全后代)' : ''}` : ''),
     )
   })
 }

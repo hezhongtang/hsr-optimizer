@@ -1,6 +1,6 @@
 # HSR Optimizer MCP Server
 
-让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **48 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4)与 **6 个 `game://` 元数据资源**,覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4 的状态基础。
+让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **52 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4 + M5 角色/遗器/表单/队伍域 4)与 **6 个 `game://` 元数据资源**,覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4/M5 的状态基础和角色、遗器、表单、队伍操作。
 
 - 设计与分期依据:[`hsr-optimizer-MCP-实施方案.md`](./hsr-optimizer-MCP-实施方案.md)(§6.1 规模闸门、§6.2 一致性验收、§7 验收标准)
 - 可行性实测背景(spike)已删除,历史见 commit `81f0789a`(见文末「与 spike 的关系」)
@@ -29,6 +29,9 @@ npm run smoke:jobs     # M4 任务域:optimize/benchmark_runs 任务生命周期
 npm run smoke:snapshot # M4 结构化快照:与写盘输出逐字段对拍、零副作用(不动护栏引用/不写文件)
 npm run smoke:optimizer-generation # 优化时换档:拒绝旧结果与跨档缓存;同档取消保留部分结果
 npm run smoke:form-overrides # 表单覆盖回归:get_form 内部字段与显示表单字段均正确生效
+npm run smoke:form      # M5 表单域:update_form 全参数面(切换自动保存/预设/连招同步/假想配装)
+npm run smoke:relics    # M5 遗器 CRUD:编辑器保存语义/装备转移/预览不落盘/删除清引用
+npm run smoke:teams     # M5 队伍域:manage_team 五动作/基准快照/traces 级联/自动排序/评分队伍联动
 npm run smoke:equip    # 装备+评分域:equip/unequip/switch/builds/score_relics/dps_score/scoring override
                         # + 缓存世代拒绝 / fromCache 表单回写 / 缺失遗器跳过 / 奶妈评分配置解析
 npm run smoke:shutdown # 关停路径:stdin EOF 干净退出(exit 0,毫秒级)+ 防抖写回不丢
@@ -41,7 +44,7 @@ npm run smoke:imports  # 导入 + 展示柜:union 并集语义(1+162→163)、dr
                         # 解析错误路径;showcase 全部错误路径(离线 stub fetch)+ 内联档案导入
 npm run smoke:misc     # 计算器(warp_plan/calc_aha/calc_ehr 对拍上游公式)/ teams(list/save 往返与
                         # 快照保留规则)/ 同步桥(ws 帧逐字段校验、回灌上游解析器、变更驱动重推)
-npm run smoke:all      # 依次跑上述十二份
+npm run smoke:all      # 依次跑全部十九份
 ```
 
 ## 质量门(须从仓库根执行)
@@ -65,7 +68,7 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | `HSR_MCP_HOME`        | `~/.hsr-optimizer-mcp`            | 状态目录:未显式指定 `HSR_MCP_STATE_FILE` 时,localStorage 后端文件落在此目录下                                                                                                                              |
 | `HSR_MCP_LOCALES_DIR` | 自动定位(见说明)                  | i18n 翻译目录(`public/locales` 形状,含 `<语言>/<ns>.yaml`)的显式覆盖;缺省从构建产物位置逐级向上查找(dist→mcp→仓库根),即 dist 须留在仓库内运行——要把构建产物挪到仓库外时用本变量指向仓库的 `public/locales` |
 
-## 工具清单(48 个,按域)
+## 工具清单(52 个,按域)
 
 ### M1 基础域(26 个)
 
@@ -82,14 +85,14 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 **查询域(query)** — 网页端 Characters/Optimizer 页签的只读面:
 
-| 工具              | 功能                                                              |
-| ----------------- | ----------------------------------------------------------------- |
-| `list_characters` | 角色列表摘要(命途/属性/装备概要/评分配置),支持过滤分页            |
-| `get_character`   | 单角色深度信息:六槽装备明细、savedForm、已保存配装、评分元数据    |
-| `get_form`        | 规范化后的内部优化表单(与 optimize 同一条构造路径),附字段来源标注 |
-| `default_form`    | 任意角色全新默认表单(不依赖存档)                                  |
-| `permutations`    | 搜索空间估算 + 规模闸门预判(与 optimize 同一条估算路径)           |
-| `list_relics`     | 遗器库存结构化筛选(词条/roll 反解/套装/归属/排序)                 |
+| 工具              | 功能                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `list_characters` | 角色列表摘要(命途/属性/装备概要/评分配置),支持过滤分页                                                  |
+| `get_character`   | 单角色深度信息:六槽装备明细、savedForm、已保存配装、评分元数据                                          |
+| `get_form`        | 规范化后的内部优化表单(与 optimize 同一条构造路径),附字段来源标注;`expandCombo=true` 附连招矩阵展开形态 |
+| `default_form`    | 任意角色全新默认表单(不依赖存档);`spdPreset` 直接取某档速度预设                                         |
+| `permutations`    | 搜索空间估算 + 规模闸门预判(与 optimize 同一条估算路径)                                                 |
+| `list_relics`     | 遗器库存结构化筛选(词条/roll 反解/套装/归属/排序)                                                       |
 
 **优化域(optimizer)** — 网页端 Optimizer 页签的 Start 按钮:
 
@@ -106,16 +109,16 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 **装备域(equipment)** — 网页端角色页与优化结果页的变更面:
 
-| 工具                                                                | 功能                                                                                                                                             |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `equip_build`                                                       | 装备一套遗器(relicIds 或 optimize 缓存行;遵守 Replace/Swap 设置;缓存须归属一致且不跨 load_save;fromCache 先回写表单;缺失件跳过并在 skipped 列出) |
-| `unequip_character`                                                 | 卸下角色全部遗器                                                                                                                                 |
-| `switch_relics`                                                     | 两个角色整套互换遗器                                                                                                                             |
-| `upsert_character`                                                  | 新建/更新角色(光锥/叠影/星魂/等级)                                                                                                               |
-| `delete_character`                                                  | 删除角色(遗器回库存)                                                                                                                             |
-| `set_character_rank`                                                | 调整角色优先级位置(rank 过滤影响优化)                                                                                                            |
-| `save_build` / `list_builds` / `delete_build` / `equip_saved_build` | 已保存配装的增删查装(fromCache 快照取该次运行实际表单,含 formOverrides;评分配置按角色可用模拟解析,奶妈/辅助不硬编码 DPS)                         |
-| `get_scoring_metadata` / `set_scoring_override`                     | 评分权重/主词条候选的查询与覆盖(默认值+覆盖 delta+有效值)                                                                                        |
+| 工具                                                                | 功能                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `equip_build`                                                       | 装备一套遗器(relicIds 或 optimize 缓存行;遵守 Replace/Swap 设置;缓存须归属一致且不跨 load_save;fromCache 先回写表单;缺失件跳过并在 skipped 列出)                                                                                       |
+| `unequip_character`                                                 | 卸下角色全部遗器                                                                                                                                                                                                                       |
+| `switch_relics`                                                     | 两个角色整套互换遗器                                                                                                                                                                                                                   |
+| `upsert_character`                                                  | 新建/更新角色(光锥/叠影/星魂/等级)                                                                                                                                                                                                     |
+| `delete_character`                                                  | 删除角色(遗器回库存)                                                                                                                                                                                                                   |
+| `set_character_rank`                                                | 调整角色优先级位置(rank 过滤影响优化);`sortBy=effectiveSubstats` 按有效词条分自动排序                                                                                                                                                  |
+| `save_build` / `list_builds` / `delete_build` / `equip_saved_build` | 已保存配装的增删查装(fromCache 快照取该次运行实际表单,含 formOverrides;评分配置按角色可用模拟解析,奶妈/辅助不硬编码 DPS);`delete_build(all=true)` 清空全部配装,`equip_saved_build(applyScoringTeam=true)` 装备时同步应用配装的评分队伍 |
+| `get_scoring_metadata` / `set_scoring_override`                     | 评分权重/主词条候选的查询与覆盖(默认值+覆盖 delta+有效值);`traces` 行迹级联开关(关闭节点连同全部后代,开启深层节点补全前置)                                                                                                             |
 
 **评分域(scoring)** — 网页端遗器评分列与 DPS Score 卡片:
 
@@ -128,9 +131,9 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 **条件域(conditionals)** — 网页端 Optimizer 页签的角色被动/光锥效果条件面板:
 
-| 工具                    | 功能                                                                                                                                                                                                                      |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `describe_conditionals` | 角色(及光锥)全部条件开关定义:key、中文标签/描述、类型(boolean/select/slider)、默认值、枚举选项、星魂/叠影门槛与档位数值、来源;与网页端同源(zh_CN conditionals.yaml),不需要先 load_save;改值写进 optimize 的 formOverrides |
+| 工具                    | 功能                                                                                                                                                                                                                                                                                               |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `describe_conditionals` | 角色(及光锥)全部条件开关定义:key、中文标签/描述、类型(boolean/select/slider)、默认值、枚举选项、星魂/叠影门槛与档位数值、来源;与网页端同源(zh_CN conditionals.yaml),不需要先 load_save;改值写进 optimize 的 formOverrides;`includeAbilities=true` 附连招技能枚举,`includeSets=true` 附套装条件定义 |
 
 用法要点:必填仅 `characterId`。`eidolon` / `lightConeId` / `superimposition` 缺省时按回退链解析——显式入参 → 存档表单中该角色的当前值 → 角色配置默认光锥(叠影 1);返回的 `resolved` 段标明每项实际来源。返回的 `defaultConditionals` 可直接作为 `optimize` 的 `formOverrides.characterConditionals` / `lightConeConditionals` 底稿再改差异项。数值随星魂/叠影档位变化:不给 `eidolon` 时只能看到当前档的数值(门槛与升级档列表仍完整)。
 
@@ -154,12 +157,12 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 **模拟域(simulation)** — 网页端战斗引擎的只读复算面(不改存档):
 
-| 工具             | 功能                                                                                                                                                           |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `simulate_build` | 单套配装战斗模拟:战斗/面板属性归约 + COMBO 总伤与逐技能/轮次伤害;`trace=true` 加伤害类型拆分表与逐动作 Buff 快照(带 角色/光锥套装 来源归因)                    |
-| `stat_simulate`  | Stat Simulations 页签无头版:不依赖具体遗器,按「套装 + 四件主词条 + 副词条 roll 数」批量模拟假想配装,返回各变体 COMBO、属性归约、相对基准变体差值与排名         |
-| `analyze_build`  | 新旧配装对比:COMBO/治疗/护盾与逐技能伤害对比、伤害拆分表(新旧各一份)、逐副词条 +1 roll 升级表、队友位面饰品升级表                                              |
-| `benchmark_runs` | Benchmarks 页签无头版:按预设集(4pc 候选 × SPD 阈值)批量跑战斗基准,返回每预设 100% 基准 / 200% 极限分与排名;长任务支持 progressToken 进度与取消(保留已完成部分) |
+| 工具             | 功能                                                                                                                                                                                                                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `simulate_build` | 单套配装战斗模拟:战斗/面板属性归约 + COMBO 总伤与逐技能/轮次伤害;`trace=true` 加伤害类型拆分表与逐动作 Buff 快照(带 角色/光锥套装 来源归因)                                                                                                                           |
+| `stat_simulate`  | Stat Simulations 页签无头版:不依赖具体遗器,按「套装 + 四件主词条 + 副词条 roll 数」批量模拟假想配装,返回各变体 COMBO、属性归约、相对基准变体差值与排名;`saved=true` 运行表单已存列表,`fromCache`/`fromRelicIds` 从优化结果行/遗器 id 导入(查重后保存为已存模拟再运行) |
+| `analyze_build`  | 新旧配装对比:COMBO/治疗/护盾与逐技能伤害对比、伤害拆分表(新旧各一份)、逐副词条 +1 roll 升级表、队友位面饰品升级表                                                                                                                                                     |
+| `benchmark_runs` | Benchmarks 页签无头版:按预设集(4pc 候选 × SPD 阈值)批量跑战斗基准,返回每预设 100% 基准 / 200% 极限分与排名;长任务支持 progressToken 进度与取消(保留已完成部分)                                                                                                        |
 
 用法要点:四个工具都基于角色**已保存的优化表单**(`formOverrides` 与 `optimize` 同语义合并)。`simulate_build` 的 `relicIds` 缺省取角色当前装备;`analyze_build` 的 `newRelicIds` 必填、`oldRelicIds` 缺省取当前装备——**不支持从 optimize 结果行直接引用**(用行内 `builds` 字段的遗器 id 组装,见已知限制 #11)。`stat_simulate` 的变体字段名与上游 SimulationRequest 一致(`simRelicSet1/2`、`simBody/Feet/PlanarSphere/LinkRope`、`stats` 副词条→roll 数),上限 12 个变体,`baselineIndex` 指定差值基准。`benchmark_runs` 预设上限 16 个,`spdThreshold` 0/缺省=不限速,光锥/星魂/队友均可覆盖(缺省取评分元数据推荐队)。
 
@@ -175,10 +178,10 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 **队伍域(teams)** — 网页端「组队展示」页签(#teams):
 
-| 工具         | 功能                                                                                                        |
-| ------------ | ----------------------------------------------------------------------------------------------------------- |
-| `save_team`  | 队伍写入:不传 teamId 新建、传入则原地更新;槽位 1–4(null=空槽);非空 id 须在游戏元数据中;槽位变化时弃基准快照 |
-| `list_teams` | 已保存队伍列表:槽位详情(角色/命途/属性/是否在当前列表)+ 基准快照(benchmarkSnapshot)                         |
+| 工具         | 功能                                                                                                                                                                                      |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `save_team`  | 队伍写入:不传 teamId 新建、传入则原地更新;槽位 1–4(null=空槽);非空 id 须在游戏元数据中;槽位变化时弃基准快照;`benchmarkSnapshot=true` 保存时现场捕获基准快照(与网页同步按钮同一条捕获路径) |
+| `list_teams` | 已保存队伍列表:槽位详情(角色/命途/属性/是否在当前列表)+ 基准快照(benchmarkSnapshot)                                                                                                       |
 
 用法要点:`save_team` 不传 `teamId` 新建(需 `name` + `characterIds`),传入则原地更新(至少提供 `name` 或 `characterIds` 之一);槽位数组 `null` 为空槽,不足 4 个自动尾部补 null;非空角色 id 须在游戏元数据中。更新时槽位变化会按网页端规则弃用基准快照。与网页端一致:保存**不会**把缺失角色补进角色列表(网页是在「加载队伍」时补)。
 
@@ -203,10 +206,10 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 **状态域(state)** — 全站覆盖计划 M4 的设置/会话/标记/扫描器配置读写:
 
-| 工具           | 功能                                                                                                                                                                                                                        |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get_state`    | 按 section 读取:`revision`(修订号/世代/dirty/blockedWrite)、`settings`(六项设置当前值+定义,默认值派生自上游)、`session`(持久化 savedSession+易取的临时态)、`flags`(seenFeatures+未读派生)、`scanner`(六字段+customUrl 派生) |
-| `update_state` | 按 section 写入(未知键拒绝、枚举校验);可选 `baseRevision` 乐观并发检查(不匹配报冲突,消息含双方修订号);整体走 withChange 事务,失败回滚                                                                                       |
+| 工具           | 功能                                                                                                                                                                                                                                                                       |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_state`    | 按 section 读取:`revision`(修订号/世代/dirty/blockedWrite)、`settings`(六项设置当前值+定义,默认值派生自上游)、`session`(持久化 savedSession+易取的临时态)、`flags`(seenFeatures+未读派生)、`scanner`(六字段+customUrl 派生)、`showcase`(按角色的展示卡偏好,含槽位评分类型) |
+| `update_state` | 按 section 写入(未知键拒绝、枚举校验);可选 `baseRevision` 乐观并发检查(不匹配报冲突,消息含双方修订号);整体走 withChange 事务,失败回滚                                                                                                                                      |
 
 **任务域(jobs)** — 长任务统一注册表(optimize/benchmark_runs 已接入,评分与后续任务逐里程碑接入):
 
@@ -214,6 +217,29 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | ------------ | ------------------------------------------------------------------------------------------------------------------- |
 | `get_job`    | 无参列出全部任务(id/类型/状态/时间);带 jobId 返回详情(进度、可否取消、摘要引用——optimize 的 jobId 即返回的 cacheId) |
 | `cancel_job` | 取消运行中的任务(复用既有取消路径,optimize 保留部分结果);已结束任务返回其终态而非报错                               |
+
+### M5 角色、遗器、表单与队伍域(4 个)
+
+**遗器 CRUD 域(relics)** — 网页端遗器编辑器与库存删除:
+
+| 工具            | 功能                                                                                                                                                                                                                                                                         |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `upsert_relic`  | 新建/编辑遗器,走编辑器同一条保存链(部位/主词条/套装联动重置、副词条校验、规范化、主词条数值重算);`equippedBy` 传角色装备(null=卸下、不传保持,跨角色转移遵守全局 Replace/Swap);`previewUpgrade`/`previewSubstats` 预览不落盘;`dryRun` 全校验+装备变更演练;可选 `baseRevision` |
+| `delete_relics` | 按 id 批量删除(已装备件同步清理 character.equipped 引用);任一 id 不存在则整体拒绝、零删除;删光库存时按网页端解除空存档写回限制                                                                                                                                               |
+
+**表单域(form)** — 网页端 Optimizer 页签的持久化表单写路径:
+
+| 工具          | 功能                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `update_form` | 单工具 + 具名子载荷:`characterId`(上游 switchToCharacter 语义——自动保存离开角色的表单再载入)、`patch`(部分字段更新,未知键拒绝并列合法清单)、`preset`(速度预设)/`reset=filters`、`combo`(六种编辑映射连招抽屉动作,条件改动经 handleConditionalChange 同步连招默认值)、`teammates`(+`syncFromRoster=true` 走选人联动)、`fromBuild`(已存配装载入表单)、`statSimulations`(假想配装列表增/载/覆盖/删/全清);可选 `baseRevision`;非致命校验警告独立以 `warnings` 数组返回 |
+
+用法要点:`update_form` 写的是**持久表单**(落角色存档);`optimize` 的 `formOverrides` 仍是单次运行覆写,两者叠加关系与网页「表单 vs 临时改」一致。多子载荷可组合,按 `fromBuild → reset → preset → patch → combo → teammates → statSimulations` 固定顺序应用。
+
+**队伍操作域(teams 扩展)** — 网页端「组队展示」页签的工作队伍与已保存队伍管理:
+
+| 工具          | 功能         |
+| ------------- | ------------ |
+| `manage_team` | `action=load |
 
 ### game:// 资源(6 项)
 
@@ -289,7 +315,7 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 - `fetch_showcase` / `import_showcase`(enka/mihomo 档案)✅
 - teams 数据面(`save_team`/`list_teams`)✅
 - stats 归约器(`ComputedStatsContainer → JSON`,随 simulate_build/stat_simulate 返回)✅;套装效果描述面(`game://metadata/sets`)✅;「行→配装」按方案有意折叠进 optimize/get_results 的行内 builds 字段,不另设 resource
-- 全部工具的 outputSchema 声明(§9 D7)✅(48 个工具全覆盖;6 个 `game://` 资源不适用——SDK 的资源配置无 outputSchema 参数,见方案 §10 D12)
+- 全部工具的 outputSchema 声明(§9 D7)✅(52 个工具全覆盖;6 个 `game://` 资源不适用——SDK 的资源配置无 outputSchema 参数,见方案 §10 D12)
 - 追加交付:同步桥 `sync_bridge_start/status/stop/push`(MCP→网页端单向推送,变更驱动自动重推)与 6 项 `game://` 元数据资源
 
 留尾巴(未做成/未覆盖,如实登记):

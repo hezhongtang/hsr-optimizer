@@ -13,6 +13,7 @@
 // the store by the time we serialize.
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { applySpdPreset } from 'lib/conditionals/evaluation/applyPresets'
 import { PartsArray } from 'lib/constants/constants'
 import { generateFullDefaultForm } from 'lib/simulations/utils/benchmarkForm'
 import { getGameMetadata } from 'lib/state/gameMetadata'
@@ -26,6 +27,7 @@ import {
   createDefaultStatFilters,
 } from 'lib/stores/optimizerForm/optimizerFormDefaults'
 import { computeLoadForm } from 'lib/stores/optimizerForm/optimizerFormStoreActions'
+import { useOptimizerRequestStore } from 'lib/stores/optimizerForm/useOptimizerRequestStore'
 import {
   getRelicById,
   getRelics,
@@ -53,6 +55,33 @@ import {
   serializeSavedBuild,
 } from '../serializers/forms'
 import { toolResult } from '../toolResult'
+import {
+  expandComboMatrix,
+  spdPresetCatalog,
+} from './form'
+
+// expandCombo=true 时附带的连招矩阵形态(与 domains/form.ts 的 SerializedComboMatrix 对应)
+const comboMatrixSchema = z.object({
+  comboType: z.enum(['simple', 'advanced']),
+  preprocessor: z.boolean(),
+  version: z.string().nullable(),
+  turnAbilities: z.array(z.string()),
+  entities: z.array(z.object({
+    sourceKey: z.string(),
+    role: z.string(),
+    characterId: z.string().nullable(),
+    name: z.string().nullable(),
+    conditionals: z.array(z.object({
+      id: z.string(),
+      type: z.string(),
+      defaultValue: z.union([z.boolean(), z.number()]),
+      activations: z.array(z.boolean()).optional(),
+      partitions: z.array(z.object({ value: z.number(), activations: z.array(z.boolean()) })).optional(),
+    })),
+  })),
+  displayedSets: z.object({ relics: z.array(z.string()), ornaments: z.array(z.string()) }),
+  stateJsonBytes: z.number().int(),
+})
 
 // getScoringMetadata simulation fields → scoring config types (mirrors
 // lib/scoring/scoringConfig.ts CONFIG_DISPLAY_ORDER without its i18n imports)
@@ -284,9 +313,14 @@ export function registerQueryTools(server: McpServer): void {
       + '(存档表单 → computeLoadForm 合并条件默认值 → displayToInternal),是构造 formOverrides 的样板。'
       + '内部 minCr/minCd 等与 combatBuffs 百分比使用小数(0.5=50%);部分覆盖可显式加 format:"internal"。'
       + 'fieldSources 标注每个字段来自角色已保存表单(saved)还是默认值(default),legacyKeysDropped 列出被规范化丢弃的旧字段。'
-      + '对应网页端选中角色后 Optimizer 页签加载出的表单。',
+      + '对应网页端选中角色后 Optimizer 页签加载出的表单。'
+      + 'expandCombo=true 额外把 comboStateJson 展开成连招抽屉的「条件 × 技能」矩阵'
+      + '(每个条件在每个技能位上的勾选与分段取值,含主角色/队友/光锥/套装各实体;update_form(combo.edits) 用同一套 target+id 定位)。',
     inputSchema: {
       characterId: z.string().describe('Character id, e.g. "1212b1"'),
+      expandCombo: z.boolean().default(false).describe(
+        '是否把连招状态展开为矩阵形态(网页端连招抽屉打开时显示的内容;默认 false 保持原样只给 comboStateJson 字符串)',
+      ),
     },
     outputSchema: {
       characterId: z.string(),
@@ -299,8 +333,9 @@ export function registerQueryTools(server: McpServer): void {
         note: z.string(),
       }),
       notes: z.array(z.string()),
+      combo: comboMatrixSchema.optional(),
     },
-  }, async ({ characterId }) => {
+  }, async ({ characterId, expandCombo }) => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
 
@@ -314,24 +349,30 @@ export function registerQueryTools(server: McpServer): void {
     form.rank = rank
     const fieldSources = annotateFormSources(character.form, form)
 
-    return toolResult(
-      {
-        characterId,
-        rank,
-        form,
-        fieldSources,
-        notes: [
-          'Same path optimize uses: computeLoadForm(character.form) → displayToInternal; form.rank is already synced to the live roster position (optimize re-sets it every run)',
-          'optimize overrides resultsLimit per run (default 50); the form value here is the stored form default (1024 when unset)',
-          'Pass this form or partial internal fields via formOverrides: flat min/max filters, teammate0/1/2 and relicSets/ornamentSets are supported; internal aliases take precedence over their display equivalents',
-          'Flat percentage filters use fractions (minCr:0.5 means 50%); nested statFilters use display percentages (minCr:50 means 50%)',
-          'combatBuffs percentages use fractions when format:"internal" or an internal-only key is present; otherwise display percentages. Set format:"display" to force display buff units',
-          'Nested objects and teammate slots merge partial keys; arrays replace, null clears a teammate slot. characterId must match the target; rank/resultsLimit/resultMinFilter are controlled by optimize',
-        ],
-      },
-      `${characterId} 的规范化表单:${Object.keys(form).length} 个字段 `
-        + `(${Object.values(fieldSources.fields).filter((source) => source === 'saved').length} 个来自已保存表单)`,
-    )
+    const payload: Record<string, unknown> = {
+      characterId,
+      rank,
+      form,
+      fieldSources,
+      notes: [
+        'Same path optimize uses: computeLoadForm(character.form) → displayToInternal; form.rank is already synced to the live roster position (optimize re-sets it every run)',
+        'optimize overrides resultsLimit per run (default 50); the form value here is the stored form default (1024 when unset)',
+        'Pass this form or partial internal fields via formOverrides: flat min/max filters, teammate0/1/2 and relicSets/ornamentSets are supported; internal aliases take precedence over their display equivalents',
+        'Flat percentage filters use fractions (minCr:0.5 means 50%); nested statFilters use display percentages (minCr:50 means 50%)',
+        'combatBuffs percentages use fractions when format:"internal" or an internal-only key is present; otherwise display percentages. Set format:"display" to force display buff units',
+        'Nested objects and teammate slots merge partial keys; arrays replace, null clears a teammate slot. characterId must match the target; rank/resultsLimit/resultMinFilter are controlled by optimize',
+      ],
+    }
+    let summary = `${characterId} 的规范化表单:${Object.keys(form).length} 个字段 `
+      + `(${Object.values(fieldSources.fields).filter((source) => source === 'saved').length} 个来自已保存表单)`
+
+    if (expandCombo) {
+      const matrix = expandComboMatrix(form)
+      payload.combo = matrix
+      summary += `;连招矩阵 ${matrix.entities.length} 个实体 / ${matrix.turnAbilities.length} 个技能位`
+    }
+
+    return toolResult(payload, summary)
   })
 
   server.registerTool('default_form', {
@@ -339,12 +380,18 @@ export function registerQueryTools(server: McpServer): void {
     description: '为任意角色生成一份全新默认表单(generateFullDefaultForm,即网页端“基准评分/默认条件”的表单构造):'
       + '条件默认值取自角色/光锥条件控制器,连招取评分元数据 simulation 配置。不依赖已加载存档——'
       + 'agent 未 load_save 也能起步;lightConeId 省略时依次回退:角色已保存表单的光锥(若有存档)→ 无光锥(光锥条件为空,附警告)。'
-      + '返回值经过与 get_form 相同的规范化,可直接作 formOverrides 样板;百分比为内部小数,部分 combatBuffs 覆盖加 format:"internal"。',
+      + '返回值经过与 get_form 相同的规范化,可直接作 formOverrides 样板;百分比为内部小数,部分 combatBuffs 覆盖加 format:”internal”。'
+      + 'spdPreset 提供速度预设变体(网页端「推荐预设」按钮族):在默认表单上套用 applySpdPreset——'
+      + '条件恢复默认、套用评分元数据推荐筛选与主词条、按档位设最低速度(0=不限速,对应主按钮),'
+      + '角色有模拟评分配置时优化目标为 COMBO;可用档位以返回的 availableSpdPresets 为准(与网页端下拉一致)。',
     inputSchema: {
-      characterId: z.string().describe('Character id, e.g. "1212b1" (any character in game metadata, save not required)'),
+      characterId: z.string().describe('Character id, e.g. “1212b1” (any character in game metadata, save not required)'),
       lightConeId: z.string().optional().describe('Light cone id; defaults to the character\'s saved-form light cone when a save is loaded'),
       eidolon: z.number().int().min(0).max(6).default(0).describe('Character eidolon (default 0)'),
       superimposition: z.number().int().min(1).max(5).default(1).describe('Light cone superimposition (default 1)'),
+      spdPreset: z.number().min(0).optional().describe(
+        '速度档位(推荐预设的最低速度,0=不限速/主按钮;合法值见不传时无需关心,传非法值会报错并列出全部档位,如 120.000 / 133.334 / 160.000)',
+      ),
     },
     outputSchema: {
       characterId: z.string(),
@@ -354,13 +401,25 @@ export function registerQueryTools(server: McpServer): void {
       lightConeSuperimposition: z.number(),
       form: z.record(z.string(), z.unknown()),
       warnings: z.array(z.string()),
+      appliedSpdPreset: z.number().optional(),
+      availableSpdPresets: z.array(z.object({
+        key: z.string(),
+        label: z.string(),
+        value: z.number(),
+        category: z.string(),
+      })).optional(),
     },
-  }, async ({ characterId, lightConeId, eidolon, superimposition }) => {
+  }, async ({ characterId, lightConeId, eidolon, superimposition, spdPreset }) => {
     runtimeContext.ensureMetadataReady()
 
     const meta = characterMeta(characterId)
     if (!meta) {
       throw new Error(`Unknown characterId ${characterId} — not present in game metadata`)
+    }
+
+    const catalog = spdPreset != null ? spdPresetCatalog() : null
+    if (spdPreset != null && catalog != null && !catalog.values.includes(spdPreset)) {
+      throw new Error(`default_form: spdPreset 的值 ${spdPreset} 不是推荐预设的速度档位 — 可选: ${catalog.values.join(', ')}`)
     }
 
     const warnings: string[] = []
@@ -392,25 +451,40 @@ export function registerQueryTools(server: McpServer): void {
       eidolon,
       superimposition,
     )
-    const state = computeLoadForm(generatedForm)
+    let state = computeLoadForm(generatedForm)
+    if (spdPreset != null) {
+      // 网页端「推荐预设」按钮的等价路径:把默认表单载入请求存储后套用
+      // applySpdPreset(条件恢复默认 → 评分元数据推荐 → 最低速度按档位)。
+      // 请求存储在此仅作草稿,读回后无持久化副作用。
+      useOptimizerRequestStore.getState().loadForm(generatedForm)
+      applySpdPreset(spdPreset, characterId as CharacterId)
+      state = { ...useOptimizerRequestStore.getState() }
+    }
     // computeLoadForm JSON-clones maps, dropping undefined bounds. Restore the
     // complete default maps so this full template explicitly clears saved filters.
     state.statFilters = { ...createDefaultStatFilters(), ...state.statFilters }
     state.ratingFilters = { ...createDefaultRatingFilters(), ...state.ratingFilters }
     const form = displayToInternal(state)
 
+    const payload: Record<string, unknown> = {
+      characterId,
+      lightCone: lightCone ?? null,
+      lightConeSource,
+      characterEidolon: eidolon,
+      lightConeSuperimposition: superimposition,
+      form,
+      warnings,
+    }
+    if (spdPreset != null) {
+      payload.appliedSpdPreset = spdPreset
+      payload.availableSpdPresets = catalog!.presets
+    }
+
     return toolResult(
-      {
-        characterId,
-        lightCone: lightCone ?? null,
-        lightConeSource,
-        characterEidolon: eidolon,
-        lightConeSuperimposition: superimposition,
-        form,
-        warnings,
-      },
+      payload,
       `${characterId}(${meta.name})的默认表单,光锥 ${lightCone ?? '无'}(${lightConeSource}),`
-        + `e${eidolon}/s${superimposition}`,
+        + `e${eidolon}/s${superimposition}`
+        + (spdPreset != null ? `,已套用推荐预设 spd=${spdPreset}` : ''),
     )
   })
 
