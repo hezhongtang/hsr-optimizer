@@ -21,11 +21,7 @@
       "sideEffects": [
         "把全局调试开关 WEBGPU_DEBUG 打开且不再关闭：之后本次会话里光锥即使与角色命途不符也会生效，刷新页面才恢复"
       ],
-      "mcp": {
-        "status": "missing",
-        "gaps": "MCP 没有浏览器运行环境，无法执行 GPU 计算，也就没有 CPU 与 GPU 的一致性校验。",
-        "candidates": ["debug_utility(action=webgpu_tests)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["debug_utility"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -34,8 +30,8 @@
           "有失败项时返回具体的属性名、CPU 值、GPU 值、差值和允许精度",
           "浏览器不支持 WebGPU 时返回明确的不可用原因，而不是零个用例",
           "测试在独立页面里运行，跑完后其他计算不受调试开关影响"
-        ]
-      }
+        ],
+        "tests": ["mcp/scripts/smoke-debug.mjs"]}
     }
   ]
 }

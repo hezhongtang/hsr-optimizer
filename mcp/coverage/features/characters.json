@@ -431,12 +431,12 @@
       "conditions": "没有选中配装时不动作。移动端浏览器上「复制」走系统分享（见 preview 域的截图条目）。",
       "runtime": "browser",
       "state": { "owner": "无", "lifecycle": "none" },
-      "mcp": { "status": "missing", "candidates": ["render(target=saved_build)", "deliver_artifact(action=copy)"] },
+      "mcp": { "status": "implemented", "tools": ["render", "deliver_artifact"] },
       "scope": "baseline",
       "upstreamChange": "export",
       "acceptance": {
-        "cases": ["渲染出的图片尺寸、文字与数值和网页下载的配装截图一致，背景透明处理相同"]
-      }
+        "cases": ["渲染出的图片尺寸、文字与数值和网页下载的配装截图一致，背景透明处理相同"],
+        "tests": ["mcp/scripts/smoke-render.mjs"]}
     },
     {
       "id": "characters.scoring.weights",
@@ -545,12 +545,12 @@
       "params": [{ "name": "panel", "type": "'CHARACTERS' | 'TEAMS'", "default": "按 hash 解析，否则 CHARACTERS" }],
       "runtime": "browser",
       "state": { "owner": "useCharacterTabStore.activePanel + location.hash", "lifecycle": "session" },
-      "mcp": { "status": "missing", "candidates": ["site://pages", "render(target=page)"] },
+      "mcp": { "status": "implemented", "tools": ["render"], "resources": ["site://pages"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["site://pages 把 #characters 与 #teams 列为角色页的两个面板；浏览器运行环境可直接打开其中任一面板"]
-      }
+        "cases": ["site://pages 把 #characters 与 #teams 列为角色页的两个面板；浏览器运行环境可直接打开其中任一面板"],
+        "tests": ["mcp/scripts/smoke-render.mjs"]}
     },
     {
       "id": "characters.grid.density",

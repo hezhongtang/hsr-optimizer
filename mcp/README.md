@@ -1,6 +1,6 @@
 # HSR Optimizer MCP Server
 
-让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **56 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4 + M5 角色/遗器/表单/队伍域 4 + M6 扫描器/评分/榜单/分析域 4)与 **7 个 `game://` 元数据资源**,覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4/M5/M6 的状态基础、角色/遗器/表单/队伍操作,以及实时导入、四配置角色评分、排行榜数据层与遗器分析。
+让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **61 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4 + M5 角色/遗器/表单/队伍域 4 + M6 扫描器/评分/榜单/分析域 4 + M7 浏览器/渲染/诊断域 5)与 **11 个资源**(`game://` 元数据 7 项 + `site://` 站点面 4 项),覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4–M7 的状态基础、角色/遗器/表单/队伍操作、实时导入、四配置角色评分、排行榜数据层、遗器分析,以及受管浏览器运行环境下的图片导出、WebGPU 检验与 GPU 优化执行。
 
 - 设计与分期依据:[`hsr-optimizer-MCP-实施方案.md`](./hsr-optimizer-MCP-实施方案.md)(§6.1 规模闸门、§6.2 一致性验收、§7 验收标准)
 - 可行性实测背景(spike)已删除,历史见 commit `81f0789a`(见文末「与 spike 的关系」)
@@ -49,7 +49,7 @@ npm run smoke:imports  # 导入 + 展示柜:union 并集语义(1+162→163)、dr
                         # 解析错误路径;showcase 全部错误路径(离线 stub fetch)+ 内联档案导入
 npm run smoke:misc     # 计算器(warp_plan/calc_aha/calc_ehr 对拍上游公式)/ teams(list/save 往返与
                         # 快照保留规则)/ 同步桥(ws 帧逐字段校验、回灌上游解析器、变更驱动重推)
-npm run smoke:all      # 依次跑全部二十四份
+npm run smoke:all      # 依次跑全部二十八份(浏览器四套在缺 Chrome/dist 的环境自动 [SKIP])
 ```
 
 ## 质量门(须从仓库根执行)
@@ -66,14 +66,17 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 ## 环境变量
 
-| 变量                  | 默认                              | 说明                                                                                                                                                                                                       |
-| --------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HSR_MCP_WORKERS`     | `6`                               | 优化器 worker 池大小(1–10)。池大小在首次导入 `workerPool` 时定死;9 线程满载约 2.3 GB RSS,大库存场景建议保守设置                                                                                            |
-| `HSR_MCP_STATE_FILE`  | `$HSR_MCP_HOME/localstorage.json` | localStorage 垫片的文件后端(上游 store 层的持久化通道)。测试时务必指到临时目录                                                                                                                             |
-| `HSR_MCP_HOME`        | `~/.hsr-optimizer-mcp`            | 状态目录:未显式指定 `HSR_MCP_STATE_FILE` 时,localStorage 后端文件落在此目录下                                                                                                                              |
-| `HSR_MCP_LOCALES_DIR` | 自动定位(见说明)                  | i18n 翻译目录(`public/locales` 形状,含 `<语言>/<ns>.yaml`)的显式覆盖;缺省从构建产物位置逐级向上查找(dist→mcp→仓库根),即 dist 须留在仓库内运行——要把构建产物挪到仓库外时用本变量指向仓库的 `public/locales` |
+| 变量                    | 默认                              | 说明                                                                                                                                                                                                       |
+| ----------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HSR_MCP_WORKERS`       | `6`                               | 优化器 worker 池大小(1–10)。池大小在首次导入 `workerPool` 时定死;9 线程满载约 2.3 GB RSS,大库存场景建议保守设置                                                                                            |
+| `HSR_MCP_STATE_FILE`    | `$HSR_MCP_HOME/localstorage.json` | localStorage 垫片的文件后端(上游 store 层的持久化通道)。测试时务必指到临时目录                                                                                                                             |
+| `HSR_MCP_HOME`          | `~/.hsr-optimizer-mcp`            | 状态目录:未显式指定 `HSR_MCP_STATE_FILE` 时,localStorage 后端文件落在此目录下                                                                                                                              |
+| `HSR_MCP_LOCALES_DIR`   | 自动定位(见说明)                  | i18n 翻译目录(`public/locales` 形状,含 `<语言>/<ns>.yaml`)的显式覆盖;缺省从构建产物位置逐级向上查找(dist→mcp→仓库根),即 dist 须留在仓库内运行——要把构建产物挪到仓库外时用本变量指向仓库的 `public/locales` |
+| `HSR_MCP_BROWSER_PATH`  | 平台自动发现                      | 受管浏览器(Chromium 系)可执行文件路径;缺省按 macOS 应用路径 → Linux chrome/chromium → Windows 常见路径发现。M7 渲染/WebGPU 工具依赖它,缺失时返回具体的中文能力报告                                         |
+| `HSR_MCP_SITE_DIST`     | `<仓库根>/dist`                   | 站点构建产物目录(受管浏览器伺服的页面与素材);仓库外运行时用本变量指向独立的 dist 副本                                                                                                                      |
+| `HSR_MCP_ARTIFACTS_DIR` | `$TMPDIR/hsr-mcp-artifacts`       | render/图片导出产物的落盘目录(运行期用户数据,不进仓库)                                                                                                                                                     |
 
-## 工具清单(56 个,按域)
+## 工具清单(61 个,按域)
 
 ### M1 基础域(26 个)
 
@@ -274,7 +277,21 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 本里程碑同时落地大量既有工具扩展(全部 add-only):`optimize(validate / diagnose / applyFixes / resultsLimit≤65536)`(诊断与修复复用上游 suggestionsEngine,修复走 withChange 事务)、`get_results(rowIds=…)`(按行 id 固定取行)、`import_scanner_json/import_hoyolab(includeCharacters=false)`(只导入遗器)、`set_scoring_override(configs=… / resetAll / linkFlatAndPercent)`(评分队伍编辑/重置/同步/增益优先级)、`score_relics(scope / rollsSummary)`、`list_relics(sortBy)`、`fetch_showcase(remember=true)`(多缓存)、`calc_aha(desiredAha / save / fromSaved)`、`calc_ehr(mode=probability / grid)`、`warp_plan(applyPlannerMode / normalizeTargets / save)`、`benchmark_runs(sweep=sets)`(套装基准审计)、`update_state/get_state(session)` 扩 `language`、`load_save(sample=true)`,以及新资源 `game://metadata/scoring`(评分元数据六面板)。
 
-### game:// 资源(7 项)
+### M7 浏览器、渲染与诊断域(5 个)
+
+受管浏览器运行环境:puppeteer-core + 本机 Chromium 系浏览器(绝不下载浏览器),本地静态伺服上游站点构建产物(同版本页面/字体/素材);每个任务独立浏览器上下文,预写 `localStorage['state']` 种子(与 `SaveState.save()` 逐字节同构),浏览器侧改动不回写 MCP 存档。缺浏览器或缺 dist 时返回具体的中文能力报告(`get_runtime_capabilities`),冒烟自动 [SKIP]。
+
+| 工具                       | 功能                                                                                                                                                                                                                                                                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_runtime_capabilities` | `action=status / launch / close`:浏览器可执行文件与版本、站点 dist、Node、产物目录、WebGPU 适配器探测(vendor/architecture/软适配器判定)、当前 computeEngine;launch 幂等启动 + 探测,close 关停不残留进程,产物保留;status 零副作用                                                                                              |
+| `render`                   | `target=character_card / saved_build / team_card / portrait / page`:走网页自己的 snapdom 导出链(点真实截图按钮,拦截 clipboard/download 分支捕获 PNG,与网页导出逐像素同构;spine 动画与肖像裁剪用 CDP 截屏);返回 image 内容块 + 产物落盘(artifactId/宽高/字节数);`page` 附可交给用户的本地 URL                                  |
+| `deliver_artifact`         | `action=list / read / copy / share / delete`:产物清单/读取(内联图片)/删除;`copy` 在受管浏览器里回放网页「复制」按钮同一条链(ClipboardItem + clipboard.write——桌面 Chrome 通常即系统剪贴板,服务器环境可能无接收方,如实回报 ok 与原因);`share` 探测 Web Share 平台分支并如实报告可用性(无头环境预期不可用,不宣称任意客户端支持) |
+| `debug_utility`            | `action=webgpu_tests / image_center / populate_characters / reset_showcase_colors / export_showcase_colors`:隐藏 WebGPU 测试页真跑(逐用例状态 + CPU/GPU 数值 + 公差;本机 250 条全量约 2–4 分钟)、图片中心编辑器驱动(center/zoom 调整 + 预览截图 + 配置复制)、`window.__HSR_DEBUG` 三个控制台工具的 Node 侧直调                |
+| `set_portrait`             | `action=set / reset`:自定义肖像写入/清除,逐字镜像上游 showcaseOnEditPortraitOk 语义(set 对缺库角色自动补入、reset 保留角色);PNG/JPEG/WebP 尺寸嗅探纯 Node 实现(data URL 就地/远程流式截断),crop 参数与 artistName 署名齐备                                                                                                    |
+
+本里程碑的既有工具扩展:`optimize` 新增 `engine=auto / cpu / gpu / gpu-experimental`(默认 auto=Node CPU 路径不变;GPU 路径在受管浏览器里驱动网页真实 GPU 引擎——经查上游 GPU 走主线程 gpuOptimize 而非 workerPool,UI 驱动即真实执行路径——返回 actualEngine 与 CPU 对拍 delta);`get_state/update_state` 新增 `visualDebug`(19 个视觉调试参数 + cardDebug,会话态不落盘)、`relicsTab`(excludedRelicPotentialCharacters 落盘读写 + recentRelics 只读投影)、`layout`(表单分区折叠状态落盘读写)三段。
+
+### game:// 与 site:// 资源(11 项)
 
 只读元数据面,与工具同进程注册(`src/resources.ts`);列表资源只带摘要,单实体详情走 URI 模板(模板不占 resources/list,经 templates/list 发现):
 
@@ -287,6 +304,15 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | `game://metadata/sets`            | 62 项遗器/饰品套装表:id、中文名、2pc/4pc 中文效果文本、英文合并文本(附口径 note)                                  |
 | `game://metadata/scoring`         | 评分元数据六面板(随版本发布的默认配置,不反映本地覆盖):substatWeights/sets/teams/combo/setPresets/leaderboardTeams |
 | `game://changelog`                | Changelog 页签原文(上游仅英文,53 期约 77KB JSON)                                                                  |
+
+site:// 站点面(M7):URL 逐条核对自上游源码,不凭记忆:
+
+| URI                   | 内容                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------ |
+| `site://pages`        | 13 个页面清单:AppPages 枚举、hash(PageToHash)、zh 标题、render(page=…) 参数值域、可交接 URL 形态 |
+| `site://links`        | 站点外链:首页社区卡、侧边栏组、页眉、Enka 署名、贡献者等真实 URL                                 |
+| `site://home`         | 首页能力清单:优化器版本、游戏数据版本(直接 import 上游常量)、站点能力入口摘要                    |
+| `site://help/{topic}` | 导入帮助主题(模板资源):reliquary / kelz / hoyolab / live-import / scorer 的真实链接与说明        |
 
 「行→配装」不另设 resource:optimize/get_results 已随行返回 builds 字段(每行 6 槽遗器 id),再设一个 resource 只会复制同一份缓存。
 
@@ -328,7 +354,9 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 13. **中文标签的三处上游现状**(原样透出,与网页端一致):①个别旧条件文件(如 Pearl)标签为上游硬编码英文;②角色名册个别新角色/光锥 zh_CN 缺译,返回 `null` 而不回显 key;③`game://changelog` 为上游英文原文,且条目 `title` 多为空串、以 `date` 标识(仅首条带版本标题)。
 14. **工具异常消息中英混杂**:M1 基础域(archive/query/optimizer/equipment/scoring)的 `throw` 异常消息为英文,M2/M3 扩展域(imports/showcase/simulation/conditionals/calculators/teams/bridge)全中文——`mcp/src` 127 处 `throw` 中 33 处为纯英文(含内部对拍入口 `parityRef.ts` 1 处)。结构化字段不受影响,仅同一会话内报错语言不一致;统一语言属文案级重构,登记暂不处理。
 15. **`analyze_build` 的 `statUpgrades` 是 12 副词条全量**:升级表与网页端同源(`calculateStatUpgrades` 遍历全部 SubStats),对每个上游副词条各 +1 roll——**包括该配装不存在/不适用的词条**;`pct` 字段为百分数口径(已乘 100,如 `12.3` 表示 12.3%)。agent 需要「只看已有词条」的视图时,按 `builds` 内遗器的副词条自行过滤。
-16. **eidolon 术语统一为「星魂」**:工具文案中的 eidolon 规范写作「星魂」(2026-10 复核批次已清理 showcase/simulation/equipment 等全部旧写法「魂影」,现 `mcp/src` 内零残留)。入参字段名(`characterEidolon`/`eidolon`)与取值不变。
+16. **浏览器工具的平台条件**(M7,如实登记):`deliver_artifact(copy)` 写入的是受管无头浏览器的剪贴板(桌面 Chrome 通常即系统剪贴板,服务器环境可能无接收方);`share` 依赖 Web Share 平台分支,无头环境预期不可用并如实返回原因——不宣称任意 MCP 客户端都支持系统分享。`debug_utility(action=webgpu_tests)` 全量真跑约 2–4 分钟(250 条);GPU 可用性取决于设备(软适配器会在探测里标明)。CDP 剪贴板授权经实测**反而**会让 headless 拒写(Chrome 154),故不授权——详见 browserManager 源码注释。
+17. **`render(target=portrait, animation=true)` 的 L2D 帧是就绪后截取的当帧**:spine 画布 `preserveDrawingBuffer:false`,snapdom 无法捕获,用 CDP 截屏(与上游截图链对静态图的替换策略一致);spine 渲染循环在页面失焦时暂停,无头下偶发静止帧属平台现状。
+18. **eidolon 术语统一为「星魂」**:工具文案中的 eidolon 规范写作「星魂」(2026-10 复核批次已清理 showcase/simulation/equipment 等全部旧写法「魂影」,现 `mcp/src` 内零残留)。入参字段名(`characterEidolon`/`eidolon`)与取值不变。
 
 ## P3 登记(已知但暂不修)
 
@@ -349,7 +377,7 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 - `fetch_showcase` / `import_showcase`(enka/mihomo 档案)✅
 - teams 数据面(`save_team`/`list_teams`)✅
 - stats 归约器(`ComputedStatsContainer → JSON`,随 simulate_build/stat_simulate 返回)✅;套装效果描述面(`game://metadata/sets`)✅;「行→配装」按方案有意折叠进 optimize/get_results 的行内 builds 字段,不另设 resource
-- 全部工具的 outputSchema 声明(§9 D7)✅(56 个工具全覆盖;7 个 `game://` 资源不适用——SDK 的资源配置无 outputSchema 参数,见方案 §10 D12)
+- 全部工具的 outputSchema 声明(§9 D7)✅(61 个工具全覆盖;11 个 `game://`+`site://` 资源不适用——SDK 的资源配置无 outputSchema 参数,见方案 §10 D12)
 - 追加交付:同步桥 `sync_bridge_start/status/stop/push`(MCP→网页端单向推送,变更驱动自动重推)与 6 项 `game://` 元数据资源
 
 留尾巴(未做成/未覆盖,如实登记):

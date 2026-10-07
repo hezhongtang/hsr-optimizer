@@ -34,12 +34,26 @@
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import i18next from 'i18next'
-import { Stats } from 'lib/constants/constants'
+import {
+  CURRENT_DATA_VERSION,
+  CURRENT_OPTIMIZER_VERSION,
+  officialOnly,
+  Stats,
+} from 'lib/constants/constants'
+import {
+  KelzScannerConfig,
+  ReliquaryArchiverConfig,
+} from 'lib/importer/importConfig'
 import { toTurnAbility } from 'lib/optimization/rotation/turnAbilityConfig'
 import {
   getGameMetadata,
   isPreNovaflare,
 } from 'lib/state/gameMetadata'
+import {
+  AppPages,
+  BASE_PATH,
+  PageToHash,
+} from 'lib/tabs/navigation/constants'
 import { getChangelogContent } from 'lib/tabs/tabChangelog/changelogData'
 import { toI18NVisual } from 'lib/utils/displayUtils'
 import type { CharacterId } from 'types/character'
@@ -492,4 +506,251 @@ export function registerGameResources(server: McpServer): void {
       entries,
     })
   })
+
+  // -- site:// resources (M7 任务 A,站点导航/外链/能力面) -------------------
+  registerSiteResources(server)
+}
+
+// ═══ site:// resources (M7 agent A) ═════════════════════════════════════════
+//
+// 站点自身的导航与外链面——内容全部从上游真实来源核对:
+//   - site://pages        → 页面清单(AppPages/PageToHash 13 页,hash 路由)
+//   - site://links        → 首页社区卡 + 侧边栏链接组的真实外链 URL
+//   - site://home         → 首页能力摘要(优化器版本 / 游戏数据版本 / 入口)
+//   - site://help/{topic} → 导入页帮助主题(扫描器下载/评分器/HoyoLab/实时导入)
+
+/** 任意命名空间的 zh 翻译器(zh→en 回退,与网页端一致)。命名空间是运行期
+ * 字符串,i18next 的字面量联合类型在这里放不开,按工厂签名放行。 */
+type FixedTFactory = (lng: null, ns: string) => unknown
+
+function fixedT(namespace: string): GameDataT {
+  ensureI18nReady()
+  return (i18next.getFixedT as FixedTFactory)(null, namespace) as GameDataT
+}
+
+// site://pages — AppPages 全 13 页(src/lib/tabs/Tabs.tsx:49-63 TAB_COMPONENTS
+// 同序);hash 取自 PageToHash(constants.ts:55-72),标题取自 sidebar 命名空间
+// (侧边栏 MenuDrawer.tsx:261-293 的同一批 key)。
+const SITE_PAGE_ORDER: Array<{ page: AppPages, titleKey: string | null, devOnly?: boolean, note?: string }> = [
+  { page: AppPages.HOME, titleKey: 'Links.Home' },
+  { page: AppPages.OPTIMIZER, titleKey: 'Optimization.Optimizer' },
+  { page: AppPages.CHARACTERS, titleKey: 'Optimization.Characters' },
+  { page: AppPages.RELICS, titleKey: 'Optimization.Relics' },
+  { page: AppPages.IMPORT, titleKey: 'Optimization.Import' },
+  { page: AppPages.SHOWCASE, titleKey: 'Tools.Showcase' },
+  { page: AppPages.WARP, titleKey: 'Tools.WarpPlanner' },
+  { page: AppPages.BENCHMARKS, titleKey: 'Tools.Benchmarks' },
+  { page: AppPages.CALCULATORS, titleKey: 'Tools.Calculators', note: '双面板同页切换:#aha(AHA 速度调优)与 #ehr(效果命中计算器)' },
+  { page: AppPages.LEADERBOARD, titleKey: 'Tools.Leaderboards', note: 'zh 翻译缺失,回退英文标题(网页端同行为)' },
+  { page: AppPages.CHANGELOG, titleKey: 'Links.Changelog' },
+  { page: AppPages.WEBGPU_TEST, titleKey: null, devOnly: true, note: '开发测试页:逐项跑 WebGPU 能力测试(无侧边栏入口)' },
+  { page: AppPages.METADATA_TEST, titleKey: null, devOnly: true, note: '开发测试页:元数据/图片中心编辑器(无侧边栏入口)' },
+]
+
+// site://links — 真实 URL 逐条核对自上游源码(勿凭记忆改):
+//   社区卡 HomeTab.tsx:275-308,侧边栏链接组 MenuDrawer.tsx:294-299,
+//   页眉 LayoutHeader.tsx:68,Hero API 链接 HomeTab.tsx:122,贡献者 HomeTab.tsx:328-330。
+const SITE_LINK_GROUPS: Array<{
+  group: string,
+  links: Array<{ key: string, labelZh: string | null, url: string | null, internalHash?: string, note?: string }>,
+}> = [
+  {
+    group: '首页社区卡(HomeTab CommunitySection)',
+    links: [
+      { key: 'discord', labelZh: 'Discord', url: 'https://discord.gg/rDmB4Un7qg' },
+      { key: 'github', labelZh: 'GitHub', url: 'https://github.com/fribbels/hsr-optimizer' },
+      { key: 'roadmap', labelZh: 'Roadmap', url: 'https://github.com/users/fribbels/projects/2' },
+      { key: 'changelog', labelZh: '更新日志', url: null, internalHash: '#changelog', note: '站内页,非外链' },
+    ],
+  },
+  {
+    group: '侧边栏链接组(MenuDrawer Links)',
+    links: [
+      { key: 'kofi', labelZh: 'Ko-fi', url: 'https://ko-fi.com/fribbels' },
+      { key: 'discord', labelZh: 'Discord', url: 'https://discord.gg/rDmB4Un7qg' },
+      { key: 'github', labelZh: 'GitHub', url: 'https://github.com/fribbels/hsr-optimizer' },
+      {
+        key: officialOnly ? 'beta-site' : 'official-site',
+        labelZh: officialOnly ? '测试服内容' : '无爆料',
+        url: officialOnly ? 'https://fribbels.github.io/hsr-optimizer/' : 'https://starrailoptimizer.github.io/',
+        note: `按上游 officialOnly=${String(officialOnly)} 常量(constants.ts:446)取当前生效的一条`,
+      },
+    ],
+  },
+  {
+    group: '页眉与首页其他外链',
+    links: [
+      { key: 'header-discord', labelZh: 'Discord(页眉图标)', url: 'https://discord.gg/rDmB4Un7qg' },
+      { key: 'enka', labelZh: 'Enka.Network(UID 搜索条 API 说明)', url: 'https://enka.network/?hsr' },
+      {
+        key: 'contributors',
+        labelZh: '贡献者页面',
+        url: 'https://github.com/fribbels/hsr-optimizer/graphs/contributors',
+        note: '首页贡献者图片来自 contrib.rocks(https://contrib.rocks/image?repo=fribbels/hsr-optimizer&columns=10&anon=1)',
+      },
+    ],
+  },
+]
+
+// site://help/{topic} — 导入页(ScannerImportSubmenu.tsx)帮助链接的真实清单。
+// URL 直接取自上游常量(ReliquaryArchiverConfig/KelzScannerConfig,importConfig.ts)
+// 或源码字面量(文件:行标注);描述文本取 importSaveTab 命名空间翻译。
+const SITE_HELP_TOPICS: Array<{
+  topic: string,
+  url: string | null,
+  internalHash?: string,
+  titleKey: string,
+  bullets: string[],
+  source: string,
+}> = [
+  {
+    topic: 'reliquary',
+    url: ReliquaryArchiverConfig.releases,
+    titleKey: 'Import.Stage1.ReliquaryDesc.Title',
+    bullets: ['Import.Stage1.ReliquaryDesc.l1', 'Import.Stage1.ReliquaryDesc.l2', 'Import.Stage1.ReliquaryDesc.l3'],
+    source: 'ReliquaryArchiverConfig.releases(importConfig.ts:31);描述块 ReliquaryDescription.tsx',
+  },
+  {
+    topic: 'kelz',
+    url: KelzScannerConfig.releases,
+    titleKey: 'Import.Stage1.KelzDesc.Title',
+    bullets: ['Import.Stage1.KelzDesc.l1', 'Import.Stage1.KelzDesc.l2'],
+    source: 'KelzScannerConfig.releases(importConfig.ts:19)',
+  },
+  {
+    topic: 'scorer',
+    url: null,
+    internalHash: '#showcase',
+    titleKey: 'Import.Stage1.ScorerDesc.Title',
+    bullets: ['Import.Stage1.ScorerDesc.l1', 'Import.Stage1.ScorerDesc.l2'],
+    source: 'ScannerImportSubmenu.tsx:240(站内跳转展示页,非外链)',
+  },
+  {
+    topic: 'hoyolab',
+    url: 'https://github.com/fribbels/hsr-optimizer/discussions/403',
+    titleKey: 'Import.Stage1.HoyolabDesc.Title',
+    bullets: ['Import.Stage1.HoyolabDesc.l1', 'Import.Stage1.HoyolabDesc.l2'],
+    source: 'ScannerImportSubmenu.tsx:252',
+  },
+  {
+    topic: 'live-import',
+    url: 'https://github.com/fribbels/hsr-optimizer/blob/main/docs/guides/en/live-import.md',
+    titleKey: 'Import.LiveImport.Title',
+    bullets: ['Import.LiveImport.Description.l1', 'Import.LiveImport.Description.l2'],
+    source: 'ScannerImportSubmenu.tsx:332',
+  },
+]
+
+function registerSiteResources(server: McpServer): void {
+  const sidebar = fixedT('sidebar')
+
+  // -- site://pages — 页面清单(hash 路由) ----------------------------------
+  server.registerResource('site-pages', 'site://pages', {
+    title: '站点页面清单',
+    description: '网页端全部 13 个页面的路由清单(AppPages 全集,来源 src/lib/tabs/navigation/constants.ts '
+      + 'PageToHash;与 Tabs.tsx 挂载顺序一致):每页的 page 枚举值(render 工具 page 参数即用此值)、'
+      + 'hash 路由(浏览器任务里 goto 传这个 hash)、中文标题(sidebar 命名空间翻译,zh 缺译回退英文)、'
+      + '别名 hash 与开发测试页标记。给人用的 URL 形态:部署地址 + ' + BASE_PATH + ' + hash,'
+      + '如 https://fribbels.github.io/hsr-optimizer#main。',
+    mimeType: JSON_MIME_TYPE,
+  }, (uri) => {
+    const pages = SITE_PAGE_ORDER.map(({ page, titleKey, devOnly, note }) => {
+      const hash = PageToHash[page]
+      return {
+        page,
+        hash,
+        nameZh: titleKey != null ? zhText(sidebar, titleKey) : null,
+        renderPage: page,
+        urlForm: `${BASE_PATH}${hash}`,
+        devOnly: devOnly === true,
+        ...(note != null ? { note } : {}),
+      }
+    })
+    return jsonResource(uri.toString(), {
+      count: pages.length,
+      basePath: BASE_PATH,
+      aliasHashes: {
+        '#ehr': 'CALCULATORS 同页第二面板(效果命中计算器)',
+        '#teams': 'CHARACTERS 页的队伍展示锚点(HashToPage 归一到角色页)',
+      },
+      note: 'MCP 浏览器任务用 hash 列 goto;render 工具的 page 参数用 page 列(值相同)。',
+      pages,
+    })
+  })
+
+  // -- site://links — 站点外链 -----------------------------------------------
+  server.registerResource('site-links', 'site://links', {
+    title: '站点外链清单',
+    description: '首页社区卡、侧边栏链接组、页眉与 UID 搜索条等处出现的全部真实外链 URL'
+      + '(逐条核对自 HomeTab.tsx / MenuDrawer.tsx / LayoutHeader.tsx 源码,响应内注明出处);'
+      + '站内跳转(changelog 卡、评分器入口)以 internalHash 标注而非外链。',
+    mimeType: JSON_MIME_TYPE,
+  }, (uri) => {
+    const groups = SITE_LINK_GROUPS.map((group) => ({
+      group: group.group,
+      links: group.links,
+    }))
+    return jsonResource(uri.toString(), {
+      count: groups.reduce((sum, g) => sum + g.links.length, 0),
+      groups,
+    })
+  })
+
+  // -- site://home — 首页能力清单 --------------------------------------------
+  server.registerResource('site-home', 'site://home', {
+    title: '首页能力摘要',
+    description: '网页端首页(能力总览)的元信息:优化器版本与游戏数据版本(取自上游 constants,'
+      + '与更新日志首条一致)、全部页面能力入口摘要(一页一行)、以及 MCP 侧浏览器能力'
+      + '(render 截图等)的就绪查询方式(get_runtime_capabilities action=status)。',
+    mimeType: JSON_MIME_TYPE,
+  }, (uri) => {
+    return jsonResource(uri.toString(), {
+      optimizerVersion: CURRENT_OPTIMIZER_VERSION,
+      dataVersion: CURRENT_DATA_VERSION,
+      titleZh: 'Fribbels 星穹铁道优化器',
+      entries: SITE_PAGE_ORDER
+        .filter(({ devOnly }) => devOnly !== true)
+        .map(({ page, titleKey }) => ({
+          page,
+          hash: PageToHash[page],
+          nameZh: titleKey != null ? zhText(sidebar, titleKey) : null,
+        })),
+      mcpBrowserNote: '渲染/截图等浏览器能力用 get_runtime_capabilities(action=status)查询就绪状态;site://pages 给全部页面路由。',
+    })
+  })
+
+  // -- site://help/{topic} — 导入帮助主题 ------------------------------------
+  server.registerResource(
+    'site-help-topic',
+    new ResourceTemplate('site://help/{topic}', {
+      list: undefined,
+    }),
+    {
+      title: '导入帮助主题',
+      description: '网页端「导入 / 保存」页帮助区的主题清单与真实链接:'
+        + 'reliquary(IceDynamix Reliquary Archiver,推荐)/ kelz(Kel-Z HSR Scanner)/'
+        + ' scorer(遗器评分器,站内展示页)/ hoyolab(HoyoLab 导入步骤)/ live-import(实时导入指南)。'
+        + '每条带 URL(或站内 hash)、中文标题与要点(上游 importSaveTab 翻译)及源码出处。',
+      mimeType: JSON_MIME_TYPE,
+    },
+    (uri, variables) => {
+      const topic = typeof variables.topic === 'string' ? variables.topic : ''
+      const entry = SITE_HELP_TOPICS.find((t) => t.topic === topic)
+      if (entry == null) {
+        throw new Error(
+          `未知的帮助主题:${topic || '(空)'}。可用主题:${SITE_HELP_TOPICS.map((t) => t.topic).join(' / ')}`,
+        )
+      }
+      const t = fixedT('importSaveTab')
+      return jsonResource(uri.toString(), {
+        topic: entry.topic,
+        titleZh: zhText(t, entry.titleKey),
+        url: entry.url,
+        ...(entry.internalHash != null ? { internalHash: entry.internalHash } : {}),
+        points: entry.bullets.map((key) => zhText(t, key)).filter((v): v is string => v != null),
+        source: entry.source,
+        allTopics: SITE_HELP_TOPICS.map((x) => x.topic),
+      })
+    },
+  )
 }

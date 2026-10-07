@@ -362,6 +362,14 @@ try {
       && initChar.savedForm?.lightConeSuperimposition === 2,
     `level=${initChar.savedForm?.characterLevel}, lc=${initChar.savedForm?.lightCone} s${initChar.savedForm?.lightConeSuperimposition}`,
   )
+  // recentRelics after a scan = last 6 scan relics, newest first (scannerStore:250-253)
+  const recentAfterScan = (await callTool(client, 'get_state', { section: 'relicsTab' })).relicsTab.recentRelics
+  check(
+    'recentRelics after InitialScan: scan tail reversed (9002 head), cards resolve to inventory',
+    recentAfterScan.ids[0] === '9002' && recentAfterScan.ids[1] === '9001'
+      && recentAfterScan.cards[0]?.id === '9002' && recentAfterScan.cards[0]?.equippedBy == null,
+    JSON.stringify(recentAfterScan.ids.slice(0, 3)),
+  )
 
   // 7. UpdateRelics → 5★ added + equipped
   frame('UpdateRelics', [novel('9003', 30, { location: CH_INIT })])
@@ -372,6 +380,13 @@ try {
     'UpdateRelics equips the relic on its location character',
     owner.equippedSlots?.Head?.equippedId != null,
     `Head=${owner.equippedSlots?.Head?.equippedId}`,
+  )
+  // A novel relic via UpdateRelics is PREPENDED to recentRelics (scannerStore:295-301)
+  const recentAfterUpdate = (await callTool(client, 'get_state', { section: 'relicsTab' })).relicsTab.recentRelics
+  check(
+    'recentRelics after UpdateRelics: new uid prepended, equippedBy follows the location',
+    recentAfterUpdate.ids[0] === '9003' && recentAfterUpdate.cards[0]?.equippedBy === CH_INIT,
+    JSON.stringify(recentAfterUpdate.ids.slice(0, 3)),
   )
 
   // 8. UpdateRelics with a 4★ relic → store untouched

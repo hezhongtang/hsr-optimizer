@@ -8,24 +8,24 @@
 
 | 域 | 功能条目 | missing | partial | implemented | verified | 机制项 |
 | --- | --- | --- | --- | --- | --- | --- |
-| global | 15 | 5 | 3 | 7 | 0 | 4 |
-| home | 2 | 1 | 0 | 1 | 0 | 0 |
+| global | 15 | 1 | 3 | 11 | 0 | 4 |
+| home | 2 | 0 | 0 | 2 | 0 | 0 |
 | changelog | 1 | 0 | 0 | 1 | 0 | 0 |
-| import | 13 | 2 | 2 | 9 | 0 | 0 |
-| characters | 22 | 2 | 1 | 19 | 0 | 0 |
-| preview | 21 | 4 | 0 | 17 | 0 | 4 |
-| teams | 13 | 1 | 1 | 11 | 0 | 2 |
-| relics | 12 | 2 | 1 | 9 | 0 | 0 |
-| optimizer | 43 | 4 | 3 | 36 | 0 | 5 |
+| import | 13 | 1 | 1 | 11 | 0 | 0 |
+| characters | 22 | 0 | 1 | 21 | 0 | 0 |
+| preview | 21 | 0 | 1 | 20 | 0 | 4 |
+| teams | 13 | 0 | 1 | 12 | 0 | 2 |
+| relics | 12 | 0 | 1 | 11 | 0 | 0 |
+| optimizer | 43 | 3 | 2 | 38 | 0 | 5 |
 | showcase | 5 | 0 | 0 | 5 | 0 | 1 |
 | warp | 5 | 0 | 0 | 5 | 0 | 0 |
 | benchmarks | 7 | 0 | 4 | 3 | 0 | 0 |
-| calculators | 7 | 1 | 0 | 6 | 0 | 0 |
+| calculators | 7 | 0 | 0 | 7 | 0 | 0 |
 | leaderboard | 7 | 0 | 1 | 6 | 0 | 0 |
-| webgpu | 1 | 1 | 0 | 0 | 0 | 0 |
-| metadata | 9 | 2 | 0 | 7 | 0 | 2 |
+| webgpu | 1 | 0 | 0 | 1 | 0 | 0 |
+| metadata | 9 | 0 | 0 | 9 | 0 | 2 |
 | shared | 2 | 0 | 2 | 0 | 0 | 3 |
-| **合计** | 185 | 25 | 18 | 142 | 0 | 21 |
+| **合计** | 185 | 5 | 17 | 163 | 0 | 21 |
 
 网站基线条目 175 个，其中已验证 0 个。
 
@@ -39,11 +39,11 @@
 
 ## 工具面与预算
 
-- 已注册工具 56 个（被条目引用 56 个），已注册资源 7 个。
-- 候选新工具 4 个：`debug_utility`、`deliver_artifact`、`get_runtime_capabilities`、`render`。
-- 候选新资源 5 个：`site://capabilities`、`site://help/{topic}`、`site://home`、`site://links`、`site://pages`。
-- 需扩展参数的现有工具 20 个：`analyze_build`、`analyze_relic`、`benchmark_runs`、`export_save`、`get_results`、`get_state`、`leaderboard`、`list_characters`、`list_relics`、`load_save`、`optimize`、`permutations`、`reset_all`、`scanner`、`score_character`、`simulate_build`、`sync_bridge_start`、`update_state`、`upsert_character`、`warp_plan`。
-- 全部建成后工具数 60，预算 70。
+- 已注册工具 61 个（被条目引用 61 个），已注册资源 11 个。
+- 候选新工具 0 个：无。
+- 候选新资源 0 个：无。
+- 需扩展参数的现有工具 19 个：`analyze_build`、`analyze_relic`、`benchmark_runs`、`export_save`、`get_results`、`leaderboard`、`list_characters`、`list_relics`、`load_save`、`optimize`、`permutations`、`render`、`reset_all`、`scanner`、`score_character`、`simulate_build`、`sync_bridge_start`、`update_state`、`warp_plan`。
+- 全部建成后工具数 61，预算 70。
 
 ## 普查对照
 

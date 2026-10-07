@@ -139,12 +139,12 @@
       "runtime": "node",
       "state": { "owner": "useRelicsTabStore.excludedRelicPotentialCharacters", "lifecycle": "persisted", "saveKey": "excludedRelicPotentialCharacters" },
       "sideEffects": ["SaveState.delayedSave()", "整表重新评分"],
-      "mcp": { "status": "missing", "candidates": ["get_state(section=relicsTab)", "update_state(section=relicsTab)"] },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["排除两名角色后两边存档的 excludedRelicPotentialCharacters 一致，自定义范围的最高潜力随之变化且与表格一致"]
-      }
+        "cases": ["排除两名角色后两边存档的 excludedRelicPotentialCharacters 一致，自定义范围的最高潜力随之变化且与表格一致"],
+        "tests": ["mcp/scripts/smoke-portrait.mjs"]}
     },
     {
       "id": "relics.select",
@@ -186,12 +186,12 @@
       "conditions": "只有扫描器处于已连接状态且收到过遗器更新时才显示。",
       "runtime": "node",
       "state": { "owner": "useScannerState.recentRelics", "lifecycle": "session" },
-      "mcp": { "status": "missing", "candidates": ["scanner(action=events)"] },
+      "mcp": { "status": "implemented", "tools": ["get_state"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["扫描器推送三件遗器后，返回的最近遗器 id 及顺序与折叠区里的卡片一致"]
-      }
+        "cases": ["扫描器推送三件遗器后，返回的最近遗器 id 及顺序与折叠区里的卡片一致"],
+        "tests": ["mcp/scripts/smoke-portrait.mjs", "mcp/scripts/smoke-scanner.mjs"]}
     },
     {
       "id": "relics.upsert",

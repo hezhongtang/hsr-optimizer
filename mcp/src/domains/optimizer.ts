@@ -17,7 +17,12 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import i18next from 'i18next'
-import { Constants } from 'lib/constants/constants'
+import {
+  COMPUTE_ENGINE_CPU,
+  COMPUTE_ENGINE_GPU_EXPERIMENTAL,
+  COMPUTE_ENGINE_GPU_STABLE,
+  Constants,
+} from 'lib/constants/constants'
 import { getGameMetadata } from 'lib/state/gameMetadata'
 import {
   getCharacterById,
@@ -42,6 +47,7 @@ import {
 import { z } from 'zod'
 
 import type { OptimizerDisplayData } from 'lib/optimization/bufferPacker'
+import { browserManager } from '../browser/browserManager'
 import { runtimeContext } from '../context'
 import { ensureI18nReady } from '../i18n/i18nNode'
 import {
@@ -55,6 +61,7 @@ import {
   type OptimizeRunResult,
   runOptimization,
 } from '../runOptimizer'
+import { readStructuredSnapshot } from '../saveSnapshot'
 import { serializeBuild } from '../serializers/builds'
 import { toolResult } from '../toolResult'
 import {
@@ -224,6 +231,248 @@ function serializeRowStats(row: OptimizerDisplayData): Record<string, number> {
   return stats
 }
 
+// ─── engine=gpu / gpu-experimental (M7: the web's real GPU execution path) ──
+//
+// Where the GPU engine actually runs: NOT in workerPool. The web's optimizer
+// branches on savedSession.computeEngine — the CPU branch fans work out over
+// workerPool.runTask (src/lib/optimization/optimizer.ts:314-435), while both
+// GPU engines call gpuOptimize() directly on the main thread with a live
+// GPUDevice (optimizer.ts:283-312 → lib/gpu/webgpuOptimizer.ts:44). The
+// WorkerType enum has no GPU kind at all (lib/worker/workerUtils.ts), so
+// "submit the request through __HSR_DEBUG.workerPool" would run the CPU worker
+// in the browser — NOT the GPU engine. The real GPU path is therefore driven
+// exactly like a user does: seed the page with the GPU computeEngine, let
+// OptimizerForm boot the character (savedSession.optimizerCharacterId,
+// OptimizerForm.tsx:46-49), click the site's own Start button and wait for the
+// grid rows the engine produces. The same request is then re-run on the Node
+// CPU driver and the two top rows are compared (delta summary).
+//
+// No progress notifications / cooperative cancellation on this path (the run
+// lives inside the managed browser); rows stay DOM-scraped display values and
+// are NOT pushed into the get_results cache (that cache holds the CPU driver's
+// structured rows).
+
+interface GpuEngineRunOptions {
+  request: Any
+  state: Any
+  characterId: string
+  resultsLimit: number
+  engine: 'gpu' | 'gpu-experimental'
+  validPermutations: number
+  naivePermutations: number
+}
+
+/** ag-grid DOM scrape of the optimizer results grid. Values are the page's
+ * DISPLAY strings (floor + grouping, renderer.tsx) — parsed to numbers for the
+ * comparison with a display-floor tolerance in mind. */
+const scrapeOptimizerGridRows = (() => {
+  const rowEls = Array.from(document.querySelectorAll('[role="row"]')).filter((r) => r.querySelector('[role="gridcell"]'))
+  return rowEls.map((r) => ({
+    pinned: r.classList.contains('ag-row-pinned') || r.closest('.ag-floating-top') != null,
+    cells: Object.fromEntries(
+      Array.from(r.querySelectorAll('[role="gridcell"]')).map((c) => [c.getAttribute('col-id') ?? '', (c.textContent ?? '').trim()]),
+    ),
+  }))
+}) as unknown as () => Array<{ pinned: boolean, cells: Record<string, string> }>
+
+async function runGpuEngineOptimize(opts: GpuEngineRunOptions): Promise<CallToolResult> {
+  const upstreamEngine = opts.engine === 'gpu' ? COMPUTE_ENGINE_GPU_STABLE : COMPUTE_ENGINE_GPU_EXPERIMENTAL
+
+  // Capability gate — honest failure beats a faked GPU run.
+  const launch = await browserManager.ensureLaunched()
+  if (launch.webgpu?.available !== true) {
+    throw new Error(
+      `optimize(engine=${opts.engine}):受管浏览器无 WebGPU 能力,GPU 引擎不可用`
+        + `${launch.webgpu?.error ? `(${launch.webgpu.error})` : '(requestAdapter 返回 null 或未暴露 navigator.gpu)'}。`
+        + '请改用 engine=cpu(或默认 auto);如需确认设备能力,先调用 get_runtime_capabilities(action=launch)。'
+        + 'GPU 引擎必须在真实浏览器中执行(网页端主线程 WebGPU 路径),本工具绝不假称已用 GPU 执行。',
+    )
+  }
+
+  const generation = runtimeContext.getSaveGeneration()
+
+  // Same rule as the CPU search path: flush pending mutations first so the
+  // browser seed and the CPU comparison leg both see the live inventory (the
+  // CPU driver reloads from the snapshot).
+  runtimeContext.flushSave()
+
+  // Seed: structured snapshot + GPU engine + the character as the optimizer
+  // form's boot character (OptimizerForm.tsx:46-49 boots from
+  // savedSession.optimizerCharacterId ?? characters[0]). The merged display
+  // state (saved form + formOverrides) is written back into the seeded
+  // character's saved form the same way applyFixes persists a live form
+  // (displayToInternal merge), so the page runs THIS call's exact form.
+  const snapshot = JSON.parse(JSON.stringify(readStructuredSnapshot())) as Any
+  snapshot.savedSession.global.computeEngine = upstreamEngine
+  snapshot.savedSession.global.optimizerCharacterId = opts.characterId
+  const seededChar = (snapshot.characters as Any[])?.find((c) => c?.id === opts.characterId)
+  if (seededChar) {
+    seededChar.form = {
+      ...seededChar.form,
+      ...displayToInternal(opts.state),
+      resultsLimit: opts.resultsLimit,
+    }
+  }
+
+  const gpu = await browserManager.runTask(
+    { label: `optimize(engine=${opts.engine})`, seed: JSON.stringify(snapshot), timeoutMs: 600_000 },
+    async (page) => {
+      await page.goto('#main', { timeoutMs: 60_000 })
+
+      // The site's own Start button — located by its bolt icon (locale-free).
+      // Tabs stagger-mount (Tabs.tsx:105-108) and the optimizer form boots the
+      // character through an effect (OptimizerForm.tsx:46-49); clicking Start
+      // before that effect lands fails the page's own validation silently (the
+      // button never enters loading). Click-and-verify with retries: a click
+      // that produced no loading started no run, so retrying is safe.
+      const startAttempt = `async () => {
+        const boltButton = () => Array.from(document.querySelectorAll('button'))
+          .find((b) => b.querySelector('svg[class*="tabler-icon-bolt-filled"]'))
+        const notifications = () => Array.from(document.querySelectorAll('[role="alert"], .mantine-Notification-root'))
+          .map((n) => (n.textContent ?? '').trim())
+          .filter((t) => t.length > 0)
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const btn = boltButton()
+          if (!btn) return { started: false, reason: '未找到开始按钮(闪电图标)', toasts: [] }
+          btn.click()
+          const settle = Date.now() + 6000
+          while (Date.now() < settle) {
+            await new Promise((r) => setTimeout(r, 300))
+            if (boltButton()?.getAttribute('data-loading') === 'true') return { started: true, toasts: [] }
+          }
+        }
+        return { started: false, reason: 'Start 后按钮未转为 loading(页面表单校验未通过或 GPU 设备请求失败)', toasts: notifications() }
+      }`
+      const startResult = await page.evaluate<Record<string, unknown>>(startAttempt)
+      if (startResult['started'] !== true) {
+        const toasts = Array.isArray(startResult['toasts']) ? (startResult['toasts'] as string[]).join(' | ') : ''
+        throw new Error(
+          `optimize(engine=gpu):网页端未进入优化运行状态——${String(startResult['reason'])}`
+            + `${toasts ? `;页面提示:${toasts}` : ''}`,
+        )
+      }
+
+      const buttonState = `(() => {
+        const btn = Array.from(document.querySelectorAll('button'))
+          .find((b) => b.querySelector('svg[class*="tabler-icon-bolt-filled"]'))
+        return { loading: btn?.getAttribute('data-loading') === 'true' }
+      })()`
+
+      // startAttempt above already confirmed loading=true — now wait for the
+      // run to finish (button leaves loading).
+      const startedAt = Date.now()
+      const doneDeadline = Date.now() + 540_000
+      for (;;) {
+        await new Promise((resolve) => setTimeout(resolve, 1_500))
+        const state = await page.evaluate<Record<string, unknown>>(buttonState)
+        if (state['loading'] !== true) break
+        if (Date.now() >= doneDeadline) {
+          throw new Error('optimize(engine=gpu):浏览器内 GPU 优化 9 分钟未完成——可缩小 resultsLimit 或改用 engine=cpu')
+        }
+      }
+      const durationMs = Date.now() - startedAt
+
+      // Which engine did the page ACTUALLY run? Boot-time verifyWebgpuSupport
+      // flips the session to CPU when the adapter dies (webgpuDevice.ts:31-40),
+      // so trust the harvested save, never the seed.
+      const harvested = await page.harvestSaveState()
+      const actualEngineValue: string | null = harvested?.savedSession?.global?.computeEngine ?? null
+
+      const rows = await page.evaluate<Array<{ pinned: boolean, cells: Record<string, string> }>>(
+        scrapeOptimizerGridRows.toString(),
+      )
+      return { durationMs, actualEngineValue, rows }
+    },
+  )
+
+  // Same-request CPU run on the Node driver for the cross-check summary.
+  const cpu = await runOptimization(runtimeContext.requireSave().data, opts.request, {})
+
+  if (generation !== runtimeContext.getSaveGeneration()) {
+    throw new Error('运行期间 load_save 切换了存档,GPU 对拍结果已丢弃——请对当前存档重新优化')
+  }
+
+  const engineEcho = { engine: opts.engine, actualEngine: opts.engine }
+  if (gpu.actualEngineValue !== upstreamEngine) {
+    // The page fell back to CPU (or flipped the session) — report what ran.
+    return toolResult(
+      {
+        status: 'completed',
+        ...engineEcho,
+        actualEngine: gpu.actualEngineValue === COMPUTE_ENGINE_CPU ? 'cpu' : engineEcho.actualEngine,
+        adapter: launch.webgpu,
+        note: `网页实际以 ${
+          gpu.actualEngineValue ?? '未知'
+        } 引擎完成运行(请求 ${upstreamEngine})——启动时 verifyWebgpuSupport 检测到设备不可用会回落 CPU;结果按实际引擎理解`,
+        gpuRows: gpu.rows.filter((r) => !r.pinned).map((r) => ({ cells: r.cells })),
+        rowCount: gpu.rows.filter((r) => !r.pinned).length,
+        gpuDurationMs: gpu.durationMs,
+        comparison: {
+          column: cpu.summary.gridSortColumn,
+          cpuRows: cpu.rows.length,
+          gpuRows: gpu.rows.filter((r) => !r.pinned).length,
+          note: '页面引擎与请求不一致,对拍仅供参考',
+        },
+      },
+      `optimize(${opts.characterId}, engine=${opts.engine}) 完成,但网页实际以 ${gpu.actualEngineValue ?? '未知'} 引擎运行(设备不可用回落)——`
+        + `GPU 侧 ${gpu.rows.filter((r) => !r.pinned).length} 行,CPU 对拍 ${cpu.rows.length} 行。`,
+    )
+  }
+
+  const gpuRows = gpu.rows.filter((r) => !r.pinned)
+  const equippedCells = gpu.rows.find((r) => r.pinned)?.cells ?? null
+  const column = cpu.summary.gridSortColumn
+  const parseCell = (cells: Record<string, string> | null | undefined) => {
+    const text = cells?.[column]
+    if (text == null) return null
+    const num = Number(text.replace(/[,\s]/g, ''))
+    return Number.isFinite(num) ? num : null
+  }
+  const cpuTop = cpu.rows[0] != null ? Number((cpu.rows[0] as Any)[column]) : null
+  const gpuTop = parseCell(gpuRows[0]?.cells)
+
+  return toolResult(
+    {
+      status: 'completed',
+      ...engineEcho,
+      adapter: launch.webgpu,
+      gpuRows: gpuRows.map((r) => ({ cells: r.cells })),
+      rowCount: gpuRows.length,
+      ...(equippedCells ? { equippedRowCells: equippedCells } : {}),
+      gpuDurationMs: gpu.durationMs,
+      comparison: {
+        column,
+        ...(cpuTop != null ? { cpuTop } : {}),
+        ...(gpuTop != null ? { gpuTop } : {}),
+        ...(cpuTop != null && gpuTop != null
+          ? { topDelta: cpuTop - gpuTop, topDeltaNote: 'GPU 值取自页面显示口径(向下取整),|topDelta|≤1 视为一致' }
+          : {}),
+        cpuRows: cpu.rows.length,
+        gpuRows: gpuRows.length,
+        cpuDurationMs: cpu.summary.durationMs,
+      },
+      summary: {
+        characterId: opts.characterId,
+        resultsLimit: opts.resultsLimit,
+        validPermutations: opts.validPermutations,
+        naivePermutations: opts.naivePermutations,
+        searched: opts.validPermutations,
+        durationMs: gpu.durationMs,
+        cancelled: false,
+        gridSortColumn: column,
+        cacheId: '',
+      },
+      note: 'GPU 运行在受管浏览器内执行(网页端主线程 WebGPU 路径,非 workerPool——后者只承载 CPU worker);'
+        + '结果为 DOM 抓取的显示口径(取整),未进入 get_results 缓存(其为 CPU 驱动的结构化缓存);'
+        + 'CPU 对拍行数/头部值见 comparison',
+    },
+    `optimize(${opts.characterId}, engine=${opts.engine}) 完成:GPU 引擎 ${gpuRows.length} 行,`
+      + `耗时 ${(gpu.durationMs / 1000).toFixed(2)}s`
+      + `${cpuTop != null && gpuTop != null ? `,CPU 对拍头部 ${column} ${cpuTop.toLocaleString()} vs ${gpuTop.toLocaleString()}` : ''}`
+      + `${launch.webgpu?.softwareAdapter === true ? '(软件适配器)' : ''}。`,
+  )
+}
+
 export function registerOptimizerTools(server: McpServer): void {
   /** Loads the character's SAVED form into the request store the updateCharacter
    * way so the upstream fix actions operate on the persisted form (formOverrides
@@ -256,7 +505,9 @@ export function registerOptimizerTools(server: McpServer): void {
       + '(致命问题进 errors、非致命警告进 warnings,均不落盘);diagnose=true 做零排列/零结果诊断'
       + '(复用 suggestionsEngine 的原因检测,返回建议清单含可应用标记,只读);'
       + 'applyFixes=true 应用可应用的修复到角色已保存表单(withChange 事务,可回滚;baseRevision 冲突时报错且不落地),'
-      + '返回应用结果与修复前后的排列数对比。resultsLimit 上限 65536(网页端保留条数的最大档)。',
+      + '返回应用结果与修复前后的排列数对比。resultsLimit 上限 65536(网页端保留条数的最大档)。'
+      + 'engine 可选引擎(默认 auto):auto/cpu=Node 侧 CPU 驱动(与网页 CPU 引擎同一台上游引擎,行为不变);'
+      + 'gpu/gpu-experimental=受管浏览器里的网页端真实 WebGPU 引擎(点网页自己的开始按钮、抓结果网格,同请求 CPU 对拍报 delta;需要本机 Chrome 与 WebGPU,缺能力时返回明确中文错误)。',
     inputSchema: {
       characterId: z.string().describe('角色 id,如 "1212b1"(可用 id 见 load_save 返回的 characterIds)'),
       formOverrides: z.record(z.string(), z.unknown()).optional().describe(
@@ -281,9 +532,47 @@ export function registerOptimizerTools(server: McpServer): void {
       baseRevision: z.number().int().optional().describe(
         '乐观并发门(applyFixes=true 时生效):调用方读取状态时拿到的修订号;与当前不一致报冲突,修复不落地,需重读后重试',
       ),
+      engine: z.enum(['auto', 'cpu', 'gpu', 'gpu-experimental']).optional().describe(
+        '计算引擎,默认 auto:引擎选择只影响搜索执行方式,结果语义一致。'
+          + 'auto/cpu=Node 侧 CPU 多线程驱动(与既有行为完全一致);'
+          + 'gpu/gpu-experimental=网页端真实 WebGPU 引擎(GPU Stable/GPU Experimental),'
+          + '在受管浏览器里点网页自己的开始按钮执行并抓取结果网格,同请求再跑一次 CPU 对拍报头部值差;'
+          + '设备无 WebGPU 时返回明确的中文能力错误(绝不假称已用 GPU 执行);'
+          + 'GPU 路径无进度通知与协作取消,结果不进入 get_results 缓存',
+      ),
     },
     outputSchema: {
       status: z.enum(['rejected', 'completed', 'cancelled', 'validated', 'diagnosed', 'fixed']),
+      engine: z.enum(['auto', 'cpu', 'gpu', 'gpu-experimental']).optional()
+        .describe('本次调用请求的计算引擎(auto=未传时的默认)'),
+      actualEngine: z.enum(['cpu', 'gpu', 'gpu-experimental']).optional()
+        .describe('实际执行引擎:CPU 路径恒为 cpu;GPU 路径以页面运行结束时存档里的引擎值为准(设备不可用时网页会回落 cpu)'),
+      adapter: z.object({
+        available: z.boolean().nullable(),
+        softwareAdapter: z.boolean().nullable(),
+        vendor: z.string().nullable(),
+        architecture: z.string().nullable(),
+        device: z.string().nullable(),
+        maxBufferMB: z.number().nullable(),
+        uniformBufferStandardLayout: z.boolean().nullable(),
+      }).nullable().optional().describe('engine=gpu 路径的 WebGPU 适配器摘要'),
+      gpuRows: z.array(z.object({ cells: z.record(z.string(), z.string()) })).optional()
+        .describe('engine=gpu:从网页结果网格抓取的行(显示口径字符串值,colId→文本)'),
+      rowCount: z.number().int().optional().describe('engine=gpu:非置顶结果行数'),
+      equippedRowCells: z.record(z.string(), z.string()).nullable().optional()
+        .describe('engine=gpu:置顶的已装备基线行(显示口径;无则为 null/缺省)'),
+      gpuDurationMs: z.number().optional().describe('engine=gpu:浏览器内 GPU 运行耗时(毫秒)'),
+      comparison: z.object({
+        column: z.string(),
+        cpuTop: z.number().optional(),
+        gpuTop: z.number().optional(),
+        topDelta: z.number().optional(),
+        topDeltaNote: z.string().optional(),
+        cpuRows: z.number().int(),
+        gpuRows: z.number().int(),
+        cpuDurationMs: z.number().optional(),
+        note: z.string().optional(),
+      }).optional().describe('engine=gpu:同一请求 CPU 驱动对拍(头部值/行数)'),
       reason: z.string().optional(),
       note: z.string().optional().describe('fixed 模式:无修复时的说明(表单保持原样)'),
       valid: z.boolean().optional().describe('validate 模式:是否通过全部致命校验'),
@@ -315,11 +604,16 @@ export function registerOptimizerTools(server: McpServer): void {
       dirty: z.boolean().optional(),
     },
   }, async (
-    { characterId, formOverrides, resultsLimit, force, validate, diagnose, applyFixes, baseRevision },
+    { characterId, formOverrides, resultsLimit, force, validate, diagnose, applyFixes, baseRevision, engine },
     extra,
   ): Promise<CallToolResult> => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
+
+    // engine resolution: auto ≡ cpu — the pre-existing Node path, untouched.
+    const engineRequested = engine ?? 'auto'
+    const useGpuEngine = engineRequested === 'gpu' || engineRequested === 'gpu-experimental'
+    const engineEcho = { engine: engineRequested, actualEngine: useGpuEngine ? engineRequested as 'gpu' | 'gpu-experimental' : 'cpu' as const }
 
     const character = getCharacterById(characterId as Any)
     if (!character) {
@@ -351,6 +645,7 @@ export function registerOptimizerTools(server: McpServer): void {
       return toolResult(
         {
           status: 'validated',
+          ...engineEcho,
           valid: errors.length === 0,
           errors,
           warnings,
@@ -379,6 +674,7 @@ export function registerOptimizerTools(server: McpServer): void {
       return toolResult(
         {
           status: 'diagnosed',
+          ...engineEcho,
           validPermutations: estimate.validPermutations,
           naivePermutations: estimate.naivePermutations,
           partCounts: estimate.counts,
@@ -421,6 +717,7 @@ export function registerOptimizerTools(server: McpServer): void {
         return toolResult(
           {
             status: 'fixed',
+            ...engineEcho,
             diagnosis,
             applied,
             permutations: {
@@ -479,6 +776,7 @@ export function registerOptimizerTools(server: McpServer): void {
       return toolResult(
         {
           status: 'fixed',
+          ...engineEcho,
           diagnosis,
           applied,
           permutations: {
@@ -504,6 +802,7 @@ export function registerOptimizerTools(server: McpServer): void {
       return toolResult(
         {
           status: 'rejected',
+          ...engineEcho,
           reason: `有效排列 ${estimate.validPermutations.toLocaleString()} 超过 ${PERMUTATION_GATE.toExponential()} 闸门`,
           validPermutations: estimate.validPermutations,
           naivePermutations: estimate.naivePermutations,
@@ -514,6 +813,22 @@ export function registerOptimizerTools(server: McpServer): void {
         `已拒绝:约 ${estimate.validPermutations.toExponential(2)} 有效排列超过 5e7 闸门。`
           + '请收紧约束(见 suggestions)或用 force:true 重试。',
       )
+    }
+
+    // ── engine=gpu / gpu-experimental: the web's real GPU execution path ────
+    // Gate semantics are shared with the CPU path above (same valid-permutation
+    // ceiling, same force override); the GPU run additionally needs the managed
+    // browser with WebGPU and runs an equal CPU pass for the delta summary.
+    if (useGpuEngine) {
+      return runGpuEngineOptimize({
+        request,
+        state,
+        characterId,
+        resultsLimit,
+        engine: engineRequested as 'gpu' | 'gpu-experimental',
+        validPermutations: estimate.validPermutations,
+        naivePermutations: estimate.naivePermutations,
+      })
     }
 
     // Job registry (M4-B): the run's cacheId doubles as its jobId. cancel_job
@@ -626,6 +941,7 @@ export function registerOptimizerTools(server: McpServer): void {
     return toolResult(
       {
         status: run.summary.cancelled ? 'cancelled' : 'completed',
+        ...engineEcho,
         rows,
         equippedRow,
         summary: {

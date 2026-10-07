@@ -103,19 +103,15 @@
         "首次进入优化器页时初始化 worker 池",
         "window.scrollTo(0, 0)"
       ],
-      "mcp": {
-        "status": "missing",
-        "gaps": "Node 运行环境下各域工具可直接调用，不需要导航；缺的是页面清单与可交给用户的链接，以及浏览器运行环境里打开指定页面。",
-        "candidates": ["site://pages", "render(target=page)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["render"], "resources": ["site://pages"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "site://pages 列出 13 个页面的 hash、标题和对应的 MCP 入口，与 PageToHash/HashToPage 一致",
           "浏览器运行环境按 page 打开后 activeKey 与地址栏 hash 与网页点击侧边栏的结果一致"
-        ]
-      }
+        ],
+        "tests": ["mcp/scripts/smoke-render.mjs", "mcp/scripts/smoke-browser.mjs"]}
     },
     {
       "id": "global.sidebar.collapse",
@@ -245,15 +241,15 @@
       "conditions": "officialOnly 为 true 时侧边栏显示指向含剧透站点的链接，否则显示指向无剧透站点的链接（当前常量为 false）。",
       "runtime": "node",
       "state": { "owner": "无", "lifecycle": "none" },
-      "mcp": { "status": "missing", "candidates": ["site://links", "site://help/{topic}"] },
+      "mcp": { "status": "implemented", "resources": ["site://links"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "site://links 列出的链接与侧边栏、顶栏、入门抽屉、更新弹窗里的 href 逐条一致",
           "site://help/optimizer 返回仓库内 docs/guides 对应指南的正文"
-        ]
-      }
+        ],
+        "tests": ["mcp/scripts/smoke-browser.mjs"]}
     },
     {
       "id": "global.changelog.whatsNew",
@@ -334,12 +330,12 @@
       "runtime": "node",
       "state": { "owner": "useCharacterStore / useRelicStore / useShowcaseTabStore", "lifecycle": "session" },
       "sideEffects": ["这些函数本身不调用 SaveState，改动要等其他操作触发保存才落盘"],
-      "mcp": { "status": "missing", "candidates": ["debug_utility"] },
+      "mcp": { "status": "implemented", "tools": ["debug_utility"] },
       "scope": "enhancement",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["resetShowcaseColors 之后 showcasePreferences 为空且 showcaseStandardMode 为 false，与控制台调用结果一致"]
-      }
+        "cases": ["resetShowcaseColors 之后 showcasePreferences 为空且 showcaseStandardMode 为 false，与控制台调用结果一致"],
+        "tests": ["mcp/scripts/smoke-debug.mjs"]}
     },
     {
       "id": "global.state.revision",
@@ -395,12 +391,12 @@
       "upstream": [],
       "runtime": "browser",
       "state": { "owner": "MCP 运行时适配器（待建）", "lifecycle": "ephemeral" },
-      "mcp": { "status": "missing", "candidates": ["get_runtime_capabilities"] },
+      "mcp": { "status": "implemented", "tools": ["get_runtime_capabilities"] },
       "scope": "foundation",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["浏览器退出、超时与任务取消后不残留进程或错误状态", "环境不可用时报告缺失的具体能力"]
-      }
+        "cases": ["浏览器退出、超时与任务取消后不残留进程或错误状态", "环境不可用时报告缺失的具体能力"],
+        "tests": ["mcp/scripts/smoke-browser.mjs"]}
     },
     {
       "id": "global.state.categorizedClear",

@@ -331,7 +331,7 @@
       "runtime": "node",
       "state": { "owner": "useShowcaseTabStore.showcasePreferences + useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "showcasePreferences[].color / .colorMode；savedSession.global.showcaseStandardMode" },
       "sideEffects": ["SaveState.delayedSave()", "改配色模式会同时改全局的 showcaseStandardMode"],
-      "mcp": { "status": "missing", "candidates": ["get_state(section=showcase)", "update_state(section=showcase)"] },
+      "mcp": { "status": "partial", "tools": ["get_state", "update_state"], "gaps": "展示评分偏好(scoringType)已可经 section=showcase 读写;缺的是该段的 color/colorMode 写入口(角色展示配色与 STANDARD 全局联动,editShowcasePreferences 的其余字段)。", "candidates": ["update_state(section=showcase)"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -401,11 +401,7 @@
       "runtime": "node",
       "state": { "owner": "useCharacterStore", "lifecycle": "persisted", "saveKey": "characters[].portrait" },
       "sideEffects": ["SaveState.delayedSave()", "可能向 imgur 上传图片", "角色不存在时新建角色"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "存档里的 portrait 会随 load_save 原样保留，但没有工具可以设置或清除。",
-        "candidates": ["upsert_character(portrait=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["set_portrait"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -413,8 +409,8 @@
           "用同一 URL、裁剪与署名设置肖像后，两边存档的 characters[].portrait 一致",
           "还原默认后该角色的 portrait 字段消失",
           "对不在列表里的角色设置肖像，两边都会先新建该角色"
-        ]
-      }
+        ],
+        "tests": ["mcp/scripts/smoke-portrait.mjs"]}
     },
     {
       "id": "preview.character.edit",
@@ -562,12 +558,12 @@
       "conditions": "同一时间只允许一次截图。跨域读不到的图片会用占位图替换。剪贴板被拒绝时提示 NotAllowed。",
       "runtime": "browser",
       "state": { "owner": "无", "lifecycle": "none" },
-      "mcp": { "status": "missing", "candidates": ["render(target=character_card)", "deliver_artifact(action=copy|share)"] },
+      "mcp": { "status": "implemented", "tools": ["render", "deliver_artifact"] },
       "scope": "baseline",
       "upstreamChange": "export",
       "acceptance": {
-        "cases": ["渲染出的 PNG 与网页下载的展示卡截图尺寸相同，文字与数值一致，自定义肖像、配色与外观开关都得到体现"]
-      }
+        "cases": ["渲染出的 PNG 与网页下载的展示卡截图尺寸相同，文字与数值一致，自定义肖像、配色与外观开关都得到体现"],
+        "tests": ["mcp/scripts/smoke-render.mjs", "mcp/scripts/smoke-portrait.mjs"]}
     },
     {
       "id": "preview.debug.visualPanel",
@@ -583,12 +579,12 @@
       "conditions": "CARD_DEBUG 缺省为 false，普通用户看不到这个面板。",
       "runtime": "browser",
       "state": { "owner": "useDebugVisualConfigStore", "lifecycle": "session" },
-      "mcp": { "status": "missing", "candidates": ["get_state(section=visualDebug)", "update_state(section=visualDebug)"] },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["修改任一视觉参数后渲染的展示卡与网页在同一调试配置下的外观一致"]
-      }
+        "cases": ["修改任一视觉参数后渲染的展示卡与网页在同一调试配置下的外观一致"],
+        "tests": ["mcp/scripts/smoke-portrait.mjs"]}
     }
   ],
   "mechanisms": [

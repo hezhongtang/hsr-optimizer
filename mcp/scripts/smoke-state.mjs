@@ -330,12 +330,46 @@ try {
   })
   check('session value types validated', badSessionValue.includes('scorerId') && badSessionValue.includes('期望'), badSessionValue.slice(0, 110))
 
+  // ── layout section (optimizer.layout.sections): persisted menuState ──────
+  const layoutBefore = await getState(client, 'layout')
+  check(
+    'get_state(layout): menuState + upstream defaults (statSim collapsed, rest open)',
+    layoutBefore.menuState['Character custom stats simulation'] === false
+      && layoutBefore.defaults['Character options'] === true
+      && Object.keys(layoutBefore.defaults).length === 5,
+    JSON.stringify(layoutBefore.menuState),
+  )
+  const layoutUpdated = await callTool(client, 'update_state', {
+    section: 'layout',
+    patch: { menuState: { 'Teammates': false, 'Character options': true } },
+  })
+  check(
+    'update_state(layout): partial fold merges over current, echo returns full map',
+    layoutUpdated.updated === true && layoutUpdated.layout.menuState.Teammates === false,
+    JSON.stringify(layoutUpdated.layout?.menuState),
+  )
+  const layoutAfter = await getState(client, 'layout')
+  check(
+    'get_state(layout) after write: Teammates folded, untouched keys preserved',
+    layoutAfter.menuState.Teammates === false && layoutAfter.menuState['Relic & stat filters'] === true,
+    JSON.stringify(layoutAfter.menuState),
+  )
+  const badLayoutKey = await callToolExpectError(client, 'update_state', {
+    section: 'layout',
+    patch: { menuState: { 'No such section': true } },
+  })
+  check(
+    'update_state(layout): unknown section ids rejected in Chinese',
+    badLayoutKey.includes('Character options') && badLayoutKey.includes('值无效'),
+    badLayoutKey.slice(0, 110),
+  )
+
   // ── revision accounting: one bump per committed write, none for errors ───
-  // load=1, settings=2, scanner url=3, scanner reset=4, flags=5, session=6
+  // load=1, settings=2, scanner url=3, scanner reset=4, flags=5, session=6, layout=7
   revision = await getState(client, 'revision')
   check(
-    'final revision: exactly one bump per committed write (load + 6 writes = 7)',
-    revision.revision === 7,
+    'final revision: exactly one bump per committed write (load + 7 writes = 8)',
+    revision.revision === 8,
     `revision=${revision.revision}`,
   )
 

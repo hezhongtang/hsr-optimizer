@@ -24,12 +24,7 @@
       "runtime": "node",
       "state": { "owner": "全部 store", "lifecycle": "persisted", "saveKey": "*" },
       "sideEffects": ["替换全部数据并跑迁移链", "清空角色页的聚焦角色", "立即 SaveState.save()"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["load_save"],
-        "gaps": "load_save 走的是启动载入的语义（sanitize=false）：文件里 scannerSettings.customUrl 为真时会把 websocketUrl 一并恢复，而网页手动载入出于安全考虑不恢复。现在 MCP 没有扫描器客户端，暂无实际影响；接入 scanner 之后，来历不明的存档就能改写扫描连接地址，必须先对齐。",
-        "candidates": ["load_save(sanitize=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["load_save"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -309,12 +304,12 @@
       ],
       "runtime": "node",
       "state": { "owner": "无", "lifecycle": "none" },
-      "mcp": { "status": "missing", "candidates": ["site://help/{topic}", "site://links"] },
+      "mcp": { "status": "implemented", "resources": ["site://help/{topic}"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["site://help/import 列出四种来源的名称、说明与链接，与导入页当前语言下的内容一致"]
-      }
+        "cases": ["site://help/import 列出四种来源的名称、说明与链接，与导入页当前语言下的内容一致"],
+        "tests": ["mcp/scripts/smoke-browser.mjs"]}
     },
     {
       "id": "import.bridge.push",

@@ -212,8 +212,9 @@ function registeredSurface() {
     const source = readFileSync(resolve(mcpDir, file), 'utf8')
     // Grammar mirrors TOOL_NAME below: tool names may contain digits.
     for (const match of source.matchAll(/registerTool\(\s*'([a-z][a-z0-9_]*)'/g)) tools.add(match[1])
-    for (const match of source.matchAll(/registerResource\(\s*'[^']+',\s*'(game:\/\/[^']+)'/g)) resources.add(match[1])
-    for (const match of source.matchAll(/new ResourceTemplate\('(game:\/\/[^']+)'/g)) resources.add(match[1])
+    // M7 added site:// resources alongside game:// — both schemes are server-registered.
+    for (const match of source.matchAll(/registerResource\(\s*'[^']+',\s*'((?:game|site):\/\/[^']+)'/g)) resources.add(match[1])
+    for (const match of source.matchAll(/new ResourceTemplate\('((?:game|site):\/\/[^']+)'/g)) resources.add(match[1])
   }
   return { tools, resources }
 }

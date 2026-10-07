@@ -347,12 +347,12 @@
       "conditions": "队伍为空时按钮禁用。界面上卡片按 0.6 倍显示，截图按原始尺寸导出。",
       "runtime": "browser",
       "state": { "owner": "无", "lifecycle": "none" },
-      "mcp": { "status": "missing", "candidates": ["render(target=team_card)", "deliver_artifact(action=copy|share)"] },
+      "mcp": { "status": "implemented", "tools": ["render", "deliver_artifact"] },
       "scope": "baseline",
       "upstreamChange": "export",
       "acceptance": {
-        "cases": ["渲染出的队伍图片尺寸与网页下载的一致，四张卡的角色、分数与顺序相同"]
-      }
+        "cases": ["渲染出的队伍图片尺寸与网页下载的一致，四张卡的角色、分数与顺序相同"],
+        "tests": ["mcp/scripts/smoke-render.mjs"]}
     }
   ],
   "mechanisms": [

@@ -265,9 +265,11 @@ try {
   for (const uri of ['game://metadata/characters', 'game://metadata/lightcones', 'game://metadata/sets', 'game://metadata/scoring', 'game://changelog']) {
     check(`resources/list contains ${uri}`, listedUris.includes(uri), listedUris.join(', '))
   }
+  // M7 added site://pages|links|home summaries — the invariant is "no
+  // instantiated template URIs in list", not a fixed count.
   check(
     'resources/list stays summary-only (no per-id template instances)',
-    listedUris.length === 5 && !listedUris.some((uri) => /\/\d+$/.test(uri)),
+    !listedUris.some((uri) => /\/\d+$/.test(uri) || uri.includes('{')),
     `${listedUris.length} URIs`,
   )
   const templates = await client.listResourceTemplates()

@@ -829,7 +829,7 @@
       "conditions": "两种 GPU 引擎需要浏览器提供 WebGPU。用 GPU 引擎时开始搜索不受排列过多确认弹窗的限制。",
       "runtime": "browser",
       "state": { "owner": "useGlobalStore.savedSession.computeEngine", "lifecycle": "persisted", "saveKey": "savedSession.global.computeEngine" },
-      "mcp": { "status": "partial", "tools": ["get_state", "update_state"], "gaps": "引擎选择状态(computeEngine)已可经 session 段读写;GPU 路径的实际执行与能力报告属 M7(optimize(engine=gpu) 候选保留)。", "candidates": ["optimize(engine=gpu)"] },
+      "mcp": { "status": "implemented", "tools": ["optimize", "get_runtime_capabilities"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -838,7 +838,7 @@
           "运行环境没有 WebGPU 时明确报告不可用并回退到 CPU",
           "改动引擎偏好后，网页端打开时下拉菜单显示同一选项"
         ],
-       "tests": ["mcp/scripts/smoke-state.mjs"]
+       "tests": ["mcp/scripts/smoke-state.mjs", "mcp/scripts/smoke-debug.mjs"]
       }
     },
     {
@@ -1247,18 +1247,14 @@
       ],
       "runtime": "node",
       "state": { "owner": "useOptimizerDisplayStore.menuState", "lifecycle": "persisted", "saveKey": "optimizerMenuState" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "存档里的分区折叠状态读不到也改不了。",
-        "candidates": ["get_state(section=session)", "update_state(section=session)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "读到的各分区折叠状态与网页端一致；改动后网页端重新打开时按新状态显示"
-        ]
-      }
+        ],
+        "tests": ["mcp/scripts/smoke-state.mjs"]}
     },
     {
       "id": "optimizer.results.history",

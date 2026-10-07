@@ -16,3 +16,23 @@ export function toolResult<T extends Record<string, unknown>>(payload: T, summar
     structuredContent: payload,
   }
 }
+
+/**
+ * Image variant for render/export tools (M7): the PNG ships as a native MCP
+ * image content block (clients that display images show it inline) while the
+ * dual-channel contract stays intact — text summary + structured payload.
+ * `data` is base64 without the data: prefix.
+ */
+export function imageResult<T extends Record<string, unknown>>(
+  payload: T,
+  summary: string,
+  image: { data: string, mimeType: 'image/png' },
+) {
+  return {
+    content: [
+      { type: 'text' as const, text: summary },
+      { type: 'image' as const, data: image.data, mimeType: image.mimeType },
+    ],
+    structuredContent: payload,
+  }
+}

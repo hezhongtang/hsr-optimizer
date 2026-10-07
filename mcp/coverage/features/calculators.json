@@ -19,19 +19,15 @@
       ],
       "runtime": "browser",
       "state": { "owner": "CalculatorsTab 的 activePanel + location.hash", "lifecycle": "session" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "两个计算器在 MCP 里是两个独立工具，不需要切换；缺的是页面清单里这两个子面板的链接，以及在浏览器运行环境里打开指定面板。",
-        "candidates": ["site://pages", "render(target=page)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["render"], "resources": ["site://pages"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "site://pages 在计算器页下列出两个子面板，hash 分别是 #aha 与 #ehr，并指明对应的工具是 calc_aha 与 calc_ehr",
           "浏览器运行环境按 #ehr 打开后显示的是效果命中面板，与网页端点击该页签的结果一致"
-        ]
-      }
+        ],
+        "tests": ["mcp/scripts/smoke-render.mjs"]}
     },
     {
       "id": "calculators.aha.form",

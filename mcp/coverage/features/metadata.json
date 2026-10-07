@@ -57,19 +57,15 @@
       "conditions": "角色列表为空时只显示一句提示。卡片固定用调试模式渲染，不播放动态立绘。调参面板本身见 preview.debug.visualPanel。",
       "runtime": "browser",
       "state": { "owner": "useCharacterStore.characters + useDebugVisualConfigStore", "lifecycle": "session" },
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有浏览器运行环境，无法渲染展示卡，也没有入口读写视觉调试参数。",
-        "candidates": ["render(target=character_card)", "get_state(section=visualDebug)", "update_state(section=visualDebug)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["render", "get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "在同一组视觉调试参数下对多个角色批量渲染，得到的每张卡片与网页端总览里对应的卡片外观一致",
           "修改一项调试参数后重新渲染，所有卡片都按新参数变化"
-        ]
-      }
+        ],
+        "tests": ["mcp/scripts/smoke-render.mjs", "mcp/scripts/smoke-portrait.mjs"]}
     },
     {
       "id": "metadata.imageCenter.edit",
@@ -96,11 +92,7 @@
       "runtime": "browser",
       "state": { "owner": "ImageCenterEditor 各编辑器的本地状态", "lifecycle": "ephemeral" },
       "sideEffects": ["点复制按钮时把配置文本写入系统剪贴板"],
-      "mcp": {
-        "status": "missing",
-        "gaps": "没有浏览器运行环境，无法按临时的中心点和缩放渲染立绘或展示卡来比对效果。",
-        "candidates": ["render(target=character_card)", "debug_utility(action=image_center)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["debug_utility"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -108,8 +100,8 @@
           "给定角色和一组临时的立绘中心与缩放，渲染出的展示卡与网页端预览在同样数值下的外观一致",
           "返回的配置文本与网页端显示的那一段逐字相同，数值按相同规则取整",
           "不传临时数值时使用配置里的现有值，与网页端点重置后的状态一致"
-        ]
-      }
+        ],
+        "tests": ["mcp/scripts/smoke-debug.mjs"]}
     },
     {
       "id": "metadata.simulation.sets",

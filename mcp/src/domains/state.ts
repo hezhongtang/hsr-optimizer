@@ -19,7 +19,14 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import i18next from 'i18next'
 import { editShowcasePreferences } from 'lib/characterPreview/customization/showcaseCustomizationController'
-import { ShowcasePreset } from 'lib/characterPreview/debugVisualConfigStore'
+import {
+  type DebugVisualConfig,
+  NATURAL_PRESET,
+  SHINE_PRESET,
+  ShowcasePreset,
+  TEXT_SHADOW_PRESETS,
+  useDebugVisualConfigStore,
+} from 'lib/characterPreview/debugVisualConfigStore'
 import {
   COMPUTE_ENGINE_CPU,
   COMPUTE_ENGINE_GPU_EXPERIMENTAL,
@@ -38,6 +45,8 @@ import {
 } from 'lib/stores/app/appStore'
 import { useCharacterStore } from 'lib/stores/character/characterStore'
 import { useNewFeatureStore } from 'lib/stores/newFeatureStore'
+import { useOptimizerDisplayStore } from 'lib/stores/optimizerUI/useOptimizerDisplayStore'
+import { useRelicStore } from 'lib/stores/relic/relicStore'
 import {
   type CharacterGridDensity,
   characterGridPresets,
@@ -46,6 +55,11 @@ import {
   DEFAULT_WEBSOCKET_URL,
   useScannerState,
 } from 'lib/tabs/tabImport/scannerStore'
+import {
+  initialMenuState,
+  OptimizerMenuIds,
+} from 'lib/tabs/tabOptimizer/optimizerForm/layout/optimizerMenuIds'
+import { useRelicsTabStore } from 'lib/tabs/tabRelics/useRelicsTabStore'
 import type { ShowcaseTabSavedSession } from 'lib/tabs/tabShowcase/showcaseTabTypes'
 import { useShowcaseTabStore } from 'lib/tabs/tabShowcase/useShowcaseTabStore'
 import type { CharacterId } from 'types/character'
@@ -62,8 +76,8 @@ import { replayScannerSettings } from './scanner'
 
 // ─── sections ────────────────────────────────────────────────────────────────
 
-const GET_SECTIONS = ['revision', 'settings', 'session', 'flags', 'scanner', 'showcase'] as const
-const UPDATE_SECTIONS = ['settings', 'session', 'flags', 'scanner', 'showcase'] as const
+const GET_SECTIONS = ['revision', 'settings', 'session', 'flags', 'scanner', 'showcase', 'visualDebug', 'relicsTab', 'layout'] as const
+const UPDATE_SECTIONS = ['settings', 'session', 'flags', 'scanner', 'showcase', 'visualDebug', 'relicsTab', 'layout'] as const
 type GetSection = (typeof GET_SECTIONS)[number]
 type UpdateSection = (typeof UPDATE_SECTIONS)[number]
 
@@ -228,6 +242,116 @@ function showcaseSection() {
   }
 }
 
+// ─── visualDebug 段(会话临时态,不落盘) ─────────────────────────────────────
+//
+// useDebugVisualConfigStore(src/lib/characterPreview/debugVisualConfigStore.ts)
+// 是纯 zustand 会话 store:上游从不把它写进 SaveState.save(),刷新即回到
+// 默认值——MCP 侧同语义,update 不走 withChange/markDirty、不进 revision。
+// 19 个字段的含义/默认值派生自上游常量(PORTRAIT_* / CARD_BG_ALPHA_DEFAULT /
+// DEFAULT_CONFIG.cardBg / SHADOW_* / TEXT_SHADOW_DEFAULT),此处不硬编码。
+// cardDebug 对应 globalThis.CARD_DEBUG(CharacterPreview.tsx:138 模块加载即
+// false):上游是页面全局布尔,MCP 侧在本模块持有一个 Node 会话变量,渲染/
+// 调试任务经 taskGlobals 把它带给页面(browserManager.setCardDebug)。
+let cardDebugSession = false
+
+/** DebugVisualConfig 的全部配置键。as const + 下面的穷尽性断言保证:上游
+ * DebugVisualConfig 加字段时 tsgo 在此报错(缺失键会让 Exclude 非 never),
+ * 提示把新键补进本列表与字段校验——宽类型注解的数组做不到这一点。 */
+const DEBUG_VISUAL_FIELDS = [
+  'portraitBlur',
+  'portraitBrightness',
+  'portraitSaturate',
+  'portraitContrast',
+  'cardBgAlpha',
+  'debugMaxC',
+  'debugMinC',
+  'debugChromaScale',
+  'debugTargetL',
+  'debugMinL',
+  'debugMaxL',
+  'blendMode',
+  'shadowX',
+  'shadowY',
+  'shadowBlur',
+  'shadowOpacity',
+  'insetBlur',
+  'insetOpacity',
+  'textShadow',
+] as const
+
+// 编译期穷尽性:列表没跟上上游类型时,这里的类型不再是 never。
+type MissingVisualField = Exclude<keyof DebugVisualConfig, (typeof DEBUG_VISUAL_FIELDS)[number]>
+const assertVisualFieldsExhaustive: MissingVisualField = undefined as never
+
+function readDebugVisualConfig(): DebugVisualConfig {
+  const state = useDebugVisualConfigStore.getState()
+  // Object.fromEntries 只能给 index-signature 形状,字段级对应由 DEBUG_VISUAL_
+  // FIELDS(上游 keyof DebugVisualConfig 穷尽)保证,经 unknown 收窄到目标类型。
+  return Object.fromEntries(DEBUG_VISUAL_FIELDS.map((key) => [key, state[key]])) as unknown as DebugVisualConfig
+}
+
+function visualDebugSection() {
+  return {
+    config: readDebugVisualConfig(),
+    cardDebug: cardDebugSession,
+    // 参考数据:textShadow 预设 label → value(update_state 两者都收)与两个
+    // 整套预设(update_state 的 applyPreset 落点)
+    textShadowPresets: TEXT_SHADOW_PRESETS.map((preset) => ({ label: preset.label, value: preset.value })),
+    presets: {
+      [ShowcasePreset.SHINE]: SHINE_PRESET,
+      [ShowcasePreset.NATURAL]: NATURAL_PRESET,
+    },
+  }
+}
+
+// ─── relicsTab 段 ─────────────────────────────────────────────────────────────
+//
+// excludedRelicPotentialCharacters 来自 useRelicsTabStore(遗器页「潜力角色」
+// 排除清单),随存档落盘(saveState.ts:78 → save.excludedRelicPotentialCharacters,
+// saveSnapshot.ts:70 同链),update 走 withChange + markDirty。
+// recentRelics(最近遗器折叠区的卡片数据)经核实不在 useRelicsTabStore 里,
+// 而在扫描器 store(scannerStore.ts:53):uid 列表、扫描器推送驱动
+// (updateInitialScan 取末 6 件倒序,updateRelic 前插,断连即清空)、
+// 会话态不落盘——因此 update 侧不提供该字段(只读,由扫描器推送驱动),
+// 读侧按折叠区同一算法投影(RecentRelics.tsx:23-28:ids → relicsById 解析
+// → 过滤缺件,展示取前 6)。
+function relicsTabSection() {
+  const relicsTab = useRelicsTabStore.getState()
+  const scanner = useScannerState.getState()
+  const relicsById = useRelicStore.getState().relicsById
+  const ids = [...scanner.recentRelics]
+  const cards = ids
+    .map((id) => relicsById[id])
+    .filter((relic) => relic != null)
+    .map((relic) => ({
+      id: relic.id,
+      part: relic.part,
+      equippedBy: relic.equippedBy ?? null,
+      enhance: relic.enhance,
+    }))
+  return {
+    excludedRelicPotentialCharacters: [...relicsTab.excludedRelicPotentialCharacters],
+    recentRelics: {
+      ids,
+      // 折叠区实际渲染的卡片(库存中已存在的那些;顺序与 ids 一致)
+      cards,
+    },
+  }
+}
+
+// ─── layout (optimizer.layout.sections) ──────────────────────────────────────
+// 优化器表单分区折叠状态(useOptimizerDisplayStore.menuState,FormRow 标题条
+// 点击切换,optimizerMenuIds.ts 的 initialMenuState 为默认),随存档落盘
+// (saveKey optimizerMenuState,saveSnapshot.ts:69 同链),update 走
+// withChange + markDirty。写语义镜像 FormRow 的单键切换:patch 只需给出
+// 要改的分区,其余保持当前值(整组 setMenuState 写回)。
+function layoutSection() {
+  return {
+    menuState: { ...useOptimizerDisplayStore.getState().menuState },
+    defaults: { ...initialMenuState },
+  }
+}
+
 const sectionReaders: Record<GetSection, () => Record<string, unknown>> = {
   revision: revisionSection,
   settings: settingsSection,
@@ -235,6 +359,9 @@ const sectionReaders: Record<GetSection, () => Record<string, unknown>> = {
   flags: flagsSection,
   scanner: scannerSection,
   showcase: showcaseSection,
+  visualDebug: visualDebugSection,
+  relicsTab: relicsTabSection,
+  layout: layoutSection,
 }
 
 const sectionSummaries: Record<GetSection, (data: Record<string, unknown>) => string> = {
@@ -262,6 +389,20 @@ const sectionSummaries: Record<GetSection, (data: Record<string, unknown>) => st
   showcase: (data) => {
     const s = data as ReturnType<typeof showcaseSection>
     return `已返回 ${s.count} 个角色的展示评分偏好(showcasePreferences,与存档落盘字段一致)`
+  },
+  visualDebug: () => '已返回视觉调试参数(19 个字段 + cardDebug;视觉调试参数为会话临时状态,上游不落盘,MCP 同语义——update 不递增 revision、不写存档)',
+  relicsTab: (data) => {
+    const s = data as ReturnType<typeof relicsTabSection>
+    return `遗器页状态:排除潜力角色 ${s.excludedRelicPotentialCharacters.length} 名(随存档落盘),`
+      + `最近遗器 ${s.recentRelics.ids.length} 个 uid/折叠区卡片 ${s.recentRelics.cards.length} 张`
+      + '(recentRelics 为扫描器推送驱动的会话态,只读不落盘)'
+  },
+  layout: (data) => {
+    const s = data as ReturnType<typeof layoutSection>
+    const collapsed = Object.entries(s.menuState).filter(([, open]) => !open).map(([id]) => id)
+    return `优化器表单分区折叠状态已返回(随存档落盘):当前折叠 ${
+      collapsed.length ? collapsed.join('、') : '(无,全部展开)'
+    };defaults 为上游默认(自定义属性模拟折叠,其余展开)`
   },
 }
 
@@ -347,12 +488,65 @@ const showcaseSectionSchema = z.object({
   count: z.number().int(),
 })
 
+const debugVisualConfigSchema = z.object({
+  portraitBlur: z.number(),
+  portraitBrightness: z.number(),
+  portraitSaturate: z.number(),
+  portraitContrast: z.number(),
+  cardBgAlpha: z.number(),
+  debugMaxC: z.number(),
+  debugMinC: z.number(),
+  debugChromaScale: z.number(),
+  debugTargetL: z.number(),
+  debugMinL: z.number(),
+  debugMaxL: z.number(),
+  blendMode: z.enum(['screen', 'normal']),
+  shadowX: z.number(),
+  shadowY: z.number(),
+  shadowBlur: z.number(),
+  shadowOpacity: z.number(),
+  insetBlur: z.number(),
+  insetOpacity: z.number(),
+  textShadow: z.string(),
+})
+
+const visualDebugSectionSchema = z.object({
+  config: debugVisualConfigSchema,
+  cardDebug: z.boolean().describe('调试面板开关(Node 会话变量,镜像 globalThis.CARD_DEBUG;渲染任务经 taskGlobals 传给页面)'),
+  textShadowPresets: z.array(z.object({ label: z.string(), value: z.string() })),
+  presets: z.object({
+    shine: debugVisualConfigSchema,
+    natural: debugVisualConfigSchema,
+  }),
+})
+
+const relicsTabSectionSchema = z.object({
+  excludedRelicPotentialCharacters: z.array(z.string()),
+  recentRelics: z.object({
+    ids: z.array(z.string()),
+    cards: z.array(z.object({
+      id: z.string(),
+      part: z.string(),
+      equippedBy: z.string().nullable(),
+      enhance: z.number().int(),
+    })),
+  }),
+})
+
+const layoutSectionSchema = z.object({
+  menuState: z.record(z.string(), z.boolean()),
+  defaults: z.record(z.string(), z.boolean()),
+})
+
 const sectionEchoSchemas = {
   settings: settingsSectionSchema.optional(),
   session: sessionSectionSchema.optional(),
   flags: flagsSectionSchema.optional(),
   scanner: scannerSectionSchema.optional(),
   showcase: showcaseSectionSchema.optional(),
+  visualDebug: visualDebugSectionSchema.optional(),
+  relicsTab: relicsTabSectionSchema.optional(),
+  layout: layoutSectionSchema.optional(),
 } as const
 
 // ─── patch field specs (key allowlist + per-field zod partial schemas) ──────
@@ -451,12 +645,84 @@ const showcaseFieldSpecs = {
   },
 } satisfies Record<string, FieldSpec>
 
+// visualDebug 段写的是「视觉调试参数」(useDebugVisualConfigStore 的会话态
+// store):数值字段的范围以上游组件/预设值为准——上游没有为这些字段提供
+// 输入组件约束(调试面板已收进 CARD_DEBUG 分支),故按 CSS/色彩管线语义
+// 给常识范围并在 expected 写明:CSS 乘数(亮度/饱和/对比)非负,不透明度
+// 与 alpha 类 0–1,模糊半径非负,阴影位移可为负,色彩管线(lightness/chroma)
+// 非负。blendMode/textShadow 为枚举/预设映射 + 原始字符串。
+const nonNegativeFinite = z.number().finite().min(0)
+const unitFraction = z.number().finite().min(0).max(1)
+const finiteNumber = z.number().finite()
+
+const visualDebugFieldSpecs = {
+  portraitBlur: { schema: nonNegativeFinite, expected: '非负有限数(肖像背景模糊半径,px;上游默认 40)' },
+  portraitBrightness: { schema: nonNegativeFinite, expected: '非负有限数(肖像背景亮度,CSS 乘数;上游 Matte 默认 0.10)' },
+  portraitSaturate: { schema: nonNegativeFinite, expected: '非负有限数(肖像背景饱和度,CSS 乘数;上游 Matte 默认 2.00)' },
+  portraitContrast: { schema: nonNegativeFinite, expected: '非负有限数(肖像背景对比度,CSS 乘数;上游 Matte 默认 1.25)' },
+  cardBgAlpha: { schema: unitFraction, expected: '0–1 有限数(卡面底色 alpha;上游默认 0.40)' },
+  debugMaxC: { schema: nonNegativeFinite, expected: '非负有限数(卡底色阶 chroma 上限;上游默认 0.120)' },
+  debugMinC: { schema: nonNegativeFinite, expected: '非负有限数(卡底色阶 chroma 下限;上游默认 0.010)' },
+  debugChromaScale: { schema: nonNegativeFinite, expected: '非负有限数(卡底色阶 chroma 缩放;上游默认 1.20)' },
+  debugTargetL: { schema: unitFraction, expected: '0–1 有限数(卡底目标 lightness;上游默认 0.50)' },
+  debugMinL: { schema: unitFraction, expected: '0–1 有限数(卡底 lightness 下限;上游默认 0.05)' },
+  debugMaxL: { schema: unitFraction, expected: '0–1 有限数(卡底 lightness 上限;上游默认 0.70)' },
+  blendMode: {
+    schema: z.enum(['screen', 'normal'] as const),
+    expected: '混合模式枚举:"screen" | "normal"(上游 BlendMode;默认 normal)',
+  },
+  shadowX: { schema: finiteNumber, expected: '有限数(外阴影 X 位移 px,可为负)' },
+  shadowY: { schema: finiteNumber, expected: '有限数(外阴影 Y 位移 px,可为负)' },
+  shadowBlur: { schema: nonNegativeFinite, expected: '非负有限数(外阴影模糊半径 px)' },
+  shadowOpacity: { schema: unitFraction, expected: '0–1 有限数(外阴影不透明度)' },
+  insetBlur: { schema: nonNegativeFinite, expected: '非负有限数(内发光模糊半径 px)' },
+  insetOpacity: { schema: unitFraction, expected: '0–1 有限数(内发光不透明度)' },
+  textShadow: {
+    schema: z.string().min(1),
+    expected: `预设 label(${TEXT_SHADOW_PRESETS.map((preset) => preset.label).join(' / ')},命中即映射为对应 CSS 值)或原始 CSS text-shadow 字符串`,
+  },
+  cardDebug: booleanSpec('布尔(调试面板开关,Node 会话变量;渲染任务经 taskGlobals 传给页面)'),
+  applyPreset: {
+    schema: z.enum([ShowcasePreset.SHINE, ShowcasePreset.NATURAL] as const),
+    expected: `整套预设枚举:"${ShowcasePreset.SHINE}" | "${ShowcasePreset.NATURAL}"(一次性覆盖全部 19 个字段)`,
+  },
+  reset: { schema: z.literal(true), expected: 'true(恢复全部视觉调试默认值)' },
+} satisfies Record<string, FieldSpec>
+
+// relicsTab 段:excludedRelicPotentialCharacters 随存档落盘(saveState.ts:78),
+// 角色 id 校验同 showcase 段(必须在游戏元数据中)。recentRelics 是扫描器
+// 推送驱动的会话态(scannerStore.ts:53),刻意不提供写入口——传它会被
+// 未知字段校验拦下并列出合法键。
+const relicsTabFieldSpecs = {
+  excludedRelicPotentialCharacters: {
+    schema: z.array(z.string().min(1)),
+    expected: '角色 id 字符串数组,整组替换潜力评分排除清单(每个 id 必须存在于游戏元数据)',
+  },
+} satisfies Record<string, FieldSpec>
+
+// layout 段:menuState 是「分区 id → 是否展开」的部分覆盖(分区 id 即上游
+// OptimizerMenuIds 的五个英文标题键),其余分区保持当前值;随存档落盘。
+const MENU_STATE_EXPECTED = `「分区 id → 布尔(是否展开)」对象,只需给出要改的分区,合法分区 id:${
+  Object.values(OptimizerMenuIds).map((id) => `"${id}"`).join(', ')
+}`
+const layoutFieldSpecs = {
+  menuState: {
+    schema: z.object(
+      Object.fromEntries(Object.values(OptimizerMenuIds).map((id) => [id, z.boolean().optional()])),
+    ).strict(),
+    expected: MENU_STATE_EXPECTED,
+  },
+} satisfies Record<string, FieldSpec>
+
 const sectionFieldSpecs: Record<UpdateSection, Record<string, FieldSpec>> = {
   settings: settingsFieldSpecs,
   session: sessionFieldSpecs,
   flags: flagsFieldSpecs,
   scanner: scannerFieldSpecs,
   showcase: showcaseFieldSpecs,
+  visualDebug: visualDebugFieldSpecs,
+  relicsTab: relicsTabFieldSpecs,
+  layout: layoutFieldSpecs,
 }
 
 function validatePatch(section: UpdateSection, patch: Record<string, unknown>): void {
@@ -511,6 +777,20 @@ function validatePatch(section: UpdateSection, patch: Record<string, unknown>): 
       )
     }
   }
+  // relicsTab 段的排除清单:逐 id 校验游戏元数据(口径同 showcase 段)
+  if (section === 'relicsTab' && patch['excludedRelicPotentialCharacters'] != null) {
+    const ids = patch['excludedRelicPotentialCharacters'] as string[]
+    const invalid = ids.filter((id) => !getGameMetadata().characters[id as CharacterId])
+    if (invalid.length > 0) {
+      throw new Error(
+        `update_state(section=relicsTab): excludedRelicPotentialCharacters 含不在游戏元数据中的角色 id:${
+          invalid.map((id) => `"${id}"`).join(', ')
+        } — 请使用有效的角色 id`,
+      )
+    }
+  }
+  // visualDebug 的三个动作键互斥语义靠 applyPreset/reset 的 zod 校验兜底;
+  // 字段本身的范围/枚举校验已由 specs 完成,无需附加规则。
 }
 
 function applyPatch(section: UpdateSection, patch: Record<string, unknown>): void {
@@ -605,6 +885,58 @@ function applyPatch(section: UpdateSection, patch: Record<string, unknown>): voi
       })
       return
     }
+    case 'visualDebug': {
+      // 会话临时态(上游不落盘):不走 withChange/markDirty,调用方
+      // (update_state 的 visualDebug 分支)直接同步执行本函数。reset 先于
+      // 其他键生效,applyPreset 随后可再覆盖个别字段(与逐字段 set 等价:
+      // 上游 store 的 setter 也只是 set({key: value}))。
+      if (patch['reset'] === true) {
+        const initial = useDebugVisualConfigStore.getInitialState()
+        useDebugVisualConfigStore.setState(
+          Object.fromEntries(DEBUG_VISUAL_FIELDS.map((key) => [key, initial[key]])) as Partial<DebugVisualConfig>,
+        )
+      }
+      if (patch['applyPreset'] === ShowcasePreset.SHINE) {
+        useDebugVisualConfigStore.getState().applyPreset(SHINE_PRESET)
+      } else if (patch['applyPreset'] === ShowcasePreset.NATURAL) {
+        useDebugVisualConfigStore.getState().applyPreset(NATURAL_PRESET)
+      }
+      if (patch['cardDebug'] != null) {
+        cardDebugSession = patch['cardDebug'] as boolean
+      }
+      const configPatch: Partial<DebugVisualConfig> = {}
+      let hasConfigPatch = false
+      for (const key of DEBUG_VISUAL_FIELDS) {
+        if (!(key in patch)) continue
+        hasConfigPatch = true
+        if (key === 'textShadow') {
+          // 预设 label → CSS 值映射;非 label 的字符串按原始 CSS 值透传
+          const raw = patch[key] as string
+          const preset = TEXT_SHADOW_PRESETS.find((candidate) => candidate.label === raw)
+          configPatch[key] = preset != null ? preset.value : raw
+        } else {
+          ;(configPatch as Record<string, unknown>)[key] = patch[key]
+        }
+      }
+      if (hasConfigPatch) useDebugVisualConfigStore.setState(configPatch)
+      return
+    }
+    case 'relicsTab': {
+      // 上游 setter(setExcludedRelicPotentialCharacters)整组替换 + 克隆;
+      // 该字段随存档落盘,markDirty 由 update_state 的事务路径统一负责。
+      useRelicsTabStore.getState().setExcludedRelicPotentialCharacters(
+        patch['excludedRelicPotentialCharacters'] as CharacterId[],
+      )
+      return
+    }
+    case 'layout': {
+      // FormRow 单键切换的批量形态:当前值居中 + patch 覆盖后整组 setMenuState;
+      // 随存档落盘(saveKey optimizerMenuState),markDirty 由事务路径统一负责。
+      const current = useOptimizerDisplayStore.getState().menuState
+      const changed = patch['menuState'] as Record<string, boolean>
+      useOptimizerDisplayStore.getState().setMenuState({ ...current, ...changed })
+      return
+    }
   }
 }
 
@@ -621,11 +953,14 @@ export function registerStateTools(server: McpServer): void {
       + ' localStorage 键「i18nextLng」,不在存档里),activeLanguage=本进程当前实际渲染语言(MCP 固定 zh_CN);'
       + 'section=flags:已读特性标记 seenFeatures 数组(附当前活跃的新特性键);'
       + 'section=scanner:扫描器接入配置六字段(ingest/ingestCharacters/ingestOnlyExistingCharacters/ingestWarpResources/websocketUrl/customUrl);'
-      + 'section=showcase:各角色的展示评分偏好 showcasePreferences(含 scoringType,角色页展示卡与组队面板槽位卡共用,随存档落盘)。'
+      + 'section=showcase:各角色的展示评分偏好 showcasePreferences(含 scoringType,角色页展示卡与组队面板槽位卡共用,随存档落盘);'
+      + 'section=visualDebug:视觉调试参数(19 个字段 + cardDebug 调试面板开关 + textShadow 预设表/整套预设参考值;会话临时状态,上游不落盘,MCP 同语义);'
+      + 'section=relicsTab:遗器页状态(excludedRelicPotentialCharacters 潜力评分排除清单,随存档落盘;recentRelics 最近遗器折叠区的 uid 顺序与卡片投影,扫描器推送驱动的只读会话态);'
+      + 'section=layout:优化器表单分区折叠状态(menuState,分区 id → 是否展开,随存档落盘)。'
       + '只读无副作用,不递增 revision。',
     inputSchema: {
       section: z.enum(GET_SECTIONS).describe(
-        '要读取的状态域:revision=修订与存档概况,settings=用户设置,session=持久化会话字段,flags=已读特性标记,scanner=扫描器接入配置,showcase=角色展示评分偏好',
+        '要读取的状态域:revision=修订与存档概况,settings=用户设置,session=持久化会话字段,flags=已读特性标记,scanner=扫描器接入配置,showcase=角色展示评分偏好,visualDebug=视觉调试参数(会话态),relicsTab=遗器页状态,layout=优化器表单分区折叠状态',
       ),
     },
     outputSchema: {
@@ -651,9 +986,15 @@ export function registerStateTools(server: McpServer): void {
       + '本进程已初始化的 i18n 语言不因此切换——ensureI18nReady 固定 zh_CN,是否按该偏好切换由调用方进程决定;'
       + '可选 baseRevision 做乐观并发检查:与当前修订号不一致即报冲突(消息含两个修订号),需重读状态后重试。'
       + '变更经事务协调器提交:任一步失败整体回滚;成功后标记 dirty、revision 递增,由防抖写回落盘。'
+      + 'visualDebug 段例外:视觉调试参数为会话临时状态,上游不落盘,MCP 同语义——update 不要求已载入存档、'
+      + '不走事务/markDirty、revision 保持不变(baseRevision 若提供仍做纯检查);可写 19 个数值/枚举字段'
+      + '(数值范围:alpha 与不透明度类 0–1,模糊半径与 CSS 乘数类非负,阴影位移可为负)、cardDebug 布尔、'
+      + 'applyPreset(shine/natural 整套预设)与 reset(true 恢复默认);textShadow 收预设 label(命中映射为对应 CSS 值)或原始 CSS 字符串。'
+      + 'relicsTab 段:excludedRelicPotentialCharacters 整组替换(角色 id 须在游戏元数据中,随存档落盘);'
+      + 'recentRelics 只读(扫描器推送驱动),不提供写入口。'
       + '注意:revision 域只读不可写(枚举里没有它);scanner.customUrl 是派生标记——置 false 会把地址重置为默认,置 true 需同时在 patch 中提供自定义 websocketUrl。',
     inputSchema: {
-      section: z.enum(UPDATE_SECTIONS).describe('要更新的状态域:settings/session/flags/scanner/showcase(revision 只读,不在此列)'),
+      section: z.enum(UPDATE_SECTIONS).describe('要更新的状态域:settings/session/flags/scanner/showcase/visualDebug/relicsTab/layout(revision 只读,不在此列)'),
       patch: z.record(z.string(), z.unknown()).describe('字段 patch 对象:键为该 section 的已知字段,值为新值(合法字段与枚举见 get_state 对应 section 的返回)'),
       baseRevision: z.number().int().optional().describe('乐观并发门:调用方读取状态时拿到的修订号;与当前不一致报冲突,需重读后重试'),
     },
@@ -666,8 +1007,29 @@ export function registerStateTools(server: McpServer): void {
       ...sectionEchoSchemas,
     },
   }, async ({ section, patch, baseRevision }) => {
-    runtimeContext.requireSave()
     runtimeContext.ensureMetadataReady()
+
+    // visualDebug 是会话临时态(上游不落盘):不走事务协调器——不要求已载入
+    // 存档、不 markDirty、revision 保持不变;baseRevision 若提供仍做冲突检查
+    // (纯检查,无回滚需求:本分支没有可回滚的持久化副作用)。
+    if (section === 'visualDebug') {
+      validatePatch(section, patch)
+      if (baseRevision != null) runtimeContext.requireRevision(baseRevision, 'update_state')
+      applyPatch(section, patch)
+      const payload: Record<string, unknown> = {
+        updated: true,
+        section,
+        revision: runtimeContext.getRevision(),
+        dirty: runtimeContext.isDirty(),
+      }
+      payload[section] = sectionReaders[section]()
+      return toolResult(
+        payload,
+        `已更新 visualDebug(字段:${Object.keys(patch).join(', ')})——会话临时状态,不落盘、revision 不变(${runtimeContext.getRevision()})`,
+      )
+    }
+
+    runtimeContext.requireSave()
     validatePatch(section, patch)
 
     // baseRevision is checked INSIDE the scope (after earlier-queued changes
