@@ -7,6 +7,13 @@
 //   - character_card: #characters → click the sample save's first character
 //     row ([data-character-id]) → wait for the card to show that character
 //     (portrait URL identity) → the app's own snapdom camera export.
+//   - character_card(source=leaderboard): a local fixture server mirrors the
+//     published leaderboard files for the SERVER-side dataset download; the
+//     render task boots at HOME, injects that manifest into the page (zero
+//     real network — the page's own fetches are answered in-origin), then
+//     navigates the shared-link hash '#leaderboard?b=bld-top' and CDP-clips
+//     the LEADERBOARD-source card (#leaderboard-1308) — upstream ships no
+//     snapdom button for that card (ShowcaseCustomizationSidebar.tsx:103).
 //   - saved_build: save_build creates one first (the sample save ships none),
 //     then Character menu → View saved builds → select the build → modal
 //     camera export of elementId buildPreview.
@@ -41,12 +48,14 @@ import {
   rmSync,
   statSync,
 } from 'node:fs'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import {
   dirname,
   resolve,
 } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { gzipSync } from 'node:zlib'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
@@ -55,6 +64,96 @@ const repoSampleSavePath = resolve(mcpDir, '../src/data/sample-save.json')
 const tempDir = mkdtempSync(`${tmpdir()}/hsr-mcp-smoke-render-`)
 const sampleSavePath = `${tempDir}/sample-save.json`
 copyFileSync(repoSampleSavePath, sampleSavePath)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Leaderboard mirror fixture — same wire shape as smoke-leaderboard.mjs fx1
+// (one Acheron dps board with the bld-top entry). Serves the page's own
+// leaderboard download so the leaderboard card renders fully offline.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const FETCHED_AT = Date.UTC(2026, 8, 30)
+const LB_TEAM = ['1005', '1105', '1102'].map((characterId, i) => ({
+  characterId,
+  lightCone: '21002',
+  characterEidolon: 0,
+  lightConeSuperimposition: 1 + (i % 2),
+}))
+const LB_MANIFEST = {
+  generatedAt: '2026-10-01T00:00:00Z',
+  characters: {
+    1308: gzipSync(Buffer.from(JSON.stringify({
+      configs: {
+        dps: {
+          teams: [{ teamId: 'acheron-std', teammates: [{ characterId: '1005' }, { characterId: '1105' }, { characterId: '1102' }] }],
+          teamsById: {
+            'acheron-std': {
+              totalEntries: 1,
+              entries: [{
+                rank: 1,
+                characterId: '1308',
+                buildId: 'bld-top',
+                candidateId: 'aaaaaaaaaa01',
+                score: 2.05,
+                data: {
+                  character: {
+                    a: 1308,
+                    r: 0,
+                    q: { t: 23014, r: 1 },
+                    l: [
+                      { t: 61011, v: 15, m: 1, u: [{ a: 7, c: 2, s: 1 }, { a: 9, c: 1, s: 0 }] },
+                      { t: 61012, v: 15, m: 1, u: [{ a: 4, c: 2, s: 1 }] },
+                    ],
+                  },
+                  team: LB_TEAM,
+                  teamEidolon: 0,
+                  characterEidolon: 0,
+                  teamId: 'acheron-std',
+                  deprioritizeBuffs: true,
+                  baselineSimScore: 1000,
+                  benchmarkSimScore: 2000,
+                  maximumSimScore: 3000,
+                  fetchedAt: FETCHED_AT,
+                },
+              }],
+            },
+          },
+          totalEntries: 1,
+        },
+      },
+    }))).toString('base64'),
+  },
+}
+const LB_TIMELINE = { schemaVersion: 2, generatedAt: '2026-10-05T12:00:00Z', events: [] }
+
+const lbRequestCounts = new Map()
+const lbFixtureServer = createServer((req, res) => {
+  const pathname = new URL(req.url ?? '/', 'http://lb-fixture.local').pathname
+  lbRequestCounts.set(pathname, (lbRequestCounts.get(pathname) ?? 0) + 1)
+  if (pathname === '/lb/leaderboard.json') {
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify(LB_MANIFEST))
+    return
+  }
+  if (pathname === '/lb/leaderboard-timeline.json') {
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify(LB_TIMELINE))
+    return
+  }
+  if (pathname === '/lb/__requests') {
+    const wanted = new URL(req.url ?? '/', 'http://lb-fixture.local').searchParams.get('path') ?? ''
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ path: wanted, count: lbRequestCounts.get(wanted) ?? 0 }))
+    return
+  }
+  res.writeHead(404, { 'content-type': 'application/json' })
+  res.end(JSON.stringify({ error: `no fixture route for ${pathname}` }))
+})
+await new Promise((resolvePromise) => lbFixtureServer.listen(0, '127.0.0.1', resolvePromise))
+const LB_BASE = `http://127.0.0.1:${lbFixtureServer.address().port}/lb`
+const lbRequestCount = async (path) => {
+  const response = await fetch(`${LB_BASE}/__requests?path=${encodeURIComponent(path)}`)
+  return (await response.json()).count
+}
 
 let failures = 0
 let assertions = 0
@@ -268,6 +367,46 @@ try {
       && card.via === 'app-camera' && card.target === 'character_card',
   )
 
+  // ── 3b. character_card source=leaderboard (shared-link path, offline data) ──
+  const lbNoBuild = await toolError(client, 'render', { target: 'character_card', source: 'leaderboard', characterId: '1308' }, LONG)
+  check(
+    'leaderboard card: 缺 buildId 报中文错误',
+    lbNoBuild != null && lbNoBuild.includes('buildId'),
+    String(lbNoBuild).slice(0, 100),
+  )
+  const lbBadBuild = await toolError(client, 'render', {
+    target: 'character_card',
+    source: 'leaderboard',
+    buildId: 'no-such-build',
+    leaderboardBaseUrl: LB_BASE,
+  }, LONG)
+  check(
+    'leaderboard card: 未知配装编号经榜单数据校验后报中文错误',
+    lbBadBuild != null && lbBadBuild.includes('未找到配装编号'),
+    String(lbBadBuild).slice(0, 100),
+  )
+  const lbCard = assertArtifact(
+    'character_card leaderboard',
+    await callTool(client, 'render', {
+      target: 'character_card',
+      source: 'leaderboard',
+      buildId: 'bld-top',
+      leaderboardBaseUrl: LB_BASE,
+    }, LONG),
+    // cardTotalW×parentH = 1100×880 CSS px at dpr 1 (CDP clip)
+    { width: 800, height: 600 },
+  )
+  check(
+    'leaderboard card: 标注 source/buildId/characterId 与 cdp 通道',
+    lbCard.source === 'leaderboard' && lbCard.buildId === 'bld-top'
+      && lbCard.characterId === '1308' && lbCard.via === 'cdp' && lbCard.target === 'character_card',
+  )
+  check(
+    'leaderboard card: 页面榜单拉取由注入数据应答(manifest+动态共 2 次,离线;服务端仅下载 manifest 一次)',
+    lbCard.leaderboardFetchHits === 2 && await lbRequestCount('/lb/leaderboard.json') === 1,
+    `page hits=${lbCard.leaderboardFetchHits}, node-side downloads=${await lbRequestCount('/lb/leaderboard.json')}`,
+  )
+
   // ── 4. saved_build (create one first — sample ships none) ─────────────────
   await callTool(client, 'save_build', { characterId: TARGET, name: BUILD_NAME }, LONG)
   const build = assertArtifact(
@@ -345,6 +484,8 @@ try {
 } finally {
   await client.close()
   rmSync(tempDir, { recursive: true, force: true })
+  lbFixtureServer.closeAllConnections()
+  await new Promise((resolvePromise) => lbFixtureServer.close(resolvePromise))
 }
 
 console.log(failures === 0 ? `\nsmoke-render: ALL CHECKS PASSED (${assertions} assertions)` : `\nsmoke-render: ${failures} OF ${assertions} CHECK(S) FAILED`)

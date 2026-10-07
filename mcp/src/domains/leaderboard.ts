@@ -14,6 +14,16 @@
 //   list grouping, imported), expandCharacter + CharacterConverter (entry card,
 //   the same path recomputeDerivedState uses).
 //
+// view=score (M9-D 本地评分重算) re-scores a published entry with the
+// maintainer's own offline function: scoreLeaderboardBuild (the exact call
+// src/leaderboard/scoring/scorer.ts:106-114 uses to produce entry.score in the
+// first place) over DEFAULT_TEAM metadata + the entry's recorded team and
+// deprioritizeBuffs — the same injection the web card applies through
+// CharacterPreviewScoringProvider (LeaderboardCharacterPreview.tsx:33-37 →
+// applySimulationMetadataOverrides, showcaseDerivedData.ts:178-200). The web
+// card itself only displays the RECORDED score; the recompute is the MCP-side
+// capability the coverage gap asks for (compare recomputed vs recorded).
+//
 // Published-source facts (all from leaderboardDataLoader.ts unless noted):
 //   - network base = 'https://fribbels.github.io' + BasePath.BETA ('/dreary-
 //     quibbles', src/lib/tabs/navigation/constants.ts:8-11) + '/leaderboard'
@@ -50,9 +60,11 @@ import {
   type LeaderboardEidolonFilter,
 } from 'leaderboard/shared/eidolonConfig'
 import { expandCharacter } from 'leaderboard/shared/profileCompression'
+import { scoreLeaderboardBuild } from 'leaderboard/shared/scoreLeaderboardBuild'
 import type {
   PublicCharacterData,
   PublicConfigData,
+  PublicLeaderboardEntry,
   PublicTeamMeta,
 } from 'leaderboard/shared/types'
 import {
@@ -65,7 +77,11 @@ import {
   TIMELINE_SCHEMA_VERSION,
   type TimelineEvent,
 } from 'leaderboard/timeline/timelineTypes'
+import { resolveEffectiveDeprioritizeBuffs } from 'lib/characterPreview/showcaseDerivedData'
+import { DEFAULT_TEAM } from 'lib/constants/constants'
 import { CharacterConverter } from 'lib/importer/characterConverter'
+import { SCORING_CONFIG_REGISTRY } from 'lib/scoring/scoringConfig'
+import { resolveSimulationMetadata } from 'lib/simulations/orchestrator/runDpsScoreBenchmarkOrchestrator'
 import { getGameMetadata } from 'lib/state/gameMetadata'
 import { deriveVisibleEntries } from 'lib/tabs/tabLeaderboard/deriveVisibleEntries'
 import { computeBrowserCandidateId } from 'lib/tabs/tabLeaderboard/leaderboardBrowserHash'
@@ -90,6 +106,12 @@ import { ensureI18nReady } from '../i18n/i18nNode'
 
 import { runtimeContext } from '../context'
 import { toolResult } from '../toolResult'
+
+// Upstream param types (resolveSimulationMetadata / scoreLeaderboardBuild /
+// SimulationMetadata.teammates) are narrower than the converted showcase
+// character shape; these casts are exact, matching scoring.ts's convention.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type Any = any
 
 // ─── data source ─────────────────────────────────────────────────────────────
 
@@ -190,6 +212,8 @@ type LeaderboardDataset = {
   /** Manifest generatedAt when present, else the fetch timestamp (ISO). */
   version: string,
   fetchedAt: number,
+  /** The parsed manifest verbatim (render re-serves it to the browser page). */
+  rawManifest: Record<string, unknown>,
   characters: Map<CharacterId, PublicCharacterData>,
   topScores: Partial<Record<CharacterId, number>>,
   totalEntries: Partial<Record<CharacterId, number>>,
@@ -328,6 +352,7 @@ async function buildDataset(resolved: ResolvedDataSource, timeoutMs: number): Pr
     baseUrl,
     version,
     fetchedAt,
+    rawManifest: manifest as Record<string, unknown>,
     characters,
     topScores,
     totalEntries,
@@ -563,6 +588,80 @@ function resolveBoardConfigTypes(characterId: string, characterData: PublicChara
     .filter((ct) => validConfigs.has(ct))
 }
 
+/** The wire entry behind a buildId — the source of truth for entry/score reads. */
+type ResolvedLeaderboardWireEntry = {
+  dataset: LeaderboardDataset,
+  match: BuildIndexEntry,
+  wireEntry: PublicLeaderboardEntry,
+}
+
+async function resolveLeaderboardWireEntry(
+  resolved: ResolvedDataSource,
+  buildId: string,
+  timeoutMs: number,
+): Promise<ResolvedLeaderboardWireEntry> {
+  const dataset = await loadDataset(resolved, timeoutMs)
+
+  const match = dataset.buildIndex.get(buildId)
+  if (match == null) {
+    throw new Error(
+      `未找到配装编号 ${buildId}——它不在当前榜单数据(版本 ${dataset.version})的索引中;`
+        + '链接指向的配装可能已落榜,或数据源版本较旧',
+    )
+  }
+
+  const characterData = dataset.characters.get(match.characterId)
+  if (characterData == null) {
+    throw new Error(`配装 ${buildId} 的角色 ${match.characterId} 数据缺失——数据源 ${dataset.baseUrl} 索引与数据不一致`)
+  }
+
+  const wireEntry = (characterData.configs as Record<string, PublicConfigData | undefined>)[match.configType]
+    ?.teamsById[match.teamId]?.entries.find((e) => e.buildId === buildId) ?? null
+  if (wireEntry == null) {
+    throw new Error(`配装 ${buildId} 在角色 ${match.characterId} 的 ${match.configType}/${match.teamId} 榜单数据中找不到条目——数据源索引与条目不一致`)
+  }
+
+  return { dataset, match, wireEntry }
+}
+
+/**
+ * Shared entry anchor for other domains (render's character_card
+ * source=leaderboard): resolves buildId → character/card identity through the
+ * same dataset chain the leaderboard tool uses. `baseUrl` follows the tool's
+ * source=model semantics: given → url mode; absent → auto (env var, then the
+ * fixed upstream publish address).
+ */
+export async function resolveLeaderboardEntryTarget(input: {
+  buildId: string,
+  baseUrl?: string,
+  timeoutMs?: number,
+}): Promise<{
+  source: 'network' | 'url',
+  baseUrl: string,
+  version: string,
+  buildId: string,
+  characterId: string,
+  characterName: string | null,
+  configType: string,
+  /** Parsed manifest verbatim — render re-serves it to the page's own loader. */
+  rawManifest: Record<string, unknown>,
+}> {
+  runtimeContext.ensureMetadataReady()
+  const mode: DataSourceMode = input.baseUrl != null && input.baseUrl.trim() !== '' ? 'url' : 'auto'
+  const resolved = resolveDataSource(mode, input.baseUrl)
+  const { dataset, match } = await resolveLeaderboardWireEntry(resolved, input.buildId, input.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+  return {
+    source: dataset.source,
+    baseUrl: dataset.baseUrl,
+    version: dataset.version,
+    buildId: input.buildId,
+    characterId: match.characterId as string,
+    characterName: characterNameOf(match.characterId as string),
+    configType: match.configType,
+    rawManifest: dataset.rawManifest,
+  }
+}
+
 // ─── output schema ───────────────────────────────────────────────────────────
 
 const relicPayloadSchema = z.object({
@@ -598,6 +697,7 @@ export function registerLeaderboardTools(server: McpServer): void {
       + 'characters=上榜角色清单(最高分/参与人数/公开展示人数,「数据不足」组单独标出,支持 search 与评分类型标签);'
       + 'board=某角色某评分类型的榜单行(名次/分数/星魂/光锥/队友,队伍与星魂档位过滤,与网页端同一条 deriveVisibleEntries 排名链);'
       + 'entry=按配装编号取上榜配装详情(名次/记录分数/AEON 标记/星魂光锥/队友/套装件数/六件遗器,遗器走 expandCharacter→CharacterConverter 同网页角色卡);'
+      + 'score=对榜单配装本地重算评分(scoreLeaderboardBuild——维护者产出榜单分数用的同一函数,默认配置+参评队伍,并与榜单记录分数对比偏差);'
       + 'timeline=排行榜最近动态(涨幅按 150% 起算,畸形条目丢弃并计数);'
       + 'my_ranks=按 9 位 UID 查自己各榜名次(UID 仅本地哈希比对,不产生任何带 UID 的网络请求)。'
       + '数据源用 source 显式指定:auto=HSR_MCP_LEADERBOARD_URL 环境变量(缺省回落 network)、network=上游固定发布地址、'
@@ -605,8 +705,8 @@ export function registerLeaderboardTools(server: McpServer): void {
       + '拉取/解压/解析失败一律返回中文错误而不是空榜单;只有真实「过滤后为空」才是 total=0 的成功。'
       + '动态文件不可用时 timeline 返回空列表并说明原因(与网页端一致,不算失败)。',
     inputSchema: {
-      view: z.enum(['characters', 'board', 'entry', 'timeline', 'my_ranks']).describe(
-        '查询入口:characters=角色清单、board=某角色的榜单、entry=单条配装详情、timeline=最近动态、my_ranks=按 UID 查名次',
+      view: z.enum(['characters', 'board', 'entry', 'score', 'timeline', 'my_ranks']).describe(
+        '查询入口:characters=角色清单、board=某角色的榜单、entry=单条配装详情、score=配装本地评分重算、timeline=最近动态、my_ranks=按 UID 查名次',
       ),
       source: z.enum(['auto', 'network', 'url']).default('auto').describe(
         `数据来源:auto=读环境变量 ${SOURCE_ENV_VAR}(未设置时等同 network)、network=上游固定发布地址(${NETWORK_BASE_URL})、url=使用 baseUrl 参数`,
@@ -626,13 +726,15 @@ export function registerLeaderboardTools(server: McpServer): void {
       characterEidolon: z.enum(['all', 'e0', 'e1', 'e2', 'e6']).optional().describe(
         'view=board:星魂档位过滤(按「不低于」归档:3-5 魂归入 e2;all=不过滤)。名次保持过滤前的总名次,行数可能不连续——与网页端一致',
       ),
-      buildId: z.string().optional().describe('view=entry 必填:配装编号(网页端链接里的 b 参数)'),
+      buildId: z.string().optional().describe(
+        'view=entry/view=score 必填:配装编号(网页端链接里的 b 参数;score 对它本地重算评分,与记录分数对比)',
+      ),
       uid: z.string().optional().describe('view=my_ranks:9 位数字 UID;缺省用存档里展示柜页记住的 UID(没有则报错)'),
       offset: z.number().int().min(0).default(0).describe('分页偏移(对 characters/board/timeline/my_ranks 的行列表生效)'),
       limit: z.number().int().min(1).max(200).default(100).describe('分页每页行数(默认 100)'),
     },
     outputSchema: {
-      view: z.enum(['characters', 'board', 'entry', 'timeline', 'my_ranks']),
+      view: z.enum(['characters', 'board', 'entry', 'score', 'timeline', 'my_ranks']),
       source: z.enum(['network', 'url']),
       baseUrl: z.string(),
       version: z.string(),
@@ -700,6 +802,37 @@ export function registerLeaderboardTools(server: McpServer): void {
       maximumSimScore: z.number().optional(),
       setCounts: z.record(z.string(), z.number().int()).optional(),
       relics: z.record(z.string(), relicPayloadSchema).optional(),
+      // score (view=score)
+      scoredConfigType: z.string().optional(),
+      recorded: z.object({
+        score: z.number(),
+        scoreDisplay: z.number(),
+        aeon: z.boolean(),
+        baselineSimScore: z.number(),
+        benchmarkSimScore: z.number(),
+        maximumSimScore: z.number(),
+      }).optional(),
+      recomputed: z.object({
+        percent: z.number(),
+        percentDisplay: z.number(),
+        originalSimScore: z.number(),
+        baselineSimScore: z.number(),
+        benchmarkSimScore: z.number(),
+        maximumSimScore: z.number(),
+        originalSpd: z.number(),
+        simulationFlags: z.object({
+          overcapCritRate: z.boolean(),
+          simPoetActive: z.boolean(),
+          characterPoetActive: z.boolean(),
+          forceErrRope: z.boolean(),
+          benchmarkBasicSpdTarget: z.number(),
+          benchmarkBasicResTarget: z.number(),
+        }),
+      }).optional(),
+      delta: z.object({ percent: z.number(), percentDisplay: z.number() }).optional(),
+      relicsEquipped: z.number().int().optional(),
+      relicsVerified: z.boolean().optional(),
+      durationMs: z.number().optional(),
       // timeline
       available: z.boolean().optional(),
       reason: z.string().optional(),
@@ -750,6 +883,8 @@ export function registerLeaderboardTools(server: McpServer): void {
         return await boardView(resolved, input)
       case 'entry':
         return await entryView(resolved, input)
+      case 'score':
+        return await scoreView(resolved, input)
       case 'timeline':
         return await timelineView(resolved, input)
       case 'my_ranks':
@@ -952,16 +1087,7 @@ export function registerLeaderboardTools(server: McpServer): void {
       throw new Error('view=entry 需要 buildId(配装编号,即网页端链接里的 b 参数;可从 view=board 行或 timeline 事件取得)')
     }
     const buildId = input.buildId.trim()
-    const dataset = await loadDataset(resolved, input.timeoutMs)
-
-    const match = dataset.buildIndex.get(buildId)
-    if (match == null) {
-      throw new Error(
-        `未找到配装编号 ${buildId}——它不在当前榜单数据(版本 ${dataset.version})的索引中;`
-          + '链接指向的配装可能已落榜,或数据源版本较旧',
-      )
-    }
-
+    const { dataset, match, wireEntry } = await resolveLeaderboardWireEntry(resolved, buildId, input.timeoutMs)
     const characterData = dataset.characters.get(match.characterId)
     if (characterData == null) {
       throw new Error(`配装 ${buildId} 的角色 ${match.characterId} 数据缺失——数据源 ${dataset.baseUrl} 索引与数据不一致`)
@@ -990,15 +1116,10 @@ export function registerLeaderboardTools(server: McpServer): void {
       : []
     const visible = board.find((entry) => entry.buildId === buildId) ?? null
 
-    // The wire entry is the source of truth for recorded data; off-board builds
-    // (below the 150% cutoff or past top-N) still return it with rank null —
-    // the web shows the board without selecting the build in that case.
-    const wireEntry = (characterData.configs as Record<string, PublicConfigData | undefined>)[match.configType]
-      ?.teamsById[match.teamId]?.entries.find((e) => e.buildId === buildId) ?? null
-    if (wireEntry == null) {
-      throw new Error(`配装 ${buildId} 在角色 ${match.characterId} 的 ${match.configType}/${match.teamId} 榜单数据中找不到条目——数据源索引与条目不一致`)
-    }
-
+    // The wire entry (from resolveLeaderboardWireEntry) is the source of truth
+    // for recorded data; off-board builds (below the 150% cutoff or past top-N)
+    // still return it with rank null — the web shows the board without
+    // selecting the build in that case.
     const minified = wireEntry.data.character
     const characterEidolon = minified.r ?? 0
     const lightConeId = minified.q?.t != null ? String(minified.q.t) : null
@@ -1061,6 +1182,149 @@ export function registerLeaderboardTools(server: McpServer): void {
         + `${visible != null ? `第 ${visible.rank} 名(` : '('}${boardTeamId === LEADERBOARD_FILTER_ALL ? '全部队伍榜' : `队伍 ${match.teamId} 榜`},`
         + `分数 ${scoreDisplayOf(wireEntry.score)}${wireEntry.score >= PUBLIC_SCORE_CUTOFF ? ',AEON' : ''},`
         + `e${characterEidolon},遗器 ${Object.keys(relics).length} 件${visible == null ? ';低于展示门槛,不在当前榜单行内' : ''}`,
+    )
+  }
+
+  // ── view=score ──────────────────────────────────────────────────────────────
+
+  async function scoreView(resolved: ResolvedDataSource, input: {
+    buildId?: string,
+    timeoutMs: number,
+  }) {
+    if (input.buildId == null || input.buildId.trim() === '') {
+      throw new Error('view=score 需要 buildId(配装编号;先用 view=board 或 view=entry 取得)')
+    }
+    const buildId = input.buildId.trim()
+    const { dataset, match, wireEntry } = await resolveLeaderboardWireEntry(resolved, buildId, input.timeoutMs)
+
+    if (!isLeaderboardConfigType(match.configType)) {
+      throw new Error(
+        `配装 ${buildId} 的评分类型 ${match.configType} 不是公开榜单类型(dps/support/heal/shield)——无法本地重算`,
+      )
+    }
+
+    // Same expansion as recomputeDerivedState (leaderboardTabController.ts:79-83).
+    const converted = CharacterConverter.convert(expandCharacter(wireEntry.data.character))
+    const relicsList = Object.values(converted.equipped).filter((relic): relic is Relic => relic != null)
+    if (relicsList.length === 0) {
+      throw new Error(
+        `配装 ${buildId}(角色 ${match.characterId})没有任何遗器——本地评分重算至少需要一件遗器`
+          + '(压缩数据里没有遗器,或全部无法转换)',
+      )
+    }
+
+    // LeaderboardCharacterPreview.tsx:35: publicToConfigType(activeConfigType).
+    const configType = publicToConfigType(match.configType)
+    // buildScoringPlan (scorer.ts:307) resolves DEFAULT_TEAM first; the web card
+    // does the same through resolveShowcaseScoringData (showcaseDerivedData.ts:148).
+    const sim = resolveSimulationMetadata(converted as Any, configType, DEFAULT_TEAM)
+    if (!sim) {
+      throw new Error(
+        `角色 ${match.characterId} 没有 ${configType} 的评分元数据(游戏元数据缺该配置)——无法本地重算;`
+          + '可能是元数据版本不含该评分类型,可换其他配装重试',
+      )
+    }
+
+    // The web card's injectedOverride (applySimulationMetadataOverrides,
+    // showcaseDerivedData.ts:185-199): the entry's scoring team replaces the
+    // default team; deprioritizeBuffs uses the recorded value, falling back to
+    // the effective resolution for configs that support it.
+    sim.teammates = wireEntry.data.team.map((teammate) => ({
+      characterId: teammate.characterId,
+      lightCone: teammate.lightCone,
+      characterEidolon: teammate.characterEidolon,
+      lightConeSuperimposition: teammate.lightConeSuperimposition,
+    })) as Any
+    let deprioritizeBuffs: boolean | null = null
+    const recordedDeprioritizeBuffs = wireEntry.data.deprioritizeBuffs
+    if (typeof recordedDeprioritizeBuffs === 'boolean') {
+      sim.deprioritizeBuffs = recordedDeprioritizeBuffs
+      deprioritizeBuffs = recordedDeprioritizeBuffs
+    } else if (SCORING_CONFIG_REGISTRY[configType].supportsDeprioritizeBuffs) {
+      const effective = resolveEffectiveDeprioritizeBuffs(converted.id as Any, sim as Any)
+      if (effective != null) {
+        sim.deprioritizeBuffs = effective
+        deprioritizeBuffs = effective
+      }
+    } // The maintainer's pipeline forces the inline search
+    // (leaderboardPipeline.ts:283-288); scoring.ts does the same for the MCP.
+
+    ;(globalThis as Any).SEQUENTIAL_BENCHMARKS = true
+
+    const started = performance.now()
+    const result = await scoreLeaderboardBuild({
+      character: converted as Any,
+      configType,
+      simulationMetadata: sim,
+      singleRelicByPart: converted.equipped as Any,
+      showcaseTemporaryOptions: {},
+      // scorer.ts:113 — the leaderboard pipeline never computes upgrade tables.
+      scoreOnly: true,
+    })
+    const durationMs = Math.round(performance.now() - started)
+    if (result == null || !Number.isFinite(result.percent)) {
+      throw new Error(
+        `配装 ${buildId}(角色 ${match.characterId},${configType})的本地评分计算失败——`
+          + '模拟配置可能不完整;可换其他配装,或用 view=entry 读取榜单记录的分数',
+      )
+    }
+
+    const recordedScore = wireEntry.score
+    const verified = relicsList.length === 6 && relicsList.every((relic) => relic.verified === true)
+    const percentDisplay = scoreDisplayOf(result.percent)
+    const deltaPercent = result.percent - recordedScore
+
+    return toolResult(
+      {
+        view: 'score' as const,
+        source: dataset.source,
+        baseUrl: dataset.baseUrl,
+        version: dataset.version,
+        fetchedAt: dataset.fetchedAt,
+        buildId,
+        characterId: match.characterId as string,
+        characterName: characterNameOf(match.characterId as string),
+        configType: match.configType,
+        scoredConfigType: String(configType),
+        recorded: {
+          score: recordedScore,
+          scoreDisplay: scoreDisplayOf(recordedScore),
+          aeon: recordedScore >= PUBLIC_SCORE_CUTOFF,
+          baselineSimScore: wireEntry.data.baselineSimScore,
+          benchmarkSimScore: wireEntry.data.benchmarkSimScore,
+          maximumSimScore: wireEntry.data.maximumSimScore,
+        },
+        recomputed: {
+          percent: result.percent,
+          percentDisplay,
+          originalSimScore: result.originalSimScore,
+          baselineSimScore: result.baselineSimScore,
+          benchmarkSimScore: result.benchmarkSimScore,
+          maximumSimScore: result.maximumSimScore,
+          originalSpd: result.originalSpd,
+          simulationFlags: { ...result.simulationFlags },
+        },
+        delta: {
+          percent: deltaPercent,
+          percentDisplay: scoreDisplayOf(deltaPercent),
+        },
+        team: wireEntry.data.team.map((t) => ({
+          characterId: t.characterId,
+          name: characterNameOf(t.characterId),
+          lightCone: t.lightCone,
+          lightConeName: lightConeNameOf(t.lightCone),
+          characterEidolon: t.characterEidolon,
+          lightConeSuperimposition: t.lightConeSuperimposition,
+        })),
+        deprioritizeBuffs,
+        relicsEquipped: relicsList.length,
+        relicsVerified: verified,
+        durationMs,
+      },
+      `配装 ${buildId}(${characterNameOf(match.characterId as string) ?? match.characterId},${match.configType})本地重算:`
+        + `${percentDisplay}%(${String(configType)},基准搜索内联),对比榜单记录 ${scoreDisplayOf(recordedScore)}%`
+        + `(偏差 ${scoreDisplayOf(deltaPercent)} 百分点);`
+        + `参评队伍 ${wireEntry.data.team.map((t) => t.characterId).join(', ') || '(无)'},遗器 ${relicsList.length} 件,耗时 ${durationMs}ms`,
     )
   }
 

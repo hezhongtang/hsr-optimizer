@@ -118,3 +118,26 @@ export function replaceSaveStores(data: HsrOptimizerSaveFormat): HsrOptimizerSav
   syncSidebar()
   return { ...migrationData, ...(scannerSettings ? { scannerSettings } : {}) }
 }
+
+/**
+ * Boot-time restore — the EXACT web startup chain (src/index.tsx:103
+ * `SaveState.load(false, false)` → saveState.ts:136-154 →
+ * persistenceService.loadSaveData(parsed, autosave=false, sanitize=false)).
+ *
+ * Differences from the manual `replaceSaveStores` path above are deliberate
+ * and mirror the two flag values the web passes at startup:
+ *   - sanitize=false → the persisted scanner websocket url IS restored when
+ *     the save carries customUrl=true (persistenceService.ts:206-209): the
+ *     state file is the operator's own backend, the same trust level the web
+ *     gives its own localStorage on open. The manual load never does this.
+ *   - no resetFields prefix — at boot the stores still hold their fresh
+ *     initial defaults, exactly what the web's SaveState.load loads over.
+ *     There is also no scannerSettings stripping: loadSaveData applies them
+ *     through the upstream action setters (whose 5s SaveState.delayedSave the
+ *     web startup also schedules; in Node that timer only re-syncs the
+ *     localStorage anti-wipe reference, it never touches the save file).
+ */
+export function restoreBootSaveStores(data: HsrOptimizerSaveFormat): void {
+  persistenceService.loadSaveData(data, false, false)
+  syncSidebar()
+}

@@ -572,9 +572,14 @@ try {
 
   // 17. unexpected server-side termination → automatic reconnection
   for (const ws of archiverClients) ws.terminate()
+  // Poll for the RECONNECTION, not bare connectivity: right after terminate()
+  // the client has not noticed the drop yet and status still says connected
+  // (a 2026-10-07 run pushed the probe frame into that half-open socket and
+  // lost it). reconnects >= 1 proves the close fired AND the retry succeeded —
+  // only then is the new socket in archiverClients for the next frame().
   const reconnected = await pollUntil('auto-reconnect', async () => {
     const s = await callTool(client, 'scanner', { action: 'status' })
-    return { ok: s.connected === true, connected: s.connected, reconnects: s.reconnects }
+    return { ok: s.connected === true && s.reconnects >= 1, connected: s.connected, reconnects: s.reconnects }
   }, 8000)
   check(
     'server-side termination: client reports reconnected automatically',
@@ -584,7 +589,7 @@ try {
   check('reconnect attempt was counted', reconnected.reconnects >= 1, `reconnects=${reconnected.reconnects}`)
   frame('UpdateRelics', [novel('9006', 60)])
   const postReconnect = await pollUntil('post-reconnect frame applied', async () => ({ ok: await relicsTotal() === 167, total: await relicsTotal() }))
-  check('frames keep applying after the automatic reconnect (165 → 166)', postReconnect.ok, `total=${postReconnect.total}`)
+  check('frames keep applying after the automatic reconnect (166 → 167)', postReconnect.ok, `total=${postReconnect.total}`)
 
   // 18. disconnect idempotency
   const disconnect1 = await callTool(client, 'scanner', { action: 'disconnect' })

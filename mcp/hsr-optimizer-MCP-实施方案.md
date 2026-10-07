@@ -271,3 +271,11 @@ M2/M3 复核(静态发现 + 冒烟走查)产出的一批修复,按处置方登�
 
 - **由并行修复批次处置**:P1-A 写回透出;P1-B equipped 过滤;P2 blockedWipe 不推桥、setSave 取消定时器、load 失败回滚、closeBridge 接线(对应 D14 尾巴与 README 已知限制 #10)。
 - **本批处置的口径与文案项(Fixer C)**:①冒烟断言治理——`scripts/smoke-misc.mjs` 删除恒真断言「chosen port is not 23313」(不变量已由 `randomPort()` 的重试循环保证)与 `calc_ehr` 盲测断言中数学上恒假的 `=== ehr1` 冗余分支(保留镜像公式 oracle,断言仍可失败);②`scripts/smoke-simulation.mjs` 注释漂移修正——头部与 TARGET 注释的「ATK% 变体 / Jingliu scales on ATK / ATK-scaling DPS」改为与实际 fixture 一致的「HP% 变体 / HP scaler(1212b1)」;③`src/domains/imports.ts` 的 `importWouldChange` 补比 `augmentedStats`——上游 verified 分支覆盖写 substats/previewSubstats/augmentedStats 三项,跳过统计至此与实际落盘口径全量对齐;④`src/domains/showcase.ts` UID 校验文案如实化(比网页端更严:仅接受 9 位数字,网页端只校验长度)、「魂影」改「星魂」;⑤`README.md` 已知限制补登 #14–#16(异常消息中英混杂、`statUpgrades` 12 副词条全量与 `pct` 百分数口径、eidolon 术语统一),并将 #10 的「拖住退出/占住端口」收敛为「客户端非正常断连」;⑥本节 D15 ⑦ 的 team 表述修正。
+
+## 11. M4–M9 交付登记(2026-10-07)
+
+本方案 §9/§10 登记 M1–M3 偏差;M4 起的逐里程碑交付与偏差登记移至[契约冻结](./hsr-optimizer-MCP-契约冻结.md) §9 变更记录(冻结流程要求四处同步,该处为权威)。此处只记收口结论:
+
+- **交付状态**:S0 → M4 → M5 → M6 → M7 → M9 主线全部完成;61 工具 / 11 资源 / 预算 61/70;29 套冒烟 + 仓库外安装检查全绿。
+- **覆盖收口**:网站基线 175/175 implemented(矩阵见 `coverage/summary.md`,enhancement 7 项独立报告不计分母)。§10 D17 的遗留项(§5.5 构建期翻译资产、取消粒度等)已随 M4–M9 各批次处置或转登 README 已知限制。
+- **验收四件套**:coverage-check 强制 implemented⇒真实冒烟链接;视觉回归(基线 PNG 容差比对);`check:packaged` 仓库外完整安装断言(i18n/媒体/GPU/重启恢复);使用指南(版本兼容表/环境要求/样例/排错)入册。

@@ -8,26 +8,36 @@
 
 | 域 | 功能条目 | missing | partial | implemented | verified | 机制项 |
 | --- | --- | --- | --- | --- | --- | --- |
-| global | 15 | 1 | 3 | 11 | 0 | 4 |
+| global | 15 | 1 | 1 | 13 | 0 | 4 |
 | home | 2 | 0 | 0 | 2 | 0 | 0 |
 | changelog | 1 | 0 | 0 | 1 | 0 | 0 |
-| import | 13 | 1 | 1 | 11 | 0 | 0 |
-| characters | 22 | 0 | 1 | 21 | 0 | 0 |
-| preview | 21 | 0 | 1 | 20 | 0 | 4 |
-| teams | 13 | 0 | 1 | 12 | 0 | 2 |
-| relics | 12 | 0 | 1 | 11 | 0 | 0 |
-| optimizer | 43 | 3 | 2 | 38 | 0 | 5 |
+| import | 13 | 1 | 0 | 12 | 0 | 0 |
+| characters | 22 | 0 | 0 | 22 | 0 | 0 |
+| preview | 21 | 0 | 0 | 21 | 0 | 4 |
+| teams | 13 | 0 | 0 | 13 | 0 | 2 |
+| relics | 12 | 0 | 0 | 12 | 0 | 0 |
+| optimizer | 43 | 3 | 0 | 40 | 0 | 5 |
 | showcase | 5 | 0 | 0 | 5 | 0 | 1 |
 | warp | 5 | 0 | 0 | 5 | 0 | 0 |
-| benchmarks | 7 | 0 | 4 | 3 | 0 | 0 |
+| benchmarks | 7 | 0 | 0 | 7 | 0 | 0 |
 | calculators | 7 | 0 | 0 | 7 | 0 | 0 |
-| leaderboard | 7 | 0 | 1 | 6 | 0 | 0 |
+| leaderboard | 7 | 0 | 0 | 7 | 0 | 0 |
 | webgpu | 1 | 0 | 0 | 1 | 0 | 0 |
 | metadata | 9 | 0 | 0 | 9 | 0 | 2 |
-| shared | 2 | 0 | 2 | 0 | 0 | 3 |
-| **合计** | 185 | 5 | 17 | 163 | 0 | 21 |
+| shared | 2 | 0 | 0 | 2 | 0 | 3 |
+| **合计** | 185 | 5 | 1 | 179 | 0 | 21 |
 
-网站基线条目 175 个，其中已验证 0 个。
+网站基线条目 175 个：implemented 175 · partial 0 · missing 0 · verified 0。
+
+## 增强项（独立报告，不计入覆盖分母）
+
+- global.debug.consoleUtilities：implemented
+- global.state.categorizedClear：missing
+- import.bridge.push：implemented
+- import.bridge.fullSync：missing
+- optimizer.results.history：missing
+- optimizer.run.resume：missing
+- optimizer.analysis.chartExport：missing
 
 ## 分布
 
@@ -42,7 +52,7 @@
 - 已注册工具 61 个（被条目引用 61 个），已注册资源 11 个。
 - 候选新工具 0 个：无。
 - 候选新资源 0 个：无。
-- 需扩展参数的现有工具 19 个：`analyze_build`、`analyze_relic`、`benchmark_runs`、`export_save`、`get_results`、`leaderboard`、`list_characters`、`list_relics`、`load_save`、`optimize`、`permutations`、`render`、`reset_all`、`scanner`、`score_character`、`simulate_build`、`sync_bridge_start`、`update_state`、`warp_plan`。
+- 需扩展参数的现有工具 10 个：`analyze_relic`、`get_results`、`leaderboard`、`optimize`、`render`、`reset_all`、`scanner`、`sync_bridge_start`、`update_state`、`warp_plan`。
 - 全部建成后工具数 61，预算 70。
 
 ## 普查对照

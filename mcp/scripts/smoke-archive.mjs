@@ -257,6 +257,82 @@ try {
   const referenceAfterLoad = localStorageState()
   await sleep(5_200)
   check('scanner configuration load does not schedule a delayed save', localStorageState() === referenceAfterLoad)
+
+  // ── reset_all semantics + load_save/reset_all baseRevision gates ─────────
+  // (a) default persist-less reset: the debounced flush is held by the wipe
+  //     guard, the file keeps its data (parity.mjs' wipe-protection case)
+  await callTool('load_save', { path: richPath })
+  const fileBeforeReset = readFileSync(richPath, 'utf8')
+  await callTool('reset_all', {})
+  await sleep(1_300) // let the debounced (and held) flush fire
+  let resetStatus = await callTool('save_status')
+  check(
+    'reset_all without persist keeps the disk save intact (wipe guard holds the flush)',
+    readFileSync(richPath, 'utf8') === fileBeforeReset && resetStatus.dirty === true && resetStatus.blockedWrite != null,
+    `dirty=${resetStatus.dirty} blocked=${resetStatus.blockedWrite != null}`,
+  )
+
+  // (b) stale baseRevision conflicts: reset_all and load_save both reject with
+  //     BOTH revisions named; the load conflict must NOT wear the migration-
+  //     failure wrap (it is a caller error, not a broken save)
+  await callTool('load_save', { path: richPath }) // clears dirty/blocked markers
+  resetStatus = await callTool('save_status')
+  const currentRevision = resetStatus.revision
+  const resetConflict = await client.callTool({ name: 'reset_all', arguments: { baseRevision: currentRevision - 1 } })
+  check(
+    'reset_all with a stale baseRevision conflicts without resetting',
+    resetConflict.isError === true && String(resetConflict.content?.[0]?.text).includes('修订号冲突'),
+    String(resetConflict.content?.[0]?.text).slice(0, 110),
+  )
+  const loadConflict = await client.callTool({
+    name: 'load_save',
+    arguments: { json: { relics: [], characters: [] }, baseRevision: currentRevision - 1 },
+  })
+  const loadConflictText = String(loadConflict.content?.[0]?.text)
+  check(
+    'load_save with a stale baseRevision surfaces the conflict message, not the migration-failure wrap',
+    loadConflict.isError === true && loadConflictText.includes('修订号冲突') && !loadConflictText.includes('存档载入失败'),
+    loadConflictText.slice(0, 110),
+  )
+  const afterConflicts = await callTool('save_status')
+  check(
+    'conflicts left the loaded save untouched',
+    afterConflicts.revision === currentRevision && afterConflicts.relics > 0,
+    `revision=${afterConflicts.revision} relics=${afterConflicts.relics}`,
+  )
+
+  // (c) persist=true without a loaded PATH has no persist target — the inline
+  //     save errors before touching any state (fail fast, Chinese, actionable)
+  await callTool('load_save', { json: { relics: [], characters: [] } })
+  const noTarget = await client.callTool({ name: 'reset_all', arguments: { persist: true } })
+  const noTargetText = String(noTarget.content?.[0]?.text)
+  check(
+    'reset_all(persist=true) with an inline-loaded save errors naming the missing persist target',
+    noTarget.isError === true && noTargetText.includes('没有可写回的存档路径') && noTargetText.includes('export_save'),
+    noTargetText.slice(0, 110),
+  )
+  const afterNoTarget = await callTool('save_status')
+  check('the failed persist reset left the inline save loaded and clean', afterNoTarget.loaded && !afterNoTarget.dirty)
+
+  // (d) persist=true happy path: empty state lands on the loaded path through
+  //     the export chain, seenFeatures preserved (web clear-data parity)
+  await callTool('load_save', { path: richPath })
+  const persistedReset = await callTool('reset_all', { persist: true })
+  const emptied = JSON.parse(readFileSync(richPath, 'utf8'))
+  check(
+    'reset_all(persist=true) empties relics/characters/overrides on disk and keeps seenFeatures',
+    persistedReset.reset === true && persistedReset.persisted === true && persistedReset.path === richPath
+      && emptied.relics.length === 0 && emptied.characters.length === 0
+      && Object.keys(emptied.scoringMetadataOverrides).length === 0
+      && emptied.seenFeatures.includes('archive-fixture'),
+    `persisted=${persistedReset.persisted} bytes=${persistedReset.bytes} seenFeatures=${JSON.stringify(emptied.seenFeatures)}`,
+  )
+  resetStatus = await callTool('save_status')
+  check(
+    'after the persisted reset memory and file agree: clean, no blocked write, one revision bump',
+    resetStatus.dirty === false && resetStatus.blockedWrite === null && resetStatus.revision === currentRevision + 3,
+    `dirty=${resetStatus.dirty} revision=${resetStatus.revision} (expected ${currentRevision + 3})`,
+  )
 } finally {
   await client.close()
   rmSync(tempDir, { recursive: true, force: true })

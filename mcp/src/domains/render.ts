@@ -46,6 +46,30 @@
 //     (ShowcasePortrait.tsx:107-108); the spine canvas drops its blur filter
 //     once the skeleton is ready (LoadingBlurredSpine.tsx:49-66 → filter
 //     'none' + 1000ms transition).
+//
+// character_card source=leaderboard (M9-D): renders the upstream leaderboard
+// entry card by driving the page EXACTLY like a shared link — boot at HOME,
+// install an in-page leaderboard data serve, then navigate to
+// '#leaderboard?b=<buildId>' whose b param the leaderboard tab consumes
+// (initializeLeaderboardTab → selectLeaderboardBuild,
+// leaderboardTabController.ts:315-319). The manifest comes from the Node
+// side's own dataset download (same chain as the leaderboard tool) and is
+// answered to the page's fetch as a same-origin Response — a URL redirect to
+// a mirror would be cross-origin (upstream never fetches cross-origin) and
+// would need CORS headers no static mirror ships. The card mounts as
+// CharacterPreview(id='leaderboard-<characterId>', source=LEADERBOARD)
+// (LeaderboardCharacterPreview.tsx:44-49), so every LEADERBOARD condition is
+// enforced by the real page for free: forced DEFAULT portrait
+// (CharacterPreview.tsx:400-403), no custom-portrait palette worker
+// (:443-444 — AUTO color falls back to the character config color), and no
+// customization sidebar / screenshot buttons / UID affordances
+// (ShowcaseCustomizationSidebar.tsx:103 returns null for LEADERBOARD). That
+// last fact is also why capture uses a CDP element clip instead of
+// captureAppExport: the upstream leaderboard card has no snapdom button
+// (documented divergence; same channel as the portrait target).
+// Divergence note 2: the card's SCORE is the leaderboard's RECORDED value
+// (CharacterPreviewScoringProvider injection, LeaderboardCharacterPreview.tsx:
+// 33-37) — the page never recomputes it locally, and neither does this render.
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { getGameMetadata } from 'lib/state/gameMetadata'
@@ -61,6 +85,7 @@ import type { McpBrowserPage } from '../browser/browserManager'
 import { runtimeContext } from '../context'
 import { readStructuredSnapshot } from '../saveSnapshot'
 import { imageResult } from '../toolResult'
+import { resolveLeaderboardEntryTarget } from './leaderboard'
 
 // ─── target / page tables ────────────────────────────────────────────────────
 
@@ -330,6 +355,52 @@ const SPINE_READY_PROBE = `(cardId) => {
   return { ok: filter === 'none', filter }
 }`
 
+// Serve the leaderboard downloads IN-PAGE from the manifest the Node side
+// already downloaded through the same dataset chain. Matches BOTH URLs the
+// site's loader can produce (leaderboardDataLoader.ts:48-71): the
+// root-relative build path (/hsr-optimizer/leaderboard/…) and the localhost
+// beta fallback (https://fribbels.github.io/dreary-quibbles/…) — a redirect to
+// an external mirror would be cross-origin (upstream never fetches
+// cross-origin), so the manifest is answered with a same-origin Response
+// instead. The timeline is served as a schema-too-old stub — the upstream
+// loader treats that as "no timeline" (leaderboardDataLoader.ts:120), which
+// the card never reads. The hit counter proves the page consumed the injected
+// data (and never touched the network for it).
+const LEADERBOARD_FETCH_SERVE_PROBE = `(manifest) => {
+  const w = window
+  if (w.__HSR_MCP_LB_SERVE__) return { ok: true, already: true, hits: w.__HSR_MCP_LB_SERVE__.hits }
+  const originalFetch = w.fetch.bind(w)
+  const stubTimeline = JSON.stringify({ schemaVersion: 0, events: [] })
+  const served = (input) => {
+    const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input)
+    const match = url.match(/\\/leaderboard\\/(leaderboard(?:-timeline)?\\.json)/)
+    if (!match) return null
+    return new Response(match[1] === 'leaderboard.json' ? JSON.stringify(manifest) : stubTimeline, {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+  w.__HSR_MCP_LB_SERVE__ = { hits: 0 }
+  w.fetch = (input, init) => {
+    const response = served(input)
+    if (response != null) {
+      w.__HSR_MCP_LB_SERVE__.hits++
+      return Promise.resolve(response)
+    }
+    return originalFetch(input, init)
+  }
+  return { ok: true, hits: 0 }
+}`
+
+// Element geometry by id (CDP clip coordinates, scroll pinned to 0,0).
+const ELEMENT_RECT_PROBE = `(elementId) => {
+  window.scrollTo(0, 0)
+  const el = document.getElementById(elementId)
+  if (!el) return { ok: false, reason: '元素不存在:' + elementId }
+  const rect = el.getBoundingClientRect()
+  return { ok: rect.width > 0 && rect.height > 0, x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+}`
+
 // ─── per-target drivers ──────────────────────────────────────────────────────
 
 function requireCharacterNodeSide(characterId: string, label: string): Character {
@@ -370,6 +441,99 @@ async function renderCharacterCard(characterId: string): Promise<Uint8Array> {
       scopeSelector: '#characters-panels-panel-CHARACTERS',
       timeoutMs: 60_000,
     })
+  })
+}
+
+/**
+ * Leaderboard entry card over the shared-link path (see the module header):
+ * boot at HOME (the leaderboard tab stagger-mounts 7th, Tabs.tsx MOUNT_PRIORITY
+ * :67-79 — comfortably after the in-page data serve below), then navigate to
+ * '#leaderboard?b=<buildId>' and wait for the real LEADERBOARD-source card.
+ * The page's own loader consumes the manifest the Node side downloaded, so no
+ * leaderboard traffic ever leaves the page (mirrors stay usable even without
+ * CORS). Capture is a CDP clip because upstream ships no screenshot button for
+ * this card (ShowcaseCustomizationSidebar.tsx:103).
+ */
+async function renderLeaderboardCard(input: {
+  buildId: string,
+  characterId: string,
+  rawManifest: Record<string, unknown>,
+}): Promise<{ png: Uint8Array, fetchHits: number | null }> {
+  const { buildId, characterId, rawManifest } = input
+  return await runRenderTask(`render(character_card leaderboard ${buildId})`, { timeoutMs: 240_000 }, async (page) => {
+    await page.goto('')
+    // Console error tally for the timeout diagnostics (page 'error' +
+    // 'unhandledrejection' events, plus rejected fetch URLs).
+    await page.evaluate(
+      `() => {
+      const w = window
+      w.__HSR_MCP_PAGE_ERRORS__ = []
+      w.addEventListener('error', (e) => w.__HSR_MCP_PAGE_ERRORS__.push(String((e && e.message) || e)))
+      w.addEventListener('unhandledrejection', (e) => w.__HSR_MCP_PAGE_ERRORS__.push('unhandled: ' + String((e && e.reason) || e)))
+      return true
+    }`,
+      [],
+    )
+    await page.evaluate(LEADERBOARD_FETCH_SERVE_PROBE, [rawManifest])
+    // Shared-link navigation: initializeLeaderboardTab consumes the b param
+    // after the (served) download resolves (leaderboardTabController.ts:315-319).
+    await page.evaluate('(hash) => { location.hash = hash; return true }', [
+      `#leaderboard?b=${encodeURIComponent(buildId)}`,
+    ])
+
+    // LeaderboardCharacterPreview.tsx:46 — id={'leaderboard-<characterId>'}. The
+    // pre-selection placeholder has NO id, so this selector implies real data.
+    const cardId = `leaderboard-${characterId}`
+    try {
+      await page.waitForSelector(`#${cssEscapeId(cardId)}`, { timeoutMs: 60_000, visible: true })
+    } catch (e) {
+      // Diagnostics: which stage stalled (no leaderboard page / no data / no selection).
+      const diag = await page.evaluate<Record<string, unknown>>(
+        `(id) => {
+          const wrapper = document.getElementById('LEADERBOARD')
+          return {
+            hash: location.hash,
+            wrapper: wrapper != null,
+            wrapperDisplay: wrapper ? getComputedStyle(wrapper).display : null,
+            card: document.getElementById(id) != null,
+            serve: window.__HSR_MCP_LB_SERVE__ ?? null,
+            pageErrors: (window.__HSR_MCP_PAGE_ERRORS__ ?? []).slice(0, 5),
+            body: document.body ? document.body.innerText.slice(0, 160) : '',
+          }
+        }`,
+        [cardId],
+      ).catch(() => null)
+      throw new Error(
+        `render(character_card leaderboard):等待 #${cardId} 超时——页面诊断:${JSON.stringify(diag)};`
+          + '配装可能已落榜,或榜单数据(经注入)在该页面无法解析',
+      )
+    }
+    await pollUntil(page, CARD_READY_PROBE, [cardId, characterId], {
+      timeoutMs: 60_000,
+      label: `render(character_card leaderboard):配装 ${buildId} 的榜单角色卡未就绪(配装可能已落榜,或榜单数据不可达)`,
+    })
+    await sleep(500) // injected-score row + rank banner settle
+
+    let fetchHits: number | null = null
+    {
+      const hits = await page.evaluate<number>(
+        '() => (window.__HSR_MCP_LB_SERVE__ ?? { hits: 0 }).hits',
+        [],
+      )
+      fetchHits = Number(hits) || 0
+    }
+
+    const rect = await pollUntil(page, ELEMENT_RECT_PROBE, [cardId], {
+      timeoutMs: 10_000,
+      label: 'render(character_card leaderboard):角色卡几何信息不可用',
+    })
+    const clip = {
+      x: Math.max(0, Math.floor(Number(rect.x))),
+      y: Math.max(0, Math.floor(Number(rect.y))),
+      width: Math.max(1, Math.ceil(Number(rect.width))),
+      height: Math.max(1, Math.ceil(Number(rect.height))),
+    }
+    return { png: await page.screenshot({ clip }), fetchHits }
   })
 }
 
@@ -550,7 +714,9 @@ export function registerRenderTools(server: McpServer): void {
   server.registerTool('render', {
     title: '渲染页面产物为 PNG',
     description: '在受管无头浏览器里渲染站点页面并返回 PNG 截图(像素级对齐网页端自己的导出按钮):'
-      + 'target=character_card 角色展示卡(网页端角色页相机按钮的 snapdom 导出);'
+      + 'target=character_card 角色展示卡(网页端角色页相机按钮的 snapdom 导出;source=leaderboard 时改为渲染榜单配装卡——'
+      + '走 #leaderboard?b= 共享链接路径,上游只读卡语义:强制默认肖像/AUTO 配色/无 UID,分数用榜单记录值;'
+      + '上游该卡没有截图按钮,以 CDP 元素截图捕获);'
       + 'target=saved_build 已保存配装预览(角色菜单→查看已保存配装弹窗,elementId buildPreview);'
       + 'target=team_card 组队展示整队卡(#teams 子页签,SavedTeamsActions 的下载按钮,elementId teamShowcaseGrid);'
       + 'target=portrait 角色肖像(静态图或 L2D spine 画布——spine 因 preserveDrawingBuffer:false 必须 CDP 截屏);'
@@ -562,8 +728,18 @@ export function registerRenderTools(server: McpServer): void {
       target: z.enum(RENDER_TARGETS).describe(
         '渲染目标:character_card=角色展示卡,saved_build=已保存配装卡,team_card=组队展示整队卡,portrait=角色肖像,page=页面截图',
       ),
-      characterId: z.string().optional().describe('character_card/saved_build/portrait 必填:角色 id(如 1212b1,list_characters 可查)'),
-      buildId: z.string().optional().describe('saved_build 必填:配装名(同角色内唯一,list_builds 的 name)'),
+      source: z.enum(['save', 'leaderboard']).default('save').describe(
+        'character_card 的数据来源:save=存档内角色(默认,现有行为,需 characterId)/'
+          + 'leaderboard=榜单配装(需 buildId;受管页面打开 #leaderboard?b= 链接渲染上游同款只读卡)',
+      ),
+      characterId: z.string().optional().describe('character_card(source=save)/saved_build/portrait 必填:角色 id(如 1212b1,list_characters 可查)'),
+      buildId: z.string().optional().describe(
+        'saved_build 必填:配装名(同角色内唯一,list_builds 的 name);character_card(source=leaderboard) 必填:榜单配装编号(leaderboard 工具 view=board/entry 的 buildId)',
+      ),
+      leaderboardBaseUrl: z.string().optional().describe(
+        'source=leaderboard 的数据源(http/https,指向 leaderboard.json 所在目录,同 leaderboard 工具 source=url 的 baseUrl);'
+          + '缺省读环境变量 HSR_MCP_LEADERBOARD_URL、再缺省用上游固定发布地址。数据由服务端下载后注入页面(页面自身不发起榜单网络请求,镜像无需 CORS)',
+      ),
       teamId: z.string().optional().describe('team_card 可选:已保存队伍 id(list_teams 可查);缺省取第一支'),
       animation: z.boolean().optional().describe('portrait 专用:true=L2D 动态肖像(spine 画布,需角色有 spine 数据且无自定义肖像),缺省 false=静态肖像'),
       page: z.enum(PAGE_HASHES).describe(
@@ -584,6 +760,11 @@ export function registerRenderTools(server: McpServer): void {
       height: z.number().int(),
       characterId: z.string().optional(),
       buildId: z.string().optional(),
+      source: z.enum(['save', 'leaderboard']).optional(),
+      leaderboardBaseUrl: z.string().optional(),
+      leaderboardFetchHits: z.number().int().nullable().optional().describe(
+        'source=leaderboard 时:页面内由注入数据应答的榜单拉取次数(manifest+动态,0 说明页面没消费注入数据,应视为异常)',
+      ),
       teamId: z.string().optional(),
       teamName: z.string().optional(),
       animation: z.boolean().optional(),
@@ -597,18 +778,51 @@ export function registerRenderTools(server: McpServer): void {
     runtimeContext.requireSave()
     const { target } = input
 
+    if (input.source === 'leaderboard' && target !== 'character_card') {
+      throw new Error(`render(${target}):source=leaderboard 只属于 target=character_card(榜单配装卡)——其余 target 请勿传 source`)
+    }
+
     let png: Uint8Array
     let label: string
     let via: string
     const extra: Record<string, unknown> = {}
 
     if (target === 'character_card') {
-      const characterId = requireField(input.characterId, 'characterId', target)
-      requireCharacterNodeSide(characterId, 'render(character_card)')
-      png = await renderCharacterCard(characterId)
-      label = `character_card-${characterId}`
-      via = 'app-camera'
-      Object.assign(extra, { characterId })
+      if (input.source === 'leaderboard') {
+        const buildId = requireField(input.buildId, 'buildId', 'character_card(source=leaderboard)')
+        // Node-side buildId validation + manifest download through the same
+        // dataset chain the leaderboard tool uses (Chinese not-found error
+        // instead of a page wait timeout). The manifest is then re-served to
+        // the page in-origin — no leaderboard traffic ever leaves the page.
+        const entry = await resolveLeaderboardEntryTarget({
+          buildId,
+          baseUrl: input.leaderboardBaseUrl != null && input.leaderboardBaseUrl.trim() !== ''
+            ? input.leaderboardBaseUrl.trim()
+            : undefined,
+        })
+        const rendered = await renderLeaderboardCard({
+          buildId,
+          characterId: entry.characterId,
+          rawManifest: entry.rawManifest,
+        })
+        png = rendered.png
+        label = `character_card-leaderboard-${entry.characterId}-${buildId}`
+        via = 'cdp'
+        Object.assign(extra, {
+          source: 'leaderboard' as const,
+          characterId: entry.characterId,
+          buildId,
+          leaderboardBaseUrl: entry.baseUrl,
+          leaderboardFetchHits: rendered.fetchHits,
+        })
+      } else {
+        const characterId = requireField(input.characterId, 'characterId', target)
+        requireCharacterNodeSide(characterId, 'render(character_card)')
+        png = await renderCharacterCard(characterId)
+        label = `character_card-${characterId}`
+        via = 'app-camera'
+        Object.assign(extra, { characterId })
+      }
     } else if (target === 'saved_build') {
       const characterId = requireField(input.characterId, 'characterId', target)
       const buildId = requireField(input.buildId, 'buildId', target)

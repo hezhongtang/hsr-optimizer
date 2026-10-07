@@ -15,6 +15,10 @@
 //     customUrl=false resets to the default url, customUrl=true alone errors
 //   - flags (whole-array replace) and session writes roundtrip through the
 //     upstream store setters
+//   - showcase color/colorMode writes mirror editShowcasePreferences: color
+//     pairs with colorMode=CUSTOM, colorMode links the global
+//     showcaseStandardMode flag, mixed patches shallow-merge, and the
+//     hex/enum/no-payload/default-color guards reject with named expectations
 //
 // The sample save carries no settings/session/flags/scanner fields, so every
 // section starts from upstream defaults after load_save — assertions can pin
@@ -364,12 +368,103 @@ try {
     badLayoutKey.slice(0, 110),
   )
 
+  // ── showcase color/colorMode writes (preview.customize.color) ────────────
+  // 逐字镜像 editShowcasePreferences:网页取色器落色总是成对传 { color,
+  // colorMode: CUSTOM }(onColorChangeEnd),colorMode 非 null 时联动全局
+  // showcaseStandardMode(= 是否 STANDARD)。示例存档不带 showcasePreferences,
+  // 首写后该角色的偏好应恰好是 { color, colorMode } 两键。
+  const colorEcho = await callTool(client, 'update_state', {
+    section: 'showcase',
+    patch: { characterId: inSaveId, color: '#ff8800' },
+  })
+  check(
+    'showcase color-only write links colorMode=CUSTOM (web picker pairing), preference is exactly { color, colorMode }',
+    colorEcho.updated === true
+      && colorEcho.showcase.preferences[inSaveId]?.color === '#ff8800'
+      && colorEcho.showcase.preferences[inSaveId]?.colorMode === 'CUSTOM'
+      && Object.keys(colorEcho.showcase.preferences[inSaveId]).length === 2,
+    JSON.stringify(colorEcho.showcase.preferences[inSaveId]),
+  )
+  let sessionAfterColor = await getState(client, 'session')
+  check(
+    'showcase color write (implicit CUSTOM) flips global showcaseStandardMode to false',
+    sessionAfterColor.savedSession.global.showcaseStandardMode === false,
+    `showcaseStandardMode=${sessionAfterColor.savedSession.global.showcaseStandardMode}`,
+  )
+
+  const standardEcho = await callTool(client, 'update_state', {
+    section: 'showcase',
+    patch: { characterId: inSaveId, colorMode: 'STANDARD' },
+  })
+  sessionAfterColor = await getState(client, 'session')
+  check(
+    'showcase colorMode=STANDARD flips global showcaseStandardMode to true (web linkage)',
+    standardEcho.updated === true && sessionAfterColor.savedSession.global.showcaseStandardMode === true,
+    `showcaseStandardMode=${sessionAfterColor.savedSession.global.showcaseStandardMode}`,
+  )
+
+  const mixedEcho = await callTool(client, 'update_state', {
+    section: 'showcase',
+    patch: { characterId: inSaveId, colorMode: 'AUTO', scoringType: 1 },
+  })
+  check(
+    'showcase mixed write (colorMode + scoringType) shallow-merges, stored color preserved',
+    mixedEcho.showcase.preferences[inSaveId]?.color === '#ff8800'
+      && mixedEcho.showcase.preferences[inSaveId]?.colorMode === 'AUTO'
+      && mixedEcho.showcase.preferences[inSaveId]?.scoringType === 1,
+    JSON.stringify(mixedEcho.showcase.preferences[inSaveId]),
+  )
+  const showcaseRead = await getState(client, 'showcase')
+  check(
+    'get_state(showcase) returns the full preference records (color + colorMode + scoringType)',
+    showcaseRead.preferences[inSaveId]?.color === '#ff8800' && showcaseRead.count === 1,
+    `count=${showcaseRead.count}`,
+  )
+
+  const badColor = await callToolExpectError(client, 'update_state', {
+    section: 'showcase',
+    patch: { characterId: inSaveId, color: 'orange' },
+  })
+  check(
+    'showcase color rejects non-hex strings, expected format named in the message',
+    badColor.includes('hex') && badColor.includes('color'),
+    badColor.slice(0, 110),
+  )
+  const badMode = await callToolExpectError(client, 'update_state', {
+    section: 'showcase',
+    patch: { characterId: inSaveId, colorMode: 'BLUE' },
+  })
+  check(
+    'showcase colorMode rejects values outside the enum (AUTO/CUSTOM/STANDARD listed)',
+    badMode.includes('AUTO') && badMode.includes('CUSTOM') && badMode.includes('STANDARD'),
+    badMode.slice(0, 110),
+  )
+  const idOnly = await callToolExpectError(client, 'update_state', {
+    section: 'showcase',
+    patch: { characterId: inSaveId },
+  })
+  check(
+    'showcase patch with characterId only is rejected (a writable field is required)',
+    idOnly.includes('scoringType') && idOnly.includes('colorMode'),
+    idOnly.slice(0, 110),
+  )
+  const defaultColor = await callToolExpectError(client, 'update_state', {
+    section: 'showcase',
+    patch: { characterId: inSaveId, color: '#2473e1' },
+  })
+  check(
+    'showcase color equal to the upstream default #2473e1 is a picker no-op on the web — MCP names it instead',
+    defaultColor.includes('#2473e1') && defaultColor.includes('AUTO'),
+    defaultColor.slice(0, 110),
+  )
+
   // ── revision accounting: one bump per committed write, none for errors ───
-  // load=1, settings=2, scanner url=3, scanner reset=4, flags=5, session=6, layout=7
+  // load=1, settings=2, scanner url=3, scanner reset=4, session optimizer=5,
+  // flags=6, session sidebar=7, layout=8, showcase color=9, STANDARD=10, mixed=11
   revision = await getState(client, 'revision')
   check(
-    'final revision: exactly one bump per committed write (load + 7 writes = 8)',
-    revision.revision === 8,
+    'final revision: exactly one bump per committed write (load + 10 writes = 11)',
+    revision.revision === 11,
     `revision=${revision.revision}`,
   )
 

@@ -331,15 +331,15 @@
       "runtime": "node",
       "state": { "owner": "useShowcaseTabStore.showcasePreferences + useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "showcasePreferences[].color / .colorMode；savedSession.global.showcaseStandardMode" },
       "sideEffects": ["SaveState.delayedSave()", "改配色模式会同时改全局的 showcaseStandardMode"],
-      "mcp": { "status": "partial", "tools": ["get_state", "update_state"], "gaps": "展示评分偏好(scoringType)已可经 section=showcase 读写;缺的是该段的 color/colorMode 写入口(角色展示配色与 STANDARD 全局联动,editShowcasePreferences 的其余字段)。", "candidates": ["update_state(section=showcase)"] },
+      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "给角色设置自定义颜色后，两边存档的 showcasePreferences[角色] 都是 { color, colorMode: CUSTOM }",
           "把配色模式改为 STANDARD 后，两边存档的 savedSession.global.showcaseStandardMode 都是 true"
-        ]
-      }
+        ],
+        "tests": ["mcp/scripts/smoke-state.mjs"]}
     },
     {
       "id": "preview.customize.display",

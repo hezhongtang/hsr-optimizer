@@ -162,7 +162,7 @@
       "conditions": "链接里的配装已不在榜上时不选中任何配装。配装只在自己的队伍榜上够得着名次时，落在那支队伍的榜单上。",
       "runtime": "node",
       "state": { "owner": "useLeaderboardTabStore.selectedBuildId / selectedEntry / expandedCharacter + 地址栏的 b 参数", "lifecycle": "session" },
-      "mcp": { "status": "partial", "tools": ["leaderboard"], "gaps": "榜单条目的配装数据已可读(view=entry);对榜单配装的本地评分重算与角色卡渲染未实现(M7/后续)。", "candidates": ["score_character(source=leaderboard)", "render(target=character_card)"] },
+      "mcp": { "status": "implemented", "tools": ["leaderboard", "render"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -172,7 +172,7 @@
           "返回结果指明这套配装所在的榜单是全部队伍还是某支队伍，与网页端落到的榜单一致",
           "配装编号不在榜上时返回明确的未找到"
         ],
-       "tests": ["mcp/scripts/smoke-leaderboard.mjs"]
+       "tests": ["mcp/scripts/smoke-leaderboard.mjs", "mcp/scripts/smoke-render.mjs"]
       }
     },
     {

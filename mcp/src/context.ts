@@ -18,7 +18,10 @@ import {
 import type { HsrOptimizerSaveFormat } from 'types/store'
 
 import { bridgeNotifyChange } from './domains/bridge'
-import { captureSaveStores } from './saveStores'
+import {
+  captureSaveStores,
+  restoreBootSaveStores,
+} from './saveStores'
 import { requestedPoolSize } from './shims'
 
 export type LoadedSave = {
@@ -104,6 +107,9 @@ function detectWipe(stateString: string, targetPath: string): WipeKind | null {
 }
 
 let metadataReady = false
+// Startup restore (global.state.bootLoad) bookkeeping — see maybeBootLoad.
+let bootLoadAttempted = false
+let bootLoadedFromStateFile = false
 let loadedSave: LoadedSave | null = null
 let lastOptimize: CachedOptimizeResult | null = null
 let dirty = false
@@ -131,6 +137,64 @@ let revision = 0
 // still reliable). Chained promise — never awaited by callers directly.
 let changeQueue: Promise<unknown> = Promise.resolve()
 
+/**
+ * One-shot startup restore (global.state.bootLoad): mirror the web's boot
+ * chain — src/index.tsx:103 `SaveState.load(false, false)` over
+ * localStorage['state'] → persistenceService.loadSaveData(parsed,
+ * autosave=false, sanitize=false). The localStorage shim's file backend
+ * (HSR_MCP_STATE_FILE) makes that key survive process restarts, so a fresh
+ * MCP process reopens the previous session's state exactly like reopening
+ * the website does.
+ *
+ * Placement: hung off the FIRST ensureMetadataReady() — the same lazy point
+ * the web uses (Metadata.initialize() then SaveState.load), never at import
+ * time. In practice the earliest trigger is server construction
+ * (server.ts createMcpServer), which runs after the shims and before any
+ * request is served, so no handler can observe a half-restored state and no
+ * async withChange queue is needed: the synchronous capture/restore below
+ * IS the transaction (nothing else can be mid-flight before the first
+ * ensureMetadataReady returns).
+ *
+ * Web-parity details (saveState.ts:136-154):
+ *   - no 'state' key → nothing loaded, default empty state stays (web: false);
+ *   - broken JSON / a migration throw → caught, stores restored to their
+ *     pre-attempt (default) state, server keeps booting (web: console.error
+ *     + empty state; the ledger's acceptance "JSON 损坏时保持空状态");
+ *   - after a successful restore the runtime save is INLINE-shaped
+ *     (path=null — the web has no file concept, its localStorage is the only
+ *     truth; here the state-file backend plays that role) and CLEAN
+ *     (setSave: dirty=false), like the web right after startup.
+ *
+ * Escape hatch: HSR_MCP_NO_BOOT_LOAD=1 disables the restore entirely
+ * (process starts with default empty stores; documented in the README).
+ */
+function maybeBootLoad(): void {
+  if (bootLoadAttempted) return
+  bootLoadAttempted = true
+  if (process.env.HSR_MCP_NO_BOOT_LOAD === '1') return
+  if (loadedSave != null) return // an explicit load already won the race
+  const raw = localStorage.getItem('state')
+  if (raw == null) return
+  const restoreStores = captureSaveStores()
+  try {
+    const parsed = JSON.parse(raw) as HsrOptimizerSaveFormat
+    const pristine = structuredClone(parsed)
+    restoreBootSaveStores(parsed)
+    runtimeContext.setSave({ path: null, data: pristine, loadedAt: Date.now() })
+    bootLoadedFromStateFile = true
+    process.stderr.write(
+      `[mcp] bootLoad: restored ${parsed.relics?.length ?? 0} relics / ${parsed.characters?.length ?? 0} characters `
+        + 'from the localStorage state backend (HSR_MCP_STATE_FILE) — web startup semantics, inline path\n',
+    )
+  } catch (e) {
+    // SaveState.load parity: a broken state never blocks startup — the stores
+    // fall back to their fresh defaults (rollback also drops any migration
+    // markers the chain wrote before throwing).
+    restoreStores()
+    process.stderr.write(`[mcp] bootLoad: restore failed, keeping default empty state: ${String(e)}\n`)
+  }
+}
+
 export const runtimeContext = {
   workerCount: requestedPoolSize(),
 
@@ -139,6 +203,13 @@ export const runtimeContext = {
     if (metadataReady) return
     Metadata.initialize()
     metadataReady = true
+    maybeBootLoad()
+  },
+
+  /** True when the current save was auto-restored at startup from the
+   * localStorage state backend (global.state.bootLoad), not load_save. */
+  isBootLoaded(): boolean {
+    return bootLoadedFromStateFile
   },
 
   setSave(save: LoadedSave): void {

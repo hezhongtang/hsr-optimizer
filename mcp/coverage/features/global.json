@@ -23,12 +23,7 @@
       "runtime": "node",
       "state": { "owner": "localStorage['state'] → 全部 store", "lifecycle": "persisted", "saveKey": "*" },
       "sideEffects": ["替换内存中的角色、遗器、评分覆盖、设置、会话等全部 store"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["load_save", "save_status"],
-        "gaps": "MCP 进程重启后不会自动恢复上次的存档（没有任何启动路径读取 HSR_MCP_STATE_FILE 里的 'state'），必须重新 load_save；网页是打开即载入。",
-        "candidates": ["load_save(resume=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["save_status", "get_state"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -36,7 +31,7 @@
           "同一份存档经网页启动载入与 load_save 载入后，SaveState.save() 的输出逐键一致",
           "MCP 进程重启后不带路径恢复上次存档，角色数、遗器数与重启前一致"
         ],
-        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/parity.mjs"]
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/parity.mjs", "mcp/scripts/smoke-shutdown.mjs"]
       }
     },
     {
@@ -267,12 +262,7 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.version", "lifecycle": "persisted", "saveKey": "version" },
       "sideEffects": ["关闭时 setVersion(CURRENT_OPTIMIZER_VERSION) 并 SaveState.delayedSave()"],
-      "mcp": {
-        "status": "partial",
-        "resources": ["game://changelog"],
-        "gaps": "更新内容可读，存档是否过期可经 export_save(structured=true) 的 snapshot.version 判断；MCP 每次落盘都会把 version 写成当前版本（SaveState.save 的固有行为），用户回到网页不会再看到更新弹窗——该行为差异已在此登记。",
-        "candidates": ["export_save(structured=true)"]
-      },
+      "mcp": { "status": "implemented", "resources": ["game://changelog"], "gaps": "仅剩固有差异:MCP 每次落盘经 SaveState.save() 把 version 写成当前版本(saveState.ts:84),用户回网页不再弹更新窗——属上游序列化固有行为;更新内容/当前版本/存档版本比较均可读。" },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -280,7 +270,7 @@
           "载入旧版本存档后 get_state 报告存档版本、当前版本和是否过期，与 isVersionOutdated 一致",
           "game://changelog 第一条带日期的条目与弹窗内容一致"
         ],
-        "tests": ["mcp/scripts/smoke-conditionals.mjs"]
+        "tests": ["mcp/scripts/smoke-conditionals.mjs", "mcp/scripts/smoke-archive.mjs"]
       }
     },
     {
@@ -349,7 +339,7 @@
       "mcp": {
         "status": "partial",
         "tools": ["save_status", "get_state"],
-        "gaps": "协调器本体与读取已落地：revision 在每次 markDirty/setSave/clearSave 递增（只读工具不变），经 save_status 与 get_state(section=revision) 透出；withChange 提供串行化+快照回滚的事务作用域（load_save/update_state 已接入）；update_state 已支持 baseRevision 乐观并发检查。剩余：把 baseRevision 以可选参数形式逐步接入其余写工具。",
+        "gaps": "协调器本体与读取已落地:revision 在每次 markDirty/setSave/clearSave 递增,withChange 提供串行化+快照回滚事务,update_state/load_save/reset_all 已接入 baseRevision 乐观并发检查(冲突在事务作用域内判定,防 TOCTOU),bootLoaded 经 save_status/get_state(revision) 透出。剩余:baseRevision 以可选参数逐步铺到其余写工具(equipment/relics/form/teams/imports/scanner 域,清单见 M9 交付登记)——属加固项,不阻塞读写正确性。",
         "candidates": ["update_state(baseRevision=...)"]
       },
       "scope": "foundation",

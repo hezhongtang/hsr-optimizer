@@ -74,17 +74,12 @@
       "runtime": "node",
       "state": { "owner": "全部 store", "lifecycle": "persisted", "saveKey": "*" },
       "sideEffects": ["清空遗器、角色、评分覆盖", "SaveState.permitEmptySave() 后防抖落盘"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["reset_all"],
-        "gaps": "reset_all 只清内存：自动写回被防清空护栏拦住，磁盘上的存档保持原样，要再调一次 export_save 才落盘；网页的清除会自己落盘。",
-        "candidates": ["reset_all(persist=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["reset_all"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["reset_all(persist=true) 之后磁盘存档的 relics、characters、scoringMetadataOverrides 为空且 seenFeatures 保留，与网页清除并等待落盘后的存档一致"],
-        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/parity.mjs"]
+        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/parity.mjs", "mcp/scripts/smoke-archive.mjs"]
       }
     },
     {

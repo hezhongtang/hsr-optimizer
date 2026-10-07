@@ -13,6 +13,7 @@
 // the store by the time we serialize.
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import i18next from 'i18next'
 import { applySpdPreset } from 'lib/conditionals/evaluation/applyPresets'
 import { PartsArray } from 'lib/constants/constants'
 import { RelicScorer } from 'lib/relics/scoring/relicScorer'
@@ -43,6 +44,7 @@ import type { Relic } from 'types/relic'
 import { z } from 'zod'
 
 import { runtimeContext } from '../context'
+import { ensureI18nReady } from '../i18n/i18nNode'
 import {
   applyFormOverrides,
   constraintSuggestions,
@@ -114,6 +116,14 @@ const serializedRelicSchema = z.object({
   verified: z.boolean(),
   equippedBy: z.string().optional(),
   weightScore: z.null(),
+})
+
+// list_relics additionally surfaces preview substats (add-only field): the
+// web's subStat filter matches them too (RelicsGrid.tsx:158-161), so a relic
+// can legitimately pass subStat=["SPD"] with SPD only in previewSubstats —
+// without the field in the output that match would be unexplainable.
+const listRelicSchema = serializedRelicSchema.extend({
+  previewSubstats: z.array(z.object({ stat: z.string(), value: z.number() })).optional(),
 })
 
 const characterSummarySchema = z.object({
@@ -189,6 +199,19 @@ function equippedSlotSummary(equipped: Build | undefined) {
   return { equippedCount, allSlotsEquipped: equippedCount === PartsArray.length }
 }
 
+/**
+ * Normalize an optionally-multi-valued filter argument (single value or array)
+ * into the value list the web's pill filters hold. `undefined` and `[]` both
+ * mean "no constraint" — the web skips a group when its selection is empty
+ * (CharacterGrid.tsx:137, RelicsGrid.tsx:143), so an empty array must disable
+ * the filter rather than match nothing.
+ */
+function filterValues<T>(value: T | T[] | undefined): T[] | null {
+  if (value == null) return null
+  const values = Array.isArray(value) ? value : [value]
+  return values.length > 0 ? values : null
+}
+
 function characterSummary(character: { id: CharacterId, equipped?: Build, builds?: unknown[] }, rank: number) {
   const meta = characterMeta(character.id)
   return {
@@ -210,10 +233,18 @@ export function registerQueryTools(server: McpServer): void {
     title: '角色列表',
     description: '角色卡列表摘要——对应网页端 Characters(角色)页签:每个已加载角色的 id、名称、命途/属性/稀有度、'
       + '优先级 rank(列表位置,越小越优先)、装备概要(六槽已装数)、已保存配装数、可用评分配置类型(dps/buffer/heal/shield)。'
-      + '支持按 path(命途,如 Destruction)与 element(属性,如 Ice)过滤,offset/limit 分页。',
+      + '筛选与网页筛选条同语义且同时生效(AND):name 子串 + path/element 多选;'
+      + 'path/element 兼容旧单值形态(等价于只选一项),offset/limit 分页。',
     inputSchema: {
-      path: z.string().optional().describe('Filter by path, e.g. "Destruction", "Harmony"'),
-      element: z.string().optional().describe('Filter by element, e.g. "Ice", "Fire"'),
+      name: z.string().optional().describe(
+        '名称子串筛选,忽略大小写——与网页搜索框同口径:匹配当前语言的完整名 LongName(本服务渲染中文,传中文名,如 "镜流"、"卡芙卡";英文名不匹配,与网页中文界面行为一致)',
+      ),
+      path: z.union([z.string(), z.array(z.string())]).optional().describe(
+        '命途筛选,组内多选 OR(网页命途筛选条),如 ["Destruction","Harmony"];兼容旧单值 "Destruction"',
+      ),
+      element: z.union([z.string(), z.array(z.string())]).optional().describe(
+        '属性筛选,组内多选 OR(网页属性筛选条),如 ["Ice","Fire"];兼容旧单值 "Ice"',
+      ),
       offset: z.number().int().min(0).default(0),
       limit: z.number().int().min(1).max(200).default(100),
     },
@@ -223,17 +254,32 @@ export function registerQueryTools(server: McpServer): void {
       limit: z.number().int(),
       characters: z.array(characterSummarySchema),
     },
-  }, async ({ path, element, offset, limit }) => {
+  }, async ({ name, path, element, offset, limit }) => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
+
+    // Web parity (CharacterGrid.tsx:136-146): name = case-insensitive substring
+    // on the current-language LongName (the search box lowercases its input —
+    // FilterBar.tsx:44); path/element = OR-in over the pill selection. The
+    // server renders zh_CN, so LongName resolves to the Chinese long name,
+    // exactly what the web's Chinese UI filters on.
+    const pathFilter = filterValues(path)
+    const elementFilter = filterValues(element)
+    const nameNeedle = name != null && name.length > 0 ? name.toLowerCase() : null
+    if (nameNeedle != null) ensureI18nReady()
+    const tCharacters = nameNeedle != null ? i18next.getFixedT(null, 'gameData', 'Characters') : null
 
     const all = getCharacters()
     const matched = all
       .map((character, rank) => ({ character, rank }))
       .filter(({ character }) => {
         const meta = characterMeta(character.id)
-        if (path != null && meta?.path !== path) return false
-        if (element != null && meta?.element !== element) return false
+        if (pathFilter != null && (meta?.path == null || !pathFilter.includes(meta.path))) return false
+        if (elementFilter != null && (meta?.element == null || !elementFilter.includes(meta.element))) return false
+        if (nameNeedle != null && tCharacters != null) {
+          const longName = tCharacters(`${character.id}.LongName`)
+          if (!longName.toLowerCase().includes(nameNeedle)) return false
+        }
         return true
       })
 
@@ -245,7 +291,10 @@ export function registerQueryTools(server: McpServer): void {
         limit,
         characters: page.map(({ character, rank }) => characterSummary(character, rank)),
       },
-      `${matched.length} 个角色匹配${path ? `(命途=${path})` : ''}${element ? `(属性=${element})` : ''}; `
+      `${matched.length} 个角色匹配`
+        + `${nameNeedle != null ? `(名称含 "${name}")` : ''}`
+        + `${pathFilter != null ? `(命途=${pathFilter.join('/')})` : ''}`
+        + `${elementFilter != null ? `(属性=${elementFilter.join('/')})` : ''}; `
         + `返回第 ${offset} 位起的 ${page.length} 个`,
     )
   })
@@ -549,20 +598,44 @@ export function registerQueryTools(server: McpServer): void {
     title: '遗器库存筛选',
     description: '遗器库存列表与结构化筛选——对应网页端遗器(Inventory)页签的主表格:主词条、副词条'
       + '(含 roll 反解 high/mid/low 与 addedRolls)、套装、部件、强化等级、星级、归属。'
+      + '筛选与网页筛选药丸(RelicsGrid.doesExternalFilterPass)同语义:组间 AND、组内 OR;'
+      + '强化按三级一档(x 匹配 +x 到 +x+2,药丸 +0/+3/+6/+9/+12/+15);'
+      + '副词条例外——多个副词条要求全部命中(AND),且预览副词条(尚未解锁)也算命中;'
+      + '初始词条数未记录按 3、校验状态未记录按未校验。每个条件均可传单值或多值数组(多选),空数组=不筛。'
       + '输出中的 weightScore 恒为 null:加权分仅在优化管线内部计算,主线程不维护;'
       + '存档文件可能残留网页端历史保存的 weightScore(不代表任何当前角色),不予透出。需要按角色打分用 score_relics。'
-      + '所有筛选条件为 AND 组合;可按 characterId 只看某角色装备的 6 件;'
+      + '可按 characterId 只看某角色装备的 6 件;'
       + 'sortBy 排序对应表格列头点击(enhance/grade/initialRolls/substatCount,以及评分列 currentScore/potentialBest——后者需 scoreBy 指定评分角色),offset/limit 分页。',
     inputSchema: {
-      part: z.string().optional().describe('Filter by part: Head | Hands | Body | Feet | PlanarSphere | LinkRope'),
-      set: z.string().optional().describe('Filter by set name, e.g. "Hunter of Glacial Forest"'),
-      mainStat: z.string().optional().describe('Filter by main stat name, e.g. "CRIT DMG"'),
-      subStat: z.string().optional().describe('Keep relics having this substat, e.g. "SPD"'),
-      enhance: z.number().int().min(0).max(15).optional().describe('Exact enhance level match'),
-      grade: z.number().int().min(2).max(5).optional().describe('Exact grade (rarity) match'),
+      part: z.union([z.string(), z.array(z.string())]).optional().describe(
+        '部位筛选,组内 OR:如 ["Head","Hands"];兼容旧单值 "Head"(Head | Hands | Body | Feet | PlanarSphere | LinkRope)',
+      ),
+      set: z.union([z.string(), z.array(z.string())]).optional().describe(
+        '套装筛选,组内 OR——遗器套装与饰品套装同属一组(如 ["Hunter of Glacial Forest","Space Sealing Station"]);兼容旧单值',
+      ),
+      mainStat: z.union([z.string(), z.array(z.string())]).optional().describe(
+        '主词条筛选,组内 OR(如 ["CRIT DMG","SPD"]);兼容旧单值',
+      ),
+      subStat: z.union([z.string(), z.array(z.string())]).optional().describe(
+        '副词条筛选,多个词条要求全部命中(AND,与其他组的 OR 不同):每个给定词条都要出现在遗器的副词条或预览副词条里,如 ["CRIT Rate","CRIT DMG"];兼容旧单值',
+      ),
+      enhance: z.union([z.number().int().min(0).max(15), z.array(z.number().int().min(0).max(15))]).optional().describe(
+        '强化档位筛选,三级一档(网页药丸口径):值 x 匹配强化等级 x 到 x+2——传 12 命中 +12/+13/+14,传 0 命中 +0/+1/+2;组内 OR;兼容旧单值形态(注意按档匹配,不再是精确等级)',
+      ),
+      grade: z.union([z.number().int().min(2).max(5), z.array(z.number().int().min(2).max(5))]).optional().describe(
+        '星级筛选,组内 OR(网页药丸 5/4/3/2),如 [5,4];兼容旧单值',
+      ),
+      initialRolls: z.union([z.number().int().min(0).max(4), z.array(z.number().int().min(0).max(4))]).optional().describe(
+        '初始词条数筛选,组内 OR(网页药丸 4/3);遗器未记录时按 3,低星遗器规范化后为 0——所以 [3] 会包含未记录者,[4] 不会',
+      ),
+      equipped: z.union([z.boolean(), z.array(z.boolean())]).optional().describe(
+        '是否已装备筛选,组内 OR(true=已装备任意角色,false=未装备);与 equippedBy/characterId 组间 AND 叠加',
+      ),
+      verified: z.union([z.boolean(), z.array(z.boolean())]).optional().describe(
+        '是否已校验(扫描器确认)筛选,组内 OR;遗器未记录时按未校验;兼容旧单值',
+      ),
       equippedBy: z.string().optional().describe('Character id the relic is equipped by, or "none" for unequipped'),
       characterId: z.string().optional().describe('Only relics equipped by this character (its up-to-6 slots); errors if the character is not loaded'),
-      verified: z.boolean().optional().describe('Filter by scanner-verified flag'),
       sortBy: z.enum(['enhance', 'grade', 'initialRolls', 'substatCount', 'currentScore', 'potentialBest']).optional().describe(
         'Sort the filtered list before paging, like clicking a relics-grid column header: '
           + 'enhance/grade/initialRolls/substatCount are intrinsic; currentScore(当前分)/potentialBest(最高潜力) '
@@ -583,7 +656,7 @@ export function registerQueryTools(server: McpServer): void {
         dir: z.enum(['asc', 'desc']),
         scoreBy: z.string().optional(),
       }).optional(),
-      relics: z.array(serializedRelicSchema),
+      relics: z.array(listRelicSchema),
     },
   }, async (input) => {
     runtimeContext.requireSave()
@@ -610,20 +683,39 @@ export function registerQueryTools(server: McpServer): void {
       )
     }
 
-    const equippedFilter = input.equippedBy
+    // Web parity (RelicsGrid.tsx:146-166 doesExternalFilterPass): groups AND,
+    // values OR-in; subStat is the exception (every requested stat must hit,
+    // preview substats included); enhance matches tier x..x+2; initialRolls
+    // defaults to 3 and verified to false when the relic carries no record.
+    const partFilter = filterValues(input.part)
+    const setFilter = filterValues(input.set)
+    const mainStatFilter = filterValues(input.mainStat)
+    const subStatFilter = filterValues(input.subStat)
+    const enhanceFilter = filterValues(input.enhance)
+    const gradeFilter = filterValues(input.grade)
+    const initialRollsFilter = filterValues(input.initialRolls)
+    const equippedFlags = filterValues(input.equipped)
+    const verifiedFilter = filterValues(input.verified)
+    const equippedByFilter = input.equippedBy
+
     const matches = getRelics().filter((relic: Relic) => {
       if (characterRelicIds != null && !characterRelicIds.has(relic.id)) return false
-      if (input.part != null && relic.part !== input.part) return false
-      if (input.set != null && relic.set !== input.set) return false
-      if (input.mainStat != null && relic.main.stat !== input.mainStat) return false
-      if (input.subStat != null && !relic.substats.some((s) => s.stat === input.subStat)) return false
-      if (input.enhance != null && relic.enhance !== input.enhance) return false
-      if (input.grade != null && relic.grade !== input.grade) return false
-      if (equippedFilter != null) {
-        const isEquipped = relic.equippedBy != null
-        if (equippedFilter === 'none' ? isEquipped : relic.equippedBy !== equippedFilter) return false
+      if (partFilter != null && !partFilter.includes(relic.part)) return false
+      if (setFilter != null && !setFilter.includes(relic.set)) return false
+      if (mainStatFilter != null && !mainStatFilter.includes(relic.main.stat)) return false
+      if (subStatFilter != null) {
+        const allStats = [...relic.substats, ...(relic.previewSubstats ?? [])]
+        if (!subStatFilter.every((stat) => allStats.some((s) => s.stat === stat))) return false
       }
-      if (input.verified != null && (relic.verified === true) !== input.verified) return false
+      if (enhanceFilter != null && !enhanceFilter.some((x) => relic.enhance >= x && relic.enhance <= x + 2)) return false
+      if (gradeFilter != null && !gradeFilter.includes(relic.grade)) return false
+      if (initialRollsFilter != null && !initialRollsFilter.includes(relic.initialRolls ?? 3)) return false
+      if (equippedFlags != null && !equippedFlags.includes(relic.equippedBy != null)) return false
+      if (verifiedFilter != null && !verifiedFilter.includes(relic.verified === true)) return false
+      if (equippedByFilter != null) {
+        const isEquipped = relic.equippedBy != null
+        if (equippedByFilter === 'none' ? isEquipped : relic.equippedBy !== equippedByFilter) return false
+      }
       return true
     })
 
@@ -648,6 +740,22 @@ export function registerQueryTools(server: McpServer): void {
     }
 
     const page = matches.slice(input.offset, input.offset + input.limit)
+    // 组内条数(多选药丸选了几项),供文本通道粗述筛选态
+    const countOf = (values: unknown[] | null) => values == null ? 0 : values.length
+    const activeFilterGroups = [
+      ['部位', partFilter],
+      ['主词条', mainStatFilter],
+      ['副词条', subStatFilter],
+      ['强化', enhanceFilter],
+      ['星级', gradeFilter],
+      ['初始词条数', initialRollsFilter],
+      ['套装', setFilter],
+      ['装备', equippedFlags],
+      ['校验', verifiedFilter],
+    ].filter(([, values]) => values != null) as Array<[string, unknown[]]>
+    const filterSummary = activeFilterGroups.length > 0
+      ? `(筛选 ${activeFilterGroups.map(([label, values]) => `${label}×${countOf(values)}`).join(',')})`
+      : ''
     return toolResult(
       {
         total: matches.length,
@@ -656,9 +764,20 @@ export function registerQueryTools(server: McpServer): void {
         ...(input.sortBy != null
           ? { sort: { by: input.sortBy, dir: input.sortDir, ...(input.scoreBy != null ? { scoreBy: input.scoreBy } : {}) } }
           : {}),
-        relics: page.map(serializeRelic),
+        relics: page.map((relic) => {
+          const serialized: SerializedRelic & { previewSubstats?: Array<{ stat: string, value: number }> } = {
+            ...serializeRelic(relic),
+          }
+          // Add-only field: surfaced only when present, so the subStat filter's
+          // preview-substat matches (RelicsGrid.tsx:160) are explainable
+          const previewSubstats = relic.previewSubstats ?? []
+          if (previewSubstats.length > 0) {
+            serialized.previewSubstats = previewSubstats.map((s) => ({ stat: s.stat, value: s.value }))
+          }
+          return serialized
+        }),
       },
-      `${matches.length} 件遗器匹配${input.characterId ? `(角色 ${input.characterId})` : ''}`
+      `${matches.length} 件遗器匹配${filterSummary}${input.characterId ? `(角色 ${input.characterId})` : ''}`
         + `${
           input.sortBy != null
             ? `,按 ${input.sortBy} ${input.sortDir === 'asc' ? '升' : '降'}序${input.scoreBy != null ? `(评分角色 ${input.scoreBy})` : ''}`

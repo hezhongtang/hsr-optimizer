@@ -10,7 +10,12 @@
 //   → permutations (validPermutations === 462672, the foundation-phase optimize
 //   measured value — proves the estimate uses the same path as the gate)
 //   → permutations with formOverrides → list_relics enhancements (characterId
-//   filter + sorting).
+//   filter + sorting) → web filter parity for both lists: list_characters
+//   three-axis filtering (name substring on the zh LongName + path/element
+//   multi-select, CharacterGrid.tsx:136-146) and list_relics pill semantics
+//   (groups AND / values OR-in, enhance tier x..x+2, subStat AND-across-stats
+//   incl. preview substats, initialRolls defaulting to 3, equipped/verified —
+//   RelicsGrid.tsx:146-166).
 //
 // Everything the server can persist is pointed at a temp directory — the
 // repo's sample-save.json is never a write target.
@@ -165,6 +170,61 @@ try {
     'list_characters element filter',
     iceOnly.total > 0 && iceOnly.characters.every((c) => c.element === 'Ice'),
     `${iceOnly.total} Ice characters`,
+  )
+
+  // 3b. web filter-bar parity (CharacterGrid.tsx:136-146): name = case-insensitive
+  //     substring on the current-language LongName (server renders zh_CN → 中文
+  //     长名, exactly what the web's Chinese UI matches); path/element = OR-in.
+  const byZhName = await callTool(client, 'list_characters', { name: '流' })
+  check(
+    'list_characters name substring matches the zh LongName (流 → 镜流)',
+    byZhName.total === 1 && byZhName.characters[0]?.id === '1212b1',
+    `${byZhName.total}: ${byZhName.characters.map((c) => c.id).join(',')}`,
+  )
+  const latinMiss = await callTool(client, 'list_characters', { name: 'Jingliu' })
+  check(
+    'list_characters name matches the localized LongName only (Latin needle misses, web zh behavior)',
+    latinMiss.total === 0,
+    `got ${latinMiss.total}`,
+  )
+  const emptyArrays = await callTool(client, 'list_characters', { path: [], element: [] })
+  check(
+    'list_characters empty arrays mean no constraint (empty pill selection)',
+    emptyArrays.total === 8,
+    `got ${emptyArrays.total}`,
+  )
+
+  // 3c. multi-select OR-in + the three axes ANDed together
+  const twoPaths = ['Destruction', 'Harmony']
+  const expectedPaths = characters.characters.filter((c) => twoPaths.includes(c.path))
+  const multiPath = await callTool(client, 'list_characters', { path: twoPaths })
+  check(
+    'list_characters path multi-select OR-in',
+    multiPath.total === expectedPaths.length
+      && multiPath.characters.every((c) => twoPaths.includes(c.path))
+      && expectedPaths.every((e) => multiPath.characters.some((c) => c.id === e.id)),
+    `${multiPath.total} of ${characters.total} (${twoPaths.join('/')})`,
+  )
+  const twoElements = [...new Set(characters.characters.map((c) => c.element))].slice(0, 2)
+  const expectedElements = characters.characters.filter((c) => twoElements.includes(c.element))
+  const multiElement = await callTool(client, 'list_characters', { element: twoElements })
+  check(
+    'list_characters element multi-select OR-in',
+    multiElement.total === expectedElements.length
+      && multiElement.characters.every((c) => twoElements.includes(c.element))
+      && expectedElements.every((e) => multiElement.characters.some((c) => c.id === e.id)),
+    `${multiElement.total} of ${characters.total} (${twoElements.join('/')})`,
+  )
+  const kafka = characters.characters.find((c) => c.id === '1005')
+  const threeAxes = await callTool(client, 'list_characters', {
+    name: '卡芙卡',
+    path: [kafka.path, 'Destruction'],
+    element: [kafka.element],
+  })
+  check(
+    'list_characters three filter axes AND together (name + path[] + element[])',
+    threeAxes.total === 1 && threeAxes.characters[0]?.id === '1005',
+    `total=${threeAxes.total}: ${threeAxes.characters.map((c) => c.id).join(',')}`,
   )
 
   // 4. get_character
@@ -354,6 +414,140 @@ try {
   check(
     'list_relics unknown characterId errors',
     unknownCharacterError != null && String(unknownCharacterError.message).includes('not found'),
+  )
+
+  // 8b. web filter-pill parity (RelicsGrid.tsx:146-166 doesExternalFilterPass):
+  //     groups AND, values OR-in; enhance matches tier x..x+2 (pills
+  //     +0/+3/…/+15, FilterPillBar.tsx:89); subStat is AND-across-stats and
+  //     counts preview substats; initialRolls defaults to 3 when unrecorded.
+  //     Expected sets are recomputed from the unfiltered response — the sample
+  //     save's serialized output carries every field the filters read.
+  const inventory = await callTool(client, 'list_relics', { limit: 500 })
+  const idsOf = (result) => [...result.relics.map((r) => r.id)].sort()
+  const sameIds = (result, expectedRelics) =>
+    result.total === expectedRelics.length
+    && JSON.stringify(idsOf(result)) === JSON.stringify([...expectedRelics.map((r) => r.id)].sort())
+
+  const twoParts = ['Head', 'Hands']
+  const expectedParts = inventory.relics.filter((r) => twoParts.includes(r.part))
+  const partMulti = await callTool(client, 'list_relics', { part: twoParts, limit: 500 })
+  check(
+    'list_relics part multi-select OR-in',
+    sameIds(partMulti, expectedParts) && partMulti.relics.every((r) => twoParts.includes(r.part)),
+    `${partMulti.total} of ${inventory.total} (${twoParts.join('/')})`,
+  )
+
+  const enhanceTier = await callTool(client, 'list_relics', { enhance: 12, limit: 500 })
+  const expectedTier = inventory.relics.filter((r) => r.enhance >= 12 && r.enhance <= 14)
+  check(
+    'list_relics enhance is tier-matched (12 hits +12..+14), single value form included',
+    sameIds(enhanceTier, expectedTier)
+      && inventory.relics.some((r) => r.enhance === 13 || r.enhance === 14),
+    `${enhanceTier.total} relics (+12..+14; sample has ${inventory.relics.filter((r) => r.enhance > 12 && r.enhance <= 14).length} above +12)`,
+  )
+  const enhanceMulti = await callTool(client, 'list_relics', { enhance: [0, 9], limit: 500 })
+  const expectedTiers = inventory.relics.filter((r) => (r.enhance >= 0 && r.enhance <= 2) || (r.enhance >= 9 && r.enhance <= 11))
+  check(
+    'list_relics enhance multi-select OR over tiers ([0,9] hits +0..+2 and +9..+11)',
+    sameIds(enhanceMulti, expectedTiers),
+    `${enhanceMulti.total} relics`,
+  )
+
+  // ledger acceptance case: 部位 Head+Hands、强化 12、副词条 CRIT Rate + CRIT DMG
+  const substatFilter = ['CRIT Rate', 'CRIT DMG']
+  const hasSubstat = (r, stat) => r.substats.some((s) => s.stat === stat) || (r.previewSubstats ?? []).some((s) => s.stat === stat)
+  const acceptance = await callTool(client, 'list_relics', {
+    part: twoParts,
+    enhance: [12],
+    subStat: substatFilter,
+    limit: 500,
+  })
+  const expectedAcceptance = inventory.relics.filter((r) =>
+    twoParts.includes(r.part)
+    && r.enhance >= 12 && r.enhance <= 14
+    && substatFilter.every((stat) => hasSubstat(r, stat))
+  )
+  check(
+    'list_relics combined axes match the grid (part OR + enhance tier + subStat AND)',
+    sameIds(acceptance, expectedAcceptance),
+    `${acceptance.total} relics`,
+  )
+  const substatOr = await callTool(client, 'list_relics', { subStat: substatFilter[0], limit: 500 })
+  const expectedOr = inventory.relics.filter((r) => hasSubstat(r, substatFilter[0]))
+  check(
+    'list_relics subStat single value still works (preview-inclusive)',
+    sameIds(substatOr, expectedOr),
+    `${substatOr.total} relics with ${substatFilter[0]}`,
+  )
+
+  const gradeMulti = await callTool(client, 'list_relics', { grade: [3, 4], limit: 500 })
+  const expectedGrades = inventory.relics.filter((r) => r.grade === 3 || r.grade === 4)
+  check('list_relics grade multi-select OR-in', sameIds(gradeMulti, expectedGrades), `${gradeMulti.total} of ${inventory.total}`)
+
+  const setMulti = [...new Set(inventory.relics.map((r) => r.set))].slice(0, 2)
+  const expectedSets = inventory.relics.filter((r) => setMulti.includes(r.set))
+  const setFilterResult = await callTool(client, 'list_relics', { set: setMulti, limit: 500 })
+  check('list_relics set multi-select OR-in', sameIds(setFilterResult, expectedSets), `${setFilterResult.total} of ${inventory.total}`)
+
+  const mainStatMulti = [...new Set(inventory.relics.map((r) => r.main.stat))].slice(0, 2)
+  const expectedMains = inventory.relics.filter((r) => mainStatMulti.includes(r.main.stat))
+  const mainStatResult = await callTool(client, 'list_relics', { mainStat: mainStatMulti, limit: 500 })
+  check('list_relics mainStat multi-select OR-in', sameIds(mainStatResult, expectedMains), `${mainStatResult.total} of ${inventory.total}`)
+
+  // initialRolls: the roll grader fills the value for every relic on load
+  // (grade<5 → 0), so the serialized output always carries it — the web's
+  // `?? 3` default (RelicsGrid.tsx:152) is defensive parity. Observable
+  // behavior: [4] matches exactly the recorded-4 relics, and the low-grade
+  // relics (initialRolls=0 after grading) are excluded from [3,4].
+  const rolls4 = await callTool(client, 'list_relics', { initialRolls: 4, limit: 500 })
+  const expectedRolls4 = inventory.relics.filter((r) => (r.initialRolls ?? 3) === 4)
+  const zeroRollsCount = inventory.relics.filter((r) => r.initialRolls === 0).length
+  check(
+    'list_relics initialRolls=4 matches exactly the recorded-4 relics (ledger acceptance)',
+    sameIds(rolls4, expectedRolls4)
+      && rolls4.relics.every((r) => r.initialRolls === 4)
+      && !rolls4.relics.some((r) => r.initialRolls == null),
+    `${rolls4.total} relics with initialRolls=4`,
+  )
+  const rolls34 = await callTool(client, 'list_relics', { initialRolls: [3, 4], limit: 500 })
+  const expectedRolls34 = inventory.relics.filter((r) => [3, 4].includes(r.initialRolls ?? 3))
+  check(
+    'list_relics initialRolls=[3,4] OR-in excludes the low-grade initialRolls=0 relics',
+    sameIds(rolls34, expectedRolls34)
+      && rolls34.relics.every((r) => r.initialRolls === 3 || r.initialRolls === 4)
+      && zeroRollsCount > 0,
+    `${rolls34.total} of ${inventory.total} (${zeroRollsCount} low-grade relics excluded)`,
+  )
+
+  // equipped boolean axis (web pill) cross-checked against the equippedBy form
+  const equippedTrue = await callTool(client, 'list_relics', { equipped: true, limit: 500 })
+  const expectedEquipped = inventory.relics.filter((r) => r.equippedBy != null)
+  check(
+    'list_relics equipped=true OR-in',
+    sameIds(equippedTrue, expectedEquipped) && equippedTrue.relics.every((r) => r.equippedBy != null),
+    `${equippedTrue.total} of ${inventory.total}`,
+  )
+  const unequipped = await callTool(client, 'list_relics', { equipped: [false], limit: 500 })
+  const unequippedByForm = await callTool(client, 'list_relics', { equippedBy: 'none', limit: 500 })
+  check(
+    'list_relics equipped=[false] equals equippedBy="none"',
+    JSON.stringify(idsOf(unequipped)) === JSON.stringify(idsOf(unequippedByForm)),
+    `${unequipped.total} vs ${unequippedByForm.total}`,
+  )
+
+  // verified: sample save is entirely unverified — true-only matches nothing,
+  // [true,false] is a no-op like an empty selection
+  const verifiedTrue = await callTool(client, 'list_relics', { verified: true, limit: 500 })
+  check(
+    'list_relics verified=true filters out the unverified sample',
+    verifiedTrue.total === 0,
+    `got ${verifiedTrue.total}`,
+  )
+  const verifiedBoth = await callTool(client, 'list_relics', { verified: [true, false], limit: 500 })
+  check(
+    'list_relics verified=[true,false] keeps everything',
+    verifiedBoth.total === inventory.total,
+    `${verifiedBoth.total} of ${inventory.total}`,
   )
 } finally {
   await client.close()

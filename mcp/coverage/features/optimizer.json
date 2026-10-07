@@ -1057,12 +1057,7 @@
       "conditions": "选中的是自定义模拟行时不显示。分析用的是那一轮搜索当时的表单；表单里的角色与当前角色不一致时不显示。",
       "runtime": "node",
       "state": { "owner": "由选中行、基准行和运行时的表单推导", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["analyze_build", "simulate_build"],
-        "gaps": "analyze_build 与 simulate_build 以角色已保存的表单为基础，不会自动沿用那一轮 optimize 用的 formOverrides，调用方要自己把同一份覆盖再传一遍，否则分析与结果行对不上。",
-        "candidates": ["analyze_build(fromCache=...)", "simulate_build(fromCache=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["analyze_build", "simulate_build"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -1072,7 +1067,7 @@
           "副词条收益表与队友套装收益表逐行与网页端一致",
           "trace 模式下逐技能的增益来源与网页端的增益明细一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form-overrides.mjs"]
+        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-analysis.mjs"]
       }
     },
     {
@@ -1188,12 +1183,7 @@
       "runtime": "node",
       "state": { "owner": "由当前表单与库存推导", "lifecycle": "derived" },
       "sideEffects": ["点修复按钮直接改表单", "「把角色移到首位」会改角色列表顺序", "「去导入」会跳到导入页"],
-      "mcp": {
-        "status": "partial",
-        "tools": ["permutations"],
-        "gaps": "permutations 给出各部位筛选前后的数量和有效排列数，调用方能看出哪个部位是 0，但它不指出是哪条筛选造成的，也不给可直接套用的修复；它的 suggestions 只针对排列过多的情况。",
-        "candidates": ["permutations(diagnose=true)", "permutations(applyFixes=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["optimize", "permutations"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -1201,7 +1191,7 @@
           "对十二种原因各构造一个表单，返回的原因列表与网页端弹窗列出的一致",
           "把返回的修复作为 formOverrides 套用后，有效排列数与网页端点对应修复按钮后的一致"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-query.mjs"]
+        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-analysis.mjs"]
       }
     },
     {

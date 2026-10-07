@@ -24,12 +24,7 @@
       "conditions": "基准生成器和套装基准审计只列出有输出类模拟评分配置的角色。个别入口不允许清空选择。",
       "runtime": "node",
       "state": { "owner": "useSelectModal 的本地筛选状态", "lifecycle": "ephemeral" },
-      "mcp": {
-        "status": "partial",
-        "resources": ["game://metadata/characters"],
-        "gaps": "角色列表资源给出了编号、名字、稀有度、命途、属性和是否为换代前旧角色，调用方可以自行筛选；但没有标明哪些角色有模拟评分配置，长名也只在单角色详情里。",
-        "candidates": ["game://metadata/characters(hasSimulation)"]
-      },
+      "mcp": { "status": "implemented", "resources": ["game://metadata/characters", "game://metadata/characters/{id}"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -60,12 +55,7 @@
       "conditions": "命途默认筛选只是初值，可以取消后选其他命途的光锥。每次打开弹窗筛选条件都会重置为初值。",
       "runtime": "node",
       "state": { "owner": "useSelectModal 的本地筛选状态", "lifecycle": "ephemeral" },
-      "mcp": {
-        "status": "partial",
-        "resources": ["game://metadata/lightcones"],
-        "gaps": "光锥列表资源给出了编号、名字、稀有度和命途，调用方可以自行筛选；但读不到某个角色的专属光锥是哪一把。",
-        "candidates": ["game://metadata/characters/{id}(signatureLightCone)"]
-      },
+      "mcp": { "status": "implemented", "resources": ["game://metadata/lightcones", "game://metadata/lightcones/{id}", "game://metadata/characters"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {

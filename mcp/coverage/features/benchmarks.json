@@ -23,12 +23,7 @@
       "conditions": "选了没有模拟评分配置的角色会提示不支持。这一页的输入都不落盘，刷新页面后回到内置示例。",
       "runtime": "node",
       "state": { "owner": "BenchmarksTab 里的表单", "lifecycle": "session" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["benchmark_runs"],
-        "gaps": "benchmark_runs 要求角色已在存档里，星魂、光锥、叠影缺省取存档表单；网页端可以对任何有模拟评分配置的角色生成基准，不需要先加入角色列表。",
-        "candidates": ["benchmark_runs(allowUnowned=true)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["benchmark_runs"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -63,12 +58,7 @@
       "conditions": "弹窗里没选角色或没选光锥时不接受。三名队友都要填齐才能生成。",
       "runtime": "node",
       "state": { "owner": "useBenchmarksTabStore.teammate0..2", "lifecycle": "session" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["benchmark_runs"],
-        "gaps": "teammates 只能给角色、星魂、光锥和叠影，不能指定队友的队伍遗器套装与饰品套装。",
-        "candidates": ["benchmark_runs(teammates[].teamRelicSet=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["benchmark_runs"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -131,12 +121,7 @@
       ],
       "runtime": "node",
       "state": { "owner": "BenchmarksTab 里的表单 + useBenchmarksTabStore.setConditionals", "lifecycle": "session" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["benchmark_runs"],
-        "gaps": "套装可以在 presets 里逐个给出，但套装条件固定用按角色与队伍套用预设后的默认值，不能像网页端那样手动改。",
-        "candidates": ["benchmark_runs(setConditionals=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["benchmark_runs"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -191,12 +176,7 @@
       ],
       "runtime": "node",
       "state": { "owner": "由 useBenchmarksTabStore.orchestrators 推导；展开与翻页状态只在组件里", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["benchmark_runs"],
-        "gaps": "每个预设只返回 100% 口径下最优的一套和排名前 5 的候选，以及 200% 的总分；网页端列出两种口径下的全部候选行。展开行里的面板属性、战斗属性和各技能伤害也没有返回，只有主词条与副词条词条数。",
-        "candidates": ["benchmark_runs(detail=full)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["benchmark_runs"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {

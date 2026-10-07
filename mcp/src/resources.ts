@@ -7,10 +7,14 @@
 //
 // Web parity:
 //   - game://metadata/characters        → 角色列表摘要(角色选择器 / Metadata 页签数据底表)
+//                                          选择器对拍字段:nameZhLong(弹窗显示/搜索名)、
+//                                          hasSimulation(withSimulation 过滤=基准生成器弹窗集合)、
+//                                          signatureLightCone(光锥弹窗 signatureId 正查)
 //   - game://metadata/characters/{id}   → 单角色详情:80 级基础属性、行迹树、行迹加成汇总
 //   - game://metadata/lightcones        → 光锥列表摘要(光锥选择器数据底表)
 //   - game://metadata/lightcones/{id}   → 单光锥详情:基础属性 + S1-S5 叠影属性表
 //                                          (叠影表归本资源,角色详情不含 —— 光锥数据不拆两处)
+//                                          + signatureOf(专属光锥反查)
 //   - game://metadata/sets              → 遗器/饰品套装表 + 中文效果文本(套装选择器 / 遗器页签)
 //   - game://changelog                  → Changelog 页签原文(上游仅英文,逐字透出)
 //
@@ -20,8 +24,9 @@
 // INBOUND request-body limit for the streamable HTTP transport
 // (node_modules/@modelcontextprotocol/sdk/dist/esm/server/requestBody.js:2),
 // which constrains neither responses nor stdio — so sizes are self-measured:
-// characters 108 × ~130B, light cones 170 × ~110B, sets 62 entries ≈ 20KB,
-// changelog 53 entries ≈ 77KB serialized JSON (largest single response).
+// characters 108 × ~200B (selector-parity fields included), light cones
+// 170 × ~110B, sets 62 entries ≈ 20KB, changelog 53 entries ≈ 77KB
+// serialized JSON (largest single response).
 //
 // 「行→配装」不另设 resource:optimize/get_results 已随行返回 builds 字段
 // (每行 6 槽遗器 id),再设一个 resource 只会复制同一份缓存。
@@ -34,6 +39,7 @@
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import i18next from 'i18next'
+import { getCharacterConfig } from 'lib/conditionals/resolver/characterConfigRegistry'
 import {
   CURRENT_DATA_VERSION,
   CURRENT_OPTIMIZER_VERSION,
@@ -126,12 +132,21 @@ function characterSummary(character: DBMetadataCharacter): Record<string, unknow
     id: character.id,
     name: character.name,
     nameZh: zhText(t, `Characters.${character.id}.Name`),
+    // 角色选择弹窗的显示/搜索名(optionGenerator.ts generateCharacterOptions:
+    // label = t(`Characters.{id}.LongName`))——列表层直接给出,不再只留在详情里
+    nameZhLong: zhText(t, `Characters.${character.id}.LongName`),
     rarity: character.rarity,
     // Canonical English values — exactly what the MCP filters / upstream data use
     path: character.path,
     element: character.element,
     unreleased: character.unreleased === true,
     preNovaflare: isPreNovaflare(character.id),
+    // CharacterSelect 的 withSimulation 过滤(CharacterSelect.tsx:70):基准生成器/
+    // 套装基准审计弹窗只列 scoringMetadata.simulation(输出类模拟评分)非空的角色
+    hasSimulation: character.scoringMetadata?.simulation != null,
+    // 光锥选择弹窗的 signatureId(LightConeSelect.tsx:116-119):getCharacterConfig(id)
+    // .defaultLightCone ——该角色的专属光锥(网页端五星专属排在最前并有专属样式)
+    signatureLightCone: getCharacterConfig(character.id as CharacterId)?.defaultLightCone ?? null,
   }
 }
 
@@ -160,6 +175,8 @@ function characterDetail(character: DBMetadataCharacter): Record<string, unknown
     unreleased: character.unreleased === true,
     preNovaflare: isPreNovaflare(character.id),
     maxSp: character.max_sp,
+    // 光锥选择弹窗的 signatureId 同款正查(见 characterSummary 注释)
+    signatureLightCone: getCharacterConfig(character.id as CharacterId)?.defaultLightCone ?? null,
     // Lv80 base stats straight from game_data.json (HP/ATK/DEF/SPD/CRIT Rate/CRIT DMG)
     baseStats: character.stats,
     // Aggregated trace bonuses (stat -> total value with full tree activated)
@@ -188,9 +205,20 @@ function lightConeDetail(lightCone: DBMetadataLightCone): Record<string, unknown
     rarity: lightCone.rarity,
     path: lightCone.path,
     unreleased: lightCone.unreleased === true,
+    // 反查(LightConeSelect 的 signatureId 反向):哪些角色的专属光锥
+    // (getCharacterConfig(id).defaultLightCone,五星专属在弹窗里排最前)是这把
+    signatureOf: signatureOwners(lightCone.id),
     baseStats: lightCone.stats,
     superimpositions: superimpositionTable(lightCone),
   }
+}
+
+/** lightConeId → 以它为专属光锥的角色 id(编号序,换代变体按 plain-then-b1)。 */
+function signatureOwners(lightConeId: string): string[] {
+  const characters = getGameMetadata().characters as Record<string, DBMetadataCharacter>
+  return Object.keys(characters)
+    .filter((id) => getCharacterConfig(id as CharacterId)?.defaultLightCone === lightConeId)
+    .sort(compareCharacterIds)
 }
 
 /** Sets have no `unreleased` flag in game_data.json (characters/light cones do). */
@@ -376,8 +404,11 @@ export function registerGameResources(server: McpServer): void {
   server.registerResource('characters-metadata', 'game://metadata/characters', {
     title: '角色元数据(列表)',
     description: '全角色列表摘要——对应网页端优化起始页角色选择器 / Metadata 页签的数据底表:'
-      + '每个角色的 id、中文名(gameData 翻译,缺译为 null)、英文名、稀有度、命途/属性(规范英文值,与工具过滤参数一致)、'
-      + 'unreleased 标记、preNovaflare(已出 b1 换代升级版的旧角色)。'
+      + '每个角色的 id、中文名与中文长名(gameData 翻译,缺译为 null;长名即角色选择弹窗的显示/搜索名)、'
+      + '英文名、稀有度、命途/属性(规范英文值,与工具过滤参数一致)、unreleased 标记、'
+      + 'preNovaflare(已出 b1 换代升级版的旧角色)、hasSimulation(是否有输出类模拟评分配置——'
+      + '基准生成器/套装基准审计的角色选择弹窗只列 true 的角色)、signatureLightCone(该角色的专属光锥 id,'
+      + '即光锥选择弹窗里五星专属排最前的那把;无则为 null)。'
       + '单角色详情(基础属性/行迹树)读 URI 模板 game://metadata/characters/{id}。',
     mimeType: JSON_MIME_TYPE,
   }, (uri) => {
@@ -402,7 +433,8 @@ export function registerGameResources(server: McpServer): void {
       title: '角色元数据(详情)',
       description: '单角色详情——对应网页端 Metadata 页签的角色条目:80 级基础属性(HP/ATK/DEF/SPD/暴击率/暴击伤害)、'
         + '行迹树完整结构(id/stat/value/pre/children)、行迹加成汇总(满行迹合计)、max_sp、unreleased 与 preNovaflare 标记、'
-        + '中文名/长名。光锥叠影表不在角色详情里,读 game://metadata/lightcones/{id}。',
+        + '中文名/长名、signatureLightCone(专属光锥 id,光锥选择弹窗的 signatureId 同款)。'
+        + '光锥叠影表不在角色详情里,读 game://metadata/lightcones/{id}。',
       mimeType: JSON_MIME_TYPE,
     },
     (uri, variables) => {
@@ -442,7 +474,8 @@ export function registerGameResources(server: McpServer): void {
     {
       title: '光锥元数据(详情)',
       description: '单光锥详情——对应网页端光锥详情数据:基础属性(80 级 HP/ATK/DEF)、S1-S5 叠影属性表'
-        + '(Metadata.initialize 转换后的可读属性名口径)、命途、稀有度、unreleased 标记、中文名。',
+        + '(Metadata.initialize 转换后的可读属性名口径)、命途、稀有度、unreleased 标记、中文名、'
+        + 'signatureOf(以这把为专属光锥的角色 id 反查,光锥选择弹窗 signatureId 的反向)。',
       mimeType: JSON_MIME_TYPE,
     },
     (uri, variables) => {

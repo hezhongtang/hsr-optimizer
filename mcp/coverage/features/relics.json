@@ -57,12 +57,7 @@
       ],
       "runtime": "node",
       "state": { "owner": "useRelicsTabStore.filters", "lifecycle": "session" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["list_relics", "score_relics"],
-        "gaps": "每个条件只能传一个值；强化是精确匹配而不是三级一档；副词条只能要求一个且不看预览副词条；没有初始词条数这个条件。",
-        "candidates": ["list_relics(filters=...)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["list_relics", "score_relics"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -70,7 +65,7 @@
           "部位选头部和手部、强化选 12、副词条选暴击率和暴击伤害时，返回的遗器集合与表格筛选后的行一致",
           "初始词条数选 4 时两边结果一致，未记录初始词条数的遗器不在其中"
         ],
-        "tests": ["mcp/scripts/smoke-query.mjs"]
+        "tests": ["mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-relics.mjs"]
       }
     },
     {

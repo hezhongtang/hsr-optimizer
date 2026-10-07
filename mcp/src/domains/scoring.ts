@@ -16,6 +16,13 @@
 //   instead of the browser worker pool. The resulting SimulationScore is
 //   reduced to JSON-safe data by serializers/scoring.ts.
 //
+// dps_score(team=snapshot) additionally mirrors the Teams showcase page's
+// synced-benchmark cards (teams.cards.read): a saved team's benchmarkSnapshot
+// becomes per-slot SimulationMetadataOverrides via the SAME upstream functions
+// the page uses (buildTeamBenchmarkOverrideVariants + resolveTeamBenchmarkOverrides,
+// applied like showcaseDerivedData's applySimulationMetadataOverrides) — slot 0
+// scores as main DPS (deprioritizeBuffs=false), the other slots as sub DPS.
+//
 // score_character differs from dps_score the same way the card differs from
 // its DPS panel: config ∈ {dps,buffer,heal,shield} (auto = the card's default
 // scoring type walk), team auto/default/custom/ephemeral (handleTeamSelection
@@ -72,6 +79,12 @@ import {
 } from 'lib/stores/relic/relicStore'
 import { getScoringMetadata } from 'lib/stores/scoring/scoringStore'
 import { useShowcaseTabStore } from 'lib/tabs/tabShowcase/useShowcaseTabStore'
+import { readSavedTeams } from 'lib/tabs/tabTeamShowcase/teamShowcaseController'
+import {
+  buildTeamBenchmarkOverrideVariants,
+  normalizeTeamSlots,
+  resolveTeamBenchmarkOverrides,
+} from 'lib/tabs/tabTeamShowcase/teamShowcaseModel'
 import {
   clone,
   objectHash,
@@ -513,14 +526,33 @@ export function registerScoringTools(server: McpServer): void {
       + '返回:总分 percent(1.0=基准线,数值保持上游原样)与字母评级(SS/WTF…,六件套且全 verified 才可能 AEON)、'
       + 'original/baseline/benchmark/maximum 四组分数对比、原 SPD 与基准 SPD、副词条/套装/主词条升级表'
       + '(每项含 part/stat/新百分比/分数增量)、队友饰品升级摘要。team="default" 用官方推荐队,"custom" 用存档评分覆盖里的自定义队伍'
-      + '(scoringMetadataOverrides[角色].simulation.teammates,未设置时与 default 相同);自定义队伍可经 set_scoring_override(configs.editTeammate/syncTeam) 设置,或随存档载入(在网页端编辑)。',
+      + '(scoringMetadataOverrides[角色].simulation.teammates,未设置时与 default 相同);自定义队伍可经 set_scoring_override(configs.editTeammate/syncTeam) 设置,或随存档载入(在网页端编辑)。'
+      + 'team="snapshot" 是组队展示页(#teams)四张卡的评分口径:用已保存队伍的基准快照做覆盖'
+      + '(save_team(benchmarkSnapshot=true) 或 manage_team(sync_benchmarks) 产生的 benchmarkSnapshot)——'
+      + '队友换成快照里的另外三名成员(各带同步时的光锥/星魂/套装),并按被评角色的槽位区分主副 C:'
+      + '第 0 槽按主 C(deprioritizeBuffs=false)、其余槽按副 C(true)评分,与网页端同步基准后的卡片一致(resolveTeamBenchmarkOverrides)。'
+      + '评分配置类型本身跟随槽位角色(网页 resolveSlotScoring):非 DPS 配置(buffer/heal/shield)没有本工具入口,'
+      + '那是 score_character(config=…) 的领域。',
     inputSchema: {
       characterId: z.string().describe('角色 id(需已载入存档,按其当前装备评分)'),
-      team: z.enum(['default', 'custom']).default('default').describe('基准队伍:官方推荐队或自定义覆盖队'),
+      team: z.enum(['default', 'custom', 'snapshot']).default('default').describe(
+        '基准队伍:default=官方推荐队 / custom=自定义覆盖队 / snapshot=组队展示页的基准快照覆盖(需 snapshotTeamId)',
+      ),
+      snapshotTeamId: z.string().optional().describe(
+        'team=snapshot 必填:带基准快照的已保存队伍 id(list_teams 可查;被评角色须为该队伍成员,槽位决定主/副 C)',
+      ),
     },
     outputSchema: {
       characterId: z.string(),
-      team: z.enum(['default', 'custom']),
+      team: z.enum(['default', 'custom', 'snapshot']),
+      snapshot: z.object({
+        teamId: z.string(),
+        teamName: z.string(),
+        slotIndex: z.number().int().min(0).max(3),
+        role: z.enum(['mainDps', 'subDps']),
+        deprioritizeBuffs: z.boolean(),
+        teammates: z.array(z.string()),
+      }).optional(),
       percent: z.number(),
       grade: z.string(),
       scores: z.object({
@@ -557,7 +589,7 @@ export function registerScoringTools(server: McpServer): void {
       }),
       relics: z.object({ equipped: z.number(), verified: z.boolean() }),
     },
-  }, async ({ characterId, team }, extra): Promise<CallToolResult> => {
+  }, async ({ characterId, team, snapshotTeamId }, extra): Promise<CallToolResult> => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
 
@@ -581,10 +613,70 @@ export function registerScoringTools(server: McpServer): void {
       throw new Error(`Character ${characterId} has no relics equipped — equip a build first (equip_build)`)
     }
 
-    const teamSelection = team === 'custom' ? CUSTOM_TEAM : DEFAULT_TEAM
-    const sim = resolveSimulationMetadata(character, ScoringConfigType.DPS, teamSelection)
-    if (!sim) {
-      throw new Error(`No DPS scoring metadata for character ${characterId} (no default or overridden simulation config)`)
+    // ── 队伍解析:default/custom 走角色自己的评分队伍;snapshot 用组队展示页的
+    // 基准快照覆盖(网页 resolveTeamBenchmarkOverrides → applySimulationMetadataOverrides)──
+    let snapshotEcho: {
+      teamId: string,
+      teamName: string,
+      slotIndex: number,
+      role: 'mainDps' | 'subDps',
+      deprioritizeBuffs: boolean,
+      teammates: string[],
+    } | undefined
+    let sim: ReturnType<typeof resolveSimulationMetadata>
+    if (team === 'snapshot') {
+      if (snapshotTeamId == null) {
+        throw new Error('dps_score:team="snapshot" 需要同时传入 snapshotTeamId —— 先用 list_teams 查看带基准快照(hasBenchmarkSnapshot=true)的队伍')
+      }
+      const teams = readSavedTeams()
+      const saved = teams.find((candidate) => candidate.id === snapshotTeamId)
+      if (!saved) {
+        throw new Error(`dps_score:队伍 ${snapshotTeamId} 不存在。现有队伍:${teams.map((t) => `${t.id}(「${t.name}」)`).join('、') || '(无)'}`)
+      }
+      if (saved.benchmarkSnapshot == null) {
+        throw new Error(
+          `dps_score:队伍「${saved.name}」没有基准快照 —— 用 save_team(benchmarkSnapshot=true) 或 manage_team(action=sync_benchmarks) 生成后再评,或改用 team=default/custom`,
+        )
+      }
+      const slots = normalizeTeamSlots(saved.characterIds)
+      const slotIndex = slots.findIndex((id) => id === characterId)
+      if (slotIndex === -1) {
+        throw new Error(
+          `dps_score:角色 ${characterId} 不在队伍「${saved.name}」的槽位里(${slots.map((id) => id ?? '空槽').join(' / ')}) —— team=snapshot 只评该队伍的成员`,
+        )
+      }
+      // 网页同一判定(teamShowcaseModel.resolveTeamBenchmarkOverrides):四槽满员且
+      // 与快照成员一一对应才使用覆盖,否则该槽 undefined(网页回退到自己的评分队伍)
+      const slotOverrides = resolveTeamBenchmarkOverrides(slots, buildTeamBenchmarkOverrideVariants(saved.benchmarkSnapshot))
+      const override = slotOverrides[slotIndex]?.[ScoringConfigType.DPS]
+      if (override?.teammates == null) {
+        throw new Error(
+          `dps_score:队伍「${saved.name}」的基准快照与当前槽位不对应(快照须为四名不同成员且四槽满员)——网页端此时同样不使用覆盖;请改用 team=default/custom`,
+        )
+      }
+      sim = resolveSimulationMetadata(character, ScoringConfigType.DPS, DEFAULT_TEAM)
+      if (!sim) {
+        throw new Error(`No DPS scoring metadata for character ${characterId} (no default or overridden simulation config)`)
+      }
+      // applySimulationMetadataOverrides(showcaseDerivedData.ts:178-200)的 slotOverride
+      // 语义:快照队友直接顶替;deprioritizeBuffs 由槽位决定(buildConfigOverrides:
+      // 槽 0 主 C=false / 其余副 C=true),不走 resolveEffectiveDeprioritizeBuffs 翻转
+      sim.teammates = override.teammates
+      if (override.deprioritizeBuffs != null) sim.deprioritizeBuffs = override.deprioritizeBuffs
+      snapshotEcho = {
+        teamId: saved.id,
+        teamName: saved.name,
+        slotIndex,
+        role: slotIndex === 0 ? 'mainDps' : 'subDps',
+        deprioritizeBuffs: sim.deprioritizeBuffs ?? false,
+        teammates: override.teammates.map((teammate) => teammate.characterId as string),
+      }
+    } else {
+      const teamSelection = team === 'custom' ? CUSTOM_TEAM : DEFAULT_TEAM
+      sim = resolveSimulationMetadata(character, ScoringConfigType.DPS, teamSelection)
+      if (!sim) {
+        throw new Error(`No DPS scoring metadata for character ${characterId} (no default or overridden simulation config)`)
+      }
     }
 
     const progressToken = (extra._meta as Any)?.progressToken
@@ -640,11 +732,17 @@ export function registerScoringTools(server: McpServer): void {
       {
         characterId,
         team,
+        ...(snapshotEcho != null ? { snapshot: snapshotEcho } : {}),
         ...score,
         timing: { prepareMs, executeMs, upgradeMs, totalMs },
         relics: { equipped: numRelics, verified },
       },
       `${characterId} 的 DPS 评分:${(score.percent * 100).toFixed(1)}%(${score.grade}),`
+        + (snapshotEcho != null
+          ? `队伍快照「${snapshotEcho.teamName}」第 ${snapshotEcho.slotIndex + 1} 槽(${snapshotEcho.role === 'mainDps' ? '主 C' : '副 C'},队友 ${
+            snapshotEcho.teammates.join(', ')
+          }),`
+          : '')
         + `耗时 ${totalMs}ms——副词条升级 ${score.upgrades.substats.length} 项、套装 ${score.upgrades.sets.length} 项、`
         + `主词条 ${score.upgrades.mains.length} 项、队友饰品 ${score.upgrades.teammateOrnaments.length} 项`,
     )

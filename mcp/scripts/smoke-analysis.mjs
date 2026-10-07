@@ -1,6 +1,8 @@
 // End-to-end smoke for the M6 analysis surface: analyze_relic (insights /
 // location / reroll), optimize's validate / diagnose / applyFixes modes,
-// resultsLimit, get_results(rowIds) and benchmark_runs(sweep="sets").
+// resultsLimit, get_results(rowIds), analyze_build/simulate_build fromCache
+// (the run's form snapshot — an E6-override run must analyse at E6 while the
+// plain saved form differs), and benchmark_runs(sweep="sets").
 //
 // Spawns the built server over stdio against a temp copy of the sample save
 // (the repo file is never a write target).
@@ -242,6 +244,80 @@ try {
   )
   const badRowErr = await errorTextOf(client, 'get_results', { rowIds: [999999] })
   check('unknown rowIds rejected (Chinese)', badRowErr != null && /不存在|无效/.test(badRowErr), String(badRowErr).slice(0, 90))
+
+  // ── 8b. analyze_build / simulate_build fromCache (optimizer.analysis.read) ─
+  // The web analysis runs against the form THE RUN used (getCachedForm) — here
+  // proven with an eidolon-6 override: the fromCache analysis must reflect the
+  // run's merged form, while the same build analysed against the plain saved
+  // form must differ. simulate_build(fromCache) on the same row must agree
+  // exactly with analyze_build's new-side COMBO (same form + build pipeline).
+  const optE6 = await callTool(client, 'optimize', {
+    characterId: TARGET,
+    resultsLimit: 7,
+    formOverrides: { characterEidolon: 6 },
+  }, { timeout: 300_000 })
+  const e6CacheId = optE6.summary?.cacheId
+  const e6RowId = optE6.rows[0].id
+  // serializeBuild returns per-part SerializedRelic objects — take their ids
+  const e6BuildIds = Object.values(optE6.rows[0].build?.relics ?? {}).map((r) => r.id).filter(Boolean)
+  check(
+    'fromCache fixture: E6-override optimize run cached with a 6-slot row build',
+    e6CacheId != null && e6BuildIds.length === 6,
+    `cacheId=${e6CacheId}, build=${e6BuildIds.length}`,
+  )
+
+  const anaE6 = await callTool(client, 'analyze_build', {
+    characterId: TARGET,
+    fromCache: { cacheId: e6CacheId, rowId: e6RowId },
+  }, { timeout: 300_000 })
+  check(
+    'analyze_build fromCache echoes the reference and takes the row build as the candidate',
+    anaE6.fromCache?.cacheId === e6CacheId && anaE6.fromCache?.rowId === e6RowId
+      && Object.values(anaE6.builds.new.relicIds).length === 6,
+    `rowId=${anaE6.fromCache?.rowId}, new=${Object.keys(anaE6.builds.new.relicIds).length} parts`,
+  )
+
+  const simE6 = await callTool(client, 'simulate_build', {
+    characterId: TARGET,
+    fromCache: { cacheId: e6CacheId, rowId: e6RowId },
+    trace: true,
+  }, { timeout: 300_000 })
+  const comboAna = anaE6.combo.new.damage
+  const comboSim = simE6.stats.combo.damage
+  check(
+    'fromCache form+build consistency: simulate_build(fromCache) COMBO equals analyze_build new-side COMBO',
+    simE6.fromCache?.rowId === e6RowId && Math.abs(comboSim - comboAna) <= 1e-6 * Math.max(1, Math.abs(comboAna)),
+    `sim=${Math.round(comboSim)} vs analysis new=${Math.round(comboAna)}`,
+  )
+
+  const anaSaved = await callTool(client, 'analyze_build', {
+    characterId: TARGET,
+    newRelicIds: e6BuildIds,
+  }, { timeout: 300_000 })
+  check(
+    'analyze_build fromCache uses the RUN\'s form (E6) — same build against the saved form differs',
+    Math.abs(anaSaved.combo.new.damage - comboAna) > 1,
+    `E6 run form ${Math.round(comboAna)} vs saved form ${Math.round(anaSaved.combo.new.damage)}`,
+  )
+
+  const badCacheErr = await errorTextOf(client, 'analyze_build', {
+    characterId: TARGET,
+    fromCache: { cacheId: 'bench-nope', rowId: 0 },
+    newRelicIds: e6BuildIds,
+  })
+  check('fromCache with an unknown cacheId rejected (Chinese)', badCacheErr != null && badCacheErr.includes('fromCache'), String(badCacheErr).slice(0, 90))
+  const noBuildErr = await errorTextOf(client, 'analyze_build', { characterId: TARGET })
+  check(
+    'analyze_build without newRelicIds and without fromCache.rowId rejected (Chinese)',
+    noBuildErr != null && noBuildErr.includes('newRelicIds'),
+    String(noBuildErr).slice(0, 90),
+  )
+  const bothErr = await errorTextOf(client, 'simulate_build', { characterId: TARGET, relicIds: e6BuildIds, fromCache: { cacheId: e6CacheId, rowId: e6RowId } })
+  check(
+    'simulate_build relicIds + fromCache.rowId rejected as mutually exclusive (Chinese)',
+    bothErr != null && /互斥/.test(bothErr),
+    String(bothErr).slice(0, 90),
+  )
 
   // ── 9. benchmark_runs(sweep=sets) ────────────────────────────────────────
   const swept = await callTool(client, 'benchmark_runs', {

@@ -1,6 +1,6 @@
 # HSR Optimizer MCP Server
 
-让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **61 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4 + M5 角色/遗器/表单/队伍域 4 + M6 扫描器/评分/榜单/分析域 4 + M7 浏览器/渲染/诊断域 5)与 **11 个资源**(`game://` 元数据 7 项 + `site://` 站点面 4 项),覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4–M7 的状态基础、角色/遗器/表单/队伍操作、实时导入、四配置角色评分、排行榜数据层、遗器分析,以及受管浏览器运行环境下的图片导出、WebGPU 检验与 GPU 优化执行。
+让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **61 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4 + M5 角色/遗器/表单/队伍域 4 + M6 扫描器/评分/榜单/分析域 4 + M7 浏览器/渲染/诊断域 5)与 **11 个资源**(`game://` 元数据 7 项 + `site://` 站点面 4 项),覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4–M9 全主线:状态基础、角色/遗器/表单/队伍操作、实时导入、四配置角色评分、排行榜数据层与本地复算、遗器分析,以及受管浏览器运行环境下的图片导出、WebGPU 检验与 GPU 优化执行;M9 收尾后网站基线 175/175 全部接入(矩阵见 coverage/summary.md)。操作视角的接入文档见[使用指南](./hsr-optimizer-MCP-使用指南.md)。
 
 - 设计与分期依据:[`hsr-optimizer-MCP-实施方案.md`](./hsr-optimizer-MCP-实施方案.md)(§6.1 规模闸门、§6.2 一致性验收、§7 验收标准)
 - 可行性实测背景(spike)已删除,历史见 commit `81f0789a`(见文末「与 spike 的关系」)
@@ -49,7 +49,8 @@ npm run smoke:imports  # 导入 + 展示柜:union 并集语义(1+162→163)、dr
                         # 解析错误路径;showcase 全部错误路径(离线 stub fetch)+ 内联档案导入
 npm run smoke:misc     # 计算器(warp_plan/calc_aha/calc_ehr 对拍上游公式)/ teams(list/save 往返与
                         # 快照保留规则)/ 同步桥(ws 帧逐字段校验、回灌上游解析器、变更驱动重推)
-npm run smoke:all      # 依次跑全部二十八份(浏览器四套在缺 Chrome/dist 的环境自动 [SKIP])
+npm run smoke:all      # 依次跑全部二十九份(浏览器套件在缺 Chrome/dist 的环境自动 [SKIP];视觉回归对基线 PNG 容差比对)
+npm run check:packaged # M9 仓库外完整安装验收:组装便携树 → 空目录启动 → i18n/媒体渲染/GPU/重启恢复断言
 ```
 
 ## 质量门(须从仓库根执行)
@@ -57,7 +58,7 @@ npm run smoke:all      # 依次跑全部二十八份(浏览器四套在缺 Chrom
 dprint 的 glob 相对当前工作目录解析——在 `mcp/` 下执行会静默假绿,务必在仓库根:
 
 ```bash
-npx dprint check "mcp/src/**/*.ts" "mcp/scripts/*.mjs" "mcp/*.ts" "mcp/*.json" "mcp/README.md"
+npx dprint check "mcp/src/**/*.ts" "mcp/scripts/*.mjs" "mcp/*.ts" "mcp/*.json" "mcp/README.md" "mcp/hsr-optimizer-MCP-使用指南.md"
 npx oxlint mcp/src mcp/scripts
 npx tsgo --noEmit -p mcp/tsconfig.json
 ```
@@ -66,15 +67,16 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 ## 环境变量
 
-| 变量                    | 默认                              | 说明                                                                                                                                                                                                       |
-| ----------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HSR_MCP_WORKERS`       | `6`                               | 优化器 worker 池大小(1–10)。池大小在首次导入 `workerPool` 时定死;9 线程满载约 2.3 GB RSS,大库存场景建议保守设置                                                                                            |
-| `HSR_MCP_STATE_FILE`    | `$HSR_MCP_HOME/localstorage.json` | localStorage 垫片的文件后端(上游 store 层的持久化通道)。测试时务必指到临时目录                                                                                                                             |
-| `HSR_MCP_HOME`          | `~/.hsr-optimizer-mcp`            | 状态目录:未显式指定 `HSR_MCP_STATE_FILE` 时,localStorage 后端文件落在此目录下                                                                                                                              |
-| `HSR_MCP_LOCALES_DIR`   | 自动定位(见说明)                  | i18n 翻译目录(`public/locales` 形状,含 `<语言>/<ns>.yaml`)的显式覆盖;缺省从构建产物位置逐级向上查找(dist→mcp→仓库根),即 dist 须留在仓库内运行——要把构建产物挪到仓库外时用本变量指向仓库的 `public/locales` |
-| `HSR_MCP_BROWSER_PATH`  | 平台自动发现                      | 受管浏览器(Chromium 系)可执行文件路径;缺省按 macOS 应用路径 → Linux chrome/chromium → Windows 常见路径发现。M7 渲染/WebGPU 工具依赖它,缺失时返回具体的中文能力报告                                         |
-| `HSR_MCP_SITE_DIST`     | `<仓库根>/dist`                   | 站点构建产物目录(受管浏览器伺服的页面与素材);仓库外运行时用本变量指向独立的 dist 副本                                                                                                                      |
-| `HSR_MCP_ARTIFACTS_DIR` | `$TMPDIR/hsr-mcp-artifacts`       | render/图片导出产物的落盘目录(运行期用户数据,不进仓库)                                                                                                                                                     |
+| 变量                    | 默认                              | 说明                                                                                                                                                                                                                   |
+| ----------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HSR_MCP_WORKERS`       | `6`                               | 优化器 worker 池大小(1–10)。池大小在首次导入 `workerPool` 时定死;9 线程满载约 2.3 GB RSS,大库存场景建议保守设置                                                                                                        |
+| `HSR_MCP_STATE_FILE`    | `$HSR_MCP_HOME/localstorage.json` | localStorage 垫片的文件后端(上游 store 层的持久化通道)。测试时务必指到临时目录                                                                                                                                         |
+| `HSR_MCP_HOME`          | `~/.hsr-optimizer-mcp`            | 状态目录:未显式指定 `HSR_MCP_STATE_FILE` 时,localStorage 后端文件落在此目录下                                                                                                                                          |
+| `HSR_MCP_LOCALES_DIR`   | 自动定位(见说明)                  | i18n 翻译目录(`public/locales` 形状,含 `<语言>/<ns>.yaml`)的显式覆盖;缺省从构建产物位置逐级向上查找(dist→mcp→仓库根),即 dist 须留在仓库内运行——要把构建产物挪到仓库外时用本变量指向仓库的 `public/locales`             |
+| `HSR_MCP_BROWSER_PATH`  | 平台自动发现                      | 受管浏览器(Chromium 系)可执行文件路径;缺省按 macOS 应用路径 → Linux chrome/chromium → Windows 常见路径发现。M7 渲染/WebGPU 工具依赖它,缺失时返回具体的中文能力报告                                                     |
+| `HSR_MCP_SITE_DIST`     | `<仓库根>/dist`                   | 站点构建产物目录(受管浏览器伺服的页面与素材);仓库外运行时用本变量指向独立的 dist 副本                                                                                                                                  |
+| `HSR_MCP_ARTIFACTS_DIR` | `$TMPDIR/hsr-mcp-artifacts`       | render/图片导出产物的落盘目录(运行期用户数据,不进仓库)                                                                                                                                                                 |
+| `HSR_MCP_NO_BOOT_LOAD`  | 未设(=启用)                       | 设为 `1` 关闭进程启动时从 `HSR_MCP_STATE_FILE` 的 `state` 键自动恢复上次存档(默认开启,镜像网页「打开即载入」;恢复走 SaveState.load(false,false) 同链,会恢复扫描器地址——与手动 load_save 的安全语义不同,属网页启动语义) |
 
 ## 工具清单(61 个,按域)
 
@@ -290,6 +292,18 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | `set_portrait`             | `action=set / reset`:自定义肖像写入/清除,逐字镜像上游 showcaseOnEditPortraitOk 语义(set 对缺库角色自动补入、reset 保留角色);PNG/JPEG/WebP 尺寸嗅探纯 Node 实现(data URL 就地/远程流式截断),crop 参数与 artistName 署名齐备                                                                                                    |
 
 本里程碑的既有工具扩展:`optimize` 新增 `engine=auto / cpu / gpu / gpu-experimental`(默认 auto=Node CPU 路径不变;GPU 路径在受管浏览器里驱动网页真实 GPU 引擎——经查上游 GPU 走主线程 gpuOptimize 而非 workerPool,UI 驱动即真实执行路径——返回 actualEngine 与 CPU 对拍 delta);`get_state/update_state` 新增 `visualDebug`(19 个视觉调试参数 + cardDebug,会话态不落盘)、`relicsTab`(excludedRelicPotentialCharacters 落盘读写 + recentRelics 只读投影)、`layout`(表单分区折叠状态落盘读写)三段。
+
+### M9 收尾与验收(不新增工具,全部走参数扩展)
+
+- `benchmark_runs`:`teammates[].teamRelicSet/teamOrnamentSet`(队友队伍套装)、`setConditionals`(预设套用后手动改,网页抽屉语义)、`candidateLimit`(≤50,两口径全候选行)、`includeCandidateDetails`(展开行面板/战斗属性/技能伤害)、未入库角色可跑(需显式光锥)。
+- `analyze_build/simulate_build`:`fromCache={cacheId,rowId?}` 沿用那轮 optimize 实际表单;`newRelicIds` 在有 rowId 时可省。
+- `list_characters`:`name` 子串(当前渲染语言的长名)+ `path/element` 多选;`list_relics`:九组筛选全多值、强化三级一档、多副词条(含预览)、`initialRolls`、`equipped` 轴。
+- `dps_score`:`team=snapshot` + `snapshotTeamId` 用已保存队伍基准快照覆盖(网页同函数链,槽 0 主 C/其余副 C)。
+- `leaderboard`:`view=score` 本地复算(scoreLeaderboardBuild 同维护者管线,recorded/recomputed/delta 对比);`render`:`source=leaderboard` 渲染榜单风格卡(#leaderboard?b= 共享链接路径,LEADERBOARD 语义由真实页面保证)。
+- `reset_all`:`persist=true` 清空即落盘(网页语义);进程启动自动恢复上次存档(boot-load,`HSR_MCP_NO_BOOT_LOAD=1` 关闭)。
+- `update_state(section=showcase)`:`color/colorMode` 写入口(STANDARD 全局联动,默认色不保存)。
+- 资源:`game://metadata/characters` 增 `nameZhLong/hasSimulation/signatureLightCone`,光锥详情 `signatureOf` 反查。
+- 验收基建:coverage-check 强制 implemented 行有真实冒烟链接 + 基线分母/增强项独立报告;`smoke:visual` 视觉回归(基线 PNG 容差比对,`--update-baseline` 再生成);`check:packaged` 仓库外完整安装验收;mcp 依赖补齐至全部运行时 external(14 个,便携运行自包含)。
 
 ### game:// 与 site:// 资源(11 项)
 

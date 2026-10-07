@@ -12,6 +12,11 @@
 //   → delete an equipped relic (character.equipped cleaned)
 //   → delete an unknown id (error, nothing deleted)
 //
+//   Also proves the list_relics subStat filter counts preview substats
+//   (RelicsGrid.tsx:158-161): while the created relic still carries its
+//   preview-only Effect Hit Rate, subStat filtering must find it via the
+//   preview, AND multiple substats across real+preview, and exclude on a miss.
+//
 // Everything persists into a temp directory (save copy + HSR_MCP_STATE_FILE);
 // the repo's sample-save.json is never a write target.
 //
@@ -149,6 +154,38 @@ try {
   check('upsert_relic starts unequipped', created.relic.equippedBy === undefined)
   const listed = await relicById(client, relicId)
   check('list_relics sees the new relic (total 163)', listed != null && (await callTool(client, 'list_relics', { limit: 1 })).total === 163)
+
+  // 3b. list_relics subStat filter counts preview substats (web parity,
+  //     RelicsGrid.tsx:158-161): Effect Hit Rate exists ONLY as a preview on
+  //     the new relic — the filter must still find it, and the output must
+  //     expose previewSubstats so the match is explainable.
+  const hasSubstat = (r, stat) => r.substats.some((s) => s.stat === stat) || (r.previewSubstats ?? []).some((s) => s.stat === stat)
+  check(
+    'list_relics output exposes the new relic\'s previewSubstats',
+    listed?.previewSubstats?.length === 1 && listed.previewSubstats[0].stat === 'Effect Hit Rate',
+    JSON.stringify(listed?.previewSubstats),
+  )
+  const previewHit = await callTool(client, 'list_relics', { subStat: ['Effect Hit Rate'], limit: 500 })
+  check(
+    'list_relics subStat matches preview-only substats',
+    previewHit.relics.some((r) => r.id === relicId)
+      && previewHit.relics.every((r) => hasSubstat(r, 'Effect Hit Rate')),
+    `${previewHit.total} relics carry Effect Hit Rate (substat or preview)`,
+  )
+  const mixedAnd = await callTool(client, 'list_relics', { subStat: ['SPD', 'Effect Hit Rate'], limit: 500 })
+  check(
+    'list_relics subStat multi-value is AND across stats (one real + one preview)',
+    mixedAnd.relics.some((r) => r.id === relicId)
+      && mixedAnd.relics.every((r) => ['SPD', 'Effect Hit Rate'].every((stat) => hasSubstat(r, stat))),
+    `${mixedAnd.total} relics with both SPD and Effect Hit Rate`,
+  )
+  const previewMiss = await callTool(client, 'list_relics', { subStat: ['Break Effect'], limit: 500 })
+  check(
+    'list_relics subStat excludes relics lacking the stat (new relic has no Break Effect)',
+    !previewMiss.relics.some((r) => r.id === relicId)
+      && previewMiss.relics.every((r) => hasSubstat(r, 'Break Effect')),
+    `${previewMiss.total} relics with Break Effect (new relic excluded)`,
+  )
 
   // 4. edit: change enhance + replace substats; main value follows enhance;
   //    unspecified equippedBy keeps "unequipped"

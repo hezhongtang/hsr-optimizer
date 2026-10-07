@@ -18,6 +18,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import i18next from 'i18next'
+import { DEFAULT_SHOWCASE_COLOR } from 'lib/characterPreview/color/showcaseColorService'
 import { editShowcasePreferences } from 'lib/characterPreview/customization/showcaseCustomizationController'
 import {
   type DebugVisualConfig,
@@ -31,6 +32,7 @@ import {
   COMPUTE_ENGINE_CPU,
   COMPUTE_ENGINE_GPU_EXPERIMENTAL,
   COMPUTE_ENGINE_GPU_STABLE,
+  ShowcaseColorMode,
 } from 'lib/constants/constants'
 import { ACTIVE_NEW_FEATURES } from 'lib/constants/newFeatures'
 import {
@@ -118,6 +120,7 @@ function revisionSection() {
     revision: runtimeContext.getRevision(),
     generation: runtimeContext.getSaveGeneration(),
     blockedWrite: runtimeContext.getLastBlockedWrite(),
+    bootLoaded: runtimeContext.isBootLoaded(),
   }
 }
 
@@ -367,9 +370,9 @@ const sectionReaders: Record<GetSection, () => Record<string, unknown>> = {
 const sectionSummaries: Record<GetSection, (data: Record<string, unknown>) => string> = {
   revision: (data) => {
     const r = data as ReturnType<typeof revisionSection>
-    return `修订号 revision=${r.revision},存档世代 generation=${r.generation},存档${r.loaded ? `已载入(${r.path ?? '内联 JSON'})` : '未载入'}${
-      r.dirty ? ',有未落盘变更' : ''
-    }${r.blockedWrite ? `,写回被拦截:${r.blockedWrite.reason}` : ''}`
+    return `修订号 revision=${r.revision},存档世代 generation=${r.generation},存档${
+      r.loaded ? `已载入(${r.path ?? (r.bootLoaded ? '进程启动自动恢复,内联语义' : '内联 JSON')})` : '未载入'
+    }${r.dirty ? ',有未落盘变更' : ''}${r.blockedWrite ? `,写回被拦截:${r.blockedWrite.reason}` : ''}`
   },
   settings: () => '设置已返回:每项含当前值、枚举值、上游默认值与中文说明(默认值派生自上游 DefaultSettingOptions)',
   session: (data) => {
@@ -420,6 +423,7 @@ const revisionSectionSchema = z.object({
   revision: z.number().int(),
   generation: z.number().int(),
   blockedWrite: blockedWriteSchema,
+  bootLoaded: z.boolean().describe('当前存档是否来自进程启动时的自动恢复(状态文件后端;此时 path 为 null)'),
 })
 
 const settingDefinitionSchema = z.object({
@@ -631,9 +635,13 @@ const flagsFieldSpecs = {
   },
 } satisfies Record<string, FieldSpec>
 
-// showcase 段写的是「单个角色的展示评分偏好」(editShowcasePreferences,
-// 组队面板槽位卡的「基准」下拉,与角色页展示卡共用):patch 必须同时携带
-// characterId + scoringType,见 validatePatch 的附加校验。
+// showcase 段写的是「单个角色的展示偏好」(editShowcasePreferences,定制侧栏
+// 取色器/配色模式下拉与组队面板槽位卡「基准」下拉共用):patch 必须携带
+// characterId + 至少一个要写的字段(scoringType/color/colorMode),见
+// validatePatch 的附加校验。网页侧颜色均为 hex(取色器产出、DEFAULT_SHOWCASE_
+// COLOR=#2473e1、STANDARD_COLOR=#647bb0),故 color 按 hex 校验。
+const HEX_COLOR_REGEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+
 const showcaseFieldSpecs = {
   characterId: {
     schema: z.string().min(1),
@@ -642,6 +650,16 @@ const showcaseFieldSpecs = {
   scoringType: {
     schema: z.nativeEnum(ScoringType),
     expected: '评分类型枚举:0=DPS_SCORE,1=SUBSTAT_SCORE,2=NONE,3=BUFFER_SCORE,4=HEAL_SCORE,5=SHIELD_SCORE',
+  },
+  color: {
+    schema: z.string().regex(HEX_COLOR_REGEX),
+    expected:
+      `hex 颜色字符串(如 "#2473e1",支持 #RGB/#RRGGBB;上游取色器只产出 hex)。注意:等于上游默认展示色 ${DEFAULT_SHOWCASE_COLOR} 时网页取色器视为无操作不写偏好,MCP 同语义报错——回自动配色请写 colorMode="AUTO"`,
+  },
+  colorMode: {
+    schema: z.nativeEnum(ShowcaseColorMode),
+    expected:
+      '配色模式枚举(上游 ShowcaseColorMode):"AUTO"(从肖像提取色) | "CUSTOM"(用该角色存的 color) | "STANDARD"(全局标准蓝,联动全局 showcaseStandardMode=true)',
   },
 } satisfies Record<string, FieldSpec>
 
@@ -747,18 +765,29 @@ function validatePatch(section: UpdateSection, patch: Record<string, unknown>): 
       )
     }
   }
-  // showcase 段的 patch 是「单角色偏好」:characterId 与 scoringType 必须同时
-  // 提供(characterId 单独出现没有意义),且角色必须存在于游戏元数据。
+  // showcase 段的 patch 是「单角色偏好」:必须提供 characterId(characterId
+  // 单独出现没有意义)与至少一个要写的字段(scoringType/color/colorMode);
+  // characterId 必须存在于游戏元数据。
   if (section === 'showcase') {
-    if (patch['characterId'] == null || patch['scoringType'] == null) {
+    const hasWritableField = patch['scoringType'] != null || patch['color'] != null || patch['colorMode'] != null
+    if (patch['characterId'] == null || !hasWritableField) {
       throw new Error(
-        `update_state(section=showcase): patch 必须同时提供 characterId 与 scoringType — 该段写单个角色的展示评分偏好(组队面板槽位卡「基准」下拉,与角色页展示卡共用)`,
+        `update_state(section=showcase): patch 必须提供 characterId,且至少一个要写的字段(scoringType/color/colorMode) — 该段写单个角色的展示偏好(定制侧栏取色器/配色模式,与组队面板槽位卡「基准」下拉共用)`,
       )
     }
     const showcaseId = patch['characterId'] as string
     if (!getGameMetadata().characters[showcaseId as CharacterId]) {
       throw new Error(
         `update_state(section=showcase): 字段 characterId 的值 "${showcaseId}" 不在游戏元数据中 — 请使用有效的角色 id`,
+      )
+    }
+    // 网页取色器对默认展示色视为「无自定义颜色」不落偏好(ShowcaseCustomization-
+    // Sidebar.tsx onColorChangeEnd:newColor === DEFAULT_SHOWCASE_COLOR 直接 return);
+    // MCP 侧同一约束显式报错更可操作(同 patch 显式给了 colorMode 则不在该拦截内,
+    // 对应下拉+存量色板的组合语义)。
+    if (patch['color'] === DEFAULT_SHOWCASE_COLOR && patch['colorMode'] == null) {
+      throw new Error(
+        `update_state(section=showcase): color 等于上游默认展示色 ${DEFAULT_SHOWCASE_COLOR} — 网页取色器对该值视为无操作、不写入偏好;如需回到自动配色请写 colorMode="AUTO"`,
       )
     }
   }
@@ -877,12 +906,21 @@ function applyPatch(section: UpdateSection, patch: Record<string, unknown>): voi
       return
     }
     case 'showcase': {
-      // editShowcasePreferences(useTeamShowcase.setSlotScoringType 与角色页
-      // 展示卡共用路径):按角色浅合并偏好并 SaveState.delayedSave;空槽位
-      // 不动作的界面约束在 MCP 侧不存在——这里直接写角色级偏好。
-      editShowcasePreferences(patch['characterId'] as CharacterId, {
-        scoringType: patch['scoringType'] as number,
-      })
+      // editShowcasePreferences(ShowcaseCustomizationSidebar 的取色器/配色模式
+      // 下拉与组队面板「基准」下拉共用路径):按角色浅合并偏好,colorMode 非
+      // null 时联动全局 showcaseStandardMode(= 是否 STANDARD),最后
+      // SaveState.delayedSave(MCP 侧由 update_state 的事务路径统一负责落盘)。
+      // 网页取色器落色总是成对传 { color, colorMode: CUSTOM }
+      // (onColorChangeEnd/onKeyDown,ShowcaseCustomizationSidebar.tsx),MCP 侧
+      // 只给 color 时补同样的 colorMode=CUSTOM;只给 colorMode 对应下拉语义。
+      const changed: { scoringType?: number, color?: string, colorMode?: ShowcaseColorMode } = {}
+      if (patch['scoringType'] != null) changed.scoringType = patch['scoringType'] as number
+      if (patch['color'] != null) {
+        changed.color = patch['color'] as string
+        if (patch['colorMode'] == null) changed.colorMode = ShowcaseColorMode.CUSTOM
+      }
+      if (patch['colorMode'] != null) changed.colorMode = patch['colorMode'] as ShowcaseColorMode
+      editShowcasePreferences(patch['characterId'] as CharacterId, changed)
       return
     }
     case 'visualDebug': {
@@ -946,14 +984,14 @@ export function registerStateTools(server: McpServer): void {
   server.registerTool('get_state', {
     title: '读取状态域',
     description: '读取服务器状态与配置域的当前值——对应网页端设置抽屉/侧栏/扫描器设置等持久化状态。'
-      + 'section=revision:变更修订号与存档概况(loaded/path/dirty/revision/generation/blockedWrite,口径同 save_status);'
+      + 'section=revision:变更修订号与存档概况(loaded/path/dirty/revision/generation/blockedWrite/bootLoaded,口径同 save_status;bootLoaded=存档来自进程启动时的自动恢复);'
       + 'section=settings:六项用户设置 + 每项定义(枚举值/上游默认值/中文说明);'
       + 'section=session:存档真正落盘的会话字段(savedSession:showcaseTab + global,含 sidebarCollapsed 等)与上游默认值,'
       + 'ephemeral 子对象为会话临时态(不写入存档),其中 language=语言偏好(上游经 i18next LanguageDetector 缓存在'
       + ' localStorage 键「i18nextLng」,不在存档里),activeLanguage=本进程当前实际渲染语言(MCP 固定 zh_CN);'
       + 'section=flags:已读特性标记 seenFeatures 数组(附当前活跃的新特性键);'
       + 'section=scanner:扫描器接入配置六字段(ingest/ingestCharacters/ingestOnlyExistingCharacters/ingestWarpResources/websocketUrl/customUrl);'
-      + 'section=showcase:各角色的展示评分偏好 showcasePreferences(含 scoringType,角色页展示卡与组队面板槽位卡共用,随存档落盘);'
+      + 'section=showcase:各角色的展示偏好 showcasePreferences(含 scoringType 评分类型与 color/colorMode 展示配色,角色页展示卡与组队面板槽位卡共用,随存档落盘);'
       + 'section=visualDebug:视觉调试参数(19 个字段 + cardDebug 调试面板开关 + textShadow 预设表/整套预设参考值;会话临时状态,上游不落盘,MCP 同语义);'
       + 'section=relicsTab:遗器页状态(excludedRelicPotentialCharacters 潜力评分排除清单,随存档落盘;recentRelics 最近遗器折叠区的 uid 顺序与卡片投影,扫描器推送驱动的只读会话态);'
       + 'section=layout:优化器表单分区折叠状态(menuState,分区 id → 是否展开,随存档落盘)。'
@@ -980,7 +1018,9 @@ export function registerStateTools(server: McpServer): void {
     description: '按 section 覆盖更新状态字段——对应网页端设置抽屉改设置、收缩侧栏、扫描器设置等写入动作。'
       + 'patch 的键必须是该 section 的已知字段,未知键报错并列出全部合法键;'
       + 'settings/session/scanner 按字段覆盖合并(未提及字段保持不变),flags 的 seenFeatures 为整组替换,'
-      + 'showcase 写单角色展示评分偏好(patch 必须同时提供 characterId + scoringType,对应组队面板槽位卡「基准」下拉,与角色页展示卡共用)。'
+      + 'showcase 写单角色展示偏好(patch 必须提供 characterId 与至少一个要写的字段:scoringType 评分类型对应组队面板槽位卡「基准」下拉,'
+      + 'color(hex)/colorMode(AUTO/CUSTOM/STANDARD)对应展示定制侧栏的取色器与配色模式——逐字镜像 editShowcasePreferences:'
+      + '只给 color 时按网页取色器联动补 colorMode=CUSTOM,colorMode 非 null 时联动全局 showcaseStandardMode=是否 STANDARD)。'
       + 'session.language 写语言偏好(枚举 en_US/es_ES/fr_FR/ja_JP/ko_KR/pt_BR/ru_RU/vi_VN/zh_CN):镜像网页端语言下拉经 '
       + 'i18next LanguageDetector 的缓存行为,只更新 localStorage 键「i18nextLng」(不在存档里,由 shim 的文件后端跨进程持久化),'
       + '本进程已初始化的 i18n 语言不因此切换——ensureI18nReady 固定 zh_CN,是否按该偏好切换由调用方进程决定;'

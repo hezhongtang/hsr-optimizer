@@ -256,6 +256,12 @@ function checkFeature(feature, surface) {
 
   const hasEntry = (feature.mcp.tools?.length ?? 0) + (feature.mcp.resources?.length ?? 0) > 0
   const { status } = feature.mcp
+  // M9 acceptance: every implemented feature is connected to a real acceptance
+  // case — implemented rows must cite at least one existing test file (the
+  // files themselves are checked above).
+  if (status === 'implemented' && !(feature.acceptance.tests?.length)) {
+    fail(`${where}: implemented rows must cite at least one acceptance test file (M9 matrix rule)`)
+  }
   if (status === 'missing' && hasEntry) fail(`${where}: status is missing but an existing tool/resource is listed (use partial)`)
   if (status !== 'missing' && !hasEntry) fail(`${where}: status ${status} needs at least one existing tool or resource`)
   if (status === 'partial' && !feature.mcp.gaps) fail(`${where}: partial rows must describe the gap in mcp.gaps`)
@@ -399,7 +405,17 @@ function renderSummary(manifest, features, mechanisms, coverage, surface, propos
     '',
     table(['域', '功能条目', ...STATUSES, '机制项'], areaRows),
     '',
-    `网站基线条目 ${baseline.length} 个，其中已验证 ${baseline.filter((feature) => feature.mcp.status === 'verified').length} 个。`,
+    `网站基线条目 ${baseline.length} 个：implemented ${
+      baseline.filter((feature) => feature.mcp.status === 'implemented' || feature.mcp.status === 'verified').length
+    } · partial ${baseline.filter((feature) => feature.mcp.status === 'partial').length} · missing ${
+      baseline.filter((feature) => feature.mcp.status === 'missing').length
+    } · verified ${baseline.filter((feature) => feature.mcp.status === 'verified').length}。`,
+    '',
+    '## 增强项（独立报告，不计入覆盖分母）',
+    '',
+    ...features.filter((feature) => feature.scope === 'enhancement').map((feature) =>
+      `- ${feature.id}：${feature.mcp.status}${feature.mcp.gaps ? `（${feature.mcp.gaps}）` : ''}`
+    ),
     '',
     '## 分布',
     '',

@@ -25,6 +25,8 @@ import i18next from 'i18next'
 import {
   applyScoringMetadataPresets,
   applySetConditionalPresets,
+  applyTeamAwareSetConditionalPresets,
+  applyTeammateConditionalPresets,
   resolveTeammateInfo,
 } from 'lib/conditionals/evaluation/applyPresets'
 import {
@@ -44,8 +46,10 @@ import {
   GlobalRegister,
   StatKey,
 } from 'lib/optimization/engine/config/keys'
+import { ComputedStatsContainer } from 'lib/optimization/engine/container/computedStatsContainer'
 import { SortOption } from 'lib/optimization/sortOptions'
 import { RelicFilters } from 'lib/relics/relicFilters'
+import { getElementalDmgFromContainer } from 'lib/scoring/simScoringUtils'
 import {
   SetsOrnamentsNames,
   SetsRelicsNames,
@@ -78,6 +82,7 @@ import {
 } from 'lib/stores/character/characterStore'
 import { displayToInternal } from 'lib/stores/optimizerForm/optimizerFormConversions'
 import { computeLoadForm } from 'lib/stores/optimizerForm/optimizerFormStoreActions'
+import type { OptimizerRequestState } from 'lib/stores/optimizerForm/optimizerFormTypes'
 import { getRelicById } from 'lib/stores/relic/relicStore'
 import { getScoringMetadata } from 'lib/stores/scoring/scoringStore'
 import type {
@@ -138,7 +143,10 @@ type Any = any
 
 const MAX_STAT_SIM_VARIANTS = 12
 const MAX_BENCHMARK_PRESETS = 16
+// Default top-candidates echo per preset (the pre-M9 shape); `candidateLimit`
+// widens it up to MAX_BENCHMARK_CANDIDATES for the full-results read.
 const TOP_BENCHMARK_CANDIDATES = 5
+const MAX_BENCHMARK_CANDIDATES = 50
 // sweep=sets grid cap (set combos × param combos + reference runs) — the
 // presets-mode MAX_BENCHMARK_PRESETS semantics applied to a generated grid:
 // refuse up front with a narrowing hint instead of running for hours.
@@ -218,6 +226,26 @@ const echoedSimRequestSchema = z.object({
   planarSphere: z.string(),
   linkRope: z.string(),
   stats: z.record(z.string(), z.union([z.number(), z.null()])),
+})
+
+/** 基准候选行(网页端结果表一行):请求回显 + 分数 + 与最优行的差距;
+ * includeCandidateDetails=true 时再带 basicStats/combatStats(展开行的面板
+ * 与战斗属性)、actionDamage/rotationDamage(各技能伤害)。详情字段刻意避开
+ * 请求回显里的 stats 键——那是副词条 roll 数。 */
+const benchmarkCandidateSchema = echoedSimRequestSchema.extend({
+  simScore: z.number(),
+  deltaPercentVsTop: z.number().optional(),
+  deltaBaselinePercent: z.number().optional(),
+  basicStats: z.record(z.string(), z.number()).optional(),
+  combatStats: z.record(z.string(), z.number()).optional(),
+  actionDamage: z.record(z.string(), z.number()).nullable().optional(),
+  rotationDamage: z.array(rotationDamageStepSchema).optional(),
+})
+
+/** fromCache 引用(optimize 返回的 cacheId;rowId 给出时同时取该行配装)。 */
+const cachedRunRefSchema = z.object({
+  cacheId: z.string().describe('optimize 返回的 cacheId(仅最近一次运行被缓存)'),
+  rowId: z.number().optional().describe('目标行的 row id;给出后分析配装取该行(仅该行配装,不改其它行为)'),
 })
 
 // ─── shared helpers ──────────────────────────────────────────────────────────
@@ -327,6 +355,118 @@ function echoSimRequest(request: {
   }
 }
 
+// ─── fromCache (optimizer.analysis.read) ─────────────────────────────────────
+//
+// The web's expanded-data-panel analysis (`getCachedForm`) runs against the
+// form THE RUN used — i.e. the saved form with that optimize call's
+// formOverrides already merged. MCP mirrors it by starting from
+// runtimeContext's cached `displayState` (the exact state optimize passed
+// through displayToInternal, see domains/optimizer.ts cacheOptimizeResult).
+// This is the same resolution equipment.ts's private resolveCachedBuild does
+// for equip_build/save_build; re-implemented here over the public
+// runtimeContext.getLastOptimizeResult() API so equipment.ts stays untouched
+// (cross-file dependency is documented in the M9 report).
+
+function resolveCachedRun(
+  fromCache: { cacheId: string, rowId?: number | undefined },
+  characterId: string,
+): {
+  state: OptimizerRequestState,
+  build: Partial<Record<string, string | undefined>> | null,
+  rowId: number | null,
+} {
+  const cached = runtimeContext.getLastOptimizeResult()
+  if (!cached || cached.summary.cacheId !== fromCache.cacheId) {
+    throw new Error(`fromCache: 找不到 cacheId ${fromCache.cacheId} 的结果缓存 — 请使用最近一次 optimize 返回的 cacheId(仅最近一次运行被缓存)`)
+  }
+  if (cached.generation !== runtimeContext.getSaveGeneration()) {
+    throw new Error('fromCache: 结果缓存属于上一次 load_save 之前的存档 — 请对当前存档重新运行 optimize')
+  }
+  if (cached.summary.characterId !== characterId) {
+    throw new Error(`fromCache: 缓存归属角色 ${cached.summary.characterId} 与请求角色 ${characterId} 不一致`)
+  }
+  if (fromCache.rowId != null) {
+    const rowIndex = cached.rows.findIndex((row) => row.id === fromCache.rowId)
+    if (rowIndex === -1) {
+      throw new Error(`fromCache: 缓存中没有 row id ${fromCache.rowId} 的结果行`)
+    }
+    return { state: cached.displayState, build: cached.builds[rowIndex] ?? {}, rowId: fromCache.rowId }
+  }
+  return { state: cached.displayState, build: null, rowId: null }
+}
+
+/** Cached run's display state (already formOverrides-merged) → internal Form;
+ * optional extra overrides still merge on top. */
+function formFromDisplayState(
+  state: OptimizerRequestState,
+  formOverrides: Record<string, unknown> | undefined,
+  characterId: string,
+): Form {
+  const merged = clone(state) as Any
+  if (formOverrides) applyFormOverrides(merged, formOverrides)
+  const form = displayToInternal(merged) as Form
+  form.characterId = characterId as Any
+  return form
+}
+
+/** Validate manual set-conditional keys (web drawer vocabulary: any game set). */
+function assertSetConditionalKeys(conditionals: Record<string, boolean | number>): void {
+  for (const name of Object.keys(conditionals)) {
+    if (!RELIC_SET_NAMES.has(name) && !ORNAMENT_SET_NAMES.has(name)) {
+      throw new Error(`未知套装 "${name}"——setConditionals 的键须为游戏内遗器或位面饰品套装名(如 "Pioneer Diver of Dead Waters"、"Rutilant Arena")`)
+    }
+  }
+}
+
+// ─── benchmark_runs candidates (result-table rows) ───────────────────────────
+
+/**
+ * One row of the web result table (BenchmarkResults.aggregateCandidates):
+ * request echo + simScore. With `detail`, also the ExpandedRow payload —
+ * panel/combat stats (elemental DMG combined the way CharacterStatSummary
+ * displays it) plus per-ability and rotation damage.
+ */
+function serializeBenchmarkCandidate(args: {
+  candidate: Simulation,
+  element: string,
+  elementalDmgValue: string,
+  detail: boolean,
+}): Record<string, unknown> {
+  const { candidate, element, elementalDmgValue, detail } = args
+  const result = candidate.result
+  if (!result) throw new Error('基准候选缺少模拟结果(引擎异常)——请重试或上报')
+
+  const entry: Record<string, unknown> = {
+    simScore: result.simScore,
+    ...echoSimRequest(candidate.request),
+  }
+  if (!detail) return entry
+
+  // computeOptimalSimulationWorker strips result.x; the web ExpandedRow
+  // rebuilds the container from the typed arrays (BenchmarkResults.tsx).
+  const x = result.x ?? ComputedStatsContainer.fromArrays(result.xa, result.ca)
+  const stats = serializeComputedStats(x)
+  // Web display combines DMG_BOOST + the character's element boost into the
+  // elemental DMG entry before rendering combat stats.
+  stats.computed[elementalDmgValue] = getElementalDmgFromContainer(x, element as Any)
+  entry.basicStats = stats.basic
+  entry.combatStats = stats.computed
+  entry.actionDamage = result.actionDamage ? serializeActionDamage(result.actionDamage) : null
+  entry.rotationDamage = (result.rotationDamage ?? []).map(serializeRotationDamageStep)
+  return entry
+}
+
+/** Web delta columns: vs the batch's top row and vs the top→baseline range. */
+function candidateDeltaPercents(score: number, top: number, baseline: number): {
+  deltaPercentVsTop: number,
+  deltaBaselinePercent: number,
+} {
+  return {
+    deltaPercentVsTop: top !== 0 ? ((top - score) / top) * 100 : 0,
+    deltaBaselinePercent: top !== baseline ? ((top - score) / (top - baseline)) * 100 : 0,
+  }
+}
+
 // ─── benchmark_runs sweep="sets" (Set Benchmark Auditor, headless) ───────────
 //
 // Mirrors the metadata-test page's SetBenchmarkAuditor: runAudit over the
@@ -346,7 +486,7 @@ type SweepOptionsInput = {
 }
 
 async function runSetSweep(args: {
-  character: Character,
+  character: Character | null,
   characterId: string,
   simulationMetadata: Any,
   sweepOptions: SweepOptionsInput | undefined,
@@ -422,16 +562,25 @@ async function runSetSweep(args: {
 
   // Web auditor semantics: selecting a character resets eidolon to 0 and
   // superimposition to 1; the light cone still has to come from somewhere.
-  const effectiveLightCone = lightCone ?? character.form.lightCone
+  // Un-owned characters (web benchmarks semantics) have no saved form to fall
+  // back on, so the light cone must be explicit.
+  const effectiveLightCone = lightCone ?? character?.form.lightCone
   if (!effectiveLightCone) {
-    throw new Error(`角色 ${characterId} 没有配置光锥(存档表单与覆盖项均为空)——请先 upsert_character 设置光锥或传入 lightCone`)
+    throw new Error(
+      character == null
+        ? `角色 ${characterId} 不在当前存档中且未传入 lightCone——网页端未入库角色需要手动选择光锥后才能生成基准,请显式传入 lightCone`
+        : `角色 ${characterId} 没有配置光锥(存档表单与覆盖项均为空)——请先 upsert_character 设置光锥或传入 lightCone`,
+    )
   }
   if (!(getGameMetadata().lightCones as Record<string, unknown>)[effectiveLightCone]) {
     throw new Error(`未知光锥 id ${effectiveLightCone}`)
   }
 
   // Teammates: explicit overrides win, else the scoring metadata's team
-  // (same resolution as presets mode)
+  // (same resolution as presets mode). Team sets are intentionally NOT passed
+  // through here: the web auditor page explicitly clears them when seeding its
+  // teammates (SetBenchmarkAuditor.tsx onCharacterSelect → updateTeammate with
+  // teamRelicSet/teamOrnamentSet: undefined).
   const defaultTeammates = ((simulationMetadata as Any).teammates ?? []) as Array<{
     characterId: string,
     lightCone?: string,
@@ -617,11 +766,14 @@ export function registerSimulationTools(server: McpServer): void {
       + '(可传 formOverrides 覆盖条件,与 optimize 同名字段合并)。trace=false 返回汇总:战斗属性归约'
       + '(面板/战斗属性,Float 精度与引擎一致)+ COMBO 总伤/治疗/护盾 + 逐技能伤害(actionDamage)与轮次伤害(rotationDamage);'
       + 'trace=true 额外返回:伤害类型拆分表(逐技能 × 伤害类型,含真伤段)、逐动作 Buff 快照'
-      + '(每条带来源归因 source.buffType=角色/光锥/套装、source.ability=技能/行迹/星魂)、基础属性增益追踪与完整容器归约。',
+      + '(每条带来源归因 source.buffType=角色/光锥/套装、source.ability=技能/行迹/星魂)、基础属性增益追踪与完整容器归约。'
+      + 'fromCache={cacheId,rowId?} 沿用最近一次 optimize 实际使用的表单(已合并那轮的 formOverrides,网页端分析区同款):'
+      + '给出 rowId 时配装取该结果行(此时不可再传 relicIds),不给则配装仍按 relicIds/当前装备。',
     inputSchema: {
       characterId: z.string().describe('角色 id,如 "1212b1"(可用 id 见 load_save 返回的 characterIds)'),
-      relicIds: z.array(z.string()).min(1).max(6).optional().describe('遗器 id 列表(每部件一件;缺省取角色当前装备)'),
+      relicIds: z.array(z.string()).min(1).max(6).optional().describe('遗器 id 列表(每部件一件;缺省取角色当前装备;与 fromCache.rowId 互斥)'),
       formOverrides: z.record(z.string(), z.unknown()).optional().describe(FORM_OVERRIDES_DESCRIPTION),
+      fromCache: cachedRunRefSchema.optional().describe('沿用最近一次 optimize 的表单快照(那一轮已合并 formOverrides 的版本);rowId 给出时配装取该行'),
       trace: z.boolean().default(false).describe('是否返回伤害拆分与逐动作 Buff 快照(略慢)'),
     },
     outputSchema: {
@@ -652,13 +804,23 @@ export function registerSimulationTools(server: McpServer): void {
         })),
         basic: z.array(serializedBuffSchema),
       }).optional(),
+      fromCache: z.object({ cacheId: z.string(), rowId: z.number().nullable() }).optional(),
     },
-  }, async ({ characterId, relicIds, formOverrides, trace }): Promise<CallToolResult> => {
+  }, async ({ characterId, relicIds, formOverrides, fromCache, trace }): Promise<CallToolResult> => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
 
+    // fromCache: analysis uses the form THE RUN used (web getCachedForm);
+    // rowId additionally pins the build to that result row.
+    const cachedRun = fromCache != null ? resolveCachedRun(fromCache, characterId) : null
+    if (cachedRun?.rowId != null && relicIds != null) {
+      throw new Error('simulate_build: relicIds 与 fromCache.rowId 互斥——rowId 已把配装固定为该结果行')
+    }
+
     const character = requireCharacter(characterId)
-    const form = buildCharacterForm(character, formOverrides)
+    const form = cachedRun != null
+      ? formFromDisplayState(cachedRun.state, formOverrides, characterId)
+      : buildCharacterForm(character, formOverrides)
     // Trace flag must be on the FORM before generateContext, not just the
     // simulateBuild call: character-kit/light-cone buffs are precomputed at
     // context time and only recorded when request.trace is set
@@ -671,7 +833,7 @@ export function registerSimulationTools(server: McpServer): void {
       throw new Error(`角色 ${characterId} 的配置未生成任何默认战斗动作——请检查角色/光锥配置后再试`)
     }
 
-    const buildByPart = resolveBuildByPart(characterId, relicIds)
+    const buildByPart = cachedRun?.build != null ? cachedRun.build : resolveBuildByPart(characterId, relicIds)
     const relics = toSimulationRelics(buildByPart)
 
     const started = performance.now()
@@ -694,7 +856,7 @@ export function registerSimulationTools(server: McpServer): void {
       build: {
         relicIds: { ...buildByPart },
         relicCount: Object.keys(buildByPart).length,
-        fromEquipped: relicIds == null,
+        fromEquipped: relicIds == null && cachedRun?.build == null,
       },
       trace,
       durationMs,
@@ -702,6 +864,7 @@ export function registerSimulationTools(server: McpServer): void {
       actionDamage: built.actionDamage ? serializeActionDamage(built.actionDamage) : null,
       rotationDamage: (built.rotationDamage ?? []).map(serializeRotationDamageStep),
     }
+    if (cachedRun != null) payload.fromCache = { cacheId: fromCache!.cacheId, rowId: cachedRun.rowId }
 
     if (trace) {
       const t = optimizerTabT()
@@ -1064,12 +1227,16 @@ export function registerSimulationTools(server: McpServer): void {
       + '返回:① 新旧 COMBO/治疗/护盾与逐技能伤害对比及差值;② 伤害拆分表(逐技能 × 伤害类型,含真伤段,新旧各一份);'
       + '③ 逐副词条 +1 roll 升级表(calculateStatUpgrades:每个副词条加 1 roll 后 COMBO/EHP 的增量与百分比);'
       + '④ 队友位面饰品升级表(calculateTeammateUpgrades:给每个队友换饰品套装对 COMBO 的影响)。'
-      + '基础表单取角色已保存的优化表单,可传 formOverrides。',
+      + '基础表单取角色已保存的优化表单,可传 formOverrides。'
+      + 'fromCache={cacheId,rowId?} 沿用最近一次 optimize 实际使用的表单(已合并那轮的 formOverrides)——'
+      + '分析与结果行对齐的关键,网页端分析区(getCachedForm)同款;给出 rowId 时候选(新)配装取该结果行,'
+      + '此时 newRelicIds 可省略(给了则以 newRelicIds 为准)。',
     inputSchema: {
       characterId: z.string().describe('角色 id,如 "1212b1"'),
-      newRelicIds: z.array(z.string()).min(1).max(6).describe('候选(新)配装的遗器 id 列表,每部件一件'),
+      newRelicIds: z.array(z.string()).min(1).max(6).optional().describe('候选(新)配装的遗器 id 列表,每部件一件;缺省时须给 fromCache.rowId(取该结果行配装)'),
       oldRelicIds: z.array(z.string()).min(1).max(6).optional().describe('基准(旧)配装遗器 id;缺省取角色当前装备'),
       formOverrides: z.record(z.string(), z.unknown()).optional().describe(FORM_OVERRIDES_DESCRIPTION),
+      fromCache: cachedRunRefSchema.optional().describe('沿用最近一次 optimize 的表单快照做分析(那一轮已合并 formOverrides);rowId 给出时候选配装取该行'),
     },
     outputSchema: {
       characterId: z.string(),
@@ -1103,17 +1270,31 @@ export function registerSimulationTools(server: McpServer): void {
         simScore: z.number(),
         delta: z.number(),
       })),
+      fromCache: z.object({ cacheId: z.string(), rowId: z.number().nullable() }).optional(),
     },
-  }, async ({ characterId, newRelicIds, oldRelicIds, formOverrides }): Promise<CallToolResult> => {
+  }, async ({ characterId, newRelicIds, oldRelicIds, formOverrides, fromCache }): Promise<CallToolResult> => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
 
+    // fromCache: the web analysis pipeline runs against the form the optimize
+    // run used (getCachedForm). rowId also supplies the candidate build.
+    const cachedRun = fromCache != null ? resolveCachedRun(fromCache, characterId) : null
+    if (newRelicIds == null && cachedRun?.build == null) {
+      throw new Error('analyze_build: 缺少候选配装——请传 newRelicIds,或给 fromCache.rowId 取缓存结果行的配装')
+    }
+
     const character = requireCharacter(characterId)
     const oldByPart = resolveBuildByPart(characterId, oldRelicIds)
-    const newByPart = resolveBuildByPart(characterId, newRelicIds)
+    const newByPart = cachedRun?.build != null
+      ? cachedRun.build
+      : resolveBuildByPart(characterId, newRelicIds!)
 
     // generateAnalysisData recipe, with the row-id decode replaced by explicit ids
-    const request = clone(buildCharacterForm(character, formOverrides)) as Any
+    const request = clone(
+      cachedRun != null
+        ? formFromDisplayState(cachedRun.state, formOverrides, characterId)
+        : buildCharacterForm(character, formOverrides),
+    ) as Any
     request.trace = true
 
     const contextOld = generateContext(request)
@@ -1220,6 +1401,7 @@ export function registerSimulationTools(server: McpServer): void {
       {
         characterId,
         durationMs,
+        ...(cachedRun != null ? { fromCache: { cacheId: fromCache!.cacheId, rowId: cachedRun.rowId } } : {}),
         builds: {
           old: { relicIds: { ...oldByPart }, relicCount: Object.keys(oldByPart).length, fromEquipped: oldRelicIds == null },
           new: { relicIds: { ...newByPart }, relicCount: Object.keys(newByPart).length, fromEquipped: false },
@@ -1250,7 +1432,14 @@ export function registerSimulationTools(server: McpServer): void {
       description: 'Benchmarks 页签的无头版(runCustomBenchmarkOrchestrator,同一条上游链路),两种模式:'
         + '① sweep="presets"(默认)对角色按预设集(4pc 候选套装 × SPD 阈值)批量跑战斗基准,返回每预设的 COMBO 伤害'
         + '(100% 基准配装)、200% 极限分与百分比得分,并按 COMBO 排名、给出与最优预设的差距。'
-        + '角色/光锥/星魂默认取存档中角色表单,队友默认取该角色评分元数据的推荐队,均可覆盖;'
+        + '角色不必在存档里:任何有模拟评分配置的角色都能跑(网页端语义)——在存档的角色默认取其表单的'
+        + '光锥/星魂/叠影,不在存档的角色星魂/叠影重置为 0/1 且必须显式传 lightCone;'
+        + '队友默认取该角色评分元数据的推荐队(含推荐队伍套装),均可覆盖,teammates 可逐个指定'
+        + 'teamRelicSet/teamOrnamentSet(网页端队友弹窗的队伍遗器/饰品套装);'
+        + 'setConditionals 可手动改套装条件(套装名 → 布尔/数值,网页端套装条件抽屉),不传则按角色与队伍套用预设;'
+        + 'candidateLimit 控制每预设返回的候选行数(默认 5,最大 50,candidateCount 是总数),'
+        + 'includeCandidateDetails=true 时候选行带展开详情(面板/战斗属性与各技能伤害);'
+        + 'includePerfection 时另返回 200% 口径候选行(perfectionTopCandidates,网页端 200% 页签)。'
         + 'SPD 阈值 0 或缺省表示不限速(其余常用值如 120.000/133.334,与网页端 SPD 下拉一致)。'
         + '② sweep="sets" 套装基准审计(metadata 页 Set Benchmark Auditor 的无头版,runAudit 同一条引擎):'
         + '先用角色评分元数据的第一组推荐套装算参照分,再把全部候选套装(4件套/二加二代表组合/饰品套装)逐个替换进去重算,'
@@ -1284,9 +1473,9 @@ export function registerSimulationTools(server: McpServer): void {
             '比较口径:benchmark=100% 基准分、perfection=200% 极限分;默认 perfection(网页端默认)',
           ),
         }).optional().describe('sweep="sets" 的网格配置;其余模式忽略'),
-        lightCone: z.string().optional().describe('覆盖光锥 id(缺省取角色表单)'),
-        lightConeSuperimposition: z.number().int().min(1).max(5).optional().describe('覆盖光锥叠影'),
-        characterEidolon: z.number().int().min(0).max(6).optional().describe('覆盖星魂'),
+        lightCone: z.string().optional().describe('覆盖光锥 id(缺省取角色表单;角色不在存档时必传)'),
+        lightConeSuperimposition: z.number().int().min(1).max(5).optional().describe('覆盖光锥叠影(缺省:存档角色取表单,未入库角色取 1)'),
+        characterEidolon: z.number().int().min(0).max(6).optional().describe('覆盖星魂(缺省:存档角色取表单,未入库角色取 0)'),
         errRope: z.boolean().default(false).describe('是否强制充能绳(与网页端 ERR Rope 开关一致;仅 presets 模式)'),
         subDps: z.boolean().optional().describe('副C模式(降低队友增益权重);缺省取评分元数据默认(仅 presets 模式)'),
         teammates: z.array(z.object({
@@ -1294,7 +1483,18 @@ export function registerSimulationTools(server: McpServer): void {
           lightCone: z.string().optional().describe('缺省取推荐队配置'),
           characterEidolon: z.number().int().min(0).max(6).optional(),
           lightConeSuperimposition: z.number().int().min(1).max(5).optional(),
-        })).max(3).optional().describe('覆盖队友(缺省取评分元数据推荐队)'),
+          teamRelicSet: z.string().optional().describe('该队友提供全队效果的遗器套装(网页端队友弹窗「队伍遗器套装」;须为遗器套装名)'),
+          teamOrnamentSet: z.string().optional().describe('该队友提供全队效果的饰品套装(网页端队友弹窗「队伍饰品套装」;须为位面饰品套装名)'),
+        })).max(3).optional().describe('覆盖队友(缺省取评分元数据推荐队);可指定 teamRelicSet/teamOrnamentSet'),
+        setConditionals: z.record(z.string(), z.union([z.boolean(), z.number()])).optional().describe(
+          '手动套装条件:套装名 → 条件值(布尔或数值,网页端套装条件抽屉的取值);不传则按角色与队伍套用预设,传入项在预设之后生效',
+        ),
+        candidateLimit: z.number().int().min(1).max(MAX_BENCHMARK_CANDIDATES).default(TOP_BENCHMARK_CANDIDATES).describe(
+          `每预设返回的候选行数(100% 与 200% 口径各取前 N,已按 COMBO 降序;默认 ${TOP_BENCHMARK_CANDIDATES},candidateCount 是总候选数)`,
+        ),
+        includeCandidateDetails: z.boolean().default(false).describe(
+          '候选行是否带展开详情(面板属性/战斗属性/逐技能与轮次伤害,网页端展开行);体积明显变大,配合 candidateLimit 使用',
+        ),
         includePerfection: z.boolean().default(true).describe('是否同时跑 200% 极限模拟(更全面的得分,耗时约翻倍;仅 presets 模式)'),
       },
       outputSchema: {
@@ -1308,6 +1508,10 @@ export function registerSimulationTools(server: McpServer): void {
           errRope: z.boolean(),
           subDps: z.boolean(),
           teammates: z.array(z.string()),
+          teammateSets: z.array(z.object({
+            teamRelicSet: z.string().nullable().optional(),
+            teamOrnamentSet: z.string().nullable().optional(),
+          })).optional().describe('各队友生效的队伍套装(未指定为 null;顺序与 teammates 一致)'),
         }).optional(),
         includePerfection: z.boolean().optional(),
         cancelled: z.boolean(),
@@ -1324,7 +1528,12 @@ export function registerSimulationTools(server: McpServer): void {
           durationMs: z.number().optional(),
           benchmarkScore: z.number().optional(),
           bestBuild: echoedSimRequestSchema.nullable().optional(),
-          topCandidates: z.array(echoedSimRequestSchema.extend({ simScore: z.number() })).optional(),
+          topCandidates: z.array(benchmarkCandidateSchema).optional().describe(
+            '100% 口径候选行(网页端结果表 100% 页签;candidateCount 条已按 COMBO 降序,此处取前 candidateLimit 条)',
+          ),
+          perfectionTopCandidates: z.array(benchmarkCandidateSchema).optional().describe(
+            '200% 口径候选行(网页端结果表 200% 页签;includePerfection=false 时不返回)',
+          ),
           candidateCount: z.number().int().optional(),
           originalSpd: z.number().nullable().optional(),
           spdBenchmark: z.number().nullable().optional(),
@@ -1400,6 +1609,9 @@ export function registerSimulationTools(server: McpServer): void {
         errRope,
         subDps,
         teammates,
+        setConditionals,
+        candidateLimit,
+        includeCandidateDetails,
         includePerfection,
       },
       extra,
@@ -1407,9 +1619,17 @@ export function registerSimulationTools(server: McpServer): void {
       runtimeContext.ensureMetadataReady()
       runtimeContext.requireSave()
 
-      const character = requireCharacter(characterId)
+      // Web benchmarks semantics: the character only needs simulation scoring
+      // metadata — being in the save merely seeds the form defaults
+      // (handleCharacterSelectChange: saved lightCone/eidolon/superimposition
+      // for owned characters; light cone cleared + 0/1 for un-owned).
+      const gameCharacters = getGameMetadata().characters as Record<string, Any>
+      if (!gameCharacters[characterId]) {
+        throw new Error(`未知角色 id ${characterId}——不在游戏元数据中(可用 id 见 characters-metadata 资源或 load_save 返回)`)
+      }
+      const character = getCharacterById(characterId as Any) ?? null // null = 未入库角色
       const simulationMetadata = getScoringMetadata(characterId as Any)?.simulation
-        ?? (getGameMetadata().characters as Record<string, Any>)[characterId]?.scoringMetadata?.simulation
+        ?? gameCharacters[characterId]?.scoringMetadata?.simulation
       if (!simulationMetadata) {
         throw new Error(`角色 ${characterId} 没有战斗基准评分元数据(网页端 Benchmarks 页签不支持该角色)——无法跑基准测试`)
       }
@@ -1449,26 +1669,40 @@ export function registerSimulationTools(server: McpServer): void {
       if (lightCone != null && !(getGameMetadata().lightCones as Record<string, unknown>)[lightCone]) {
         throw new Error(`未知光锥 id ${lightCone}`)
       }
+      if (setConditionals != null) assertSetConditionalKeys(setConditionals)
+      for (const mate of teammates ?? []) {
+        if (mate.teamRelicSet != null) assertRelicSetName(mate.teamRelicSet)
+        if (mate.teamOrnamentSet != null) assertOrnamentSetName(mate.teamOrnamentSet)
+      }
 
-      // Teammates: explicit overrides win, else the effective scoring metadata's team
+      // Teammates: explicit overrides win, else the effective scoring metadata's
+      // team (verbatim, including any teamRelicSet/teamOrnamentSet the metadata
+      // recommends — the web drops them into the store the same way)
+      type ResolvedTeammate = SimpleCharacter & { teamRelicSet?: string, teamOrnamentSet?: string }
       const defaultTeammates = ((simulationMetadata as Any).teammates ?? []) as Array<{
         characterId: string,
         lightCone?: string,
         characterEidolon?: number,
         lightConeSuperimposition?: number,
+        teamRelicSet?: string,
+        teamOrnamentSet?: string,
       }>
       const requestedTeammates = teammates ?? defaultTeammates.map((mate) => ({
         characterId: mate.characterId,
         lightCone: mate.lightCone,
         characterEidolon: mate.characterEidolon ?? 0,
         lightConeSuperimposition: mate.lightConeSuperimposition ?? 1,
+        teamRelicSet: mate.teamRelicSet,
+        teamOrnamentSet: mate.teamOrnamentSet,
       }))
-      const resolvedTeammates: SimpleCharacter[] = requestedTeammates.map((mate, index) => ({
+      const resolvedTeammates: ResolvedTeammate[] = requestedTeammates.map((mate, index) => ({
         // Literal-union ids are proven by the metadata validation loop below.
         characterId: mate.characterId as CharacterId,
         lightCone: (mate.lightCone ?? defaultTeammates[index]?.lightCone) as LightConeId,
         characterEidolon: mate.characterEidolon ?? defaultTeammates[index]?.characterEidolon ?? 0,
         lightConeSuperimposition: mate.lightConeSuperimposition ?? defaultTeammates[index]?.lightConeSuperimposition ?? 1,
+        teamRelicSet: mate.teamRelicSet ?? undefined,
+        teamOrnamentSet: mate.teamOrnamentSet ?? undefined,
       }))
       while (resolvedTeammates.length < 3) {
         const fallback = defaultTeammates[resolvedTeammates.length]
@@ -1500,8 +1734,12 @@ export function registerSimulationTools(server: McpServer): void {
       // Resolved before the job is registered: this guard throws, and the
       // per-preset try below only settles jobs for throws INSIDE the loop —
       // an earlier registerJob would leave a running zombie.
-      if (!(lightCone ?? character.form.lightCone)) {
-        throw new Error(`角色 ${characterId} 没有配置光锥(存档表单与覆盖项均为空)——请先 upsert_character 设置光锥或传入 lightCone`)
+      if (!(lightCone ?? character?.form.lightCone)) {
+        throw new Error(
+          character == null
+            ? `角色 ${characterId} 不在当前存档中且未传入 lightCone——网页端未入库角色需要手动选择光锥后才能生成基准,请显式传入 lightCone`
+            : `角色 ${characterId} 没有配置光锥(存档表单与覆盖项均为空)——请先 upsert_character 设置光锥或传入 lightCone`,
+        )
       }
 
       const jobId = nextJobId('bench')
@@ -1531,16 +1769,22 @@ export function registerSimulationTools(server: McpServer): void {
         } as Any).catch(() => {})
       }
 
+      // Owned → saved-form defaults (web handleCharacterSelectChange); un-owned
+      // → eidolon 0 / superimposition 1 and an explicit light cone (guarded above)
       const baseBenchmarkForm = {
         characterId,
-        lightCone: lightCone ?? character.form.lightCone,
-        characterEidolon: characterEidolon ?? character.form.characterEidolon ?? 0,
-        lightConeSuperimposition: lightConeSuperimposition ?? character.form.lightConeSuperimposition ?? 1,
+        lightCone: lightCone ?? character?.form.lightCone,
+        characterEidolon: characterEidolon ?? character?.form.characterEidolon ?? 0,
+        lightConeSuperimposition: lightConeSuperimposition ?? character?.form.lightConeSuperimposition ?? 1,
         errRope,
         subDps: subDps ?? !!simulationMetadata.deprioritizeBuffs,
       }
       if (!baseBenchmarkForm.lightCone) {
-        throw new Error(`角色 ${characterId} 没有配置光锥(存档表单与覆盖项均为空)——请先 upsert_character 设置光锥或传入 lightCone`)
+        throw new Error(
+          character == null
+            ? `角色 ${characterId} 不在当前存档中且未传入 lightCone——网页端未入库角色需要手动选择光锥后才能生成基准,请显式传入 lightCone`
+            : `角色 ${characterId} 没有配置光锥(存档表单与覆盖项均为空)——请先 upsert_character 设置光锥或传入 lightCone`,
+        )
       }
 
       const started = performance.now()
@@ -1549,6 +1793,18 @@ export function registerSimulationTools(server: McpServer): void {
       // Captured before the preset loop; rechecked at the top of every
       // iteration (see the generation gate inside the loop).
       const generation = runtimeContext.getSaveGeneration()
+
+      // Result-table row context (BenchmarkResults.generateBenchmarkRows):
+      // candidates are collected during the loop and serialized once the
+      // batch-wide tops are known (deltas are relative to the best row of the
+      // whole call, and the baseline to the best zero-mains score).
+      const characterElement = (gameCharacters[characterId]?.element ?? '') as string
+      const elementalDmgValue = (ElementToDamage as Record<string, string>)[characterElement]
+      const presetCandidates = new Map<number, {
+        benchmark: Simulation[],
+        perfection: Simulation[],
+        baselineScore: number,
+      }>()
 
       // A throw escaping the per-preset catch (e.g. an unresolvable ornament
       // set) must settle the job failed instead of leaving a running zombie.
@@ -1584,10 +1840,25 @@ export function registerSimulationTools(server: McpServer): void {
           }
 
           // handleCharacterSelectChange's preset recipe: set-conditional defaults
-          // seeded per character element/path, then scoring-metadata presets
+          // seeded per character element/path, then scoring-metadata presets.
+          // Custom teammates additionally get the web's teammate-change pass
+          // (applyTeamAwareSetConditionalPresetsToBenchmarkFormInstance:
+          // team-aware presets + teammate-conditioned presets re-gated on the
+          // new team, non-matching ones reset to defaults). Manual
+          // setConditionals apply last — the web drawer edits after presets.
           const teammateInfo = resolveTeammateInfo(...resolvedTeammates)
           applySetConditionalPresets(benchmarkForm, teammateInfo)
           applyScoringMetadataPresets(benchmarkForm, teammateInfo)
+          if (teammates != null) {
+            applyTeamAwareSetConditionalPresets(benchmarkForm, teammateInfo)
+            applyTeammateConditionalPresets(benchmarkForm, teammateInfo)
+          }
+          if (setConditionals != null) {
+            // computeSetSetConditional semantics: the drawer writes tuple[1]
+            for (const [set, value] of Object.entries(setConditionals)) {
+              ;(benchmarkForm.setConditionals as Record<string, [undefined, boolean | number]>)[set] = [undefined, value]
+            }
+          }
 
           const presetStart = performance.now()
           const entry: Record<string, unknown> = {
@@ -1609,11 +1880,14 @@ export function registerSimulationTools(server: McpServer): void {
             entry.durationMs = Math.round(performance.now() - presetStart)
             entry.benchmarkScore = orchestrator.benchmarkSimScore
             entry.bestBuild = orchestrator.benchmarkSimRequest ? echoSimRequest(orchestrator.benchmarkSimRequest) : null
-            entry.topCandidates = candidates.slice(0, TOP_BENCHMARK_CANDIDATES).map((candidate) => ({
-              simScore: candidate.result?.simScore ?? 0,
-              ...echoSimRequest(candidate.request),
-            }))
             entry.candidateCount = candidates.length
+            // Raw candidates stashed for post-loop serialization (web rows are
+            // ranked against the whole call's top, not the single preset)
+            presetCandidates.set(index, {
+              benchmark: candidates,
+              perfection: includePerfection ? (orchestrator.perfectionSimCandidates ?? []) : [],
+              baselineScore: orchestrator.zeroMainsStatResult?.simScore ?? 0,
+            })
             entry.originalSpd = orchestrator.originalSpd ?? null
             entry.spdBenchmark = orchestrator.spdBenchmark ?? null
             entry.benchmarkBasicSpdTarget = orchestrator.flags.benchmarkBasicSpdTarget
@@ -1653,7 +1927,12 @@ export function registerSimulationTools(server: McpServer): void {
       })
 
       // Ranking among completed presets (web grid semantics: combo desc, delta % vs top)
-      const completed = results.filter((r) => r.status === 'completed') as Array<{ index: number, benchmarkScore: number, preset: Record<string, unknown> }>
+      const completed = results.filter((r) => r.status === 'completed') as Array<{
+        index: number,
+        benchmarkScore: number,
+        perfectionScore?: number,
+        preset: Record<string, unknown>,
+      }>
       const topScore = completed.length ? Math.max(...completed.map((r) => r.benchmarkScore)) : 0
       const ranked = [...completed].sort((a, b) => b.benchmarkScore - a.benchmarkScore)
       const rankOf = new Map(ranked.map((r, i) => [r.index, i + 1]))
@@ -1662,6 +1941,39 @@ export function registerSimulationTools(server: McpServer): void {
         if (rankOf.has(idx)) {
           entry.rank = rankOf.get(idx)
           entry.deltaPercentVsTop = topScore !== 0 ? ((entry.benchmarkScore as number) - topScore) / topScore * 100 : 0
+        }
+      }
+
+      // Result-table rows (BenchmarkResults.generateBenchmarkRows semantics):
+      // both scoring modes' candidate lists, ranked against the whole call's
+      // tops; candidateLimit caps the rows, includeCandidateDetails adds the
+      // expanded-row payload.
+      const topPerfectionScore = completed.length
+        ? Math.max(...completed.map((r) => r.perfectionScore ?? 0))
+        : 0
+      const topBaselineScore = Math.max(0, ...[...presetCandidates.values()].map((c) => c.baselineScore))
+      for (const entry of results) {
+        const stash = presetCandidates.get(entry.index as number)
+        if (stash == null) continue
+        entry.topCandidates = stash.benchmark.slice(0, candidateLimit).map((candidate) => ({
+          ...serializeBenchmarkCandidate({
+            candidate,
+            element: characterElement,
+            elementalDmgValue,
+            detail: includeCandidateDetails,
+          }),
+          ...candidateDeltaPercents(candidate.result!.simScore, topScore, topBaselineScore),
+        }))
+        if (includePerfection && stash.perfection.length > 0) {
+          entry.perfectionTopCandidates = stash.perfection.slice(0, candidateLimit).map((candidate) => ({
+            ...serializeBenchmarkCandidate({
+              candidate,
+              element: characterElement,
+              elementalDmgValue,
+              detail: includeCandidateDetails,
+            }),
+            ...candidateDeltaPercents(candidate.result!.simScore, topPerfectionScore, topBaselineScore),
+          }))
         }
       }
 
@@ -1676,6 +1988,10 @@ export function registerSimulationTools(server: McpServer): void {
             errRope,
             subDps: baseBenchmarkForm.subDps,
             teammates: resolvedTeammates.map((mate) => mate.characterId),
+            teammateSets: resolvedTeammates.map((mate) => ({
+              ...(mate.teamRelicSet != null ? { teamRelicSet: mate.teamRelicSet } : { teamRelicSet: null }),
+              ...(mate.teamOrnamentSet != null ? { teamOrnamentSet: mate.teamOrnamentSet } : { teamOrnamentSet: null }),
+            })),
           },
           includePerfection,
           cancelled,

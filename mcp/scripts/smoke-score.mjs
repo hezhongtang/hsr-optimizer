@@ -276,6 +276,92 @@ try {
     noHealErr.slice(0, 90),
   )
 
+  // ── 3b. dps_score: baseline + team benchmark snapshot override ────────────
+  // teams.cards.read (M9): the Teams showcase page's synced-benchmark cards
+  // score each member against the saved team's benchmarkSnapshot — slot 0 as
+  // main DPS (deprioritizeBuffs=false), the rest as sub DPS (true). Same
+  // upstream gate: resolveTeamBenchmarkOverrides only engages when all four
+  // slots match the snapshot members.
+  const dpsToolRun = await callTool(client, 'dps_score', { characterId: TARGET }, LONG)
+  check(
+    'dps_score default run: finite score + team echo, no snapshot block',
+    dpsToolRun.team === 'default' && finiteScore(dpsToolRun) && dpsToolRun.snapshot === undefined,
+    `percent=${dpsToolRun.percent?.toFixed(4)} grade=${dpsToolRun.grade}`,
+  )
+  // Second DPS-sim character: the sample save's only simulation character is
+  // Jingliu — upsert Himeko 1003 (has `simulation`) and equip six unequipped
+  // relics so dps_score's build gate passes for her too.
+  const SECOND_DPS = '1003' // Himeko — simulation() in her scoring config
+  const KAFKA_LC = '21022' // light cone carried by roster Kafka (form value only)
+  await callTool(client, 'upsert_character', { characterId: SECOND_DPS, lightCone: KAFKA_LC })
+  const relicIdsForSecondDps = []
+  for (const part of PARTS) {
+    const found = await callTool(client, 'list_relics', { equippedBy: 'none', part, limit: 1 })
+    relicIdsForSecondDps.push(found.relics[0].id)
+  }
+  await callTool(client, 'equip_build', { characterId: SECOND_DPS, relicIds: relicIdsForSecondDps })
+  const snapshotTeam = await callTool(client, 'save_team', {
+    name: 'smoke-dps-snapshot',
+    characterIds: [TARGET, SECOND_DPS, BUFFER_CHAR, HEALER],
+    benchmarkSnapshot: true,
+  })
+  check(
+    'save_team captured a 4-member benchmark snapshot for the scoring team',
+    snapshotTeam.benchmarkSnapshotAttached === true && snapshotTeam.snapshot?.members?.length === 4,
+    JSON.stringify(snapshotTeam.snapshot?.members?.map((m) => m.characterId)),
+  )
+  const mainRun = await callTool(client, 'dps_score', { characterId: TARGET, team: 'snapshot', snapshotTeamId: snapshotTeam.teamId }, LONG)
+  check(
+    'team=snapshot scores the slot-0 member as mainDps with snapshot teammates',
+    mainRun.team === 'snapshot' && mainRun.snapshot?.teamId === snapshotTeam.teamId
+      && mainRun.snapshot?.slotIndex === 0 && mainRun.snapshot?.role === 'mainDps'
+      && mainRun.snapshot?.deprioritizeBuffs === false
+      && JSON.stringify(mainRun.snapshot?.teammates) === JSON.stringify([SECOND_DPS, BUFFER_CHAR, HEALER])
+      && finiteScore(mainRun),
+    `snapshot=${JSON.stringify(mainRun.snapshot)}`,
+  )
+  check(
+    'snapshot team changes the score vs the default team',
+    Math.abs(mainRun.percent - dpsToolRun.percent) > 1e-9,
+    `default ${dpsToolRun.percent.toFixed(4)} vs snapshot ${mainRun.percent.toFixed(4)}`,
+  )
+  const subRun = await callTool(client, 'dps_score', { characterId: SECOND_DPS, team: 'snapshot', snapshotTeamId: snapshotTeam.teamId }, LONG)
+  check(
+    'slot-1 member scores as subDps (deprioritizeBuffs=true, teammates exclude self)',
+    subRun.snapshot?.slotIndex === 1 && subRun.snapshot?.role === 'subDps'
+      && subRun.snapshot?.deprioritizeBuffs === true
+      && JSON.stringify(subRun.snapshot?.teammates) === JSON.stringify([TARGET, BUFFER_CHAR, HEALER])
+      && finiteScore(subRun),
+    `snapshot=${JSON.stringify(subRun.snapshot)}`,
+  )
+  // Same character, promoted to slot 0 of a second team → flips to mainDps
+  const snapshotTeam2 = await callTool(client, 'save_team', {
+    name: 'smoke-dps-snapshot-2',
+    characterIds: [SECOND_DPS, TARGET, BUFFER_CHAR, HEALER],
+    benchmarkSnapshot: true,
+  })
+  const himekoMainRun = await callTool(client, 'dps_score', { characterId: SECOND_DPS, team: 'snapshot', snapshotTeamId: snapshotTeam2.teamId }, LONG)
+  check(
+    'same character in slot 0 flips to mainDps and the buff priority drives the score',
+    himekoMainRun.snapshot?.role === 'mainDps' && himekoMainRun.snapshot?.deprioritizeBuffs === false
+      && Math.abs(himekoMainRun.percent - subRun.percent) > 1e-9,
+    `sub ${subRun.percent.toFixed(4)} vs main ${himekoMainRun.percent.toFixed(4)}`,
+  )
+  const noSnapshotTeam = await callTool(client, 'save_team', { name: 'smoke-dps-nosnap', characterIds: [TARGET, BUFFER_CHAR, HEALER, SEELE] })
+  check(
+    'no-snapshot team saved without benchmarkSnapshot',
+    noSnapshotTeam.benchmarkSnapshotAttached === false && noSnapshotTeam.created === true,
+    noSnapshotTeam.teamId,
+  )
+  const missingSnapshotErr = await expectToolError(client, 'dps_score', { characterId: TARGET, team: 'snapshot', snapshotTeamId: noSnapshotTeam.teamId })
+  check('snapshot scoring on a team without a snapshot rejected (Chinese)', missingSnapshotErr.includes('基准快照'), missingSnapshotErr.slice(0, 90))
+  const missingSnapshotTeamIdErr = await expectToolError(client, 'dps_score', { characterId: TARGET, team: 'snapshot' })
+  check('team=snapshot without snapshotTeamId rejected (Chinese)', missingSnapshotTeamIdErr.includes('snapshotTeamId'), missingSnapshotTeamIdErr.slice(0, 90))
+  const notMemberErr = await expectToolError(client, 'dps_score', { characterId: SEELE, team: 'snapshot', snapshotTeamId: snapshotTeam.teamId })
+  check('character outside the snapshot team rejected (Chinese)', notMemberErr.includes('不在队伍'), notMemberErr.slice(0, 90))
+  const unknownTeamErr = await expectToolError(client, 'dps_score', { characterId: TARGET, team: 'snapshot', snapshotTeamId: 'no-such-team' })
+  check('unknown snapshotTeamId rejected (Chinese)', unknownTeamErr.includes('不存在'), unknownTeamErr.slice(0, 90))
+
   // ── 4. ephemeral custom team: no save mutation ─────────────────────────────
   const metaBeforeTeam = await callTool(client, 'get_scoring_metadata', { characterId: TARGET })
   const revisionBeforeTeam = (await callTool(client, 'get_state', { section: 'revision' })).revision.revision

@@ -98,12 +98,7 @@
       "conditions": "页签第一次显示之后才挂载卡片，避免后台跑评分。快照成员与当前四槽不完全对应时不使用覆盖。",
       "runtime": "node",
       "state": { "owner": "useTeamShowcase（派生）", "lifecycle": "derived" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["dps_score", "list_teams"],
-        "gaps": "dps_score 只能用角色自己的默认队或自定义队评分，不能用队伍快照做覆盖，也不区分主 C 与副 C 槽位；非 DPS 配置同样没有入口。",
-        "candidates": ["score_character(source=team)"]
-      },
+      "mcp": { "status": "implemented", "tools": ["dps_score", "score_character", "list_teams"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -111,7 +106,7 @@
           "对一支已同步基准的队伍，四名成员各自的评分与队伍面板四张卡上的分数一致",
           "未同步时返回的分数与各角色单独展示卡的分数一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-archive.mjs"]
+        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-score.mjs"]
       }
     },
     {

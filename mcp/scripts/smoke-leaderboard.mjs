@@ -15,6 +15,9 @@
 //                 Chinese error paths (unknown character/config/team/growing)
 //   entry       — on-board rank + AEON, below-cutoff build (rank null, team
 //                 board), relic expansion (setCounts, substats), not-found
+//   score       — 本地评分重算 (scoreLeaderboardBuild chain): recorded vs
+//                 recomputed + delta, entry-team injection echo, six-relic
+//                 full-build case, zero-relic/unknown/missing buildId errors
 //   timeline    — new_best delta clamped at 150%, new_character flag, dropped
 //                 malformed count, unavailable-with-reason (404 timeline file)
 //   my_ranks    — all-teams rank vs team-only rank (top-100 cap pushes the
@@ -118,6 +121,26 @@ function acheronMinified(eidolon) {
   }
 }
 
+// Six-relic Acheron build with real affix ids (Head/Hands/Body/Feet of set 101
+// + Sphere/Rope of set 301; sub ids 2=ATK 3=DEF 5=ATK% 7=SPD 8=CR 9=CD 12=BE)
+// — the view=score full-build recompute case. Scored BELOW the 150% cutoff so
+// every existing board/dedupe assertion keeps its shape.
+function acheronFullMinified() {
+  return {
+    a: 1308,
+    r: 0,
+    q: { t: 23014, r: 1 },
+    l: [
+      relic(61011, 15, 1, [{ a: 8, c: 2, s: 1 }, { a: 9, c: 1, s: 0 }, { a: 5, c: 1, s: 0 }]),
+      relic(61012, 15, 1, [{ a: 5, c: 2, s: 1 }, { a: 9, c: 1, s: 0 }, { a: 7, c: 1, s: 0 }]),
+      relic(61013, 15, 5, [{ a: 8, c: 1, s: 0 }, { a: 5, c: 1, s: 0 }, { a: 7, c: 1, s: 1 }, { a: 3, c: 1, s: 0 }]),
+      relic(61014, 15, 4, [{ a: 8, c: 1, s: 1 }, { a: 9, c: 1, s: 1 }, { a: 5, c: 1, s: 0 }, { a: 2, c: 1, s: 0 }]),
+      relic(63015, 15, 7, [{ a: 8, c: 1, s: 0 }, { a: 9, c: 2, s: 1 }, { a: 5, c: 1, s: 0 }]),
+      relic(63016, 15, 4, [{ a: 8, c: 1, s: 1 }, { a: 9, c: 1, s: 0 }, { a: 7, c: 1, s: 1 }, { a: 12, c: 1, s: 0 }]),
+    ],
+  }
+}
+
 function entry(buildId, candidateId, score, minified, teammates, teamId, overrides = {}) {
   return {
     rank: 0, // wire rank is ignored — deriveVisibleEntries recomputes ranks
@@ -171,14 +194,15 @@ function buildAcheronData() {
             ],
           },
           'acheron-alt': {
-            totalEntries: 2,
+            totalEntries: 3,
             entries: [
               entry('bld-mid', 'aaaaaaaaaa02', 1.55, { a: 1308, r: 2, q: { t: 23014, r: 1 } }, TEAM_A, 'acheron-alt'),
               entry('bld-low', 'aaaaaaaaaa01', 1.20, { a: 1308, r: 1, q: { t: 23014, r: 1 } }, TEAM_A, 'acheron-alt'),
+              entry('bld-full', 'dddddddddd04', 1.42, acheronFullMinified(), TEAM_A, 'acheron-alt', { deprioritizeBuffs: false }),
             ],
           },
         },
-        totalEntries: 5,
+        totalEntries: 6,
       },
     },
   }
@@ -417,8 +441,8 @@ try {
   )
   check('publicEntryCount caps at 100 for 1217b1 (100 fillers + user ≥150%)', huohuoRow?.publicEntryCount === 100, String(huohuoRow?.publicEntryCount))
   check(
-    '1308 counts: topScore 2.05, entries 5, public 3',
-    acheronRow?.topScore === 2.05 && acheronRow?.entryCount === 5 && acheronRow?.publicEntryCount === 3,
+    '1308 counts: topScore 2.05, entries 6, public 3',
+    acheronRow?.topScore === 2.05 && acheronRow?.entryCount === 6 && acheronRow?.publicEntryCount === 3,
     JSON.stringify({ topScore: acheronRow?.topScore, entryCount: acheronRow?.entryCount, publicEntryCount: acheronRow?.publicEntryCount }),
   )
   check('topScoreDisplay uses truncate10ths (2.05 → 204.9)', acheronRow?.topScoreDisplay === 204.9, String(acheronRow?.topScoreDisplay))
@@ -550,6 +574,59 @@ try {
 
   const entry404 = await expectToolError(client, 'leaderboard', { view: 'entry', buildId: 'no-such-build' })
   check('unknown buildId errors explicitly (Chinese)', entry404.includes('未找到配装编号'), entry404.slice(0, 90))
+
+  // ── 4b. view=score (本地评分重算:scoreLeaderboardBuild 同链路) ──────────
+  const scoreTop = await callTool(client, 'leaderboard', { view: 'score', buildId: 'bld-top' })
+  check(
+    'score: identity echo + config echo',
+    scoreTop.characterId === '1308' && scoreTop.configType === 'dps' && scoreTop.scoredConfigType === 'dps' && scoreTop.characterName === '黄泉',
+    JSON.stringify({ configType: scoreTop.configType, scoredConfigType: scoreTop.scoredConfigType }),
+  )
+  check(
+    'score: recorded block mirrors the wire entry (score/aeon/sim scores)',
+    scoreTop.recorded.score === 2.05 && scoreTop.recorded.scoreDisplay === 204.9 && scoreTop.recorded.aeon === true
+      && scoreTop.recorded.baselineSimScore === 1000 && scoreTop.recorded.benchmarkSimScore === 2000 && scoreTop.recorded.maximumSimScore === 3000,
+    JSON.stringify(scoreTop.recorded),
+  )
+  check(
+    'score: recomputed surface is finite (percent/display/sim scores/spd/flags)',
+    Number.isFinite(scoreTop.recomputed.percent) && scoreTop.recomputed.percentDisplay === disp(scoreTop.recomputed.percent)
+      && Number.isFinite(scoreTop.recomputed.originalSimScore) && Number.isFinite(scoreTop.recomputed.baselineSimScore)
+      && Number.isFinite(scoreTop.recomputed.originalSpd)
+      && typeof scoreTop.recomputed.simulationFlags.overcapCritRate === 'boolean'
+      && typeof scoreTop.recomputed.simulationFlags.benchmarkBasicSpdTarget === 'number',
+    JSON.stringify({ percent: scoreTop.recomputed.percent, percentDisplay: scoreTop.recomputed.percentDisplay }),
+  )
+  check(
+    'score: delta is recomputed − recorded',
+    scoreTop.delta.percent === scoreTop.recomputed.percent - 2.05,
+    String(scoreTop.delta.percent),
+  )
+  check(
+    'score: 参评队伍注入 = entry 记录的队伍(web injectedOverride),deprioritizeBuffs 用记录值',
+    scoreTop.team.map((t) => t.characterId).join() === '1005,1105,1102' && scoreTop.deprioritizeBuffs === true,
+  )
+  check(
+    'score: relics echo (2 件、未验证 → verified false) + durationMs',
+    scoreTop.relicsEquipped === 2 && scoreTop.relicsVerified === false && scoreTop.durationMs >= 0,
+  )
+
+  const scoreFull = await callTool(client, 'leaderboard', { view: 'score', buildId: 'bld-full' })
+  check(
+    'score: 六遗器整配重算(低于展示门槛的配装也能重算;记录 deprio=false 原样回显;'
+      + '手搓配装可跑出负百分比——榜单侧仅把 percent<=0 挡在榜外(scorer.ts:123),重算如实返回)',
+    scoreFull.relicsEquipped === 6 && scoreFull.deprioritizeBuffs === false
+      && Number.isFinite(scoreFull.recomputed.percent)
+      && scoreFull.recorded.score === 1.42 && scoreFull.recorded.aeon === false,
+    JSON.stringify({ equipped: scoreFull.relicsEquipped, percent: scoreFull.recomputed.percent }),
+  )
+
+  const scoreNoRelics = await expectToolError(client, 'leaderboard', { view: 'score', buildId: 'bld-e6' })
+  check('score: zero-relic build errors (Chinese)', scoreNoRelics.includes('没有任何遗器'), scoreNoRelics.slice(0, 90))
+  const score404 = await expectToolError(client, 'leaderboard', { view: 'score', buildId: 'no-such-build' })
+  check('score: unknown buildId errors (Chinese)', score404.includes('未找到配装编号'), score404.slice(0, 90))
+  const scoreNoBuild = await expectToolError(client, 'leaderboard', { view: 'score' })
+  check('score: missing buildId errors (Chinese)', scoreNoBuild.includes('buildId'))
 
   // ── 5. view=timeline ──────────────────────────────────────────────────────
   const timeline = await callTool(client, 'leaderboard', { view: 'timeline' })

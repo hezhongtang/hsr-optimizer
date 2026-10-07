@@ -25,6 +25,10 @@
 //     back JSON: characters roster with Chinese names, per-id character detail
 //     (Lv80 base stats), light cone roster + S1-S5 superimposition table, sets
 //     with Chinese 2pc/4pc effect text, changelog entries.
+//     Selector-parity fields (M9): roster hasSimulation flags cross-checked
+//     against game://metadata/scoring's teams panel (基准生成器弹窗集合),
+//     Chinese long names (modal search label), signatureLightCone forward
+//     lookup + light-cone-detail signatureOf reverse lookup.
 //
 // Everything persists into a temp directory (save copy + HSR_MCP_STATE_FILE);
 // the repo's sample-save.json is never a write target. No network access.
@@ -363,6 +367,66 @@ try {
       )
       && /data version/i.test(changelog.entries[0].title),
     `count=${changelog.count}, first="${changelog.entries[0]?.title}", dates=${changelog.entries.filter((e) => e.date.length > 0).length}`,
+  )
+
+  // ── I2. selector-parity fields (M9: shared.select.character / lightCone) ───
+  // hasSimulation = CharacterSelect's withSimulation filter (基准生成器弹窗集合,
+  // CharacterSelect.tsx:70: scoringMetadata?.simulation non-null);nameZhLong =
+  // the modal's display/search label (optionGenerator.ts:21 LongName);
+  // signatureLightCone = the light-cone modal's signatureId
+  // (LightConeSelect.tsx:116-119: getCharacterConfig(id).defaultLightCone).
+  check(
+    'roster entries carry hasSimulation (boolean) and Chinese long names',
+    characters.characters.every((c) => typeof c.hasSimulation === 'boolean' && (c.nameZhLong === null || typeof c.nameZhLong === 'string')),
+    `${characters.characters.filter((c) => c.hasSimulation).length}/${characters.count} with simulation`,
+  )
+  const simIds = new Set(characters.characters.filter((c) => c.hasSimulation).map((c) => c.id))
+  check(
+    'hasSimulation: Jingliu yes, March 7th no (withSimulation filter semantics)',
+    simIds.has(JINGLIU) && !simIds.has('1001'),
+    `1212b1=${simIds.has(JINGLIU)}, 1001=${simIds.has('1001')}`,
+  )
+  // Cross-check against game://metadata/scoring's teams panel — the SAME
+  // simulation!=null gate from an independent resource (acceptance: the flagged
+  // set must equal the benchmark-generator character modal's roster).
+  const scoringPanel = await readJsonResource(client, 'game://metadata/scoring')
+  const scoringTeamIds = new Set(scoringPanel.teams.map((entry) => entry.characterId))
+  check(
+    'hasSimulation set == game://metadata/scoring teams panel (基准生成器弹窗集合)',
+    simIds.size === scoringTeamIds.size && [...simIds].every((id) => scoringTeamIds.has(id)),
+    `roster ${simIds.size} vs scoring panel ${scoringTeamIds.size}, diff=${
+      [...simIds].filter((id) => !scoringTeamIds.has(id)).concat([...scoringTeamIds].filter((id) => !simIds.has(id))).join(',')
+    }`,
+  )
+  const march7thLong = characters.characters.find((c) => c.id === '1001')?.nameZhLong
+  check(
+    'roster long name is the modal label (三月七 (存护) for 1001)',
+    march7thLong != null && march7thLong.includes('三月七') && march7thLong.includes('存护'),
+    JSON.stringify(march7thLong),
+  )
+  check(
+    'roster signatureLightCone: Jingliu 1212b1 → 23014 (此身为剑)',
+    jingliuEntry?.signatureLightCone === '23014',
+    JSON.stringify(jingliuEntry?.signatureLightCone),
+  )
+  check(
+    'character detail mirrors signatureLightCone',
+    charDetail.signatureLightCone === '23014',
+    JSON.stringify(charDetail.signatureLightCone),
+  )
+  const signatureConeDetail = await readJsonResource(client, 'game://metadata/lightcones/23014')
+  check(
+    'light cone detail reverse-lookup: 23014 signatureOf includes 1212b1',
+    Array.isArray(signatureConeDetail.signatureOf) && signatureConeDetail.signatureOf.includes(JINGLIU),
+    JSON.stringify(signatureConeDetail.signatureOf),
+  )
+  // 21000 = Post-Op Conversation — Natasha's defaultLightCone (4★ signature):
+  // proves the reverse lookup covers non-5★ signature cones too.
+  const postOpDetail = await readJsonResource(client, 'game://metadata/lightcones/21000')
+  check(
+    'light cone detail reverse-lookup: 21000 (4★) signatureOf = [1105 Natasha]',
+    Array.isArray(postOpDetail.signatureOf) && postOpDetail.signatureOf.length === 1 && postOpDetail.signatureOf[0] === '1105',
+    JSON.stringify(postOpDetail.signatureOf),
   )
 
   // ── J. unknown template id rejects ─────────────────────────────────────────

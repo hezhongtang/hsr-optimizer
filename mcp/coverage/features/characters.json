@@ -24,12 +24,7 @@
       ],
       "runtime": "node",
       "state": { "owner": "useCharacterTabStore.filters", "lifecycle": "session" },
-      "mcp": {
-        "status": "partial",
-        "tools": ["list_characters"],
-        "gaps": "list_characters 的 path 与 element 参数只接受单个值，也没有名称子串筛选的 name 参数；网页筛选态是 name 子串 + 命途多选 + 属性多选三者同时生效。名称模糊匹配可由调用方拿列表后自行做，多选筛选做不到。",
-        "candidates": ["list_characters(name, path[], element[])"]
-      },
+      "mcp": { "status": "implemented", "tools": ["list_characters"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {

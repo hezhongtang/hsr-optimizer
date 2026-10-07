@@ -23,9 +23,21 @@
 //                     threshold; measured ~1–3s/preset inline, far under the
 //                     60s budget — see the assertion note next to the timing
 //                     check): per-preset scores incl. perfection, ranking,
-//                     progress notifications; then dps_score is called AFTER
-//                     benchmark_runs to prove the SEQUENTIAL_BENCHMARKS global
-//                     it sets does not break the other inline-benchmark tool.
+//                     progress notifications.
+//                     5b: un-owned character (web semantics — any character
+//                     with simulation metadata; explicit light cone required,
+//                     eidolon/superimposition reset 0/1) + the
+//                     no-simulation-metadata rejection.
+//                     5c: teammate teamRelicSet/teamOrnamentSet echo + manual
+//                     setConditionals (Scholar 4pc conditional on/off over the
+//                     same preset must strictly change the searched COMBO).
+//                     5d: candidateLimit=50 + includeCandidateDetails — the
+//                     full 100%/200% result-table rows with expanded-row
+//                     payload (panel/combat stats, elemental DMG override,
+//                     per-ability + rotation damage).
+//                     Finally dps_score is called AFTER benchmark_runs to
+//                     prove the SEQUENTIAL_BENCHMARKS global it sets does not
+//                     break the other inline-benchmark tool.
 //
 // Usage: node scripts/smoke-simulation.mjs [serverEntry]
 //   serverEntry defaults to ./dist/index.js (resolved against mcp/).
@@ -78,6 +90,11 @@ async function callTool(client, name, args, options) {
     throw new Error(`tool ${name} returned isError: ${result.content?.[0]?.text}`)
   }
   return payloadOf(result)
+}
+
+async function errorTextOf(client, name, args) {
+  const result = await client.callTool({ name, arguments: args })
+  return result.isError ? (result.content?.[0]?.text ?? '') : null
 }
 
 // Upstream src/lib/constants/constants.ts `Stats` values (the game stat key
@@ -626,6 +643,155 @@ try {
       && bench.ranking[0].deltaPercentVsTop === 0 && bench.ranking[1].deltaPercentVsTop <= 0
       && bench.presets[bench.ranking[0].index].rank === 1,
     JSON.stringify(bench.ranking.map((r) => ({ i: r.index, s: Math.round(r.benchmarkScore), d: r.deltaPercentVsTop.toFixed(1) }))),
+  )
+
+  // ══ 5b. benchmark_runs: un-owned character (web benchmarks semantics) ═══
+  // Aglaea 1402 has simulation scoring metadata but is NOT among the 8 loaded
+  // characters — the web benchmarks page accepts her after a manual light cone
+  // pick (handleCharacterSelectChange clears the cone + resets 0/1 for
+  // un-owned characters). Asta 1009 has no simulation metadata → rejected.
+  const AGLAEA = '1402'
+  const unownedMissingLc = await errorTextOf(client, 'benchmark_runs', {
+    characterId: AGLAEA,
+    presets: [
+      { relicSet1: 'Hero of Triumphant Song', relicSet2: 'Hero of Triumphant Song', ornamentSet: 'The Wondrous BananAmusement Park', spdThreshold: 0 },
+    ],
+  })
+  check(
+    'benchmark_runs un-owned character without lightCone rejected (web: blank cone → MissingField)',
+    unownedMissingLc != null && /lightCone|手动选择光锥/.test(unownedMissingLc),
+    String(unownedMissingLc).slice(0, 90),
+  )
+  const unowned = await callTool(client, 'benchmark_runs', {
+    characterId: AGLAEA,
+    lightCone: '23036', // Time Woven Into Gold
+    includePerfection: false,
+    presets: [
+      { relicSet1: 'Hero of Triumphant Song', relicSet2: 'Hero of Triumphant Song', ornamentSet: 'The Wondrous BananAmusement Park', spdThreshold: 0 },
+    ],
+  }, { timeout: 300_000 })
+  check(
+    'benchmark_runs un-owned character completes with an explicit light cone',
+    unowned.presets.length === 1 && unowned.presets.every((p) => p.status === 'completed' && p.benchmarkScore > 0),
+    `score=${Math.round(unowned.presets[0]?.benchmarkScore ?? 0)}`,
+  )
+  check(
+    'benchmark_runs un-owned defaults: form echo carries the explicit cone + eidolon 0 / superimposition 1 (web parity)',
+    unowned.form.lightCone === '23036' && unowned.form.characterEidolon === 0 && unowned.form.lightConeSuperimposition === 1,
+    `cone=${unowned.form?.lightCone}, e=${unowned.form?.characterEidolon}, s=${unowned.form?.lightConeSuperimposition}`,
+  )
+  const noSimMeta = await errorTextOf(client, 'benchmark_runs', { characterId: '1009' }) // Asta: no simulation scoring metadata
+  check(
+    'benchmark_runs rejects a character without simulation scoring metadata (web UnsupportedCharacter)',
+    noSimMeta != null && noSimMeta.includes('没有战斗基准评分元数据'),
+    String(noSimMeta).slice(0, 90),
+  )
+
+  // ══ 5c. benchmark_runs: teammate team sets + manual set conditionals ═══
+  // The Scholar 4pc terminal effect is gated by its boolean set conditional
+  // (ScholarLostInErudition.ts p4x reads enabledScholarLostInErudition), so
+  // forcing it false must strictly lower the searched COMBO over the same
+  // Scholar 4pc preset — proving setConditionals reach the engine. (Glamoth's
+  // CPU implementation reads SPD only, so it is NOT a valid toggle probe.)
+  // The same runs prove teammates[i].teamRelicSet/teamOrnamentSet resolve and
+  // echo back.
+  const tmPreset = {
+    relicSet1: 'Scholar Lost in Erudition',
+    relicSet2: 'Scholar Lost in Erudition',
+    ornamentSet: 'Rutilant Arena',
+    spdThreshold: 0,
+  }
+  const tmBase = {
+    characterId: TARGET,
+    includePerfection: false,
+    presets: [tmPreset],
+    teammates: [
+      {
+        characterId: DONOR,
+        lightCone: '24001',
+        characterEidolon: 0,
+        lightConeSuperimposition: 1,
+        teamRelicSet: 'Messenger Traversing Hackerspace',
+        teamOrnamentSet: 'Fleet of the Ageless',
+      },
+    ],
+  }
+  const tmOn = await callTool(client, 'benchmark_runs', { ...tmBase, setConditionals: { 'Scholar Lost in Erudition': true } }, { timeout: 300_000 })
+  const tmOff = await callTool(client, 'benchmark_runs', { ...tmBase, setConditionals: { 'Scholar Lost in Erudition': false } }, { timeout: 300_000 })
+  check(
+    'benchmark_runs teammate team sets: explicit slot 0 echoed, defaults stay null (web teammate card parity)',
+    tmOn.form.teammateSets.length === 3
+      && tmOn.form.teammateSets[0].teamRelicSet === 'Messenger Traversing Hackerspace'
+      && tmOn.form.teammateSets[0].teamOrnamentSet === 'Fleet of the Ageless'
+      && tmOn.form.teammateSets.slice(1).every((s) => s.teamRelicSet == null && s.teamOrnamentSet == null)
+      && tmOn.form.teammates[0] === DONOR,
+    JSON.stringify(tmOn.form.teammateSets),
+  )
+  check(
+    'benchmark_runs manual setConditionals reach the engine (Scholar 4pc enabled > disabled on the same preset)',
+    tmOn.presets[0].status === 'completed' && tmOff.presets[0].status === 'completed'
+      && tmOn.presets[0].benchmarkScore > tmOff.presets[0].benchmarkScore,
+    `on=${Math.round(tmOn.presets[0].benchmarkScore)} vs off=${Math.round(tmOff.presets[0].benchmarkScore)}`,
+  )
+  const badSetCond = await errorTextOf(client, 'benchmark_runs', {
+    characterId: TARGET,
+    presets: [{ relicSet1: 'Scholar Lost in Erudition', relicSet2: 'Scholar Lost in Erudition', spdThreshold: 0 }],
+    setConditionals: { 'No Such Set': true },
+  })
+  check(
+    'benchmark_runs setConditionals with an unknown set name rejected (Chinese)',
+    badSetCond != null && badSetCond.includes('未知套装'),
+    String(badSetCond).slice(0, 90),
+  )
+
+  // ══ 5d. benchmark_runs: full result rows (both scoring modes + details) ═══
+  const full = await callTool(client, 'benchmark_runs', {
+    characterId: TARGET,
+    presets: [{ relicSet1: 'Scholar Lost in Erudition', relicSet2: 'Scholar Lost in Erudition', ornamentSet: 'Rutilant Arena', spdThreshold: 0 }],
+    candidateLimit: 50,
+    includeCandidateDetails: true,
+  }, { timeout: 300_000 })
+  const fp = full.presets[0]
+  check(
+    'benchmark_runs candidateLimit returns every candidate row of the 100% tab (min(candidateCount, 50))',
+    fp.status === 'completed' && fp.topCandidates.length === Math.min(fp.candidateCount, 50) && fp.candidateCount >= 1,
+    `${fp.topCandidates?.length}/${fp.candidateCount} rows`,
+  )
+  check(
+    'benchmark_runs rows sorted by COMBO desc, first row is the winner (benchmarkScore)',
+    fp.topCandidates[0].simScore === fp.benchmarkScore
+      && fp.topCandidates.every((c, i) => i === 0 || fp.topCandidates[i - 1].simScore >= c.simScore),
+    `top=${Math.round(fp.topCandidates[0].simScore)}`,
+  )
+  check(
+    'benchmark_runs row deltas: winner at 0% vs top, others weakly negative-shaped (web delta columns)',
+    fp.topCandidates[0].deltaPercentVsTop === 0
+      && fp.topCandidates.every((c) => typeof c.deltaPercentVsTop === 'number' && c.deltaPercentVsTop >= -1e-9 && typeof c.deltaBaselinePercent === 'number'),
+    `range 0 … ${fp.topCandidates[fp.topCandidates.length - 1].deltaPercentVsTop.toFixed(1)}%`,
+  )
+  check(
+    'benchmark_runs 200% tab rows present (includePerfection), winner equals perfectionScore',
+    Array.isArray(fp.perfectionTopCandidates) && fp.perfectionTopCandidates.length === fp.topCandidates.length
+      && fp.perfectionTopCandidates[0].simScore === fp.perfectionScore
+      && fp.perfectionScore >= fp.benchmarkScore,
+    `${fp.perfectionTopCandidates?.length} rows, 200% top ${Math.round(fp.perfectionScore)} ≥ 100% top ${Math.round(fp.benchmarkScore)}`,
+  )
+  const rowWithDetail = fp.topCandidates[0]
+  const detailBad = nonFinitePaths({
+    basicStats: rowWithDetail.basicStats,
+    combatStats: rowWithDetail.combatStats,
+    rotationDamage: rowWithDetail.rotationDamage,
+  })
+  check(
+    'benchmark_runs includeCandidateDetails: expanded-row payload (panel/combat stats + per-ability and rotation damage)',
+    rowWithDetail.basicStats != null && typeof rowWithDetail.basicStats.HP === 'number' && typeof rowWithDetail.combatStats.ATK === 'number'
+      && (rowWithDetail.rotationDamage?.length ?? 0) >= 1 && detailBad.length === 0,
+    `${Object.keys(rowWithDetail.combatStats ?? {}).length} combat keys, ${rowWithDetail.rotationDamage?.length} rotation steps`,
+  )
+  check(
+    'benchmark_runs detail combat stats carry the combined elemental DMG entry (web CharacterStatSummary override)',
+    typeof rowWithDetail.combatStats['Ice DMG Boost'] === 'number' && Number.isFinite(rowWithDetail.combatStats['Ice DMG Boost']),
+    `Ice DMG Boost = ${rowWithDetail.combatStats['Ice DMG Boost']?.toFixed(4)}`,
   )
 
   // SEQUENTIAL_BENCHMARKS 全局置位的跨工具影响:benchmark_runs 之后 dps_score
