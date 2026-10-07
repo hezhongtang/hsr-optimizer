@@ -58,6 +58,7 @@ import { z } from 'zod'
 import { runtimeContext } from '../context'
 import { MCP_I18N_LANGUAGE } from '../i18n/i18nNode'
 import { toolResult } from '../toolResult'
+import { replayScannerSettings } from './scanner'
 
 // ─── sections ────────────────────────────────────────────────────────────────
 
@@ -562,9 +563,10 @@ function applyPatch(section: UpdateSection, patch: Record<string, unknown>): voi
       // Direct setState over the scanner fields (the load path's approach in
       // saveStores.replaceSaveStores): the upstream action setters schedule a
       // 5s SaveState.delayedSave() the coordinator cannot cancel, which would
-      // fire even after a rolled-back transaction. In this server the socket
-      // is never connected, so the setters' re-import branches are dormant and
-      // direct writes are behaviorally identical minus that stray timer.
+      // fire even after a rolled-back transaction. Since M6 the socket CAN be
+      // connected (scanner action=connect), so the setters' re-import branches
+      // are no longer dormant — replayScannerSettings reproduces them below
+      // (scannerStore.ts:164-228 semantics) without the stray timer.
       const update: Record<string, unknown> = {}
       if (typeof patch['ingest'] === 'boolean') update.ingest = patch['ingest']
       if (typeof patch['ingestCharacters'] === 'boolean') update.ingestCharacters = patch['ingestCharacters']
@@ -657,6 +659,7 @@ export function registerStateTools(server: McpServer): void {
     },
     outputSchema: {
       updated: z.boolean(),
+      replayed: z.array(z.string()).optional().describe('scanner 段专用:设置变更触发的网页端重放动作(reimport=重放完整导入,warp-re-emit=重发跃迁资源)'),
       section: z.enum(UPDATE_SECTIONS),
       revision: z.number().int(),
       dirty: z.boolean(),
@@ -674,17 +677,24 @@ export function registerStateTools(server: McpServer): void {
       runtimeContext.markDirty()
     }, baseRevision != null ? { baseRevision } : {})
 
+    // 网页 setter 的重放语义(scannerStore.ts:164-228):已连接时打开 ingest/
+    // 角色开关 → 用当前扫描缓存重放一次完整导入;打开 ingestWarpResources →
+    // 重发资源事件(再同步一次跃迁底稿)。设置先落地,重放是其服务端后续。
+    const replayed = section === 'scanner' ? await replayScannerSettings(Object.keys(patch)) : []
+
     const revision = runtimeContext.getRevision()
     const payload: Record<string, unknown> = {
       updated: true,
       section,
       revision,
       dirty: true,
+      ...(replayed.length > 0 ? { replayed } : {}),
     }
     payload[section] = sectionReaders[section]()
     return toolResult(
       payload,
-      `已更新 ${section}(字段:${Object.keys(patch).join(', ')}),revision=${revision},变更已标记待防抖写回`,
+      `已更新 ${section}(字段:${Object.keys(patch).join(', ')}),revision=${revision},变更已标记待防抖写回`
+        + (replayed.length > 0 ? `;已按网页端语义重放:${replayed.join('、')}` : ''),
     )
   })
 }

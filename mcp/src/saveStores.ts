@@ -97,7 +97,11 @@ export function replaceSaveStores(data: HsrOptimizerSaveFormat): HsrOptimizerSav
   // autosave argument is false. Apply these configuration fields directly so
   // loading a file neither saves it implicitly nor ingests old scanner data.
   const { scannerSettings, ...migrationData } = data
-  persistenceService.loadSaveData(migrationData, false, false)
+  // sanitize=true = the web's MANUAL load semantics (LoadDataSubmenu.tsx:161):
+  // an autosave restore would re-point the scanner websocket at whatever url
+  // the (possibly untrusted) save carries — persistenceService.ts:207 only
+  // restores the url when !sanitize, and MCP's load_save is the manual path.
+  persistenceService.loadSaveData(migrationData, false, true)
   if (scannerSettings) {
     const defaults = useScannerState.getInitialState()
     useScannerState.setState({
@@ -105,9 +109,10 @@ export function replaceSaveStores(data: HsrOptimizerSaveFormat): HsrOptimizerSav
       ingestCharacters: scannerSettings.ingestCharacters ?? defaults.ingestCharacters,
       ingestOnlyExistingCharacters: scannerSettings.ingestOnlyExistingCharacters ?? defaults.ingestOnlyExistingCharacters,
       ingestWarpResources: scannerSettings.ingestWarpResources ?? defaults.ingestWarpResources,
-      websocketUrl: scannerSettings.customUrl
-        ? scannerSettings.websocketUrl
-        : defaults.websocketUrl,
+      // Manual-load security semantics: never re-point the scanner connection
+      // from save data (the save's customUrl is echoed in load_save's return
+      // for transparency, but not applied).
+      websocketUrl: defaults.websocketUrl,
     })
   }
   syncSidebar()

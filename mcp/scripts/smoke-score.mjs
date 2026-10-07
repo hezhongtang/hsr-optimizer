@@ -452,6 +452,29 @@ try {
     synced.configs?.changed?.includes('syncTeam') === true && synced.configs.teammates.length === 3,
     JSON.stringify(synced.configs),
   )
+  // Verify the synced VALUES per the acceptance case: each matching teammate's
+  // eidolon / light cone / superimposition adopts that character's roster form.
+  const syncedMeta = await callTool(client, 'get_scoring_metadata', { characterId: TARGET })
+  const syncedValues = syncedMeta.override?.simulation?.teammates ?? []
+  const rosterMatches = await Promise.all(syncedValues.map(async (teammate) => {
+    if (teammate?.characterId == null) return true
+    // Teammates absent from the roster keep their stored values (acceptance
+    // semantics) — nothing to verify against; only roster-present ones sync.
+    const rosterResult = await client.callTool({ name: 'get_character', arguments: { characterId: teammate.characterId } })
+    if (rosterResult.isError) return true
+    const roster = rosterResult.structuredContent ?? JSON.parse(rosterResult.content.find((c) => c.type === 'text').text)
+    const form = roster.savedForm ?? roster.form
+    if (form == null) return true
+    if ((teammate.characterEidolon ?? 0) !== (form.characterEidolon ?? 0)) return false
+    if (teammate.lightCone != null && teammate.lightCone !== form.lightCone) return false
+    if (teammate.lightCone != null && (teammate.lightConeSuperimposition ?? 1) !== (form.lightConeSuperimposition ?? 1)) return false
+    return true
+  }))
+  check(
+    'syncTeam adopts each matching teammate roster eidolon/light cone/superimposition',
+    syncedValues.length === 3 && rosterMatches.every(Boolean),
+    JSON.stringify(syncedValues.map((t) => [t?.characterId, t?.characterEidolon ?? 0, t?.lightCone, t?.lightConeSuperimposition ?? 1])),
+  )
 
   // 9c. buffPriority (deprioritizeBuffs) roundtrip + dps-only rejection
   const prio = await callTool(client, 'set_scoring_override', { characterId: TARGET, configs: { configType: 'dps', deprioritizeBuffs: true } })
@@ -470,7 +493,7 @@ try {
   })
   check(
     'deprioritizeBuffs on a non-dps config rejected (Chinese)',
-    prioWrongConfigErr.includes('DPS') || prioWrongConfigErr.includes('dps') || prioWrongConfigErr.includes('没有'),
+    prioWrongConfigErr.includes('只属于 DPS') || prioWrongConfigErr.includes('没有 buffer'),
     prioWrongConfigErr.slice(0, 90),
   )
 

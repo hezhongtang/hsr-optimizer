@@ -24,7 +24,10 @@ import {
   getCharacters,
   useCharacterStore,
 } from 'lib/stores/character/characterStore'
-import { displayToInternal } from 'lib/stores/optimizerForm/optimizerFormConversions'
+import {
+  displayToInternal,
+  internalToDisplay,
+} from 'lib/stores/optimizerForm/optimizerFormConversions'
 import { computeLoadForm } from 'lib/stores/optimizerForm/optimizerFormStoreActions'
 import { useOptimizerRequestStore } from 'lib/stores/optimizerForm/useOptimizerRequestStore'
 import { useOptimizerDisplayStore } from 'lib/stores/optimizerUI/useOptimizerDisplayStore'
@@ -222,6 +225,22 @@ function serializeRowStats(row: OptimizerDisplayData): Record<string, number> {
 }
 
 export function registerOptimizerTools(server: McpServer): void {
+  /** Loads the character's SAVED form into the request store the updateCharacter
+   * way so the upstream fix actions operate on the persisted form (formOverrides
+   * are per-run parameters and deliberately excluded). Returns the internal
+   * request used for the before-estimate. Call inside a withChange scope. */
+  function loadSavedFormIntoRequestStore(character: Any, characterId: string, resultsLimit: number): Any {
+    useOptimizerRequestStore.getState().loadForm(character.form)
+    // The PRIORITY fix moves focusCharacterId to the top — point it at the
+    // character being fixed (web: the focused char).
+    useOptimizerDisplayStore.getState().setFocusCharacterId(characterId as Any)
+    const savedRequest: Any = displayToInternal(useOptimizerRequestStore.getState())
+    savedRequest.characterId = characterId
+    savedRequest.rank = getCharacters().findIndex((c: Any) => c.id === characterId)
+    savedRequest.resultsLimit = resultsLimit
+    return savedRequest
+  }
+
   server.registerTool('optimize', {
     title: '执行遗器优化搜索',
     description: '为单个角色执行遗器优化搜索——对应网页端 Optimizer 页签的「开始优化」按钮(同一台上游引擎,CPU 多线程版,'
@@ -374,17 +393,16 @@ export function registerOptimizerTools(server: McpServer): void {
 
     // ── applyFixes: the fix buttons against the character's SAVED form ───────
     if (applyFixes === true) {
-      // Load the saved form into the request store the updateCharacter way so
-      // the upstream fix actions (setMainStats/setSetFilters/insertCharacter/…)
-      // operate on exactly this character's persisted form. formOverrides are
-      // per-run parameters and deliberately excluded — applyFixes never writes
-      // a form the agent did not save.
-      useOptimizerRequestStore.getState().loadForm(character.form)
-      // The PRIORITY fix moves useOptimizerDisplayStore.focusCharacterId to the
-      // top — point it at the character being fixed (web: the focused char).
-      useOptimizerDisplayStore.getState().setFocusCharacterId(characterId as Any)
-
-      const savedRequest: Any = displayToInternal(useOptimizerRequestStore.getState())
+      // Diagnosis runs on a THROWAWAY probe state — the live request store is
+      // only loaded inside the withChange below, so a baseRevision conflict or
+      // a failed fix rolls that load back with everything else (it used to
+      // leak past the transaction boundary). formOverrides are per-run
+      // parameters and deliberately excluded — applyFixes never writes a form
+      // the agent did not save.
+      // internalToDisplay mirrors loadForm's conversion wholesale — applyFormOverrides
+      // would reject display-only keys saved forms legitimately carry (minCv…).
+      const probeState = { ...useOptimizerRequestStore.getState(), ...internalToDisplay(character.form as Any) } as Any
+      const savedRequest: Any = displayToInternal(probeState)
       savedRequest.characterId = characterId
       savedRequest.rank = getCharacters().findIndex((c: Any) => c.id === characterId)
       savedRequest.resultsLimit = resultsLimit
@@ -425,6 +443,12 @@ export function registerOptimizerTools(server: McpServer): void {
       const t = i18next.getFixedT(null, 'modals') as Any
 
       await runtimeContext.withChange('optimize:applyFixes', () => {
+        // Inside the scope: the request-store load below mutates live stores —
+        // capturing it in the dequeue-time snapshot means a baseRevision
+        // conflict or a failed fix rolls the loaded form back with everything
+        // else (it used to leak past the transaction boundary).
+        const savedFormState = loadSavedFormIntoRequestStore(character, characterId, resultsLimit)
+
         for (const suggestion of applicable) {
           // The exact fix the web's modal button runs — store actions over the
           // request store loaded with this character's saved form above.

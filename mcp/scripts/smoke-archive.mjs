@@ -144,6 +144,17 @@ try {
   writeFileSync(richPath, JSON.stringify(richSave))
   await callTool('load_save', { path: richPath })
   const richBaseline = await exportedState('rich-baseline')
+  // Manual-load security semantics: the rich fixture carries customUrl=true with
+  // ws://127.0.0.1:54321 — load_save must NOT re-point the scanner connection
+  // (persistenceService.ts:207 restores the url only on autosave loads).
+  {
+    const scannerState = await callTool('get_state', { section: 'scanner' })
+    check(
+      'manual load does not apply the save\'s custom scanner url',
+      scannerState.scanner.websocketUrl === 'ws://127.0.0.1:23313/ws',
+      `websocketUrl=${scannerState.scanner.websocketUrl}`,
+    )
+  }
   await sleep(400) // Let the intended load/export localStorage update settle.
   const referenceBeforeFailure = localStorageState()
   const fileBeforeMutation = readFileSync(richPath, 'utf8')

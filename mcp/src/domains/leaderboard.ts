@@ -35,6 +35,8 @@
 // score-descending sort (sub-1.5 entries can only ever occupy tail positions
 // inside the top-N window, and never change the rank numbers above them).
 
+import i18next from 'i18next'
+
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   configTypeToPublic,
@@ -84,6 +86,7 @@ import type { CharacterId } from 'types/character'
 import type { LightConeId } from 'types/lightCone'
 import type { Relic } from 'types/relic'
 import { z } from 'zod'
+import { ensureI18nReady } from '../i18n/i18nNode'
 
 import { runtimeContext } from '../context'
 import { toolResult } from '../toolResult'
@@ -267,12 +270,17 @@ async function buildDataset(resolved: ResolvedDataSource, timeoutMs: number): Pr
   const generatedAt = typeof manifest.generatedAt === 'string' ? manifest.generatedAt : null
   const version = generatedAt ?? new Date(fetchedAt).toISOString()
 
+  // Decompress concurrently, then insert in MANIFEST order — the web reads
+  // Object.keys(output.characters), and stable sorts downstream must break
+  // score ties by manifest order, not by decompression completion order.
   const characters = new Map<CharacterId, PublicCharacterData>()
-  await Promise.all(
-    Object.entries(manifest.characters).map(async ([id, compressed]) => {
-      characters.set(id as CharacterId, await decompressPublicCharacterData(compressed as string, id, baseUrl))
-    }),
+  const manifestEntries = Object.entries(manifest.characters)
+  const decompressed = await Promise.all(
+    manifestEntries.map(([id, compressed]) => decompressPublicCharacterData(compressed as string, id, baseUrl)),
   )
+  for (const [id, data] of manifestEntries.map(([id], i) => [id, decompressed[i]] as const)) {
+    characters.set(id as CharacterId, data)
+  }
 
   // Index loops mirror getLeaderboardTopScores (leaderboardDataLoader.ts:195-248):
   // top score = max entry score across every config/team; totalEntries = the
@@ -357,6 +365,8 @@ type TimelineState =
   | {
     available: false,
     reason: string,
+    /** true = 瞬时失败(网络/超时),不缓存,下次调用重试;缺省 = 数据固有不可用,可缓存 */
+    transient?: boolean,
   }
 
 async function buildTimelineState(baseUrl: string, timeoutMs: number): Promise<TimelineState> {
@@ -417,10 +427,18 @@ const timelineCache = new Map<string, Promise<TimelineState>>()
 function loadTimelineState(baseUrl: string, timeoutMs: number): Promise<TimelineState> {
   const cached = timelineCache.get(baseUrl)
   if (cached) return cached
-  const promise = buildTimelineState(baseUrl, timeoutMs).catch((e: unknown): TimelineState => ({
-    available: false,
-    reason: `动态文件不可用:${(e as Error).message}`,
-  }))
+  const promise = buildTimelineState(baseUrl, timeoutMs)
+    .catch((e: unknown): TimelineState => ({
+      available: false,
+      reason: `动态文件不可用:${(e as Error).message}`,
+      // transient failure (network/timeout): evict so the next call retries —
+      // upstream resets cachedTimelinePromise on failure (leaderboardDataLoader.ts:124-127)
+      transient: true,
+    }))
+    .then((state) => {
+      if (!state.available && state.transient === true) timelineCache.delete(baseUrl)
+      return state
+    })
   timelineCache.set(baseUrl, promise)
   return promise
 }
@@ -428,7 +446,24 @@ function loadTimelineState(baseUrl: string, timeoutMs: number): Promise<Timeline
 // ─── shared helpers ──────────────────────────────────────────────────────────
 
 function characterNameOf(characterId: string): string | null {
-  return getGameMetadata().characters[characterId as CharacterId]?.name ?? null
+  // 网页端角色面板按当前语言的名字做包含匹配(CharacterListPanel.tsx:130)。
+  // MCP 固定 zh_CN 渲染:优先 gameData 命名空间的 zh 名(与 game://metadata
+  // 资源同款 translator),缺失时回落元数据英文名。
+  const zh = zhNameOf(characterId)
+  return zh ?? getGameMetadata().characters[characterId as CharacterId]?.name ?? null
+}
+
+function zhNameOf(characterId: string): string | null {
+  try {
+    ensureI18nReady()
+    const value = (i18next.getFixedT(null, 'gameData') as (key: string, options?: { defaultValue?: string }) => string)(
+      `Characters.${characterId}.Name`,
+      { defaultValue: '' },
+    )
+    return value.length > 0 ? value : null
+  } catch {
+    return null
+  }
 }
 
 function lightConeNameOf(lightConeId: string | null): string | null {
@@ -580,7 +615,9 @@ export function registerLeaderboardTools(server: McpServer): void {
       timeoutMs: z.number().int().min(1_000).max(120_000).default(DEFAULT_TIMEOUT_MS).describe(
         `单文件拉取超时毫秒数(默认 ${DEFAULT_TIMEOUT_MS};仅对该数据源的首次拉取生效)`,
       ),
-      search: z.string().optional().describe('view=characters:按角色名不区分大小写的包含匹配(网页端角色列表搜索框)'),
+      search: z.string().optional().describe(
+        'view=characters:不区分大小写的包含匹配——角色名取当前渲染语言(MCP 为中文,与网页端同语匹配)外加 characterId 域(id 命中是 MCP 的显式补充)',
+      ),
       configType: z.enum(LEADERBOARD_CONFIG_TYPES).optional().describe(
         '评分类型(public 口径:dps/support/heal/shield):view=characters 作标签过滤;view=board 指定榜单类型(缺省取该角色有数据的第一个,顺序 dps>support>heal>shield)',
       ),
@@ -815,7 +852,7 @@ export function registerLeaderboardTools(server: McpServer): void {
     if (configTypes.length === 0) {
       throw new Error(
         `角色 ${characterId}(${characterNameOf(characterId) ?? '?'})没有任何可用的评分类型榜单`
-          + `——网页端把它列为「数据不足」不可点开;数据中出现过的配置键:${Object.keys(characterData.configs).join(', ') || '(空)'}`,
+          + `——该角色没有任何可用评分类型的榜单数据;数据中出现过的配置键:${Object.keys(characterData.configs).join(', ') || '(空)'}`,
       )
     }
     let activeConfigType: LeaderboardConfigType | null = null
@@ -1011,7 +1048,9 @@ export function registerLeaderboardTools(server: McpServer): void {
         team: teammates,
         deprioritizeBuffs: wireEntry.data.deprioritizeBuffs === true,
         fetchedAtEpoch: wireEntry.data.fetchedAt,
-        fetchedAtIso: new Date(wireEntry.data.fetchedAt).toISOString(),
+        fetchedAtIso: Number.isFinite(wireEntry.data.fetchedAt)
+          ? new Date(wireEntry.data.fetchedAt).toISOString()
+          : null,
         baselineSimScore: wireEntry.data.baselineSimScore,
         benchmarkSimScore: wireEntry.data.benchmarkSimScore,
         maximumSimScore: wireEntry.data.maximumSimScore,
@@ -1137,8 +1176,10 @@ export function registerLeaderboardTools(server: McpServer): void {
     }
 
     const dataset = await loadDataset(resolved, input.timeoutMs)
-    const loadedCharacters: LoadedLeaderboardCharacter[] = [...dataset.characters.entries()]
-      .map(([characterId, characterData]) => ({ characterId, characterData }))
+    // The web iterates availableCharacters (rarity-5 merged set, LeaderboardUserRanksCard.tsx:83-91)
+    const loadedCharacters: LoadedLeaderboardCharacter[] = dataset.mergedCharacterIds
+      .map((characterId) => ({ characterId, characterData: dataset.characters.get(characterId) }))
+      .filter((entry): entry is LoadedLeaderboardCharacter => entry.characterData != null)
     if (loadedCharacters.length === 0) {
       throw new Error(`榜单数据不可用(版本 ${dataset.version} 没有任何角色数据)——无法按 UID 查询名次`)
     }

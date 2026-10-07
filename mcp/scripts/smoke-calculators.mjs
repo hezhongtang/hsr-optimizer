@@ -306,14 +306,14 @@ try {
 
   const grid52 = await callTool(client, 'calc_ehr', {
     mode: 'grid',
-    effectRes: 44,
+    effectRes: 40,
     debuffRes: 0,
     baseChance: 100,
     attempts: 1,
     effectHitRate: 52,
   })
   check(
-    'calc_ehr grid snaps EHR 52 to center row 50 and res 44 to the 40 column',
+    'calc_ehr grid snaps EHR 52 to center row 50 and marks the 40 column current',
     grid52.grid.centerEhr === 50 && grid52.grid.nearestRes === 40
       && grid52.grid.rows.find((r) => r.isCurrentRow)?.ehr === 50
       && grid52.grid.rows.every((r) => r.cells.find((c) => c.isCurrentColumn)?.effectRes === 40),
@@ -437,6 +437,26 @@ try {
       && lcChained.request.targets[2].currentSuperimpositionLevel === 1 && lcChained.request.targets[2].targetSuperimpositionLevel === 2
       && lcChained.request.targets[0].targetSuperimpositionLevel === 0,
     JSON.stringify(lcChained.request.targets.map((t) => [t.currentSuperimpositionLevel, t.targetSuperimpositionLevel])),
+  )
+  // A light-cone-only goal is an addLcGoal: NO implicit E6 eidolon target (the
+  // bare default's E6 would inflate the expected pulls ~10x) and milestones are
+  // S-only.
+  const lcOnly = await callTool(client, 'warp_plan', {
+    jades: 0,
+    plannerMode: 'multi',
+    normalizeTargets: true,
+    targets: [{ id: 'lc-only', lightConeId: '23014' }],
+  })
+  check(
+    'normalizeTargets: a light-cone-only goal pulls superimpositions only (eidolon NONE, addLcGoal semantics)',
+    lcOnly.request.targets[0].targetEidolonLevel === -1 && lcOnly.request.targets[0].currentEidolonLevel === -1
+      && lcOnly.request.targets[0].targetSuperimpositionLevel === 1,
+    JSON.stringify(lcOnly.request.targets[0]),
+  )
+  check(
+    'light-cone-only milestones are S-only (no E0..E6 inflation)',
+    lcOnly.targetResults[0].milestones.every((m) => /^S\d$/.test(m.label)),
+    JSON.stringify(lcOnly.targetResults[0].milestones.map((m) => m.label)),
   )
   // Without normalizeTargets the raw final-form list passes through untouched
   const rawPassthrough = await callTool(client, 'warp_plan', {

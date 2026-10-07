@@ -17,7 +17,7 @@
 //   UpdateRelics adds/equips a 5★ relic and ignores a 4★ one; UpdateCharacters
 //   creates a character (light cone matched through the pushed UpdateLightCones
 //   cache); UpdateGachaFunds lands jades=stellar_jade+oner ic_shards in the
-//   warp planner request; GachaResult recorded as ignored (pity untouched); a
+//   warp planner request; GachaResult syncs pity/guarantee to the warp draft; a
 //   malformed JSON frame logs an error WITHOUT dropping the connection; store
 //   deletes flow through DeleteRelics by _uid (non-5★ is a store no-op);
 //   status frame stats; status/events are read-only (no revision bump);
@@ -393,35 +393,55 @@ try {
     `level=${updateChar.savedForm?.characterLevel} (incremental path keeps raw level — level || 80), lc=${updateChar.savedForm?.lightCone}, e${updateChar.savedForm?.characterEidolon}`,
   )
 
-  // 10. UpdateMaterials (cache-only) + UpdateGachaFunds → warp draft jades
+  // 10. UpdateMaterials + UpdateGachaFunds → warp draft jades AND passes
+  // (useWarpScannerSync.ts:16-24: jades = 星琼+梦华; passes = 专票 + floor(未熄星芒/20))
   frame('UpdateMaterials', [{ id: '102', name: 'Special Pass', count: 5 }, { id: '252', name: 'Undying Starlight', count: 37 }])
   frame('UpdateGachaFunds', { stellar_jade: 1600, oneric_shards: 320 })
   const warpWait = await pollUntil('gacha funds applied', async () => {
     const plan = await callTool(client, 'warp_plan', { fromSaved: true })
-    return { ok: plan.request?.jades === 1920, jades: plan.request?.jades }
+    return { ok: plan.request?.jades === 1920 && plan.request?.passes === 6, jades: plan.request?.jades, passes: plan.request?.passes }
   })
-  check('UpdateGachaFunds writes jades = stellar_jade + oneric_shards = 1920 into the warp draft', warpWait.ok, `jades=${warpWait.jades}`)
+  check(
+    'warp sync: jades = 1600+320 and passes = 5 + floor(37/20) = 6 (useWarpScannerSync formulas)',
+    warpWait.ok,
+    `jades=${warpWait.jades}, passes=${warpWait.passes}`,
+  )
 
-  // 11. GachaResult → ignored, pity untouched
+  // 11. GachaResult → pull history never lands; pity/guarantee sync to the warp draft
   frame('GachaResult', {
     banner_id: 1,
     banner_type: 'Character',
     pity_4: { kind: 'AddPity', amount: 1 },
-    pity_5: { kind: 'AddPity', amount: 1 },
+    pity_5: { kind: 'AddPity', amount: 3 },
     pull_results: [],
   })
   await sleep(300)
-  const afterGacha = await callTool(client, 'warp_plan', { fromSaved: true })
+  let afterGacha = await callTool(client, 'warp_plan', { fromSaved: true })
   check(
-    'GachaResult ignored: warp pity still 0 (no gacha-record feature by design)',
-    afterGacha.request?.pityCharacter === 0 && afterGacha.request?.guaranteedCharacter === false,
+    'GachaResult AddPity accumulates pityCharacter (history itself never lands)',
+    afterGacha.request?.pityCharacter === 3 && afterGacha.request?.guaranteedCharacter === false,
     `pity=${afterGacha.request?.pityCharacter}`,
+  )
+  frame('GachaResult', {
+    banner_id: 1,
+    banner_type: 'LightCone',
+    pity_4: { kind: 'AddPity', amount: 1 },
+    pity_5: { kind: 'ResetPity', amount: 20, set_guarantee: true },
+    pull_results: [],
+  })
+  await sleep(300)
+  afterGacha = await callTool(client, 'warp_plan', { fromSaved: true })
+  check(
+    'GachaResult ResetPity on the light-cone banner sets pity + guarantee',
+    afterGacha.request?.pityLightCone === 20 && afterGacha.request?.guaranteedLightCone === true && afterGacha.request?.pityCharacter === 3,
+    `lcPity=${afterGacha.request?.pityLightCone}, guaranteed=${afterGacha.request?.guaranteedLightCone}, charPity=${afterGacha.request?.pityCharacter}`,
   )
 
   // 12. malformed frame → logged, connection survives (next frame still applies)
   push('{not valid json')
   frame('UpdateRelics', [novel('9005', 50)])
   const malformedWait = await pollUntil('post-malformed frame applied', async () => ({ ok: await relicsTotal() === 166, total: await relicsTotal() }))
+
   check('malformed JSON frame does NOT disconnect: next frame still applies (165 → 166)', malformedWait.ok, `total=${malformedWait.total}`)
 
   // 13. DeleteRelics by _uid → store delete; non-5★ uid → store no-op
@@ -434,12 +454,24 @@ try {
   frame('DeleteLightCones', ['lc-update'])
 
   // 14. status snapshot — frames pushed so far: InitialScan, UR(5★), UR(4★),
-  // ULC, UC, UM, UGF, GachaResult, malformed, UR(9005), DR(9005), DR(9004), DLC = 13
+  // ULC, UC, UM, UGF, GachaResult×2, malformed, UR(9005), DR(9005), DR(9004), DLC = 14.
+  // The DLC frame is the only one without its own settle below — poll for its
+  // cache effect before reading the counters (ws delivery vs the stdio status
+  // call is otherwise a race; flaky ~50% before this fix).
+  const dlcSettled = await pollUntil('delete-light-cone frame settled', async () => {
+    const probe = await callTool(client, 'scanner', { action: 'status' })
+    return { ok: probe.scannerCache?.lightCones === 1 && probe.frames?.received === 14, received: probe.frames?.received, lcs: probe.scannerCache?.lightCones }
+  })
+  check(
+    'DeleteLightCones settled (cache 2 → 1) before the frame-stat assertions',
+    dlcSettled.ok,
+    `received=${dlcSettled.received}, lightCones=${dlcSettled.lcs}`,
+  )
   const status = await callTool(client, 'scanner', { action: 'status' })
   check(
     'status: connected, url, and cumulative frame stats',
-    status.connected === true && status.url === archiverUrl && status.frames.received === 13 && status.frames.applied === 8
-      && status.frames.ignored === 4 && status.frames.errored === 1 && status.reconnects === 0 && status.uptimeMs >= 0,
+    status.connected === true && status.url === archiverUrl && status.frames.received === 14 && status.frames.applied === 12
+      && status.frames.ignored === 2 && status.frames.errored === 1 && status.reconnects === 0 && status.uptimeMs >= 0,
     JSON.stringify({ received: status.frames?.received, applied: status.frames?.applied, ignored: status.frames?.ignored, errored: status.frames?.errored }),
   )
   check(
@@ -461,7 +493,11 @@ try {
   const events = await callTool(client, 'scanner', { action: 'events' })
   const byType = (type) => events.entries.filter((e) => e.type === type)
   const gachaEntry = byType('GachaResult')[0]
-  check('events: GachaResult recorded as ignored', gachaEntry?.result === 'ignored', JSON.stringify(gachaEntry)?.slice(0, 120))
+  check(
+    'events: GachaResult recorded as applied-for-warp (history never lands)',
+    gachaEntry?.result === 'applied' && /垫抽|必中/.test(gachaEntry?.summary ?? ''),
+    JSON.stringify(gachaEntry)?.slice(0, 120),
+  )
   const parseErrorEntry = byType('parse_error')[0]
   check(
     'events: malformed frame recorded as an error entry',
@@ -494,6 +530,31 @@ try {
     `got ${paged.entries.length}`,
   )
 
+  // 19b. settings replay (web setter semantics, scannerStore.ts:164-228):
+  // a scan pushed while ingest is OFF stays cache-only; flipping ingest ON while
+  // connected must re-run the full import from the cached scan, and flipping
+  // ingestWarpResources ON must re-emit the resources into the warp draft.
+  const totalBeforeReplay = await relicsTotal()
+  const jadesBeforeReplay = (await callTool(client, 'warp_plan', { fromSaved: true })).request?.jades
+  await callTool(client, 'update_state', { section: 'scanner', patch: { ingest: false } })
+  frame('UpdateRelics', [novel('9008', 80)])
+  await sleep(300)
+  check('scan pushed while ingest is OFF stays cache-only', await relicsTotal() === totalBeforeReplay, `total=${await relicsTotal()}`)
+  await callTool(client, 'update_state', { section: 'scanner', patch: { ingest: true } })
+  const replayed = await pollUntil('ingest flip replayed the cached scan', async () => ({
+    ok: await relicsTotal() === totalBeforeReplay + 1,
+    total: await relicsTotal(),
+  }))
+  check('flipping ingest ON while connected replays the cached scan (reimport)', replayed.ok, `total=${replayed.total}`)
+  await callTool(client, 'update_state', { section: 'scanner', patch: { ingestWarpResources: false } })
+  await callTool(client, 'update_state', { section: 'scanner', patch: { ingestWarpResources: true } })
+  const jadesAfterReEmit = (await callTool(client, 'warp_plan', { fromSaved: true })).request?.jades
+  check(
+    'flipping ingestWarpResources ON re-emits the cached resources (warp-re-emit)',
+    jadesAfterReEmit === 1920 && jadesBeforeReplay === 1920,
+    `jades ${jadesBeforeReplay} → ${jadesAfterReEmit}`,
+  )
+
   // 17. unexpected server-side termination → automatic reconnection
   for (const ws of archiverClients) ws.terminate()
   const reconnected = await pollUntil('auto-reconnect', async () => {
@@ -507,7 +568,7 @@ try {
   )
   check('reconnect attempt was counted', reconnected.reconnects >= 1, `reconnects=${reconnected.reconnects}`)
   frame('UpdateRelics', [novel('9006', 60)])
-  const postReconnect = await pollUntil('post-reconnect frame applied', async () => ({ ok: await relicsTotal() === 166, total: await relicsTotal() }))
+  const postReconnect = await pollUntil('post-reconnect frame applied', async () => ({ ok: await relicsTotal() === 167, total: await relicsTotal() }))
   check('frames keep applying after the automatic reconnect (165 → 166)', postReconnect.ok, `total=${postReconnect.total}`)
 
   // 18. disconnect idempotency
@@ -530,13 +591,13 @@ try {
   const reconnected2 = await callTool(client, 'scanner', { action: 'connect' })
   check('manual re-connect after disconnect succeeds', reconnected2.connected === true && reconnected2.alreadyConnected === false, `url=${reconnected2.url}`)
   frame('UpdateRelics', [novel('9007', 70)])
-  const finalRelics = await pollUntil('final frame applied', async () => ({ ok: await relicsTotal() === 167, total: await relicsTotal() }))
-  check('session continues after the manual re-connect (166 → 167)', finalRelics.ok, `total=${finalRelics.total}`)
+  const finalRelics = await pollUntil('final frame applied', async () => ({ ok: await relicsTotal() === 168, total: await relicsTotal() }))
+  check('session continues after the manual re-connect (167 → 168)', finalRelics.ok, `total=${finalRelics.total}`)
 
   // 20. persisted: the live writes flushed into the loaded save file copy
   await sleep(1800)
   const flushed1 = JSON.parse(readFileSync(phase1, 'utf8'))
-  check('live-scanner writes persisted to the loaded save copy (167 relics)', flushed1.relics.length === 167, `${flushed1.relics.length} relics on disk`)
+  check('live-scanner writes persisted to the loaded save copy (168 relics)', flushed1.relics.length === 168, `${flushed1.relics.length} relics on disk`)
 
   // 21. param misuse errors
   await expectToolError('scanner', { action: 'status', url: archiverUrl }, /不适用于该 action/, 'status rejects the connect-only url param')

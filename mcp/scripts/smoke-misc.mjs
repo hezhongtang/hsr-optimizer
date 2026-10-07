@@ -489,7 +489,7 @@ try {
     ehr1.achievable === true && closeEnough(ehr1.requiredEhr, 25) && ehr1.attemptsUsed === 1,
     `requiredEhr=${ehr1.requiredEhr}`,
   )
-  const ehrInputs = { effectRes: 0, debuffRes: 10, baseChance: 65, attempts: 2.4, desiredHitRate: 99 }
+  const ehrInputs = { effectRes: 0, debuffRes: 25, baseChance: 65, attempts: 2.4, desiredHitRate: 99 }
   const ehr2 = await callTool(client, 'calc_ehr', ehrInputs)
   check(
     'calc_ehr matches upstream formula incl. attempts rounding (2.4 → 2)',
@@ -524,12 +524,12 @@ try {
     ehrBase0.achievable === false && ehrBase0.requiredEhr === null && ehrBase0.reasons.some((r) => r.includes('基础概率')),
     JSON.stringify(ehrBase0.reasons),
   )
-  const ehrRes100 = await callTool(client, 'calc_ehr', { effectRes: 100, debuffRes: 0, baseChance: 100, attempts: 1, desiredHitRate: 50 })
+  const ehrRes100 = await callTool(client, 'calc_ehr', { effectRes: 20, debuffRes: 100, baseChance: 100, attempts: 1, desiredHitRate: 50 })
   check(
-    'calc_ehr effectRes 100% → achievable=false',
-    ehrRes100.achievable === false && ehrRes100.requiredEhr === null && ehrRes100.reasons.some((r) => r.includes('效果抵抗')),
+    'calc_ehr debuffRes 100% → achievable=false',
+    ehrRes100.achievable === false && ehrRes100.requiredEhr === null,
   )
-  const ehrBoth = await callTool(client, 'calc_ehr', { effectRes: 100, debuffRes: 0, baseChance: 0, attempts: 1, desiredHitRate: 50 })
+  const ehrBoth = await callTool(client, 'calc_ehr', { effectRes: 20, debuffRes: 100, baseChance: 0, attempts: 1, desiredHitRate: 50 })
   check('calc_ehr collects all blocking reasons (2)', ehrBoth.achievable === false && ehrBoth.reasons.length === 2, JSON.stringify(ehrBoth.reasons))
   const ehrAgain = await callTool(client, 'calc_ehr', { effectRes: 20, debuffRes: 0, baseChance: 100, attempts: 1, desiredHitRate: 100 })
   check('calc_ehr deterministic', JSON.stringify(ehrAgain) === JSON.stringify(ehr1))

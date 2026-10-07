@@ -34,6 +34,7 @@ import {
   resolveShowcaseScoringOrder,
   resolveShowcaseScoringType,
 } from 'lib/characterPreview/scoring/showcaseScoringOrder'
+import { resolveEffectiveDeprioritizeBuffs } from 'lib/characterPreview/showcaseDerivedData'
 import { countRelicRolls } from 'lib/characterPreview/summary/statScoringSummaryController'
 import { getCharacterConfig } from 'lib/conditionals/resolver/characterConfigRegistry'
 import {
@@ -298,7 +299,7 @@ export function registerScoringTools(server: McpServer): void {
       + '`scope` 选择评分范围(网页端遗器表格的评分列分组):selected=选中角色(characterId 的列,默认);'
       + 'all=全部角色——逐件返回各角色中的最高潜力/重掷期望(rangePotential,即表格 potentialAllAll 列);'
       + 'custom=自定义角色集——同 all 但排除 excludeCharacters 列出的角色(即表格 potentialAllCustom 列;'
-      + '对应网页端「潜力计算自定义角色集」的排除名单,会话态)。scope=all/custom 会对分页内每件 × 全角色计算,较慢。'
+      + '对应网页端「潜力计算自定义角色集」的排除名单(随存档持久,可经 export_save(structured=true)/get_save_snapshot 读出)。scope=all/custom 会对分页内每件 × 全角色计算,较慢。'
       + '`rollsSummary=true` 附带逐件 roll 分布合计(high/mid/low)与全页汇总 rollsTotals'
       + '(传 characterId 时再给加权 roll 数 countRelicRolls 口径),对应构筑分析「遗器稀有度」一栏的每件 roll 统计。',
     inputSchema: {
@@ -410,6 +411,9 @@ export function registerScoringTools(server: McpServer): void {
       }
 
       if (rangeCharacterIds != null) {
+        // 网页端 potentialAllAll/potentialAllCustom 对四个指标各自独立取全候选
+        // 最大值(scoreRelicsBatch.ts:161-177,初值 0);bestCharacterId 只标注
+        // bestPct 的归属(网页无归属列,MCP 附加信息)。
         let best = { bestPct: -1, averagePct: -1, rerollAvgPct: -1, blockedRerollAvgPct: -1, characterId: '' }
         for (const candidateId of rangeCharacterIds) {
           if (excluded.includes(candidateId)) continue
@@ -421,6 +425,13 @@ export function registerScoringTools(server: McpServer): void {
               rerollAvgPct: Math.max(0, pct.rerollAvgPct),
               blockedRerollAvgPct: Math.max(0, pct.blockedRerollAvgPct),
               characterId: candidateId,
+            }
+          } else {
+            best = {
+              ...best,
+              averagePct: Math.max(best.averagePct, pct.averagePct),
+              rerollAvgPct: Math.max(best.rerollAvgPct, Math.max(0, pct.rerollAvgPct)),
+              blockedRerollAvgPct: Math.max(best.blockedRerollAvgPct, Math.max(0, pct.blockedRerollAvgPct)),
             }
           }
         }
@@ -502,8 +513,7 @@ export function registerScoringTools(server: McpServer): void {
       + '返回:总分 percent(1.0=基准线,数值保持上游原样)与字母评级(SS/WTF…,六件套且全 verified 才可能 AEON)、'
       + 'original/baseline/benchmark/maximum 四组分数对比、原 SPD 与基准 SPD、副词条/套装/主词条升级表'
       + '(每项含 part/stat/新百分比/分数增量)、队友饰品升级摘要。team="default" 用官方推荐队,"custom" 用存档评分覆盖里的自定义队伍'
-      + '(scoringMetadataOverrides[角色].simulation.teammates,未设置时与 default 相同);自定义队伍只能随存档载入(在网页端编辑),'
-      + '目前没有 MCP 工具可以设置——set_scoring_override 只改副词条权重与主词条候选。',
+      + '(scoringMetadataOverrides[角色].simulation.teammates,未设置时与 default 相同);自定义队伍可经 set_scoring_override(configs.editTeammate/syncTeam) 设置,或随存档载入(在网页端编辑)。',
     inputSchema: {
       characterId: z.string().describe('角色 id(需已载入存档,按其当前装备评分)'),
       team: z.enum(['default', 'custom']).default('default').describe('基准队伍:官方推荐队或自定义覆盖队'),
@@ -657,7 +667,7 @@ export function registerScoringTools(server: McpServer): void {
         + 'build 来源优先配装记录的评分类型)。落到副词条/无(非模拟类型)时报错——那是 score_relics 的领域。'
         + '`team`:auto=网页默认判定(存有自定义队友与默认不同就用自定义队,会话偏好优先)/default=官方推荐队/'
         + 'custom=存档评分覆盖里的自定义队;`teammates` 直接给一支临时队伍(≤3 人,角色与光锥必填)——只在本次评分生效,'
-        + '不写存档,持久化自定义队走 set_scoring_override(configs)。build 来源的队伍始终取配装记录的队伍。'
+        + '不写存档,持久化自定义队走 set_scoring_override(configs)。build 来源缺省取配装记录的队伍;显式传 teammates 时临时队伍优先(同其它来源)。'
         + '`spdBenchmark` 临时基准速度(定制侧栏「属性」的基准速度输入框):不传=当前速度,0=基础速度,正数=对齐到该速度;'
         + '只影响本次评分,不写存档。`deprioritizeBuffs` DPS 增益优先级(false=主 C/true=副 C,仅 config=dps;缺省用存档覆盖或默认)。'
         + '`trace=true` 额外返回评分模拟的逐动作增益汇总(与 simulate_build(trace=true) 同一归因风格:来源/能力/数值/伤害标签),'
@@ -991,12 +1001,21 @@ export function registerScoringTools(server: McpServer): void {
         sim.teammates = resolved as Any
       }
 
-      // DPS 增益优先级:显式参数 > 存档覆盖/默认(resolveSimulationMetadata 已合并)
+      // DPS 增益优先级:显式参数 > 存档覆盖/默认(resolveSimulationMetadata 已合并)。
+      // 无显式覆盖时按网页端 applySimulationMetadataOverrides 解析生效值
+      // (showcaseDerivedData.ts:186-199):副 C 默认角色在没有真输出位队友的
+      // 队伍里按主 C(不降增益)评分——resolveEffectiveDeprioritizeBuffs 内部
+      // 再区分存档显式覆盖(尊重)与默认值(可翻转)。
+      let effectiveDeprioritizeBuffs: boolean | null = sim.deprioritizeBuffs ?? null
       if (deprioritizeBuffs != null) {
         if (!SCORING_CONFIG_REGISTRY[configType].supportsDeprioritizeBuffs) {
           throw new Error('score_character:deprioritizeBuffs 只属于 DPS 评分配置(其余配置固定按副 C 孤立评分)——请传 config="dps" 或去掉该参数')
         }
         sim.deprioritizeBuffs = deprioritizeBuffs
+        effectiveDeprioritizeBuffs = deprioritizeBuffs
+      } else if (SCORING_CONFIG_REGISTRY[configType].supportsDeprioritizeBuffs) {
+        effectiveDeprioritizeBuffs = resolveEffectiveDeprioritizeBuffs(scoredCharacterId as Any, sim as Any)
+        if (effectiveDeprioritizeBuffs != null) sim.deprioritizeBuffs = effectiveDeprioritizeBuffs
       }
 
       const progressToken = (extra._meta as Any)?.progressToken
@@ -1120,14 +1139,14 @@ export function registerScoringTools(server: McpServer): void {
         configType: String(configType) as 'dps' | 'buffer' | 'heal' | 'shield',
         configResolution: {
           requested: config,
-          scoringType: autoScoringType ?? simulationScoreToType(configType),
+          scoringType: simulationScoreToType(configType),
           order: autoOrder,
         },
         team: teamSelection === CUSTOM_TEAM ? 'custom' : 'default',
         teamResolution,
         teammates: (sim.teammates ?? []).map((teammate: Any) => teammate.characterId as string),
         spdBenchmark: orchestrator.spdBenchmark ?? null,
-        deprioritizeBuffs: sim.deprioritizeBuffs ?? null,
+        deprioritizeBuffs: effectiveDeprioritizeBuffs,
         ...score,
         builds: {
           original: buildDetail({ request: simulationScore.originalSim?.request, result: simulationScore.originalSimResult as Any }),

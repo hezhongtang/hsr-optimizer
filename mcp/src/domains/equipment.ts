@@ -1112,7 +1112,9 @@ export function registerEquipmentTools(server: McpServer): void {
     inputSchema: {
       characterId: z.string().optional().describe('目标角色 id(resetAll=true 时不传)'),
       weights: z.record(z.string(), z.number().min(0).max(1)).optional().describe('副词条权重 delta,键为副词条名(如 "CRIT DMG"、"SPD"),值 0-1'),
-      linkFlatAndPercent: z.boolean().optional().describe('true=ATK/HP/DEF 固定值与百分比联动写入相同值(与评分弹窗同一行编辑一致;仅作用于 weights)'),
+      linkFlatAndPercent: z.boolean().optional().describe(
+        'true=ATK/HP/DEF 固定值与百分比联动写入相同值(与评分弹窗同一行编辑一致;仅作用于 weights)。注意:不传时不会联动——只写 ATK 不写 ATK% 是合法状态,需要弹窗同款行为请显式传 true',
+      ),
       parts: z.record(z.string(), z.array(z.string())).optional().describe('主词条候选 delta,键为 Body/Feet/PlanarSphere/LinkRope'),
       traces: z.object({
         deactivated: z.array(z.string()).describe('要停用的行迹节点 id 列表(会自动向下级联到全部后代)'),
@@ -1331,7 +1333,10 @@ export function registerEquipmentTools(server: McpServer): void {
           if (edit.teamOrnamentSet != null && !SetsOrnamentsNames.includes(edit.teamOrnamentSet as never)) {
             throw new Error(`set_scoring_override:未知饰品套装 "${edit.teamOrnamentSet}" — 须为游戏内饰品套装名(如 "Firmament Frontline: Glamoth")`)
           }
-          // createOnCharacterModalOk:整支队伍写回覆盖(编辑那一位,其余保持)
+          // createOnCharacterModalOk:整支队伍写回覆盖(编辑那一位,其余保持)。
+          // 网页编辑弹窗从被编辑队友初始化表单、确认时原样带回——省略套装字段
+          // 保持该槽位现有套装,显式传 null 才清除(CharacterModal.tsx:90-91)。
+          const existingSlot = effectiveTeam[edit.index] ?? {}
           nextTeam = effectiveTeam.map((teammate: Any, i: number) =>
             i === edit.index
               ? {
@@ -1339,8 +1344,8 @@ export function registerEquipmentTools(server: McpServer): void {
                 lightCone: edit.lightCone,
                 characterEidolon: edit.characterEidolon ?? 0,
                 lightConeSuperimposition: edit.lightConeSuperimposition ?? 1,
-                teamRelicSet: edit.teamRelicSet ?? undefined,
-                teamOrnamentSet: edit.teamOrnamentSet ?? undefined,
+                teamRelicSet: edit.teamRelicSet === undefined ? existingSlot.teamRelicSet : (edit.teamRelicSet ?? undefined),
+                teamOrnamentSet: edit.teamOrnamentSet === undefined ? existingSlot.teamOrnamentSet : (edit.teamOrnamentSet ?? undefined),
               }
               : { ...teammate }
           )
@@ -1365,6 +1370,13 @@ export function registerEquipmentTools(server: McpServer): void {
           changed.push('syncTeam')
         }
 
+        // 校验先于任何写入:同一调用里 buffer/heal/shield + editTeammate +
+        // deprioritizeBuffs 的组合若在写完队伍后才抛错,会留下无修订号、无 dirty
+        // 标记的已持久化覆盖(先写后抛)。
+        if (configs.deprioritizeBuffs != null && !SCORING_CONFIG_REGISTRY[configType].supportsDeprioritizeBuffs) {
+          throw new Error('set_scoring_override:deprioritizeBuffs 只属于 DPS 评分配置(simulation 段)— 请传 configs.configType="dps"')
+        }
+
         if (nextTeam != null) {
           useScoringStore.getState().updateScoringConfigOverride(characterId as Any, configType, {
             teammates: nextTeam as Any,
@@ -1373,9 +1385,6 @@ export function registerEquipmentTools(server: McpServer): void {
         }
 
         if (configs.deprioritizeBuffs != null) {
-          if (!SCORING_CONFIG_REGISTRY[configType].supportsDeprioritizeBuffs) {
-            throw new Error('set_scoring_override:deprioritizeBuffs 只属于 DPS 评分配置(simulation 段)— 请传 configs.configType="dps"')
-          }
           useScoringStore.getState().updateScoringConfigOverride(characterId as Any, configType, {
             deprioritizeBuffs: configs.deprioritizeBuffs,
           })

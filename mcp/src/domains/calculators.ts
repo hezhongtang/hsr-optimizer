@@ -179,6 +179,12 @@ function normalizeWarpTargets(rawTargets: RawWarpTarget[]): WarpTarget[] {
       const from = raw.currentEidolonLevel ?? Math.max(floor, getOwnedEidolon(entry.characterId))
       entry.currentEidolonLevel = from
       entry.targetEidolonLevel = raw.targetEidolonLevel ?? Math.min(from + 1, EidolonLevel.E6)
+    } else if (entry.lightConeId != null) {
+      // addLcGoal semantics (warpTargetMutations.ts:126-137): a light-cone-only
+      // row pulls superimpositions only — no implicit E6 eidolon goal (the bare
+      // default's E6 would silently inflate the expected pull count ~10x).
+      entry.currentEidolonLevel = raw.currentEidolonLevel ?? EidolonLevel.NONE
+      entry.targetEidolonLevel = raw.targetEidolonLevel ?? EidolonLevel.NONE
     } else {
       entry.currentEidolonLevel = raw.currentEidolonLevel ?? DEFAULT_WARP_TARGET.currentEidolonLevel
       entry.targetEidolonLevel = raw.targetEidolonLevel ?? DEFAULT_WARP_TARGET.targetEidolonLevel
@@ -613,8 +619,12 @@ export function registerCalculatorsTools(server: McpServer): void {
       mode: z.enum(['solve', 'probability', 'grid']).optional().describe(
         '计算模式:solve=反解所需效果命中(默认);probability=给定效果命中算单次/累计施加概率;grid=效果命中×效果抵抗对照表',
       ),
-      effectRes: z.number().min(0).describe('敌方效果抵抗(%)(grid 模式下用于标记最接近的当前列)'),
-      debuffRes: z.number().min(0).describe('敌方减益抵抗(%)'),
+      effectRes: z.number().min(0).max(80).multipleOf(10).describe(
+        '敌方效果抵抗(%,0-80 每 10 一档——网页端下拉枚举域,EhrPanelContent.tsx:44-61;grid 模式下用于标记最接近的当前列)',
+      ),
+      debuffRes: z.union([z.literal(0), z.literal(25), z.literal(50), z.literal(75), z.literal(100)]).describe(
+        '敌方减益抵抗(%:0/25/50/75/100——网页端下拉枚举域)',
+      ),
       baseChance: z.number().min(0).describe('减益基础概率(%)(角色技能/光锥文案上的概率)'),
       attempts: z.number().positive().describe('施加次数(四舍五入取整,最小按 1)'),
       desiredHitRate: z.number().min(0).max(100).optional().describe(

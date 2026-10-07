@@ -599,7 +599,9 @@ export function registerShowcaseTools(server: McpServer): void {
         throw new Error('没有可用的展示柜数据:先调用 fetch_showcase,或通过 json 参数内联传入 showcase 响应')
       }
       if (cacheId != null && lastFetch.cacheId !== cacheId) {
-        throw new Error(`cacheId 不匹配:期望 ${cacheId},当前缓存是 ${lastFetch.cacheId}(进程内仅保留最近一次成功拉取)`)
+        throw new Error(
+          `cacheId 不匹配:期望 ${cacheId},当前缓存是 ${lastFetch.cacheId}(当前缓存是最近一次成功拉取;fetch_showcase(remember=true) 可保留多份缓存供 score_character(source=showcase) 选用)`,
+        )
       }
       cache = lastFetch
     }

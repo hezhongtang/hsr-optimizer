@@ -164,6 +164,10 @@ function buildAcheronData() {
               entry('bld-top', candidateOf('1308'), 2.05, acheronMinified(0), TEAM_A, 'acheron-std', { deprioritizeBuffs: true }),
               entry('bld-e6', 'aaaaaaaaaa06', 1.87, { a: 1308, r: 6, q: { t: 23014, r: 5 } }, TEAM_A, 'acheron-std'),
               entry('bld-dup', candidateOf('1308'), 1.30, { a: 1308, r: 0 }, TEAM_A, 'acheron-std'), // same candidate → deduped
+              // A second duplicate ABOVE the 150% cutoff: without dedup the merged
+              // board would have 4 rows >= 1.5, with dedup exactly 3 — makes the
+              // top-3 assertion falsifiable (a dedup regression flips it).
+              entry('bld-dup-hi', candidateOf('1308'), 1.60, { a: 1308, r: 3 }, TEAM_A, 'acheron-std'),
             ],
           },
           'acheron-alt': {
@@ -430,8 +434,18 @@ try {
     JSON.stringify(chars.configTypeCounts),
   )
 
-  const searched = await callTool(client, 'leaderboard', { view: 'characters', search: 'acheron', limit: 200 })
-  check('search "acheron" matches exactly 1308', searched.total === 1 && searched.characters[0]?.characterId === '1308', `${searched.total} rows`)
+  const searchedZh = await callTool(client, 'leaderboard', { view: 'characters', search: '黄泉', limit: 200 })
+  check(
+    'search "黄泉" (rendered zh name) matches exactly 1308 — web-parity name matching',
+    searchedZh.total === 1 && searchedZh.characters[0]?.characterId === '1308',
+    `${searchedZh.total} rows`,
+  )
+  const searchedId = await callTool(client, 'leaderboard', { view: 'characters', search: '1308', limit: 200 })
+  check(
+    'search "1308" matches via the characterId domain (declared MCP addition)',
+    searchedId.total === 1 && searchedId.characters[0]?.characterId === '1308',
+    `${searchedId.total} rows`,
+  )
 
   const dpsFiltered = await callTool(client, 'leaderboard', { view: 'characters', configType: 'dps', limit: 200 })
   const dpsIds = dpsFiltered.characters.map((c) => c.characterId)
@@ -482,7 +496,11 @@ try {
   )
 
   const noConfig = await expectToolError(client, 'leaderboard', { view: 'board', characterId: '1102' })
-  check('board of a 数据不足 character errors (Chinese)', noConfig.includes('没有任何可用的评分类型') && noConfig.includes('数据不足'), noConfig.slice(0, 90))
+  check(
+    'board of a config-less character errors (Chinese, MCP semantics)',
+    noConfig.includes('没有任何可用的评分类型') && noConfig.includes('1102'),
+    noConfig.slice(0, 90),
+  )
   const unknownChar = await expectToolError(client, 'leaderboard', { view: 'board', characterId: '9999' })
   check(
     'unknown character errors and lists data-bearing ids (Chinese)',
@@ -552,7 +570,7 @@ try {
   )
   check(
     'timeline rows carry character names and 12-hex candidate ids',
-    timeline.events[0].characterName === 'Acheron' && /^[0-9a-f]{12}$/.test(timeline.events[0].candidateId),
+    timeline.events[0].characterName === '黄泉' && /^[0-9a-f]{12}$/.test(timeline.events[0].candidateId),
   )
   const timelinePaged = await callTool(client, 'leaderboard', { view: 'timeline', offset: 1, limit: 5 })
   check('timeline pagination', timelinePaged.total === 2 && timelinePaged.events.length === 1 && timelinePaged.events[0].type === 'new_character')

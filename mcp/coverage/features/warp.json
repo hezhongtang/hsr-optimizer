@@ -56,7 +56,7 @@
         { "file": "src/lib/tabs/tabWarp/warpCalculatorController.ts", "symbol": "calculateWarps" }
       ],
       "params": [
-        { "name": "plannerMode", "type": "simple | multi", "default": "multi" },
+        { "name": "plannerMode", "type": "simple | multi", "default": "simple" },
         { "name": "strategy", "type": "0..7", "default": "0", "notes": "0–6 表示先抽到 E0–E6 再抽 S1；7 表示先抽 S1" }
       ],
       "conditions": "简单模式下忽略目标列表，改用一个从零到 E6S5 的内置目标。",

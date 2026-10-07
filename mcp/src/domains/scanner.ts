@@ -361,23 +361,13 @@ async function processFrame(text: string, bytes: number): Promise<void> {
         })
         return
       case 'UpdateMaterials':
-        applyCacheOnlyFrame('UpdateMaterials', bytes, (state) => {
-          for (const material of asArray<V4ParserMaterial>(data, 'UpdateMaterials')) handleUpdateMaterial(state, material)
-        })
+        await applyUpdateMaterials(data, bytes)
         return
       case 'UpdateGachaFunds':
         await applyUpdateGachaFunds(data, bytes)
         return
       case 'GachaResult':
-        // 网页端 scannerStore 对 GachaResult 不存任何状态(ScannerWebsocketClient.tsx:94);
-        // M6 验收明确 MCP 不虚增抽卡记录功能 —— 记为 ignored
-        frameStats.ignored++
-        appendLog({
-          type: 'GachaResult',
-          result: 'ignored',
-          bytes,
-          summary: '抽卡结果帧:按设计忽略,不写入任何状态(MCP 不记录抽卡历史;网页端也仅在跃迁页挂载时消费)',
-        })
+        await applyGachaResult(data, bytes)
         return
       default:
         frameStats.errored++
@@ -392,7 +382,7 @@ async function processFrame(text: string, bytes: number): Promise<void> {
       type,
       result: 'error',
       bytes,
-      summary: `应用 ${type} 帧失败,变更已回滚并保持连接`,
+      summary: `应用 ${type} 帧失败,库存与设置已回滚并保持连接(扫描缓存保留本帧写入——上游同样先写缓存、失败不回撤)`,
       error: message,
     })
   }
@@ -472,6 +462,12 @@ async function applyInitialScan(data: unknown, bytes: number): Promise<void> {
       + `库存 ${detail.totalBefore} → ${detail.totalAfter},角色 ${detail.characters} 个${settings.ingestCharacters ? '' : '(未导入角色)'}`,
     detail,
   })
+
+  // 上游 ingestFullScan 末尾 emitScannerEvents:把扫描自带的 gacha/materials 再
+  // 广播一遍——跃迁同步据此落 星琼/专票(门同 = ingest && ingestWarpResources)。
+  if (settings.ingestWarpResources) {
+    await syncWarpFundsAndMaterials('InitialScan:warp', bytes)
+  }
 }
 
 async function applyUpdateRelics(data: unknown, bytes: number): Promise<void> {
@@ -633,6 +629,147 @@ async function applyUpdateGachaFunds(data: unknown, bytes: number): Promise<void
     summary: `跃迁资源同步:星琼 = ${funds.stellar_jade} + ${funds.oneric_shards} = ${jades},已写入跃迁规划底稿(ingestWarpResources 开启)`,
     detail: { jades },
   })
+}
+
+// ─── warp planner sync (useWarpScannerSync.ts 的无头对应物) ──────────────────
+// 网页端跃迁页挂载时经 scannerChannel 消费三类事件;MCP 在帧到达时直接把同一套
+// 公式落进跃迁底稿(门 = ingest && ingestWarpResources,与上游两级门一致)。
+// 专票折算读扫描缓存(materials 由 UpdateMaterials/InitialScan 先写)。
+
+type WirePityUpdate = { kind: 'AddPity' | 'ResetPity', amount: number, set_guarantee?: boolean }
+type WireGachaResult = {
+  banner_type: 'Character' | 'LightCone' | 'Standard',
+  pity_5: WirePityUpdate,
+}
+
+function warpGatesOpen(): boolean {
+  const settings = readSettings()
+  return settings.ingest && settings.ingestWarpResources
+}
+
+/** 从扫描缓存把 星琼+梦华 与 专票+星芒折算 写进跃迁底稿(useWarpScannerSync 同款公式) */
+async function syncWarpFundsAndMaterials(label: string, bytes: number): Promise<void> {
+  const cache = useScannerState.getState()
+  const funds = cache.gachaFunds
+  const specialPasses = cache.materials['102'] ?? { id: '102', name: '', count: 0 }
+  const undyingStarlight = cache.materials['252'] ?? { id: '252', name: '', count: 0 }
+  const jades = funds ? funds.stellar_jade + funds.oneric_shards : null
+  const passes = specialPasses.count + Math.floor(undyingStarlight.count / 20)
+
+  await runtimeContext.withChange(`scanner:${label}`, () => {
+    const store = useWarpCalculatorStore.getState()
+    store.setRequest({ ...store.request, ...(jades != null ? { jades } : {}), passes })
+    runtimeContext.markDirty()
+  })
+
+  frameStats.applied++
+  appendLog({
+    type: 'UpdateMaterials',
+    result: 'applied',
+    bytes,
+    summary: `跃迁资源同步:专票 = 专票 ${specialPasses.count} + floor(未熄星芒 ${undyingStarlight.count} / 20) = ${passes}`
+      + (jades != null ? `,星琼 ${jades}` : '')
+      + ',已写入跃迁规划底稿(ingestWarpResources 开启)',
+    detail: { passes, jades },
+  })
+}
+
+/** UpdateMaterials 帧:缓存必写(上游折算从缓存读),门开后折算进跃迁底稿 */
+async function applyUpdateMaterials(data: unknown, bytes: number): Promise<void> {
+  const materials = asArray<V4ParserMaterial>(data, 'UpdateMaterials')
+  const state = useScannerState.getState()
+  for (const material of materials) handleUpdateMaterial(state, material)
+
+  if (!warpGatesOpen()) {
+    frameStats.ignored++
+    appendLog({
+      type: 'UpdateMaterials',
+      result: 'ignored',
+      bytes,
+      summary: `材料更新 ${materials.length} 项已记录进扫描缓存;需要 ingest 与 ingestWarpResources 同时开启才会折算进跃迁规划底稿`,
+      detail: { persisted: false, materials: materials.length },
+    })
+    return
+  }
+  await syncWarpFundsAndMaterials('UpdateMaterials', bytes)
+}
+
+/** GachaResult 帧:缓存与库存都不动(上游 ScannerWebsocketClient.tsx:94 同款);门开后仅同步垫抽/必中到跃迁底稿 */
+async function applyGachaResult(data: unknown, bytes: number): Promise<void> {
+  const result = data as WireGachaResult
+  if (
+    !isPlainObject(result)
+    || (result.banner_type !== 'Character' && result.banner_type !== 'LightCone')
+    || !isPlainObject(result.pity_5)
+  ) {
+    frameStats.errored++
+    const message = 'GachaResult 帧的 data 必须含 banner_type("Character"|"LightCone")与 pity_5 {kind, amount}'
+    recordError(`扫描器帧无法识别:${message}`)
+    appendLog({ type: 'GachaResult', result: 'error', bytes, summary: `${message},已忽略该帧并保持连接`, error: message })
+    return
+  }
+  if (!warpGatesOpen()) {
+    frameStats.ignored++
+    appendLog({
+      type: 'GachaResult',
+      result: 'ignored',
+      bytes,
+      summary: '抽卡结果帧:抽卡历史本身不落库(网页端同样不存,ScannerWebsocketClient.tsx:94);'
+        + '需要 ingest 与 ingestWarpResources 同时开启才会把垫抽/必中同步进跃迁底稿',
+    })
+    return
+  }
+
+  const pity = result.pity_5
+  const field = result.banner_type === 'Character' ? 'pityCharacter' : 'pityLightCone'
+  const guaranteeField = result.banner_type === 'Character' ? 'guaranteedCharacter' : 'guaranteedLightCone'
+
+  await runtimeContext.withChange('scanner:GachaResult', () => {
+    const store = useWarpCalculatorStore.getState()
+    const patch: Record<string, number | boolean> = {}
+    if (pity.kind === 'ResetPity') {
+      patch[field] = pity.amount
+      patch[guaranteeField] = pity.set_guarantee === true
+    } else {
+      patch[field] = (store.request[field] ?? 0) + pity.amount
+    }
+    store.setRequest({ ...store.request, ...patch })
+    runtimeContext.markDirty()
+  })
+
+  frameStats.applied++
+  appendLog({
+    type: 'GachaResult',
+    result: 'applied',
+    bytes,
+    summary: `抽卡结果(${result.banner_type} 池,${pity.kind} ${pity.amount})已同步垫抽/必中到跃迁底稿;抽卡历史本身不落库(网页端同样)`,
+    detail: { bannerType: result.banner_type, kind: pity.kind, amount: pity.amount },
+  })
+}
+
+/**
+ * update_state(section=scanner) 打开开关时的网页重放语义(scannerStore.ts:164-228):
+ * 已连接且相应门打开时,setIngest/setIngestCharacters/setIngestOnlyExistingCharacters
+ * 用 buildFullScanData() 重放一次完整导入;setIngestWarpResources 重发资源事件
+ * (等价于从缓存再同步一次跃迁底稿)。MCP 在开关从关到开时执行同一套重放。
+ */
+export async function replayScannerSettings(changedKeys: string[]): Promise<string[]> {
+  const state = useScannerState.getState()
+  if (!state.connected) return []
+  const replayed: string[] = []
+
+  const fullScan = state.buildFullScanData()
+  const wantsReimport = changedKeys.some((key) => ['ingest', 'ingestCharacters', 'ingestOnlyExistingCharacters'].includes(key))
+  if (wantsReimport && state.ingest && fullScan && fullScan.relics.length > 0 && (changedKeys.includes('ingest') || state.ingestCharacters)) {
+    await applyInitialScan(fullScan, JSON.stringify(fullScan).length)
+    replayed.push('reimport')
+  }
+
+  if (changedKeys.includes('ingestWarpResources') && state.ingest && state.ingestWarpResources) {
+    await syncWarpFundsAndMaterials('setIngestWarpResources:re-emit', 0)
+    replayed.push('warp-re-emit')
+  }
+  return replayed
 }
 
 // ─── tool actions ────────────────────────────────────────────────────────────
