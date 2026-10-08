@@ -165,3 +165,6 @@ goldenSimBuildResults.json
 
 # PR review plans
 /plans/
+
+# codegraph index
+.codegraph/
