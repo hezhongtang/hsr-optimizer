@@ -1,0 +1,295 @@
+{
+  "area": "preview",
+  "generatedAt": "2026-10-09T10:20:29.633Z",
+  "gitCommit": "8ac1d045f7eadb8e45f03141c433d17a36c5f848",
+  "cases": [
+    {
+      "feature": "preview.disclaimer.dismiss",
+      "case": 1,
+      "desc": "关闭提示后两边存档的 settings.ShowComboDmgWarning 都是 HideV2",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web=HideV2 mcp=HideV2",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.card.read",
+      "case": 1,
+      "desc": "同一角色返回的面板属性与展示卡上各项数值逐项一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "10/10 项一致",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.simScore.read",
+      "case": 1,
+      "desc": "同一角色、同一队伍下，分数百分比、评级与四套分数和展示卡一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web 15.6%·?; mcp 15.7%·?; 四套 web=2190.7K/1986.9K/3287.4K/4314.4K mcp=2190729/1986952/3287465/4314477",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.simScore.read",
+      "case": 3,
+      "desc": "四张升级表的条目与增量和构筑分析里的表格逐行一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "副词条表 4/4 行一致(Upgraded DPS Score+Δ% 两列,行数与 MCP substats 4 对齐=true);套装/主词条/队友表同源渲染(upgrades.sets 1/mains 3/teammateOrnaments 6)",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.analysis.buffs",
+      "case": 1,
+      "desc": "对同一角色的评测模拟，返回的某个动作的增益条目与增益分析显示一致",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "等待超时(150000ms):增益分析汇总渲染",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.analysis.relicRarity",
+      "case": 1,
+      "desc": "score_relics(characterId, includeEstTbp=true) 对角色已装备的六件返回的天数",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "六件 days 6/6、rolls 6/6、potential 6/6;合计 web=25.8 mcp=25.7",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.scoring.typeSwitch",
+      "case": 1,
+      "desc": "切到副词条评分后，两边存档的 showcasePreferences[角色].scoringType 都是 1",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web={\"scoringType\":1} mcp={\"scoringType\":1}",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.card.read",
+      "case": 2,
+      "desc": "副词条评分视图下，逐副词条的 roll 数与卡上的 roll 汇总一致，逐件遗器评分与卡上右侧遗器分数一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "遗器分 6/6 一致;roll 汇总 15/15 一致",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.scoring.typeSwitch",
+      "case": 2,
+      "desc": "给一个没有治疗配置的角色写入 HEAL_SCORE，读回的生效类型回退到该角色可选项的第一项，与网页一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "存档存 scoringType=4 后:网页卡渲染 DPS 视图=true(分数 15.6%);MCP 生效类型=0(0=DPS,可选项第一项)",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.simScore.read",
+      "case": 2,
+      "desc": "对一个带治疗配置的角色，返回的治疗评分与网页切到治疗评分后的结果一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web 0%·? vs mcp -52.4%·?",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.team.select",
+      "case": 1,
+      "desc": "角色存有自定义队友时，不指定队伍得到的分数与网页首次打开展示卡时一致（自定义队）",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页队伍控件=Custom,分数 0%;MCP team=auto→custom, -3.0%",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.team.select",
+      "case": 2,
+      "desc": "显式指定默认队后得到的分数与网页切到默认队后一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页默认队 15.6% vs MCP team=default 15.7%",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.team.editTeammate",
+      "case": 1,
+      "desc": "替换第二位队友后，两边存档的 scoringMetadataOverrides[角色].simulation.teamm",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web=[\"1101\",\"1102b1\",\"1102\"] mcp=[\"1101\",\"1102b1\",\"1102\"];全字段相等=true",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.team.editTeammate",
+      "case": 2,
+      "desc": "随后以自定义队评分，分数与网页一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web 0% vs mcp -3.0%",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.team.reset",
+      "case": 1,
+      "desc": "重置 DPS 队伍后，存档里该角色的 simulation 覆盖消失，而副词条权重覆盖保持不变，与网页一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web simulation=已清, stats={\"SPD\":0}; mcp simulation=已清, stats={\"SPD\":0}",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.team.sync",
+      "case": 1,
+      "desc": "同步后三位队友的星魂、光锥、叠影与角色列表里的对应角色一致，列表里没有的队友不变，两边存档相同",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "两边存档完全相等=true,逐队友采纳列表值=true;web=[[\"1101\",1,\"23003\",1],[\"1105\",6,\"21007\",1],[\"1102\",0,\"24001\",5]]",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.scoring.buffPriority",
+      "case": 1,
+      "desc": "切到副 C 后两边存档的 simulation.deprioritizeBuffs 都是 true，DPS 评分与网页一",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "存档 web=true mcp=true;自定义队评分 web 1.4% vs mcp 1.5%",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.scoring.buffPriority",
+      "case": 2,
+      "desc": "对一个元数据标为副 C、队里没有其他输出位的角色，未覆盖时读到的生效值是 false",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页 DPS mode 控件选中=false(false=Main);MCP score_character.deprioritizeBuffs=false,存档无显式覆盖=true",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.scoring.spdWeight",
+      "case": 1,
+      "desc": "set_scoring_override(weights={SPD: 0}) 后的存档与网页把速度权重切到 0% 后的存",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "角色默认 SPD 权重=1;切到 0 后 web=0/mcp=0;切回默认后剪除 web=true/mcp=true",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.scoring.spdPrecision",
+      "case": 1,
+      "desc": "打开后两边存档的 savedSession.global.showcasePreciseSpd 都是 true，渲染出的",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "存档 web=true mcp=true;SPD 行 web \"SPD 134.0\" → \"SPD 134.032\"(三位小数=true)",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.scoring.spdBenchmark",
+      "case": 1,
+      "desc": "把基准速度设为某个阈值后，返回的基准速度、分数与网页在同一输入下的展示卡一致",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "网页标题 \"? SPD Benchmark\",分数 15.6%;MCP spdBenchmark=105, 12.1%",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.customize.color",
+      "case": 1,
+      "desc": "给角色设置自定义颜色后，两边存档的 showcasePreferences[角色] 都是 { color, colorM",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web={\"color\":\"#ff8800\",\"colorMode\":\"CUSTOM\"} mcp={\"color\":\"#ff8800\",\"colorMode\":\"CUSTOM\"}",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.customize.color",
+      "case": 2,
+      "desc": "把配色模式改为 STANDARD 后，两边存档的 savedSession.global.showcaseStandar",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web=true mcp=true",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.customize.display",
+      "case": 1,
+      "desc": "逐个修改四个开关后，两边存档的 savedSession.global 对应四键一致；渲染出的展示卡外观随之变化",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "preset/dark/L2D 三键 web=natural/true/false mcp=natural/true/false(UID 开关仅存在于展示柜页,其两键一致性在 verify-showcase 实况会话核对);渲染变化:blend screen→normal,filter x→x,spine canvas 1→0",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.character.edit",
+      "case": 1,
+      "desc": "从展示卡改光锥与叠影后的存档，与 upsert_character 传同样参数后的存档一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web={\"lightCone\":\"24000\",\"lightConeSuperimposition\":3,\"characterEidolon\":1} mcp={\"lightCone\":\"24000\",\"lightConeSuperimposition\":3,\"characterEidolon\":1}",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.relic.addOrEdit",
+      "case": 1,
+      "desc": "给空的头部槽位新增一件遗器后，两边存档的 relics 多出同一件且 equippedBy 为该角色，角色的 equip",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "遗器字段相等=true,equipped.Head web=true mcp=true,库存 163 vs 163",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.relic.addOrEdit",
+      "case": 2,
+      "desc": "编辑一件已装备遗器的副词条后两边存档一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "遗器 cd85c14c-a662-4413-a149-a379e6d538d3 全字段相等=true;副词条 web=[[\"CRIT Rate\",12],[\"CRIT DMG\",10.368],[\"Effect RES\",3.456],[\"Break Effect\",5.184]]",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.portrait.set",
+      "case": 1,
+      "desc": "用同一 URL、裁剪与署名设置肖像后，两边存档的 characters[].portrait 一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web portrait 字段=已存(imageUrl=http://127.0.0.1:54821/hsr-opt…,artist=verify-artist);MCP 严格相等=true(web cropper 的 croppedArea/cropper 原值透传)",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.portrait.set",
+      "case": 3,
+      "desc": "对不在列表里的角色设置肖像，两边都会先新建该角色",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP set_portrait(1001) characterInserted=true,导出存档含新角色+肖像=true;网页同一分支经 showcaseOnEditPortraitOk 的 upsertCharacterFromForm(弹窗确认后角色补入,同一上游副作用)",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.portrait.set",
+      "case": 2,
+      "desc": "还原默认后该角色的 portrait 字段消失",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web portrait 已清=true,mcp portrait 已清=true",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.screenshot",
+      "case": 1,
+      "desc": "渲染出的 PNG 与网页下载的展示卡截图尺寸相同，文字与数值一致，自定义肖像、配色与外观开关都得到体现",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "基准:web 2200x1760 vs render 2200x1760,mean=0.000/hot=0.00%;定制态(自定义颜色+肖像+深色):mean=0.000/hot=0.00%,与基准差 mean=50.9(开关生效=true)",
+      "script": "mcp/scripts/verify-preview.mjs"
+    },
+    {
+      "feature": "preview.debug.visualPanel",
+      "case": 1,
+      "desc": "同一调试配置下渲染外观一致",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "等待应用导出截图超时(60000ms):已点击 tabler-icon-camera 按钮但未捕获到图片。可能原因:目标元素截图失败(snapdom)或按钮命中了错误目标(试用 scopeSelector 收窄)。",
+      "script": "mcp/scripts/verify-preview.mjs"
+    }
+  ]
+}

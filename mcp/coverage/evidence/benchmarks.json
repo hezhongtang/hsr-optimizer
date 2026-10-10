@@ -1,0 +1,151 @@
+{
+  "area": "benchmarks",
+  "generatedAt": "2026-10-09T12:50:33.307Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "benchmarks.configure.character",
+      "case": 1,
+      "desc": "对存档里的角色不传覆盖项时,实际使用的星魂、光锥、叠影与网页端选中该角色后自动带",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP echo e1/s1/lc 23014 vs web e1/s1",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.configure.teammates",
+      "case": 1,
+      "desc": "不传 teammates 时使用的队友与网页端选中该角色后三张卡片显示的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP [\"1512\",\"1507\",\"1409\"] vs web 卡片头像 [\"1512\",\"1507\",\"1409\"]",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.configure.settings",
+      "case": 2,
+      "desc": "副 C 开关缺省时取角色评分配置的默认值,与网页端选中角色后的开关状态一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP subDps=false(元数据 deprioritizeBuffs=false) vs web SubDPS 段控件 false",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.generate",
+      "case": 1,
+      "desc": "同一角色、队友、速度与套装下,100% 基准 COMBO 与 200% 完美 C",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "100% 首行 2851.1K vs MCP benchmarkScore 2851115.7351781228;200% 首行 3914.4K vs 3914443.8632204896(GPU vs CPU 引擎,rel tol 1e-3)",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.results.read",
+      "case": 1,
+      "desc": "100% 页签的全部行(主词条组合、COMBO、差距百分比)与返回的候选列表逐行",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "8 web 行 vs 8 MCP 行;COMBO/主词条逐行一致(rel tol 1e-3)",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.results.read",
+      "case": 2,
+      "desc": "200% 页签的全部行同样一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "8 web 行 vs 8 MCP 行;COMBO/主词条逐行一致(rel tol 1e-3)",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.configure.settings",
+      "case": 1,
+      "desc": "速度阈值 133.334、开启充能绳时的基准 COMBO 与网页端同样设置下的结",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web 2851.1K vs MCP 2851115.7351781228",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.configure.sets",
+      "case": 1,
+      "desc": "不改套装条件时,基准 COMBO 与网页端选同一套装后的结果一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "默认条件+元数据推荐套装;web 2851.1K vs MCP 2851115.7351781228",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.results.read",
+      "case": 3,
+      "desc": "任取一行,返回的面板属性、战斗属性、副词条词条数和各技能伤害与网页端展开该行后显",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "展开区四段齐全=true;SPD web 133.334 vs MCP 133.33399963378906;MCP actionDamage 技能数=4",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.generate",
+      "case": 2,
+      "desc": "一次给出两组遗器套装乘两个饰品套装的四个预设,各自的 COMBO 与网页端分两次",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "2×2 组合按套装图标配对;四组全一致(rel tol 1e-3)",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.configure.sets",
+      "case": 2,
+      "desc": "把某个套装条件改成非默认档位后,基准 COMBO 与网页端在抽屉里做同样改动后的",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "Scholar Lost in Erudition=false: web 2763.1K vs MCP 2763116.108215111",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.clear",
+      "case": 1,
+      "desc": "benchmark_runs 每次调用只计算本次给出的预设,结果里不含之前调用的",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web Clear 后结果表清空(rows=0);MCP 新调用仅含本次 1 个预设(presets=1, ranking=1)",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.configure.character",
+      "case": 2,
+      "desc": "对不在存档里的角色显式给出光锥后可以生成基准,结果与网页端一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "Acheron lc=23024 e0/s1;web 1577.4K vs MCP 1577462.4183278263",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.configure.character",
+      "case": 3,
+      "desc": "对没有模拟评分配置的角色报错,原因与网页端的提示对应",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web toast \"DPS benchmarks are not supported for this character\";MCP \"tool benchmark_runs isError: 角色 1009 没有战斗基准评分元数据(网页端 Benchmarks 页签不支持该角色)——无法跑基准\"",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.configure.teammates",
+      "case": 2,
+      "desc": "替换一名队友并给它指定队伍套装后,基准 COMBO 与网页端做同样设置后的结果一",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "队友3 → 1217(lc 21000);web 2121.8K vs MCP 2121890.3110349667;网页弹窗未设置队伍套装,teamRelicSet 路径未比对",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    },
+    {
+      "feature": "benchmarks.generate",
+      "case": 3,
+      "desc": "带进度令牌时逐预设收到进度通知,取消后返回已完成的部分",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "12 条进度通知(逐预设✓);get_job(首条进度后即发)→7 条(running benchmark_runs=0),RTT 13336ms;批耗时 15.3s;结果 cancelled=false,保留 12/12 个预设(状态 0:completed,1:completed,2:completed,3:completed,4:completed,5:completed,6:completed,7:completed,8:completed,9:completed,10:completed,11:completed)——get_job RTT≈剩余批时长(内联引擎占满单线程,中途的取消",
+      "script": "mcp/scripts/verify-benchmarks.mjs"
+    }
+  ]
+}

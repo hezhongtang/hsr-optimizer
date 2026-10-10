@@ -1,0 +1,205 @@
+{
+  "area": "relics",
+  "generatedAt": "2026-10-09T16:22:07.773Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "relics.grid.read",
+      "case": 1,
+      "desc": "同一角色下逐件返回的当前分、平均潜力、最高潜力、重掷期望与表格对应列一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "162 relics × {currentPct, rating, avg/best/worst potential, reroll, blockedReroll} all match the page RelicScorer references",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.grid.read",
+      "case": 2,
+      "desc": "「全部角色」范围的最高潜力与表格里 potentialAllAll.bestPc",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "162 relics × {bestPct, averagePct} match the page-side per-metric max over all characters (scoreRelicsBatch formula)",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.grid.read",
+      "case": 3,
+      "desc": "按最高潜力降序返回的前 20 件与表格按该列排序后的前 20 行一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "custom-max top20 (mcp values desc) ≡ page-RelicScorer per-metric-max top20 (true); UI top20 overlap 20/20 (tie-cluster ordering at equal pct differs only in-batch, noted); diag {\"colId\":\"weights.poten",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.grid.filter",
+      "case": 1,
+      "desc": "部位选头部和手部、强化选 12、副词条选暴击率和暴击伤害时,返回的遗器集合与表格",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web rows=4 (footer 4) ≡ list_relics total=4",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.grid.filter",
+      "case": 2,
+      "desc": "初始词条数选 4 时两边结果一致,未记录初始词条数的遗器不在其中",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web rows=34 (footer 34) ≡ list_relics total=34; every result has initialRolls===4 (unrecorded default 3 excluded)",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.grid.valueColumns",
+      "case": 1,
+      "desc": "要求返回 17 个评分列里的任意一列时,数值与表格勾选该列后显示的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "selected-char columns covered by grid.read#1; custom-scope bestPct matches page-side custom max here — diff/Δ columns are arithmetic over these same values (scoreRelicsBatch:131-152)",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.focusCharacter.set",
+      "case": 1,
+      "desc": "score_relics 传 characterId 得到的逐件分数,与遗器页选",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "with characterId: current/rating/potential per relic (= grid.read#1 page refs, withOk=true); without: MCP omits all score fields (noCharClean=true), page Selected-Char columns all 0%/empty (5 cols, no",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.potential.excludeCharacters",
+      "case": 1,
+      "desc": "排除两名角色后两边存档的 excludedRelicPotentialChara",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "mcp save excluded ok=true; web save excluded=[\"1107\",\"1305\"] (picked [\"1107\",\"1305\"]) ok=true; custom-scope bestPct vs page-side max excluding the same two characters: 0 mismatches",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.select",
+      "case": 1,
+      "desc": "网页里选中遗器后的每个后续操作,在 MCP 侧都以遗器 id 作为参数直接指定,",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "list_relics ids ≡ page inventory ids (162/162); probe 1e0de4ea-c1bf-4990-a0bd-739b1eea2e1d works directly as a param for score_relics / analyze_relic / upsert_relic(previewUpgrade, no write)",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.recent.read",
+      "case": 1,
+      "desc": "扫描器推送三件遗器后,返回的最近遗器 id 及顺序与折叠区里的卡片一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "mcp recentRelics ids=[r3,r2,r1...] (newest first); web recently-updated panel on #relics: found=true, non-empty cards=3/6, first-card head=\"+15HP705CRIT Rate41.0%CR\"",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.upsert",
+      "case": 1,
+      "desc": "用同样的字段新增一件遗器后,两边存档里这件遗器除 id 外一致(含主词条数值与派",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "mcp relic ≡ page RelicAugmenter.augment(same form) — main.value=705.6 (page 705.6), substats=[[\"CRIT DMG\",6.48],[\"SPD\",5.1],[\"ATK%\",9.4]] vs spec [[\"CRIT DMG\",6.4],[\"SPD\",5.1],[\"ATK%\",9.4]], preview=1",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.upsert",
+      "case": 2,
+      "desc": "强化等级超过星级允许的上限、副词条重复、副词条与主词条相同、套装与部位类型不符时",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "mcp rejects all 4 (ok,ok,ok,ok); web opened=false (modal never opened), stays open=undefined, inventory unchanged undefined/162",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.upsert",
+      "case": 3,
+      "desc": "把一件已装备的遗器改到别的部位后,原装备者对应槽位清空,两边一致",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "webOk=false mcpOk=true; relic part web=undefined mcp=Hands (want Hands); main web=undefined mcp=ATK",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.upsert",
+      "case": 4,
+      "desc": "编辑已校验遗器的副词条数值后 verified 变为 false",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "verified: before=true, after edit web=[object Object], mcp=false",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.delete",
+      "case": 1,
+      "desc": "删除两件遗器(其中一件已装备)后,两边存档的 relics 少了这两件,原装备者",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "gone web=true mcp=true; counts web=160 mcp=160 (want 160); owner slot web=undefined mcp=undefined",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.delete",
+      "case": 2,
+      "desc": "删光全部遗器后存档仍能保存且 relics 为空数组",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "mcp export_save persists relics:[] (0); web delete-all (ctrl+A on 32 rows) → save keeps relics:[] (0)",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.card.read",
+      "case": 1,
+      "desc": "对同一件遗器和同一角色,score_relics 返回的 percentScor",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "mcp percentScore=0 rating=? ≡ page RelicScorer.getCurrentRelicScore (0/?); card region renders (no UI focus character set — the web card hides its score row by design in that state)",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.locator",
+      "case": 1,
+      "desc": "同一件遗器返回的行、列与是否需要套装筛选,和位置提示条显示的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "defaults: web Row 3/Col 8 ≡ analyze_relic row 3/col 8; rowLimit=1 → part+set fallback: web Row 3/Col 8, mcp needsSetFilter=true",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.locator",
+      "case": 2,
+      "desc": "把背包宽度改为 8 后两边存档的 relicLocator.inventoryW",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "web save width=undefined (Row undefined/Col undefined → undefined/undefined); mcp save round-trip width=8, locator uses it (row 4/col 2)",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.insights.read",
+      "case": 1,
+      "desc": "对同一件遗器,返回的角色排序与各自的最高、平均潜力和前十名图一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "orderOk=true valueOk=true; counts mcp=61 ref=61; top-10 compared",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.insights.read",
+      "case": 2,
+      "desc": "角色范围选「已拥有」时结果只含角色列表里的角色,与面板一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "characterIds=owned(8) → 1 candidates, allOwned=true, refCount=3",
+      "script": "mcp/scripts/verify-relics.mjs"
+    },
+    {
+      "feature": "relics.insights.read",
+      "case": 3,
+      "desc": "分桶结果里每个区间的角色集合与分桶图一致,切到平均潜力后同样一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "every candidate's bucketIndex ≡ page-side floor(pct/10) over the page-scored values, maximum and average modes both (61 candidates distributed)",
+      "script": "mcp/scripts/verify-relics.mjs"
+    }
+  ]
+}

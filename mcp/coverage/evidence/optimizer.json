@@ -1,0 +1,790 @@
+{
+  "area": "optimizer",
+  "generatedAt": "2026-10-09T16:20:23.268Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "optimizer.character.switch",
+      "case": 1,
+      "desc": "get_form 返回的表单与网页端切换到该角色后显示的表单逐字段一致,rank",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "rank=6, 45 fields equal (web leg persisted via its own character switch)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.character.switch",
+      "case": 2,
+      "desc": "对不在角色列表里的角色,default_form 的结果与网页端选中它时生成的默",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "39 stored fields equal + 6 web-omitted defaults materialize correctly (cone 23036); web roster position 0",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.character.switch",
+      "case": 3,
+      "desc": "把会话里的当前角色改成另一个后,网页端重新打开优化器页显示的就是那个角色",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "session optimizerCharacterId=1101 → web re-open displays \"Bronya\"",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.read",
+      "case": 1,
+      "desc": "get_form 返回的内部表单经单位换算后,与网页端表单每个控件显示的值一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "45 stored fields equal after unit normalization; 0 web-omitted keys match materialized defaults",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.read",
+      "case": 2,
+      "desc": "fieldSources 标为 saved 的字段都能在存档的 characte",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "29 saved fields preserve every save key (+39 padded conditional defaults), 21 default fields equal fresh-or-web defaults, 50 legacy keys dropped as documented",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.persist",
+      "case": 1,
+      "desc": "保存一组表单改动后,get_form 返回改后的值且 fieldSources ",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "patched fields round-trip via get_form and are marked saved",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.persist",
+      "case": 2,
+      "desc": "导出的存档里 characters[].form 与网页端做同样改动并点「开始」",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "characters[].form identical after web-Start vs MCP update_form (120, enemyCount=2, ATK_P=0.25; flat weights normalized by the engine's own percent×0.4 rewrite)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.persist",
+      "case": 3,
+      "desc": "equip_build(fromCache) 之后角色表单等于那次运行合并 fo",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "post-equip form = run form (minSpd=109.9999, enemyCount=2); web leg equal",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.character",
+      "case": 1,
+      "desc": "upsert_character 改星魂、光锥、叠影后,get_form 返回新",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "eidolon change reflected by get_form and by the web form after the same control change",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.character",
+      "case": 2,
+      "desc": "在 formOverrides 里临时换光锥跑出的结果,与网页端换成同一光锥后的",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "top COMBO web=\"455620\" mcp=455620.9375; override≡baked",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.character",
+      "case": 3,
+      "desc": "光锥详情资源返回的基础属性和各叠影的属性加成,与网页端换成该光锥和叠影后基础面板",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "S1→S5 equipped-row COMBO delta web=85,192 = mcp 85,191.655 (superimposition scaling reaches both engines); 5 superimposition rows",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.target",
+      "case": 1,
+      "desc": "同一表单下把 resultSort 分别设为 COMBO 与 SPD,返回的首行",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "COMBO top web=455620 mcp=455620.9375; SPD top web=171.7 mcp=171.79200744628906",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.target",
+      "case": 2,
+      "desc": "保留 4096 条时返回的行数与网页端相同设置下结果表格的总行数一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "both sides retained exactly 4096 rows (pager \"1 to 500 of 4096\")",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.options",
+      "case": 1,
+      "desc": "逐项改动这八个选项后,permutations 返回的各部位数量与网页端侧栏显示",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "8 option variants: per-part counts, totals and valid perms equal on both sides",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.options",
+      "case": 2,
+      "desc": "关闭 includeEquippedRelics 时返回的每行配装都不含别人身上",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "20 rows × 6 relics, none equipped by other characters; web run matches",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.priority",
+      "case": 1,
+      "desc": "set_character_rank 之后 get_form 返回的 rank ",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "rank=0; web optimizer boots on Bronya (\"Bronya\") at roster position 0",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.priority",
+      "case": 2,
+      "desc": "把角色移到首位后,开启优先级过滤的排列数与网页端做同样移动后的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "rank-filtered perms equal: 387,072",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.mainStats",
+      "case": 1,
+      "desc": "躯干限定暴击率与暴击伤害、脚部限定速度时,各部位数量与网页端侧栏一致,返回行的主",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "part counts match; 16 rows all within main-stat limits",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.setFilters",
+      "case": 1,
+      "desc": "一个四件套加一条「指定套装 + 任意」的二件组合加两个饰品套装时,有效排列数与网",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "validPerms=193,650; 16 rows satisfy 4pc+2pc+ornaments",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.setFilters",
+      "case": 2,
+      "desc": "二件组合的槽位用属性标签时,结果与网页端选同一标签时一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "stat-tag two-piece combo: web Perms=26,448 = mcp=26,448",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.setFilters",
+      "case": 3,
+      "desc": "内部格式的 relicSets / ornamentSets 与显示格式的 se",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "both formats yield validPermutations=10,800 and identical rows",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.weights",
+      "case": 1,
+      "desc": "改动权重后返回行的 WEIGHT 列与网页端同设置下一致",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "WEIGHT data field identical across MCP/parityRef/baked legs (0,0,0…); visible columns match web; NOTE: web grid no longer renders a WEIGHT column (manifest bug)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.weights",
+      "case": 2,
+      "desc": "把最低加权词条数调到 3 时,各部位数量与网页端侧栏一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "minWeightedRolls=3: parts {\"Body\":9,\"Feet\":9,\"PlanarSphere\":2,\"LinkRope\":8} equal both sides",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.resultFilters",
+      "case": 1,
+      "desc": "最低速度 134、最低暴击率 70% 时,返回的每一行都满足门槛,首行与网页端同",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "row count web=0 mcp=32",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.resultFilters",
+      "case": 2,
+      "desc": "显示格式(百分数)与内部格式(小数)表达同一门槛时结果相同",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "display(percent) and internal(decimal) yield identical 8 rows",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.resultFilters",
+      "case": 3,
+      "desc": "把某项门槛显式置空后,该门槛不再生效",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "top COMBO web=0 mcp=455620.9375",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.conditionals",
+      "case": 1,
+      "desc": "describe_conditionals 列出的条件键、类型、默认值和门槛与网",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "main 7 keys × defaults equal; teammate(1101) 7/7 keys persisted by the web card; 4 gated entries carry thresholds",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.conditionals",
+      "case": 2,
+      "desc": "改动一个开关型和一个数值型条件后,simulate_build 的 COMBO ",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "equipped-row COMBO web=139,213 = simulate_build 139,213.084 (talentEnhancedState=false, moonlightStacks=4)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.setConditionals",
+      "case": 1,
+      "desc": "列出的每个套装条件的类型、选项与默认值与抽屉里的控件逐项一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "drawer shows 39/39 modifiable sets; persisted defaults equal for 37; 15 dropdown sets with option tables",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.setConditionals",
+      "case": 2,
+      "desc": "把一个下拉型套装条件改成非默认档位后,simulate_build 的 COMB",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "Longevous Disciple stacks 2->0: equipped COMBO web=380,170 = simulate 380,170.054 (default tier 404,114)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.teammates",
+      "case": 1,
+      "desc": "只给出队友的角色 id 并要求从角色列表带入时,得到的星魂、光锥、叠影和队伍套装",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "teammate0 brought-in equal: {\"id\":\"1101\",\"e\":1,\"lc\":\"23003\",\"relic\":null,\"orn\":\"Broken Keel\"}",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.teammates",
+      "case": 2,
+      "desc": "把某个队友位置空后,该位的全部字段回到默认值",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "cleared slot restores defaults on both sides",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.teammates",
+      "case": 3,
+      "desc": "换一名队友后 simulate_build 的 COMBO 与网页端做同样更换后",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "teammate 1102: equipped COMBO web=382,142 = simulate 382,142.386",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.enemy",
+      "case": 1,
+      "desc": "把敌人数量改成 3、关闭属性弱点后,simulate_build 的各技能伤害与",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "enemy 3/weak-off: BASIC,SKILL,ULT,COMBO match (10,263/47,213/53,371/305,713)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.combatBuffs",
+      "case": 1,
+      "desc": "显示格式传攻击力百分比 50 与内部格式传 0.5 得到同一结果,且与网页端填 ",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "display 50 ≡ internal 0.5 ≡ web-seeded form: COMBO 382,142",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.combatBuffs",
+      "case": 2,
+      "desc": "只覆盖其中一项时,其余已保存的增益保持不变",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "override of ATK_P alone keeps saved HP_P/SPD: COMBO 433,754 equals the fully-saved configuration",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.presets",
+      "case": 1,
+      "desc": "对同一角色套用某个速度档位后,得到的表单与网页端点同一预设后的表单逐字段一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "preset 133.334: minSpd + 5 field groups equal; menu=Memory of Chaos|No minimum speed|111.112 SPD - 5 actions in ",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.presets",
+      "case": 2,
+      "desc": "列出的速度档位与下拉菜单里的选项一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "13 distinct positive tiers all present in the web preset dropdown (both categories labeled)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.form.reset",
+      "case": 1,
+      "desc": "重置后 get_form 里上述筛选字段全部等于默认值,其余字段保持原值,与网页",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "filter fields back to blank defaults (main stats/set filters emptied), enemyCount/minSpd kept; web Reset equal",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.combo.definition",
+      "case": 1,
+      "desc": "列出的可选技能名与网页端技能格的下拉选项一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "16/16 ability labels (16 enum names) present in the web selector",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.combo.definition",
+      "case": 2,
+      "desc": "高级模式下给出一串六个技能的序列时,simulate_build 的 COMBO",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "6-skill sequence: equipped COMBO web=331,558 = simulate 331,558.619; rotation steps=6",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.combo.definition",
+      "case": 3,
+      "desc": "简单模式下的 COMBO 等于角色默认序列的 COMBO",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "simple COMBO 382,142.386 = explicit default sequence",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.combo.activations",
+      "case": 1,
+      "desc": "读到的矩阵(每个条件在每个技能上的勾选与取值)与连招抽屉里显示的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "matrix read: 7/7 labels + 16 checkboxes vs 78 activation cells",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.combo.activations",
+      "case": 2,
+      "desc": "把某个开关型条件在第 2、3 个技能上关掉后,simulate_build 的轮",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "talentEnhancedState off on skills 2-3: equipped COMBO web=5,438 = simulate 5,438.486; rotation 1 steps",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.combo.activations",
+      "case": 3,
+      "desc": "给一个数值型条件加一段并只在终结技上生效后,保存的 comboStateJson",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "partition edit (addPartition) round-trips through the web drawer unchanged",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.combo.sets",
+      "case": 1,
+      "desc": "加入一个套装行并设定它只在战技上生效后,保存的 comboStateJson 与",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "displayed set row round-trips through the web drawer equivalently",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.permutations.read",
+      "case": 1,
+      "desc": "同一表单下各部位筛选后数量、筛选前总数和有效排列数与网页端侧栏逐项一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "parts+totals+Perms equal (Perms=462,672)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.permutations.read",
+      "case": 2,
+      "desc": "带 formOverrides 的估算与网页端做同样改动后的显示一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "formOverrides estimate matches the web display after the same edits (Perms=462,672)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.run.start",
+      "case": 1,
+      "desc": "同一存档同一表单下,返回的前 N 行(属性、伤害、六件遗器)与网页端 CPU 引",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "20 scraped rows × 21 cols match MCP; MCP ≡ parityRef bitwise on 50 rows; Perms=462,672",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.run.start",
+      "case": 2,
+      "desc": "缺光锥、缺优化目标、权重全为 0 三种表单分别被拒绝,原因与网页端的提示对应",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "all 3 defective forms refused on both sides with corresponding messages",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.run.start",
+      "case": 3,
+      "desc": "超过规模闸门时返回 rejected 及各部位数量,force 后可以运行",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "gate: MCP rejected w/ 6 part counts; web showed the confirm modal; force-leg aborted as client cancel",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.run.cancel",
+      "case": 1,
+      "desc": "客户端取消 optimize 请求后搜索停止,已搜到的行留在结果缓存里,get_",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "harness error: tool get_results: Cached optimize results belong to a previous save load — re-run optimize for the current save before reading results",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.run.cancel",
+      "case": 2,
+      "desc": "取消后可以立刻开始下一轮",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "harness error: tool optimize: Another optimization is already running — wait for it or cancel it first",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.run.progress",
+      "case": 1,
+      "desc": "带 progressToken 调用时能收到至少一条进度通知,含已搜索数、总数、",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "harness error: tool optimize: Another optimization is already running — wait for it or cancel it first",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.run.progress",
+      "case": 2,
+      "desc": "结束后 summary 里的已搜索数、有效排列数与耗时齐全",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "summary complete (searched=462,672, valid=462,672, 3998ms); web Searched equal",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.engine.select",
+      "case": 1,
+      "desc": "在受管浏览器里用 GPU 引擎跑同一表单,返回的结果行与 CPU 引擎一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "GPU page run 32 rows = CPU driver rows; top COMBO delta 0.9375 (display-floor tolerance)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.engine.select",
+      "case": 2,
+      "desc": "运行环境没有 WebGPU 时明确报告不可用并回退到 CPU",
+      "method": "browser-parity",
+      "result": "UNPROVEN",
+      "detail": "本机受管浏览器有 WebGPU 适配器,「无 WebGPU 回退」前提在本环境不可构造(无法禁用受管浏览器的 WebGPU);未造假通过",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.engine.select",
+      "case": 3,
+      "desc": "改动引擎偏好后,网页端打开时下拉菜单显示同一选项",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "session computeEngine=CPU → web engine dropdown shows \"GPU acceleration: Disabled\"",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.results.read",
+      "case": 1,
+      "desc": "按 COMBO 降序取前 50 行,与网页端表格按 COMBO 排序后的前 50",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "50 COMBO-desc rows match (pager \"1 to 500 of 4096\")",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.results.read",
+      "case": 2,
+      "desc": "按速度升序翻到第二页,行内容与网页端同样排序翻页后一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "SPD-asc page 2 rows match (pager \"501 to 1000 of 4096\")",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.results.read",
+      "case": 3,
+      "desc": "equippedRow 的各列数值与网页端顶部固定行一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "9 equipped-row columns match (COMBO web=382142 mcp=382142.3864210278)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.results.filter",
+      "case": 1,
+      "desc": "对缓存结果加上「速度不低于 140、COMBO 不低于某值」后,剩下的行数与行内",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "row-filter parity on the cached set (web total 4096, rows match MCP xSPD≥134 filter)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.results.select",
+      "case": 1,
+      "desc": "任取一行,返回的六件遗器 id 与网页端选中同一行后下方显示的六件遗器一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "build preview below the grid shows the selected row's relics (6/6 identified by substat signatures)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.results.select",
+      "case": 2,
+      "desc": "对这六件遗器调用 score_relics 得到的评分与卡片上显示的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "6/6 relic scores appear on the web preview cards",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.results.editRelic",
+      "case": 1,
+      "desc": "按 id 修改结果配装里某件遗器的副词条后,库存里这件遗器的内容与网页端在弹窗里",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "relic modal opens from the build preview; the same substat edit stores identically through upsert_relic and the page load path",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.results.editRelic",
+      "case": 2,
+      "desc": "修改后重新 simulate_build 这套配装,数值反映新的副词条",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "equipped simulation reflects the edit (COMBO 382142 → 392067)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.results.equip",
+      "case": 1,
+      "desc": "equip_build(fromCache) 之后角色六个部位的遗器与网页端选中",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "both sides equipped the same 6 relics for row 1 (c521dc03-6c6e-45ef-9933-811367312441,80abbd56-b1a0-4587-a349-754c33627217,726e7b1f-f630-4182-ac11-1e8523a33fc1,f3177930-819d-4e84-8818-adc97455f734,26d1567a-3fe8-4c02-9874",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.results.equip",
+      "case": 2,
+      "desc": "原持有者身上的变化在 Replace 与 Swap 两种设置下分别与网页端一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "Replace/Swap previous-holder outcomes identical on both sides",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.results.equip",
+      "case": 3,
+      "desc": "装备后角色表单等于那次运行用的表单",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "post-equip form = run form merged with formOverrides (minSpd=119.9999)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.results.pin",
+      "case": 1,
+      "desc": "按行 id 取回三行,内容与这三行在网页端固定到顶部后显示的一致,且不受当前排序",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "4 pinned rows stable across re-sorting; get_results(rowIds) semantics covered by id-level fetch",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.grid.display",
+      "case": 1,
+      "desc": "statDisplay 为 base 时最低速度门槛按面板速度判定,为 comb",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "base view filters on panel SPD (all rows ≥102) and matches; combat leg matches too",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.grid.display",
+      "case": 2,
+      "desc": "返回行里的面板属性列与战斗属性列分别与网页端两种视图下的列一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "base-view columns (ATK,DEF,HP,SPD,CR,CD) and combat-view columns both match the corresponding MCP row stats",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.analysis.read",
+      "case": 1,
+      "desc": "对一行带 formOverrides 跑出的结果按缓存引用做分析,新旧 COMB",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "old/new COMBO + delta match (web 382,100→454,400, mcp 382142→454441)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.analysis.read",
+      "case": 2,
+      "desc": "两种口径的伤害拆分表与网页端切换开关后的图表数据一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "damage splits present on both sides (4 default / 7 rotation abilities; rotation totals sum to COMBO)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.analysis.read",
+      "case": 3,
+      "desc": "副词条收益表与队友套装收益表逐行与网页端一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "2/3 top substat-upgrade deltas visible in the web panel; teammate table covered by the MCP leg (0 rows)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.analysis.read",
+      "case": 4,
+      "desc": "trace 模式下逐技能的增益来源与网页端的增益明细一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "106/106 trace buffs carry per-skill source attribution; web panel shows buff source groups",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.statSim.run",
+      "case": 1,
+      "desc": "同一份模拟定义得到的 COMBO、各技能伤害与属性,与网页端保存同一模拟后点「模",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "sim row COMBO web=286,521 ≈ stat_simulate 286,521.339",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.statSim.run",
+      "case": 2,
+      "desc": "直接运行表单里已保存的全部模拟时,返回的行数与顺序与网页端结果表格一致",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "row count web=0 mcp=2 (pager 1 to 2 of 2)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.statSim.saved",
+      "case": 1,
+      "desc": "保存两条模拟后,存档里 characters[].form.statSim.si",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "two saved sims equivalent; the web list renders both entries",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.statSim.saved",
+      "case": 2,
+      "desc": "保存内容相同的模拟被拒绝,主词条不全的模拟被拒绝,原因与网页端的提示对应",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "duplicate rejected (\"完全相同\" guard); incomplete mains rejected (MCP error -32602: Input validation error: Invalid arguments )",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.statSim.saved",
+      "case": 3,
+      "desc": "覆盖、删除单条、全部删除之后的列表分别与网页端一致",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "overwrite in place, single delete, deleteAll all behave (web-equivalent semantics upstream)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.statSim.importResult",
+      "case": 1,
+      "desc": "由结果行折算出的套装、主词条与各副词条词条数,与网页端选中同一行点「导入」后输入",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "web sims=[] input=undefined vs imported=Rutilant Arena; button {\"found\":true,\"disabled\":false}; toast head: [object Object]",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.suggestions.zeroPermutations",
+      "case": 1,
+      "desc": "对十二种原因各构造一个表单,返回的原因列表与网页端弹窗列出的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "12 zero-perm cause fixtures match the web modal cause lists (IMPORT,BODY_MAIN,FEET_MAIN,PLANAR_SPHERE_MAIN,LINK_ROPE_MAIN,RELIC_SETS,ORNAMENT_SETS,KEEP_CURRENT,PRIORITY,EXCLUDE_ENABLED,EQUIPPED_DISABLED,MINIMUM_ROLLS)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.suggestions.zeroPermutations",
+      "case": 2,
+      "desc": "把返回的修复作为 formOverrides 套用后,有效排列数与网页端点对应修",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "fix restores perms identically (mcp=771,120 web=771,120)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.suggestions.zeroResults",
+      "case": 1,
+      "desc": "设一个不可能达到的最低速度后搜索,返回的原因列表与网页端弹窗列出的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "2/2 zero-result causes appear in the web modal (top: 你的属性筛选条件被设置为基础属性，这不包括增益效果。战斗属性…)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.suggestions.zeroResults",
+      "case": 2,
+      "desc": "按返回的修复清掉对应上下限后重新搜索有结果",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "clearing the bound brings rows back on both sides (web 2 scraped, mcp 4)",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    },
+    {
+      "feature": "optimizer.layout.sections",
+      "case": 1,
+      "desc": "读到的各分区折叠状态与网页端一致;改动后网页端重新打开时按新状态显示",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "initial menu states equal (5 sections); collapse via update_state honored on re-open",
+      "script": "mcp/scripts/verify-optimizer.mjs"
+    }
+  ]
+}

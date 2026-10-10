@@ -26,7 +26,7 @@
       "runtime": "node",
       "state": { "owner": "useTeamShowcase 组件内的 workingTeam", "lifecycle": "ephemeral" },
       "sideEffects": ["选了未拥有的角色时把它加进角色列表（位置遵守 NewCharacterDefaultRank）并 SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["manage_team"] },
+      "mcp": { "status": "verified", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -35,7 +35,10 @@
           "选一个未拥有的角色后，两边存档的 characters 都多出该角色（默认表单、空装备）",
           "把已在第三槽的角色选进第一槽后，第三槽变空"
         ],
-        "tests": ["mcp/scripts/smoke-teams.mjs"]
+        "tests": ["mcp/scripts/smoke-teams.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.working.setSlot cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -53,12 +56,15 @@
       "params": [{ "name": "order", "type": "number[]", "notes": "新排列里每个位置取原来的哪个槽位" }],
       "runtime": "node",
       "state": { "owner": "useTeamShowcase 组件内的 workingTeam", "lifecycle": "ephemeral" },
-      "mcp": { "status": "implemented", "tools": ["manage_team"] },
+      "mcp": { "status": "verified", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": ["把第三槽角色换到第一槽后，该角色按主 C、原第一槽角色按副 C 评分，分数与网页拖拽后的两张卡一致"],
-        "tests": ["mcp/scripts/smoke-teams.mjs"]
+        "tests": ["mcp/scripts/smoke-teams.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.working.reorder cases 1 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -75,12 +81,15 @@
       "conditions": "队伍为空时按钮禁用。",
       "runtime": "node",
       "state": { "owner": "useTeamShowcase 组件内的 workingTeam", "lifecycle": "ephemeral" },
-      "mcp": { "status": "implemented", "tools": ["manage_team"] },
+      "mcp": { "status": "verified", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": ["清空后读到的工作队伍四槽皆空、没有基准快照，已保存队伍列表不变"],
-        "tests": ["mcp/scripts/smoke-teams.mjs"]
+        "tests": ["mcp/scripts/smoke-teams.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.working.clear cases 1 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -98,7 +107,7 @@
       "conditions": "页签第一次显示之后才挂载卡片，避免后台跑评分。快照成员与当前四槽不完全对应时不使用覆盖。",
       "runtime": "node",
       "state": { "owner": "useTeamShowcase（派生）", "lifecycle": "derived" },
-      "mcp": { "status": "implemented", "tools": ["dps_score", "score_character", "list_teams"] },
+      "mcp": { "status": "verified", "tools": ["dps_score", "score_character", "list_teams"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -106,7 +115,10 @@
           "对一支已同步基准的队伍，四名成员各自的评分与队伍面板四张卡上的分数一致",
           "未同步时返回的分数与各角色单独展示卡的分数一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-score.mjs"]
+        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-score.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.cards.read cases 1,2 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -129,12 +141,15 @@
       "runtime": "node",
       "state": { "owner": "useShowcaseTabStore.showcasePreferences", "lifecycle": "persisted", "saveKey": "showcasePreferences[].scoringType" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
+      "mcp": { "status": "verified", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": ["在队伍面板把某槽位切到副词条评分后，两边存档里该角色的 showcasePreferences.scoringType 都是 1"],
-        "tests": ["mcp/scripts/smoke-teams.mjs", "mcp/scripts/smoke-state.mjs"]
+        "tests": ["mcp/scripts/smoke-teams.mjs", "mcp/scripts/smoke-state.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.slot.scoringType cases 1 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -155,7 +170,7 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams[].benchmarkSnapshot" },
       "sideEffects": ["四张卡的模拟评分按新快照重算", "有对应的已保存队伍时 SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["manage_team"] },
+      "mcp": { "status": "verified", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -163,7 +178,10 @@
           "对同一支四人队伍同步后，两边存档里该队伍的 benchmarkSnapshot.members 逐项一致（含推断出的套装）",
           "有成员没装光锥时两边都拒绝并给出同类错误"
         ],
-        "tests": ["mcp/scripts/smoke-teams.mjs"]
+        "tests": ["mcp/scripts/smoke-teams.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.benchmarks.sync cases 1,2 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -185,7 +203,7 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["save_team"] },
+      "mcp": { "status": "verified", "tools": ["save_team"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -193,7 +211,10 @@
           "保存同样的四槽后，两边存档的 teamShowcaseSavedTeams 末尾多出的队伍除 id 外一致",
           "带着已同步的基准保存时，两边队伍里的 benchmarkSnapshot 一致"
         ],
-        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke.mjs", "mcp/scripts/smoke-teams.mjs"]
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke.mjs", "mcp/scripts/smoke-teams.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.saved.save cases 1,2 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -209,12 +230,15 @@
       ],
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams" },
-      "mcp": { "status": "implemented", "tools": ["list_teams"] },
+      "mcp": { "status": "verified", "tools": ["list_teams"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["list_teams 返回的队伍数量、顺序、名字、四槽角色与基准快照，和侧栏列表及存档内容一致"],
-        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-misc.mjs"]
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-misc.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.saved.list cases 1 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -237,7 +261,7 @@
       "runtime": "node",
       "state": { "owner": "useTeamShowcase 组件内的 workingTeam", "lifecycle": "ephemeral" },
       "sideEffects": ["把缺失的角色加进角色列表并 SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["manage_team"] },
+      "mcp": { "status": "verified", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -245,7 +269,10 @@
           "载入一支含未拥有角色的队伍后，两边存档的 characters 都多出该角色，返回的四槽与网页一致",
           "队伍里有一个元数据中不存在的角色 id 时，该槽位为空且不带基准快照"
         ],
-        "tests": ["mcp/scripts/smoke-teams.mjs"]
+        "tests": ["mcp/scripts/smoke-teams.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.saved.load cases 1,2 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -267,12 +294,15 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams[].name" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["save_team"] },
+      "mcp": { "status": "verified", "tools": ["save_team"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["save_team(teamId, name) 之后的存档与网页行内重命名为同一名字后的存档一致，槽位与基准快照不变"],
-        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-misc.mjs"]
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-misc.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.saved.rename cases 1 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -290,12 +320,15 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["manage_team"] },
+      "mcp": { "status": "verified", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["删除一支队伍后两边存档的 teamShowcaseSavedTeams 一致，其余队伍顺序不变"],
-        "tests": ["mcp/scripts/smoke-teams.mjs"]
+        "tests": ["mcp/scripts/smoke-teams.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.saved.delete cases 1 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -317,12 +350,15 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.teamShowcaseSavedTeams" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["manage_team"] },
+      "mcp": { "status": "verified", "tools": ["manage_team"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["把第三支队伍移到最前后，两边存档的 teamShowcaseSavedTeams 顺序一致"],
-        "tests": ["mcp/scripts/smoke-teams.mjs"]
+        "tests": ["mcp/scripts/smoke-teams.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.saved.move cases 1 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -342,12 +378,16 @@
       "conditions": "队伍为空时按钮禁用。界面上卡片按 0.6 倍显示，截图按原始尺寸导出。",
       "runtime": "browser",
       "state": { "owner": "无", "lifecycle": "none" },
-      "mcp": { "status": "implemented", "tools": ["render", "deliver_artifact"] },
+      "mcp": { "status": "verified", "tools": ["render", "deliver_artifact"] },
       "scope": "baseline",
       "upstreamChange": "export",
       "acceptance": {
         "cases": ["渲染出的队伍图片尺寸与网页下载的一致，四张卡的角色、分数与顺序相同"],
-        "tests": ["mcp/scripts/smoke-render.mjs"]}
+        "tests": ["mcp/scripts/smoke-render.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/teams.json#teams.screenshot cases 1 PASS 2026-10-08 (browser-parity)"
+        ]
+      }
     }
   ],
   "mechanisms": [

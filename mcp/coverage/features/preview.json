@@ -5,23 +5,60 @@
     {
       "id": "preview.card.read",
       "title": "查看角色展示卡",
-      "surface": { "page": "CHARACTERS", "entry": "角色页选中角色后右侧的展示卡；展示柜页、配装弹窗、排行榜、队伍展示复用同一组件（ShowcaseSource 五种来源）" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "角色页选中角色后右侧的展示卡；展示柜页、配装弹窗、排行榜、队伍展示复用同一组件（ShowcaseSource 五种来源）"
+      },
       "kind": "read",
       "action": "一张卡汇总：角色名、等级、星魂、光锥与叠影、六槽遗器及逐件评分、面板属性（getShowcaseStats：用展示遗器和角色表单跑一次 simulateBuild 取基础面板）、元素伤害，以及按评分类型切换的评分区——模拟评分卡，或副词条评分下的套装效果与逐副词条 roll 汇总。",
       "upstream": [
-        { "file": "src/lib/characterPreview/CharacterPreview.tsx", "symbol": "CharacterPreview" },
-        { "file": "src/lib/characterPreview/characterPreviewController.tsx", "symbol": "getPreviewRelics" },
-        { "file": "src/lib/characterPreview/characterPreviewController.tsx", "symbol": "getShowcaseStats" },
-        { "file": "src/lib/characterPreview/characterPreviewController.tsx", "symbol": "getShowcaseMetadata" },
-        { "file": "src/lib/characterPreview/characterPreviewController.tsx", "symbol": "getShowcaseDisplayDimensions" },
-        { "file": "src/lib/characterPreview/showcaseDerivedData.ts", "symbol": "resolveShowcaseLayout" },
-        { "file": "src/lib/characterPreview/card/ShowcaseRelicsPanel.tsx", "symbol": "ShowcaseRelicsPanel" },
-        { "file": "src/lib/characterPreview/scoring/substatRollsAggregator.ts", "symbol": "aggregateSubstatRolls" }
+        {
+          "file": "src/lib/characterPreview/CharacterPreview.tsx",
+          "symbol": "CharacterPreview"
+        },
+        {
+          "file": "src/lib/characterPreview/characterPreviewController.tsx",
+          "symbol": "getPreviewRelics"
+        },
+        {
+          "file": "src/lib/characterPreview/characterPreviewController.tsx",
+          "symbol": "getShowcaseStats"
+        },
+        {
+          "file": "src/lib/characterPreview/characterPreviewController.tsx",
+          "symbol": "getShowcaseMetadata"
+        },
+        {
+          "file": "src/lib/characterPreview/characterPreviewController.tsx",
+          "symbol": "getShowcaseDisplayDimensions"
+        },
+        {
+          "file": "src/lib/characterPreview/showcaseDerivedData.ts",
+          "symbol": "resolveShowcaseLayout"
+        },
+        {
+          "file": "src/lib/characterPreview/card/ShowcaseRelicsPanel.tsx",
+          "symbol": "ShowcaseRelicsPanel"
+        },
+        {
+          "file": "src/lib/characterPreview/scoring/substatRollsAggregator.ts",
+          "symbol": "aggregateSubstatRolls"
+        }
       ],
       "conditions": "SHOWCASE_TAB 来源的遗器取自拉取到的档案而不是库存；BUILDS_MODAL 用配装记录的遗器、星魂与光锥；LEADERBOARD 强制默认肖像与 AUTO 配色、不显示 UID。getShowcaseStats 对缺失的部件按空处理。",
       "runtime": "node",
-      "state": { "owner": "useCharacterStore + useRelicStore + useScoringStore（派生）", "lifecycle": "derived" },
-      "mcp": { "status": "implemented", "tools": ["get_character", "score_relics", "score_character"] },
+      "state": {
+        "owner": "useCharacterStore + useRelicStore + useScoringStore（派生）",
+        "lifecycle": "derived"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "get_character",
+          "score_relics",
+          "score_character"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -29,21 +66,46 @@
           "同一角色返回的面板属性与展示卡上各项数值逐项一致",
           "副词条评分视图下，逐副词条的 roll 数与卡上的 roll 汇总一致，逐件遗器评分与卡上右侧遗器分数一致"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-score.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-equip.mjs",
+          "mcp/scripts/smoke-query.mjs",
+          "mcp/scripts/smoke-score.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.card.read cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.scoring.typeSwitch",
       "title": "切换展示卡的评分类型",
-      "surface": { "page": "CHARACTERS", "entry": "展示卡下方「构筑分析」顶部的分段控件" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "展示卡下方「构筑分析」顶部的分段控件"
+      },
       "kind": "write",
       "action": "在该角色可用的评分类型之间切换，写入 showcasePreferences[角色].scoringType 并防抖保存。可选项的顺序是：角色元数据里配置的顺序，其后按 dps、buffer、heal、shield 补齐其余可用的模拟配置，最后是副词条评分和「无」。",
       "upstream": [
-        { "file": "src/lib/characterPreview/scoring/ShowcaseBuildAnalysis.tsx", "symbol": "handleScoringTypeChange" },
-        { "file": "src/lib/characterPreview/customization/showcaseCustomizationController.ts", "symbol": "editShowcasePreferences" },
-        { "file": "src/lib/characterPreview/scoring/showcaseScoringOrder.ts", "symbol": "resolveShowcaseScoringType" },
-        { "file": "src/lib/characterPreview/characterPreviewController.tsx", "symbol": "resolveScoringType" },
-        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "setShowcasePreferences" }
+        {
+          "file": "src/lib/characterPreview/scoring/ShowcaseBuildAnalysis.tsx",
+          "symbol": "handleScoringTypeChange"
+        },
+        {
+          "file": "src/lib/characterPreview/customization/showcaseCustomizationController.ts",
+          "symbol": "editShowcasePreferences"
+        },
+        {
+          "file": "src/lib/characterPreview/scoring/showcaseScoringOrder.ts",
+          "symbol": "resolveShowcaseScoringType"
+        },
+        {
+          "file": "src/lib/characterPreview/characterPreviewController.tsx",
+          "symbol": "resolveScoringType"
+        },
+        {
+          "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts",
+          "symbol": "setShowcasePreferences"
+        }
       ],
       "params": [
         {
@@ -55,9 +117,21 @@
       ],
       "conditions": "LEADERBOARD 来源不显示这个控件。配装弹窗里优先用配装记录的评分类型，不用这里存的值。",
       "runtime": "node",
-      "state": { "owner": "useShowcaseTabStore.showcasePreferences", "lifecycle": "persisted", "saveKey": "showcasePreferences[].scoringType" },
-      "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
+      "state": {
+        "owner": "useShowcaseTabStore.showcasePreferences",
+        "lifecycle": "persisted",
+        "saveKey": "showcasePreferences[].scoringType"
+      },
+      "sideEffects": [
+        "SaveState.delayedSave()"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "get_state",
+          "update_state"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -65,31 +139,78 @@
           "切到副词条评分后，两边存档的 showcasePreferences[角色].scoringType 都是 1",
           "给一个没有治疗配置的角色写入 HEAL_SCORE，读回的生效类型回退到该角色可选项的第一项，与网页一致"
         ],
-       "tests": ["mcp/scripts/smoke-state.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-state.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.scoring.typeSwitch cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.simScore.read",
       "title": "模拟评分与构筑分析",
-      "surface": { "page": "CHARACTERS", "entry": "评分类型为 DPS、辅助、治疗或护盾时，展示卡上的评分卡和下方的构筑分析" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "评分类型为 DPS、辅助、治疗或护盾时，展示卡上的评分卡和下方的构筑分析"
+      },
       "kind": "compute",
       "action": "对角色当前配装跑基准评测：得出百分比分数与字母评级，原始、基线、基准、完美四套配装的分数与模拟结果（各自的主词条、副词条 roll 分配、战斗属性、逐技能伤害），以及副词条、主词条、套装、队友饰品四张升级表和评级标尺。",
       "upstream": [
-        { "file": "src/lib/characterPreview/scoring/ShowcaseSimScore.tsx", "symbol": "ShowcaseSimScorePanel" },
-        { "file": "src/lib/characterPreview/buildAnalysis/CharacterScoringSummary.tsx", "symbol": "CharacterScoringSummary" },
-        { "file": "src/lib/characterPreview/showcaseDerivedData.ts", "symbol": "resolveShowcaseScoringData" },
-        { "file": "src/lib/simulations/orchestrator/runDpsScoreBenchmarkOrchestrator.ts", "symbol": "prepareOrchestrator" },
-        { "file": "src/lib/scoring/scoringConfig.ts", "symbol": "SCORING_CONFIG_REGISTRY" }
+        {
+          "file": "src/lib/characterPreview/scoring/ShowcaseSimScore.tsx",
+          "symbol": "ShowcaseSimScorePanel"
+        },
+        {
+          "file": "src/lib/characterPreview/buildAnalysis/CharacterScoringSummary.tsx",
+          "symbol": "CharacterScoringSummary"
+        },
+        {
+          "file": "src/lib/characterPreview/showcaseDerivedData.ts",
+          "symbol": "resolveShowcaseScoringData"
+        },
+        {
+          "file": "src/lib/simulations/orchestrator/runDpsScoreBenchmarkOrchestrator.ts",
+          "symbol": "prepareOrchestrator"
+        },
+        {
+          "file": "src/lib/scoring/scoringConfig.ts",
+          "symbol": "SCORING_CONFIG_REGISTRY"
+        }
       ],
       "params": [
-        { "name": "configType", "type": "ScoringConfigType", "default": "由评分类型决定", "notes": "dps、buffer、heal、shield；只有角色元数据带对应配置时可用" },
-        { "name": "team", "type": "TeamSelection", "default": "见 preview.team.select", "notes": "默认队或自定义队" },
-        { "name": "spdBenchmark", "type": "number | undefined", "default": "undefined（当前速度）", "notes": "见 preview.scoring.spdBenchmark" }
+        {
+          "name": "configType",
+          "type": "ScoringConfigType",
+          "default": "由评分类型决定",
+          "notes": "dps、buffer、heal、shield；只有角色元数据带对应配置时可用"
+        },
+        {
+          "name": "team",
+          "type": "TeamSelection",
+          "default": "见 preview.team.select",
+          "notes": "默认队或自定义队"
+        },
+        {
+          "name": "spdBenchmark",
+          "type": "number | undefined",
+          "default": "undefined（当前速度）",
+          "notes": "见 preview.scoring.spdBenchmark"
+        }
       ],
       "conditions": "角色需要光锥和至少一件遗器；六件齐全且全部 verified 才可能得到最高评级。基准与完美两套的搜索在 worker 里异步完成，卡片先显示占位。",
       "runtime": "node",
-      "state": { "owner": "SimScoringContext（按角色与配置缓存的评测结果）", "lifecycle": "derived" },
-      "mcp": { "status": "implemented", "tools": ["dps_score", "score_character"] },
+      "state": {
+        "owner": "SimScoringContext（按角色与配置缓存的评测结果）",
+        "lifecycle": "derived"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "dps_score",
+          "score_character"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -98,28 +219,64 @@
           "对一个带治疗配置的角色，返回的治疗评分与网页切到治疗评分后的结果一致",
           "四张升级表的条目与增量和构筑分析里的表格逐行一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-score.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs",
+          "mcp/scripts/smoke-equip.mjs",
+          "mcp/scripts/smoke-score.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.simScore.read cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.team.select",
       "title": "选择评分用的队伍（默认或自定义）",
-      "surface": { "page": "CHARACTERS", "entry": "评分卡上三名队友下方的分段控件" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "评分卡上三名队友下方的分段控件"
+      },
       "kind": "write",
       "action": "在默认队与自定义队之间切换，按角色和评分配置分别记在 showcaseTeamPreferenceByConfig 里；不写入存档，刷新即失效。没有显式选择时，如果存下的自定义队友与默认不同就用自定义队，否则用默认队。",
       "upstream": [
-        { "file": "src/lib/characterPreview/scoring/ShowcaseSimScore.tsx", "symbol": "ShowcaseTeamSelectPanel" },
-        { "file": "src/lib/characterPreview/characterPreviewController.tsx", "symbol": "handleTeamSelection" },
-        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "setShowcaseTeamPreference" }
+        {
+          "file": "src/lib/characterPreview/scoring/ShowcaseSimScore.tsx",
+          "symbol": "ShowcaseTeamSelectPanel"
+        },
+        {
+          "file": "src/lib/characterPreview/characterPreviewController.tsx",
+          "symbol": "handleTeamSelection"
+        },
+        {
+          "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts",
+          "symbol": "setShowcaseTeamPreference"
+        }
       ],
       "params": [
-        { "name": "team", "type": "DEFAULT_TEAM | CUSTOM_TEAM", "default": "自定义队友与默认不同时为 CUSTOM_TEAM，否则 DEFAULT_TEAM" },
-        { "name": "configType", "type": "ScoringConfigType", "notes": "每类评分配置各记一份" }
+        {
+          "name": "team",
+          "type": "DEFAULT_TEAM | CUSTOM_TEAM",
+          "default": "自定义队友与默认不同时为 CUSTOM_TEAM，否则 DEFAULT_TEAM"
+        },
+        {
+          "name": "configType",
+          "type": "ScoringConfigType",
+          "notes": "每类评分配置各记一份"
+        }
       ],
       "conditions": "LEADERBOARD 与 TEAM 来源不显示；BUILDS_MODAL 里只读并固定显示自定义队。控件的第三个选项是设置菜单，见 preview.team.reset 与 preview.team.sync。",
       "runtime": "node",
-      "state": { "owner": "useShowcaseTabStore.showcaseTeamPreferenceByConfig", "lifecycle": "session" },
-      "mcp": { "status": "implemented", "tools": ["dps_score", "score_character"] },
+      "state": {
+        "owner": "useShowcaseTabStore.showcaseTeamPreferenceByConfig",
+        "lifecycle": "session"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "dps_score",
+          "score_character"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -127,35 +284,96 @@
           "角色存有自定义队友时，不指定队伍得到的分数与网页首次打开展示卡时一致（自定义队）",
           "显式指定默认队后得到的分数与网页切到默认队后一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-score.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs",
+          "mcp/scripts/smoke-score.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.team.select cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.team.editTeammate",
       "title": "编辑评分队伍的队友",
-      "surface": { "page": "CHARACTERS", "overlay": "CharacterModal", "entry": "点击评分卡上的任一队友头像" },
+      "surface": {
+        "page": "CHARACTERS",
+        "overlay": "CharacterModal",
+        "entry": "点击评分卡上的任一队友头像"
+      },
       "kind": "write",
       "action": "打开带套装选择的角色弹窗，选定队友的角色、星魂、光锥、叠影以及队伍遗器套装和饰品套装；确认后把这一位写进 scoringMetadataOverrides[角色] 对应评分配置的 teammates，防抖保存，并把队伍选择切到自定义队。",
       "upstream": [
-        { "file": "src/lib/characterPreview/scoring/ShowcaseSimScore.tsx", "symbol": "CharacterPreviewScoringTeammate" },
-        { "file": "src/lib/characterPreview/scoring/ShowcaseSimScore.tsx", "symbol": "createOnCharacterModalOk" },
-        { "file": "src/lib/stores/scoring/scoringStore.ts", "symbol": "updateScoringConfigOverride" }
+        {
+          "file": "src/lib/characterPreview/scoring/ShowcaseSimScore.tsx",
+          "symbol": "CharacterPreviewScoringTeammate"
+        },
+        {
+          "file": "src/lib/characterPreview/scoring/ShowcaseSimScore.tsx",
+          "symbol": "createOnCharacterModalOk"
+        },
+        {
+          "file": "src/lib/stores/scoring/scoringStore.ts",
+          "symbol": "updateScoringConfigOverride"
+        }
       ],
       "params": [
-        { "name": "index", "type": "0 | 1 | 2", "notes": "队友位置" },
-        { "name": "characterId", "type": "CharacterId", "notes": "必填" },
-        { "name": "characterEidolon", "type": "0-6" },
-        { "name": "lightCone", "type": "LightConeId", "notes": "必填" },
-        { "name": "lightConeSuperimposition", "type": "1-5" },
-        { "name": "teamRelicSet", "type": "string | undefined" },
-        { "name": "teamOrnamentSet", "type": "string | undefined" },
-        { "name": "configType", "type": "ScoringConfigType", "default": "dps", "notes": "写入 simulation、supportSimulation、healSimulation、shieldSimulation 之一" }
+        {
+          "name": "index",
+          "type": "0 | 1 | 2",
+          "notes": "队友位置"
+        },
+        {
+          "name": "characterId",
+          "type": "CharacterId",
+          "notes": "必填"
+        },
+        {
+          "name": "characterEidolon",
+          "type": "0-6"
+        },
+        {
+          "name": "lightCone",
+          "type": "LightConeId",
+          "notes": "必填"
+        },
+        {
+          "name": "lightConeSuperimposition",
+          "type": "1-5"
+        },
+        {
+          "name": "teamRelicSet",
+          "type": "string | undefined"
+        },
+        {
+          "name": "teamOrnamentSet",
+          "type": "string | undefined"
+        },
+        {
+          "name": "configType",
+          "type": "ScoringConfigType",
+          "default": "dps",
+          "notes": "写入 simulation、supportSimulation、healSimulation、shieldSimulation 之一"
+        }
       ],
       "conditions": "缺角色或缺光锥时报错不保存。BUILDS_MODAL、LEADERBOARD、TEAM 来源下头像不可点。",
       "runtime": "node",
-      "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides[].simulation.teammates（及另外三类配置的同名字段）" },
-      "sideEffects": ["SaveState.delayedSave()", "该角色该配置的队伍选择变为自定义队（仅会话）", "评分版本号递增"],
-      "mcp": { "status": "implemented", "tools": ["set_scoring_override"] },
+      "state": {
+        "owner": "useScoringStore.scoringMetadataOverrides",
+        "lifecycle": "persisted",
+        "saveKey": "scoringMetadataOverrides[].simulation.teammates（及另外三类配置的同名字段）"
+      },
+      "sideEffects": [
+        "SaveState.delayedSave()",
+        "该角色该配置的队伍选择变为自定义队（仅会话）",
+        "评分版本号递增"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "set_scoring_override"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -163,72 +381,176 @@
           "替换第二位队友后，两边存档的 scoringMetadataOverrides[角色].simulation.teammates 一致",
           "随后以自定义队评分，分数与网页一致"
         ],
-       "tests": ["mcp/scripts/smoke-score.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-score.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.team.editTeammate cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.team.reset",
       "title": "把评分队伍恢复为默认",
-      "surface": { "page": "CHARACTERS", "overlay": "确认弹窗", "entry": "队伍分段控件的设置项 →「重置」" },
+      "surface": {
+        "page": "CHARACTERS",
+        "overlay": "确认弹窗",
+        "entry": "队伍分段控件的设置项 →「重置」"
+      },
       "kind": "write",
       "action": "清掉该角色当前评分配置的整段覆盖（clearScoringConfigOverride：队友和这一配置下的其他覆盖项一起清），防抖保存，并把队伍选择切回默认队。该角色不再有任何覆盖内容时，整条记录从存档里删除。",
       "upstream": [
-        { "file": "src/lib/characterPreview/scoring/ShowcaseSimScore.tsx", "symbol": "onClear" },
-        { "file": "src/lib/stores/scoring/scoringStore.ts", "symbol": "clearScoringConfigOverride" }
+        {
+          "file": "src/lib/characterPreview/scoring/ShowcaseSimScore.tsx",
+          "symbol": "onClear"
+        },
+        {
+          "file": "src/lib/stores/scoring/scoringStore.ts",
+          "symbol": "clearScoringConfigOverride"
+        }
       ],
-      "params": [{ "name": "configType", "type": "ScoringConfigType", "notes": "只清当前显示的这一类配置" }],
+      "params": [
+        {
+          "name": "configType",
+          "type": "ScoringConfigType",
+          "notes": "只清当前显示的这一类配置"
+        }
+      ],
       "conditions": "DPS 配置下会连同「增益优先级」的覆盖一起清掉，因为它存在同一段里。",
       "runtime": "node",
-      "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides[].simulation（及另外三类配置）" },
-      "sideEffects": ["SaveState.delayedSave()", "队伍选择回到默认队（仅会话）"],
-      "mcp": { "status": "implemented", "tools": ["set_scoring_override"] },
+      "state": {
+        "owner": "useScoringStore.scoringMetadataOverrides",
+        "lifecycle": "persisted",
+        "saveKey": "scoringMetadataOverrides[].simulation（及另外三类配置）"
+      },
+      "sideEffects": [
+        "SaveState.delayedSave()",
+        "队伍选择回到默认队（仅会话）"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "set_scoring_override"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["重置 DPS 队伍后，存档里该角色的 simulation 覆盖消失，而副词条权重覆盖保持不变，与网页一致"],
-       "tests": ["mcp/scripts/smoke-score.mjs"]
+        "cases": [
+          "重置 DPS 队伍后，存档里该角色的 simulation 覆盖消失，而副词条权重覆盖保持不变，与网页一致"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-score.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.team.reset cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.team.sync",
       "title": "把评分队友同步为自己角色的星魂与光锥",
-      "surface": { "page": "CHARACTERS", "overlay": "确认弹窗", "entry": "队伍分段控件的设置项 →「同步」" },
+      "surface": {
+        "page": "CHARACTERS",
+        "overlay": "确认弹窗",
+        "entry": "队伍分段控件的设置项 →「同步」"
+      },
       "kind": "write",
       "action": "对当前评分配置的每个队友，如果角色列表里有同一角色，就把星魂、光锥和叠影改成列表里的值（列表里没装光锥时保留原光锥与叠影），写入覆盖并防抖保存，然后把队伍选择切到自定义队。",
       "upstream": [
-        { "file": "src/lib/characterPreview/scoring/ShowcaseSimScore.tsx", "symbol": "onSync" },
-        { "file": "src/lib/stores/scoring/scoringStore.ts", "symbol": "updateScoringConfigOverride" }
+        {
+          "file": "src/lib/characterPreview/scoring/ShowcaseSimScore.tsx",
+          "symbol": "onSync"
+        },
+        {
+          "file": "src/lib/stores/scoring/scoringStore.ts",
+          "symbol": "updateScoringConfigOverride"
+        }
       ],
-      "params": [{ "name": "configType", "type": "ScoringConfigType" }],
+      "params": [
+        {
+          "name": "configType",
+          "type": "ScoringConfigType"
+        }
+      ],
       "conditions": "列表里没有的队友保持不变；队友的遗器套装与饰品套装不受影响。",
       "runtime": "node",
-      "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides[].simulation.teammates（及另外三类配置的同名字段）" },
-      "sideEffects": ["SaveState.delayedSave()", "队伍选择变为自定义队（仅会话）"],
-      "mcp": { "status": "implemented", "tools": ["set_scoring_override"] },
+      "state": {
+        "owner": "useScoringStore.scoringMetadataOverrides",
+        "lifecycle": "persisted",
+        "saveKey": "scoringMetadataOverrides[].simulation.teammates（及另外三类配置的同名字段）"
+      },
+      "sideEffects": [
+        "SaveState.delayedSave()",
+        "队伍选择变为自定义队（仅会话）"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "set_scoring_override"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["同步后三位队友的星魂、光锥、叠影与角色列表里的对应角色一致，列表里没有的队友不变，两边存档相同"],
-       "tests": ["mcp/scripts/smoke-score.mjs"]
+        "cases": [
+          "同步后三位队友的星魂、光锥、叠影与角色列表里的对应角色一致，列表里没有的队友不变，两边存档相同"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-score.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.team.sync cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.scoring.buffPriority",
       "title": "设置 DPS 评分的增益优先级（主 C 或副 C）",
-      "surface": { "page": "CHARACTERS", "entry": "展示卡右侧定制侧栏「属性」面板的 DPS 模式开关" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "展示卡右侧定制侧栏「属性」面板的 DPS 模式开关"
+      },
       "kind": "write",
       "action": "把 deprioritizeBuffs 写进该角色 DPS 配置的覆盖并防抖保存：关为主 C（队友增益优先给它），开为副 C。未覆盖时的生效值由 resolveEffectiveDeprioritizeBuffs 决定——元数据标为副 C 的角色，如果队里没有别的输出位，仍按主 C 处理。",
       "upstream": [
-        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "onDeprioritizeBuffsChange" },
-        { "file": "src/lib/characterPreview/showcaseDerivedData.ts", "symbol": "resolveEffectiveDeprioritizeBuffs" },
-        { "file": "src/lib/stores/scoring/scoringStore.ts", "symbol": "updateScoringConfigOverride" }
+        {
+          "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx",
+          "symbol": "onDeprioritizeBuffsChange"
+        },
+        {
+          "file": "src/lib/characterPreview/showcaseDerivedData.ts",
+          "symbol": "resolveEffectiveDeprioritizeBuffs"
+        },
+        {
+          "file": "src/lib/stores/scoring/scoringStore.ts",
+          "symbol": "updateScoringConfigOverride"
+        }
       ],
-      "params": [{ "name": "deprioritizeBuffs", "type": "boolean", "default": "resolveEffectiveDeprioritizeBuffs 的结果" }],
+      "params": [
+        {
+          "name": "deprioritizeBuffs",
+          "type": "boolean",
+          "default": "resolveEffectiveDeprioritizeBuffs 的结果"
+        }
+      ],
       "conditions": "只在评分类型为 DPS 时显示；角色没有 DPS 配置时不写入。侧栏在 BUILDS_MODAL、LEADERBOARD、TEAM 来源下整体隐藏。",
       "runtime": "node",
-      "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides[].simulation.deprioritizeBuffs" },
-      "sideEffects": ["SaveState.delayedSave()", "评分版本号递增，DPS 评分重新计算"],
-      "mcp": { "status": "implemented", "tools": ["set_scoring_override"] },
+      "state": {
+        "owner": "useScoringStore.scoringMetadataOverrides",
+        "lifecycle": "persisted",
+        "saveKey": "scoringMetadataOverrides[].simulation.deprioritizeBuffs"
+      },
+      "sideEffects": [
+        "SaveState.delayedSave()",
+        "评分版本号递增，DPS 评分重新计算"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "set_scoring_override"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -236,102 +558,256 @@
           "切到副 C 后两边存档的 simulation.deprioritizeBuffs 都是 true，DPS 评分与网页一致",
           "对一个元数据标为副 C、队里没有其他输出位的角色，未覆盖时读到的生效值是 false"
         ],
-       "tests": ["mcp/scripts/smoke-score.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-score.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.scoring.buffPriority cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.scoring.spdWeight",
       "title": "设置速度的评分权重（100% 或 0%）",
-      "surface": { "page": "CHARACTERS", "entry": "定制侧栏「属性」面板的速度权重开关" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "定制侧栏「属性」面板的速度权重开关"
+      },
       "kind": "write",
       "action": "把该角色的 SPD 副词条权重设为 1 或 0，写入评分覆盖并防抖保存；与评分算法弹窗里改 SPD 权重是同一个字段。",
       "upstream": [
-        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "onSpdValueChange" },
-        { "file": "src/lib/stores/scoring/scoringStore.ts", "symbol": "updateCharacterOverrides" }
+        {
+          "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx",
+          "symbol": "onSpdValueChange"
+        },
+        {
+          "file": "src/lib/stores/scoring/scoringStore.ts",
+          "symbol": "updateCharacterOverrides"
+        }
       ],
-      "params": [{ "name": "SPD", "type": "0 | 1", "default": "角色元数据里的 SPD 权重" }],
+      "params": [
+        {
+          "name": "SPD",
+          "type": "0 | 1",
+          "default": "角色元数据里的 SPD 权重"
+        }
+      ],
       "conditions": "评分类型为「无」时不显示。",
       "runtime": "node",
-      "state": { "owner": "useScoringStore.scoringMetadataOverrides", "lifecycle": "persisted", "saveKey": "scoringMetadataOverrides[].stats.SPD" },
-      "sideEffects": ["SaveState.delayedSave()", "评分版本号递增"],
-      "mcp": { "status": "implemented", "tools": ["set_scoring_override", "get_scoring_metadata"] },
+      "state": {
+        "owner": "useScoringStore.scoringMetadataOverrides",
+        "lifecycle": "persisted",
+        "saveKey": "scoringMetadataOverrides[].stats.SPD"
+      },
+      "sideEffects": [
+        "SaveState.delayedSave()",
+        "评分版本号递增"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "set_scoring_override",
+          "get_scoring_metadata"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["set_scoring_override(weights={SPD: 0}) 后的存档与网页把速度权重切到 0% 后的存档一致；与默认值相同时覆盖项被剪掉"],
-        "tests": ["mcp/scripts/smoke-equip.mjs"]
+        "cases": [
+          "set_scoring_override(weights={SPD: 0}) 后的存档与网页把速度权重切到 0% 后的存档一致；与默认值相同时覆盖项被剪掉"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-equip.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.scoring.spdWeight cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.scoring.spdPrecision",
       "title": "设置展示卡上速度的显示精度",
-      "surface": { "page": "CHARACTERS", "entry": "定制侧栏「属性」面板的速度精度开关" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "定制侧栏「属性」面板的速度精度开关"
+      },
       "kind": "write",
       "action": "在一位小数与三位小数之间切换展示卡上速度的显示，写入全局会话项 showcasePreciseSpd 并防抖保存。只影响显示，不影响计算。",
       "upstream": [
-        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "onSpdPrecisionChange" },
-        { "file": "src/lib/stores/app/appStore.ts", "symbol": "setSavedSessionKey" }
+        {
+          "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx",
+          "symbol": "onSpdPrecisionChange"
+        },
+        {
+          "file": "src/lib/stores/app/appStore.ts",
+          "symbol": "setSavedSessionKey"
+        }
       ],
-      "params": [{ "name": "showcasePreciseSpd", "type": "boolean", "default": "false" }],
+      "params": [
+        {
+          "name": "showcasePreciseSpd",
+          "type": "boolean",
+          "default": "false"
+        }
+      ],
       "runtime": "node",
-      "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.showcasePreciseSpd" },
-      "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
+      "state": {
+        "owner": "useGlobalStore.savedSession",
+        "lifecycle": "persisted",
+        "saveKey": "savedSession.global.showcasePreciseSpd"
+      },
+      "sideEffects": [
+        "SaveState.delayedSave()"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "get_state",
+          "update_state"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["打开后两边存档的 savedSession.global.showcasePreciseSpd 都是 true，渲染出的展示卡速度显示三位小数"],
-       "tests": ["mcp/scripts/smoke-state.mjs"]
+        "cases": [
+          "打开后两边存档的 savedSession.global.showcasePreciseSpd 都是 true，渲染出的展示卡速度显示三位小数"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-state.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.scoring.spdPrecision cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.scoring.spdBenchmark",
       "title": "设置模拟评分的临时基准速度",
-      "surface": { "page": "CHARACTERS", "entry": "定制侧栏「属性」面板的基准速度输入框" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "定制侧栏「属性」面板的基准速度输入框"
+      },
       "kind": "write",
       "action": "为该角色指定评测时基准配装要对齐的速度：当前速度（缺省）、基础速度，或下拉里的速度阈值预设，也可以手动输入。值记在 showcaseTemporaryOptionsByCharacter 里，不写入存档，评测时传给 orchestrator.setOriginalBuild。",
       "upstream": [
-        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "onSpdBenchmarkChange" },
-        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "SpdBenchmarkCombobox" },
-        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "setSpdBenchmark" },
-        { "file": "src/lib/simulations/utils/benchmarkSpeedTargets.ts", "symbol": "benchmarkBasicSpdTarget" }
+        {
+          "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx",
+          "symbol": "onSpdBenchmarkChange"
+        },
+        {
+          "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx",
+          "symbol": "SpdBenchmarkCombobox"
+        },
+        {
+          "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts",
+          "symbol": "setSpdBenchmark"
+        },
+        {
+          "file": "src/lib/simulations/utils/benchmarkSpeedTargets.ts",
+          "symbol": "benchmarkBasicSpdTarget"
+        }
       ],
-      "params": [{ "name": "spdBenchmark", "type": "number | undefined", "default": "undefined", "notes": "界面上 -1 表示当前速度，存为 undefined；0 表示基础速度；最小 0" }],
+      "params": [
+        {
+          "name": "spdBenchmark",
+          "type": "number | undefined",
+          "default": "undefined",
+          "notes": "界面上 -1 表示当前速度，存为 undefined；0 表示基础速度；最小 0"
+        }
+      ],
       "conditions": "只在模拟评分类型下显示。",
       "runtime": "node",
-      "state": { "owner": "useShowcaseTabStore.showcaseTemporaryOptionsByCharacter", "lifecycle": "session" },
-      "sideEffects": ["该角色的模拟评分重新计算"],
-      "mcp": { "status": "implemented", "tools": ["score_character"] },
+      "state": {
+        "owner": "useShowcaseTabStore.showcaseTemporaryOptionsByCharacter",
+        "lifecycle": "session"
+      },
+      "sideEffects": [
+        "该角色的模拟评分重新计算"
+      ],
+      "mcp": {
+        "status": "implemented",
+        "tools": [
+          "score_character"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["把基准速度设为某个阈值后，返回的基准速度、分数与网页在同一输入下的展示卡一致"],
-       "tests": ["mcp/scripts/smoke-score.mjs"]
+        "cases": [
+          "把基准速度设为某个阈值后，返回的基准速度、分数与网页在同一输入下的展示卡一致"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-score.mjs"
+        ]
       }
     },
     {
       "id": "preview.customize.color",
       "title": "设置展示卡的主题色与配色模式",
-      "surface": { "page": "CHARACTERS", "entry": "定制侧栏「定制」面板的取色器与配色模式开关" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "定制侧栏「定制」面板的取色器与配色模式开关"
+      },
       "kind": "write",
       "action": "取色器拖动时实时预览，松手后把颜色写进 showcasePreferences[角色] 并把配色模式改为 CUSTOM；配色模式可在 AUTO（从肖像提取）、CUSTOM、STANDARD 之间切换。改配色模式时还会把全局会话项 showcaseStandardMode 设为「是否 STANDARD」，影响所有没有单独设置的角色。聚焦取色器时可用方向键在肖像提取出的色板里循环。",
       "upstream": [
-        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "CustomizationPanel" },
-        { "file": "src/lib/characterPreview/customization/showcaseCustomizationController.ts", "symbol": "editShowcasePreferences" },
-        { "file": "src/lib/characterPreview/color/showcaseColorService.ts", "symbol": "resolveShowcaseColor" },
-        { "file": "src/lib/characterPreview/color/showcaseColorService.ts", "symbol": "resolveShowcaseTheme" },
-        { "file": "src/lib/characterPreview/color/showcaseColorService.ts", "symbol": "buildCardBgPipelineConfig" },
-        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "setShowcasePreferences" }
+        {
+          "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx",
+          "symbol": "CustomizationPanel"
+        },
+        {
+          "file": "src/lib/characterPreview/customization/showcaseCustomizationController.ts",
+          "symbol": "editShowcasePreferences"
+        },
+        {
+          "file": "src/lib/characterPreview/color/showcaseColorService.ts",
+          "symbol": "resolveShowcaseColor"
+        },
+        {
+          "file": "src/lib/characterPreview/color/showcaseColorService.ts",
+          "symbol": "resolveShowcaseTheme"
+        },
+        {
+          "file": "src/lib/characterPreview/color/showcaseColorService.ts",
+          "symbol": "buildCardBgPipelineConfig"
+        },
+        {
+          "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts",
+          "symbol": "setShowcasePreferences"
+        }
       ],
       "params": [
-        { "name": "color", "type": "string（CSS 颜色）", "default": "由配色模式决定", "notes": "值等于 DEFAULT_SHOWCASE_COLOR 时不保存" },
-        { "name": "colorMode", "type": "ShowcaseColorMode", "default": "AUTO；全局 showcaseStandardMode 为 true 时 STANDARD", "notes": "AUTO、CUSTOM、STANDARD" }
+        {
+          "name": "color",
+          "type": "string（CSS 颜色）",
+          "default": "由配色模式决定",
+          "notes": "值等于 DEFAULT_SHOWCASE_COLOR 时不保存"
+        },
+        {
+          "name": "colorMode",
+          "type": "ShowcaseColorMode",
+          "default": "AUTO；全局 showcaseStandardMode 为 true 时 STANDARD",
+          "notes": "AUTO、CUSTOM、STANDARD"
+        }
       ],
       "conditions": "LEADERBOARD 来源固定用 AUTO。AUTO 模式的颜色来自肖像取色（见机制项 preview.mech.paletteExtraction），需要浏览器环境。",
       "runtime": "node",
-      "state": { "owner": "useShowcaseTabStore.showcasePreferences + useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "showcasePreferences[].color / .colorMode；savedSession.global.showcaseStandardMode" },
-      "sideEffects": ["SaveState.delayedSave()", "改配色模式会同时改全局的 showcaseStandardMode"],
-      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
+      "state": {
+        "owner": "useShowcaseTabStore.showcasePreferences + useGlobalStore.savedSession",
+        "lifecycle": "persisted",
+        "saveKey": "showcasePreferences[].color / .colorMode；savedSession.global.showcaseStandardMode"
+      },
+      "sideEffects": [
+        "SaveState.delayedSave()",
+        "改配色模式会同时改全局的 showcaseStandardMode"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "get_state",
+          "update_state"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -339,69 +815,201 @@
           "给角色设置自定义颜色后，两边存档的 showcasePreferences[角色] 都是 { color, colorMode: CUSTOM }",
           "把配色模式改为 STANDARD 后，两边存档的 savedSession.global.showcaseStandardMode 都是 true"
         ],
-        "tests": ["mcp/scripts/smoke-state.mjs"]}
+        "tests": [
+          "mcp/scripts/smoke-state.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.customize.color cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
+      }
     },
     {
       "id": "preview.customize.display",
       "title": "设置展示卡的外观开关",
-      "surface": { "page": "CHARACTERS", "entry": "定制侧栏「定制」面板的四个开关" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "定制侧栏「定制」面板的四个开关"
+      },
       "kind": "write",
       "action": "四个全局开关，分别写入会话项并防抖保存：风格预设（SHINE 或 NATURAL）、明暗（showcaseDarkMode）、是否显示 UID、是否使用动态立绘（L2D）。对所有角色的展示卡生效。",
       "upstream": [
-        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "onPresetChange" },
-        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "onBrightnessModeChange" },
-        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "onShowUIDChange" },
-        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "onShowL2DChange" },
-        { "file": "src/lib/stores/app/appStore.ts", "symbol": "setSavedSessionKey" }
+        {
+          "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx",
+          "symbol": "onPresetChange"
+        },
+        {
+          "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx",
+          "symbol": "onBrightnessModeChange"
+        },
+        {
+          "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx",
+          "symbol": "onShowUIDChange"
+        },
+        {
+          "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx",
+          "symbol": "onShowL2DChange"
+        },
+        {
+          "file": "src/lib/stores/app/appStore.ts",
+          "symbol": "setSavedSessionKey"
+        }
       ],
       "params": [
-        { "name": "showcasePreset", "type": "ShowcasePreset", "default": "SHINE", "notes": "SHINE 或 NATURAL" },
-        { "name": "showcaseDarkMode", "type": "boolean", "default": "false" },
-        { "name": "showcaseUID", "type": "boolean", "default": "true", "notes": "UID 只在展示柜页的卡片上显示" },
-        { "name": "showcaseL2D", "type": "boolean", "default": "true", "notes": "角色元数据 disableSpine 为 true 时开关禁用" }
+        {
+          "name": "showcasePreset",
+          "type": "ShowcasePreset",
+          "default": "SHINE",
+          "notes": "SHINE 或 NATURAL"
+        },
+        {
+          "name": "showcaseDarkMode",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "name": "showcaseUID",
+          "type": "boolean",
+          "default": "true",
+          "notes": "UID 只在展示柜页的卡片上显示"
+        },
+        {
+          "name": "showcaseL2D",
+          "type": "boolean",
+          "default": "true",
+          "notes": "角色元数据 disableSpine 为 true 时开关禁用"
+        }
       ],
       "conditions": "动态立绘还要求：有骨骼数据、没有自定义肖像、来源不是 LEADERBOARD 或 TEAM，否则回退为静态肖像。",
       "runtime": "node",
-      "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.showcasePreset / showcaseDarkMode / showcaseUID / showcaseL2D" },
-      "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
+      "state": {
+        "owner": "useGlobalStore.savedSession",
+        "lifecycle": "persisted",
+        "saveKey": "savedSession.global.showcasePreset / showcaseDarkMode / showcaseUID / showcaseL2D"
+      },
+      "sideEffects": [
+        "SaveState.delayedSave()"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "get_state",
+          "update_state"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["逐个修改四个开关后，两边存档的 savedSession.global 对应四个键一致；渲染出的展示卡外观随之变化"],
-       "tests": ["mcp/scripts/smoke-state.mjs"]
+        "cases": [
+          "逐个修改四个开关后，两边存档的 savedSession.global 对应四个键一致；渲染出的展示卡外观随之变化"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-state.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.customize.display cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.portrait.set",
       "title": "设置或还原自定义肖像",
-      "surface": { "page": "CHARACTERS", "overlay": "EditImageModal", "entry": "鼠标悬停展示卡肖像 →「编辑肖像」" },
+      "surface": {
+        "page": "CHARACTERS",
+        "overlay": "EditImageModal",
+        "entry": "鼠标悬停展示卡肖像 →「编辑肖像」"
+      },
       "kind": "write",
       "action": "两步向导。第一步选来源：上传文件、图片 URL，或还原为默认肖像；第二步在裁剪框里拖动、缩放并填写画师署名。提交后把 { imageUrl, originalDimensions, customImageParams, cropper, artistName } 写进角色的 portrait 并防抖保存；选「默认」则把 portrait 清掉。角色还不在列表里时先按默认表单新建。",
       "upstream": [
-        { "file": "src/lib/overlays/modals/EditImageModal.tsx", "symbol": "EditImageModal" },
-        { "file": "src/lib/overlays/modals/editImageUtils.ts", "symbol": "uploadToImgur" },
-        { "file": "src/lib/overlays/modals/editImageUtils.ts", "symbol": "isValidImageUrl" },
-        { "file": "src/lib/characterPreview/characterPreviewController.tsx", "symbol": "showcaseOnEditPortraitOk" },
-        { "file": "src/lib/characterPreview/CharacterPreview.tsx", "symbol": "handleEditPortraitOk" },
-        { "file": "src/lib/characterPreview/card/ShowcasePortrait.tsx", "symbol": "setEditPortraitModalOpen" },
-        { "file": "src/lib/characterPreview/card/ShowcasePortrait.tsx", "symbol": "onEditPortraitOk" },
-        { "file": "src/lib/characterPreview/characterPreviewController.tsx", "symbol": "getArtistName" },
-        { "file": "src/lib/stores/character/characterStore.ts", "symbol": "setCharacter" }
+        {
+          "file": "src/lib/overlays/modals/EditImageModal.tsx",
+          "symbol": "EditImageModal"
+        },
+        {
+          "file": "src/lib/overlays/modals/editImageUtils.ts",
+          "symbol": "uploadToImgur"
+        },
+        {
+          "file": "src/lib/overlays/modals/editImageUtils.ts",
+          "symbol": "isValidImageUrl"
+        },
+        {
+          "file": "src/lib/characterPreview/characterPreviewController.tsx",
+          "symbol": "showcaseOnEditPortraitOk"
+        },
+        {
+          "file": "src/lib/characterPreview/CharacterPreview.tsx",
+          "symbol": "handleEditPortraitOk"
+        },
+        {
+          "file": "src/lib/characterPreview/card/ShowcasePortrait.tsx",
+          "symbol": "setEditPortraitModalOpen"
+        },
+        {
+          "file": "src/lib/characterPreview/card/ShowcasePortrait.tsx",
+          "symbol": "onEditPortraitOk"
+        },
+        {
+          "file": "src/lib/characterPreview/characterPreviewController.tsx",
+          "symbol": "getArtistName"
+        },
+        {
+          "file": "src/lib/stores/character/characterStore.ts",
+          "symbol": "setCharacter"
+        }
       ],
       "params": [
-        { "name": "source", "type": "'upload' | 'url' | 'default'", "default": "url" },
-        { "name": "imageUrl", "type": "string", "notes": "URL 来源必填，必须能加载为图片" },
-        { "name": "file", "type": "File", "notes": "上传来源；不超过 20MB" },
-        { "name": "crop", "type": "{ x, y }", "default": "{ x: 0, y: 0 }" },
-        { "name": "zoom", "type": "number", "default": "1", "notes": "1 到 5，步长 0.1" },
-        { "name": "artistName", "type": "string", "default": "空", "notes": "非空时显示在卡片上" }
+        {
+          "name": "source",
+          "type": "'upload' | 'url' | 'default'",
+          "default": "url"
+        },
+        {
+          "name": "imageUrl",
+          "type": "string",
+          "notes": "URL 来源必填，必须能加载为图片"
+        },
+        {
+          "name": "file",
+          "type": "File",
+          "notes": "上传来源；不超过 20MB"
+        },
+        {
+          "name": "crop",
+          "type": "{ x, y }",
+          "default": "{ x: 0, y: 0 }"
+        },
+        {
+          "name": "zoom",
+          "type": "number",
+          "default": "1",
+          "notes": "1 到 5，步长 0.1"
+        },
+        {
+          "name": "artistName",
+          "type": "string",
+          "default": "空",
+          "notes": "非空时显示在卡片上"
+        }
       ],
       "conditions": "上传的文件和不允许跨域读取的 URL 会被转存到 imgur（匿名接口）；页面运行在 localhost 时改存为 data URL。HEAD 探测到超过 20MB 的 URL 被拒绝。BUILDS_MODAL、LEADERBOARD、TEAM 来源没有这个入口。设置自定义肖像后动态立绘不再显示，AUTO 配色改为从这张图取色。",
       "runtime": "node",
-      "state": { "owner": "useCharacterStore", "lifecycle": "persisted", "saveKey": "characters[].portrait" },
-      "sideEffects": ["SaveState.delayedSave()", "可能向 imgur 上传图片", "角色不存在时新建角色"],
-      "mcp": { "status": "implemented", "tools": ["set_portrait"] },
+      "state": {
+        "owner": "useCharacterStore",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].portrait"
+      },
+      "sideEffects": [
+        "SaveState.delayedSave()",
+        "可能向 imgur 上传图片",
+        "角色不存在时新建角色"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "set_portrait"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -410,52 +1018,126 @@
           "还原默认后该角色的 portrait 字段消失",
           "对不在列表里的角色设置肖像，两边都会先新建该角色"
         ],
-        "tests": ["mcp/scripts/smoke-portrait.mjs"]}
+        "tests": [
+          "mcp/scripts/smoke-portrait.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.portrait.set cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
+      }
     },
     {
       "id": "preview.character.edit",
       "title": "从展示卡编辑角色与光锥",
-      "surface": { "page": "CHARACTERS", "overlay": "CharacterModal", "entry": "悬停肖像 →「编辑角色」，或点击卡上的光锥" },
+      "surface": {
+        "page": "CHARACTERS",
+        "overlay": "CharacterModal",
+        "entry": "悬停肖像 →「编辑角色」，或点击卡上的光锥"
+      },
       "kind": "write",
       "action": "以当前角色为初值打开角色弹窗，可改星魂、光锥、叠影；确认后的处理由所在页面决定——角色页走 characters.upsert，展示柜页只改这次查看用的临时覆盖（见 showcase 域）。",
       "upstream": [
-        { "file": "src/lib/characterPreview/card/ShowcasePortrait.tsx", "symbol": "setOriginalCharacterModalInitialCharacter" },
-        { "file": "src/lib/characterPreview/card/ShowcaseLightCone.tsx", "symbol": "ShowcaseLightConeSmall" }
+        {
+          "file": "src/lib/characterPreview/card/ShowcasePortrait.tsx",
+          "symbol": "setOriginalCharacterModalInitialCharacter"
+        },
+        {
+          "file": "src/lib/characterPreview/card/ShowcaseLightCone.tsx",
+          "symbol": "ShowcaseLightConeSmall"
+        }
       ],
       "conditions": "BUILDS_MODAL、LEADERBOARD、TEAM 来源没有「编辑角色」按钮；LEADERBOARD 与 TEAM 来源下光锥不可点。",
       "runtime": "node",
-      "state": { "owner": "useCharacterStore", "lifecycle": "persisted", "saveKey": "characters" },
-      "sideEffects": ["同 characters.upsert"],
-      "mcp": { "status": "implemented", "tools": ["upsert_character"] },
+      "state": {
+        "owner": "useCharacterStore",
+        "lifecycle": "persisted",
+        "saveKey": "characters"
+      },
+      "sideEffects": [
+        "同 characters.upsert"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "upsert_character"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["从展示卡改光锥与叠影后的存档，与 upsert_character 传同样参数后的存档一致"],
-        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-archive.mjs"]
+        "cases": [
+          "从展示卡改光锥与叠影后的存档，与 upsert_character 传同样参数后的存档一致"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-equip.mjs",
+          "mcp/scripts/smoke-archive.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.character.edit cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.relic.addOrEdit",
       "title": "从展示卡新增或编辑遗器",
-      "surface": { "page": "CHARACTERS", "overlay": "RelicModal", "entry": "点击展示卡右侧的遗器；空槽位点击为新增" },
+      "surface": {
+        "page": "CHARACTERS",
+        "overlay": "RelicModal",
+        "entry": "点击展示卡右侧的遗器；空槽位点击为新增"
+      },
       "kind": "write",
       "action": "点已装备的遗器打开遗器弹窗编辑它（RelicModalController.onEditOk）；点空槽位打开新增弹窗，部位预填为该槽位、装备者预填为当前角色，保存时 upsertRelicWithEquipment 入库并装备。两种情况都防抖保存。",
       "upstream": [
-        { "file": "src/lib/characterPreview/useCharacterPreviewState.ts", "symbol": "setEditModalOpen" },
-        { "file": "src/lib/characterPreview/useCharacterPreviewState.ts", "symbol": "setAddModalOpen" },
-        { "file": "src/lib/characterPreview/characterPreviewController.tsx", "symbol": "showcaseOnEditOk" },
-        { "file": "src/lib/characterPreview/characterPreviewController.tsx", "symbol": "showcaseOnAddOk" },
-        { "file": "src/lib/services/equipmentService.ts", "symbol": "upsertRelicWithEquipment" }
+        {
+          "file": "src/lib/characterPreview/useCharacterPreviewState.ts",
+          "symbol": "setEditModalOpen"
+        },
+        {
+          "file": "src/lib/characterPreview/useCharacterPreviewState.ts",
+          "symbol": "setAddModalOpen"
+        },
+        {
+          "file": "src/lib/characterPreview/characterPreviewController.tsx",
+          "symbol": "showcaseOnEditOk"
+        },
+        {
+          "file": "src/lib/characterPreview/characterPreviewController.tsx",
+          "symbol": "showcaseOnAddOk"
+        },
+        {
+          "file": "src/lib/services/equipmentService.ts",
+          "symbol": "upsertRelicWithEquipment"
+        }
       ],
       "params": [
-        { "name": "part", "type": "Parts", "notes": "新增时由点击的槽位决定" },
-        { "name": "relic", "type": "Relic", "notes": "字段与校验见 relics 域的遗器弹窗条目" }
+        {
+          "name": "part",
+          "type": "Parts",
+          "notes": "新增时由点击的槽位决定"
+        },
+        {
+          "name": "relic",
+          "type": "Relic",
+          "notes": "字段与校验见 relics 域的遗器弹窗条目"
+        }
       ],
       "conditions": "只有角色页的展示卡可点；SHOWCASE_TAB、BUILDS_MODAL、LEADERBOARD、TEAM 来源下遗器只读。",
       "runtime": "node",
-      "state": { "owner": "useRelicStore + useCharacterStore", "lifecycle": "persisted", "saveKey": "relics / characters[].equipped" },
-      "sideEffects": ["SaveState.delayedSave()", "新增的遗器直接装备到当前角色，按全局装备行为处理原持有者"],
-      "mcp": { "status": "implemented", "tools": ["upsert_relic"] },
+      "state": {
+        "owner": "useRelicStore + useCharacterStore",
+        "lifecycle": "persisted",
+        "saveKey": "relics / characters[].equipped"
+      },
+      "sideEffects": [
+        "SaveState.delayedSave()",
+        "新增的遗器直接装备到当前角色，按全局装备行为处理原持有者"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "upsert_relic"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -463,128 +1145,310 @@
           "给空的头部槽位新增一件遗器后，两边存档的 relics 多出同一件且 equippedBy 为该角色，角色的 equipped.Head 指向它",
           "编辑一件已装备遗器的副词条后两边存档一致"
         ],
-       "tests": ["mcp/scripts/smoke-relics.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-relics.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.relic.addOrEdit cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.analysis.buffs",
       "title": "增益分析：逐动作查看生效的增益与伤害构成",
-      "surface": { "page": "CHARACTERS", "entry": "构筑分析里的「增益分析」；优化器的展开数据面板复用同一组件" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "构筑分析里的「增益分析」；优化器的展开数据面板复用同一组件"
+      },
       "kind": "view",
       "action": "针对评测用的模拟表单，列出循环里每个动作的命中定义、敌人面板、属性合计和各来源（角色、光锥、套装、队友）的增益明细。可在动作条上选择要看的动作，并用伤害标签按钮过滤（多选，按位异或切换；「全部」清空过滤）。",
       "upstream": [
-        { "file": "src/lib/characterPreview/buildAnalysis/BuffsAnalysisDisplay.tsx", "symbol": "BuffsAnalysisDisplay" },
-        { "file": "src/lib/characterPreview/buffsAnalysis/ActionSelector.tsx", "symbol": "ActionSelector" },
-        { "file": "src/lib/characterPreview/buffsAnalysis/FilterBar.tsx", "symbol": "FilterBar" },
-        { "file": "src/lib/characterPreview/buffsAnalysis/FilterBar.tsx", "symbol": "FilterButton" },
-        { "file": "src/lib/characterPreview/buffsAnalysis/buffUtils.tsx", "symbol": "renderPill" }
+        {
+          "file": "src/lib/characterPreview/buildAnalysis/BuffsAnalysisDisplay.tsx",
+          "symbol": "BuffsAnalysisDisplay"
+        },
+        {
+          "file": "src/lib/characterPreview/buffsAnalysis/ActionSelector.tsx",
+          "symbol": "ActionSelector"
+        },
+        {
+          "file": "src/lib/characterPreview/buffsAnalysis/FilterBar.tsx",
+          "symbol": "FilterBar"
+        },
+        {
+          "file": "src/lib/characterPreview/buffsAnalysis/FilterBar.tsx",
+          "symbol": "FilterButton"
+        },
+        {
+          "file": "src/lib/characterPreview/buffsAnalysis/buffUtils.tsx",
+          "symbol": "renderPill"
+        }
       ],
       "params": [
-        { "name": "selectedAction", "type": "number", "default": "0", "notes": "循环里的动作序号" },
-        { "name": "selectedFilter", "type": "DamageTag 位掩码 | null", "default": "角色配置的 scoring.defaultDamageType", "notes": "筛选只作用于属性合计：null 时只汇总通用增益（damageTags 为空的条目），有筛选时汇总通用增益加标签匹配的条目（buffMatchesSumFilter）；标签含输出类与 MEMO（忆灵）等。命中定义表与敌人面板展示的命中缩放和敌人参数不随筛选变化" }
+        {
+          "name": "selectedAction",
+          "type": "number",
+          "default": "0",
+          "notes": "循环里的动作序号"
+        },
+        {
+          "name": "selectedFilter",
+          "type": "DamageTag 位掩码 | null",
+          "default": "角色配置的 scoring.defaultDamageType",
+          "notes": "筛选只作用于属性合计：null 时只汇总通用增益（damageTags 为空的条目），有筛选时汇总通用增益加标签匹配的条目（buffMatchesSumFilter）；标签含输出类与 MEMO（忆灵）等。命中定义表与敌人面板展示的命中缩放和敌人参数不随筛选变化"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "BuffsAnalysisDisplay 组件内的选中项", "lifecycle": "ephemeral" },
-      "mcp": { "status": "implemented", "tools": ["simulate_build", "score_character"] },
+      "state": {
+        "owner": "BuffsAnalysisDisplay 组件内的选中项",
+        "lifecycle": "ephemeral"
+      },
+      "mcp": {
+        "status": "implemented",
+        "tools": [
+          "simulate_build",
+          "score_character"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["对同一角色的评测模拟，返回的某个动作的增益条目（来源、属性、数值）与增益分析里选中该动作时显示的条目一致"],
-        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-score.mjs"]
+        "cases": [
+          "对同一角色的评测模拟，返回的某个动作的增益条目（来源、属性、数值）与增益分析里选中该动作时显示的条目一致"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs",
+          "mcp/scripts/smoke-score.mjs"
+        ]
       }
     },
     {
       "id": "preview.analysis.relicRarity",
       "title": "遗器稀有度分析（预计刷取天数）",
-      "surface": { "page": "CHARACTERS", "entry": "构筑分析底部的遗器稀有度一栏；副词条评分视图下是主体内容" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "构筑分析底部的遗器稀有度一栏；副词条评分视图下是主体内容"
+      },
       "kind": "compute",
       "action": "对展示卡上的每件遗器估算刷出不低于它的遗器所需的开拓力天数（estTBP，在 worker 里计算），并给出每件的 roll 数统计、当前与重掷潜力，以及六件合计。",
       "upstream": [
-        { "file": "src/lib/characterPreview/summary/EstimatedTbpRelicsDisplay.tsx", "symbol": "EstimatedTbpRelicsDisplay" },
-        { "file": "src/lib/characterPreview/summary/statScoringSummaryController.ts", "symbol": "enrichRelicAnalysis" },
-        { "file": "src/lib/characterPreview/summary/statScoringSummaryController.ts", "symbol": "enrichSingleRelicAnalysis" },
-        { "file": "src/lib/characterPreview/summary/statScoringSummaryController.ts", "symbol": "countRelicRolls" },
-        { "file": "src/lib/characterPreview/summary/statScoringSummaryController.ts", "symbol": "flatReduction" },
-        { "file": "src/lib/characterPreview/summary/statScoringSummaryController.ts", "symbol": "hashEstTbpRun" }
+        {
+          "file": "src/lib/characterPreview/summary/EstimatedTbpRelicsDisplay.tsx",
+          "symbol": "EstimatedTbpRelicsDisplay"
+        },
+        {
+          "file": "src/lib/characterPreview/summary/statScoringSummaryController.ts",
+          "symbol": "enrichRelicAnalysis"
+        },
+        {
+          "file": "src/lib/characterPreview/summary/statScoringSummaryController.ts",
+          "symbol": "enrichSingleRelicAnalysis"
+        },
+        {
+          "file": "src/lib/characterPreview/summary/statScoringSummaryController.ts",
+          "symbol": "countRelicRolls"
+        },
+        {
+          "file": "src/lib/characterPreview/summary/statScoringSummaryController.ts",
+          "symbol": "flatReduction"
+        },
+        {
+          "file": "src/lib/characterPreview/summary/statScoringSummaryController.ts",
+          "symbol": "hashEstTbpRun"
+        }
       ],
       "conditions": "只对 5 星遗器估算天数。评分权重取该角色生效的评分元数据。",
       "runtime": "node",
-      "state": { "owner": "EstimatedTbpRelicsDisplay 组件内的 worker 结果", "lifecycle": "derived" },
-      "mcp": { "status": "implemented", "tools": ["score_relics"] },
+      "state": {
+        "owner": "EstimatedTbpRelicsDisplay 组件内的 worker 结果",
+        "lifecycle": "derived"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "score_relics"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["score_relics(characterId, includeEstTbp=true) 对角色已装备的六件返回的天数与潜力，和这一栏逐件显示的数值一致；补齐汇总后每件 roll 数与六件合计与网页逐件统计一致"],
-        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-score.mjs"]
+        "cases": [
+          "score_relics(characterId, includeEstTbp=true) 对角色已装备的六件返回的天数与潜力，和这一栏逐件显示的数值一致；补齐汇总后每件 roll 数与六件合计与网页逐件统计一致"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-equip.mjs",
+          "mcp/scripts/smoke-score.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.analysis.relicRarity cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.disclaimer.dismiss",
       "title": "关闭 DPS 评分的说明提示",
-      "surface": { "page": "CHARACTERS", "overlay": "确认弹窗", "entry": "DPS 评分分析顶部提示条上的按钮" },
+      "surface": {
+        "page": "CHARACTERS",
+        "overlay": "确认弹窗",
+        "entry": "DPS 评分分析顶部提示条上的按钮"
+      },
       "kind": "write",
       "action": "确认后把设置项 ShowComboDmgWarning 写为 HideV2 并防抖保存，此后提示条不再显示。",
       "upstream": [
-        { "file": "src/lib/characterPreview/DPSScoreDisclaimer.tsx", "symbol": "DPSScoreDisclaimer" },
-        { "file": "src/lib/characterPreview/DPSScoreDisclaimer.tsx", "symbol": "handleDismiss" }
+        {
+          "file": "src/lib/characterPreview/DPSScoreDisclaimer.tsx",
+          "symbol": "DPSScoreDisclaimer"
+        },
+        {
+          "file": "src/lib/characterPreview/DPSScoreDisclaimer.tsx",
+          "symbol": "handleDismiss"
+        }
       ],
-      "params": [{ "name": "ShowComboDmgWarning", "type": "string", "notes": "写入固定值 HideV2；也可以在设置抽屉里改回显示" }],
+      "params": [
+        {
+          "name": "ShowComboDmgWarning",
+          "type": "string",
+          "notes": "写入固定值 HideV2；也可以在设置抽屉里改回显示"
+        }
+      ],
       "runtime": "node",
-      "state": { "owner": "useGlobalStore.settings", "lifecycle": "persisted", "saveKey": "settings.ShowComboDmgWarning" },
-      "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["update_state"] },
+      "state": {
+        "owner": "useGlobalStore.settings",
+        "lifecycle": "persisted",
+        "saveKey": "settings.ShowComboDmgWarning"
+      },
+      "sideEffects": [
+        "SaveState.delayedSave()"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "update_state"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
-        "cases": ["关闭提示后两边存档的 settings.ShowComboDmgWarning 都是 HideV2"],
-       "tests": ["mcp/scripts/smoke-state.mjs"]
+        "cases": [
+          "关闭提示后两边存档的 settings.ShowComboDmgWarning 都是 HideV2"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-state.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.disclaimer.dismiss cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "preview.screenshot",
       "title": "导出展示卡图片",
-      "surface": { "page": "CHARACTERS", "entry": "定制侧栏顶部的复制与下载按钮" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "定制侧栏顶部的复制与下载按钮"
+      },
       "kind": "artifact",
       "action": "把展示卡 DOM 渲染成 PNG（snapdom，固定导出倍率，最多重试 3 次，每次 8 秒超时）。下载时文件名为「角色名-日期-时间.png」；复制时桌面浏览器写入剪贴板，移动端与 Safari 改走系统分享。",
       "upstream": [
-        { "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx", "symbol": "ScreenshotPanel" },
-        { "file": "src/lib/hooks/useScreenshotAction.ts", "symbol": "useScreenshotAction" },
-        { "file": "src/lib/utils/screenshotUtils.ts", "symbol": "screenshotElementById" }
+        {
+          "file": "src/lib/characterPreview/customization/ShowcaseCustomizationSidebar.tsx",
+          "symbol": "ScreenshotPanel"
+        },
+        {
+          "file": "src/lib/hooks/useScreenshotAction.ts",
+          "symbol": "useScreenshotAction"
+        },
+        {
+          "file": "src/lib/utils/screenshotUtils.ts",
+          "symbol": "screenshotElementById"
+        }
       ],
       "params": [
-        { "name": "action", "type": "ScreenshotAction", "notes": "Clipboard 或 Download" },
-        { "name": "size", "type": "ScreenshotSize", "default": "DEFAULT_SCREENSHOT_SIZE（单张角色卡）" }
+        {
+          "name": "action",
+          "type": "ScreenshotAction",
+          "notes": "Clipboard 或 Download"
+        },
+        {
+          "name": "size",
+          "type": "ScreenshotSize",
+          "default": "DEFAULT_SCREENSHOT_SIZE（单张角色卡）"
+        }
       ],
       "conditions": "同一时间只允许一次截图。跨域读不到的图片会用占位图替换。剪贴板被拒绝时提示 NotAllowed。",
       "runtime": "browser",
-      "state": { "owner": "无", "lifecycle": "none" },
-      "mcp": { "status": "implemented", "tools": ["render", "deliver_artifact"] },
+      "state": {
+        "owner": "无",
+        "lifecycle": "none"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "render",
+          "deliver_artifact"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "export",
       "acceptance": {
-        "cases": ["渲染出的 PNG 与网页下载的展示卡截图尺寸相同，文字与数值一致，自定义肖像、配色与外观开关都得到体现"],
-        "tests": ["mcp/scripts/smoke-render.mjs", "mcp/scripts/smoke-portrait.mjs"]}
+        "cases": [
+          "渲染出的 PNG 与网页下载的展示卡截图尺寸相同，文字与数值一致，自定义肖像、配色与外观开关都得到体现"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-render.mjs",
+          "mcp/scripts/smoke-portrait.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/preview.json#preview.screenshot cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
+      }
     },
     {
       "id": "preview.debug.visualPanel",
       "title": "展示卡视觉调参面板",
-      "surface": { "page": "CHARACTERS", "entry": "控制台执行 globalThis.CARD_DEBUG = true 后，展示卡旁出现的调参面板；元数据测试页也嵌有同一面板" },
+      "surface": {
+        "page": "CHARACTERS",
+        "entry": "控制台执行 globalThis.CARD_DEBUG = true 后，展示卡旁出现的调参面板；元数据测试页也嵌有同一面板"
+      },
       "kind": "view",
       "action": "用滑杆实时调节展示卡的 19 项视觉参数（肖像模糊、亮度、饱和度、对比度，卡片背景透明度，取色管线的色度与亮度上下限，混合模式，外阴影与内阴影，文字阴影），可一键套用 SHINE、NATURAL 预设和文字阴影预设。只改内存里的调试配置，不写存档。",
       "upstream": [
-        { "file": "src/lib/characterPreview/DebugSliderPanel.tsx", "symbol": "DebugSliderPanel" },
-        { "file": "src/lib/characterPreview/debugVisualConfigStore.ts", "symbol": "*" },
-        { "file": "src/lib/characterPreview/CharacterPreview.tsx", "symbol": "CARD_DEBUG" }
+        {
+          "file": "src/lib/characterPreview/DebugSliderPanel.tsx",
+          "symbol": "DebugSliderPanel"
+        },
+        {
+          "file": "src/lib/characterPreview/debugVisualConfigStore.ts",
+          "symbol": "*"
+        },
+        {
+          "file": "src/lib/characterPreview/CharacterPreview.tsx",
+          "symbol": "CARD_DEBUG"
+        }
       ],
       "conditions": "CARD_DEBUG 缺省为 false，普通用户看不到这个面板。",
       "runtime": "browser",
-      "state": { "owner": "useDebugVisualConfigStore", "lifecycle": "session" },
-      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
+      "state": {
+        "owner": "useDebugVisualConfigStore",
+        "lifecycle": "session"
+      },
+      "mcp": {
+        "status": "implemented",
+        "tools": [
+          "get_state",
+          "update_state"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["修改任一视觉参数后渲染的展示卡与网页在同一调试配置下的外观一致"],
-        "tests": ["mcp/scripts/smoke-portrait.mjs"]}
+        "cases": [
+          "修改任一视觉参数后渲染的展示卡与网页在同一调试配置下的外观一致"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-portrait.mjs"
+        ]
+      }
     }
   ],
   "mechanisms": [
@@ -592,46 +1456,118 @@
       "id": "preview.mech.paletteExtraction",
       "title": "肖像取色",
       "upstream": [
-        { "file": "src/lib/characterPreview/color/colorExtractionService.ts", "symbol": "extractPaletteInWorker" },
-        { "file": "src/lib/characterPreview/color/colorExtractionWorker.ts", "symbol": "*" },
-        { "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts", "symbol": "setPortraitPalette" }
+        {
+          "file": "src/lib/characterPreview/color/colorExtractionService.ts",
+          "symbol": "extractPaletteInWorker"
+        },
+        {
+          "file": "src/lib/characterPreview/color/colorExtractionWorker.ts",
+          "symbol": "*"
+        },
+        {
+          "file": "src/lib/tabs/tabShowcase/useShowcaseTabStore.ts",
+          "symbol": "setPortraitPalette"
+        }
       ],
-      "serves": ["preview.customize.color", "preview.screenshot"],
+      "serves": [
+        "preview.customize.color",
+        "preview.screenshot"
+      ],
       "reason": "展示卡挂载时在 worker 里下载肖像并提取调色板，结果只存在会话里，供 AUTO 配色和取色器色板使用。它没有用户入口，是配色功能的计算步骤；渲染展示卡时在浏览器里照常执行。"
     },
     {
       "id": "preview.mech.spineFallback",
       "title": "动态立绘不可用时回退为静态肖像",
-      "upstream": [{ "file": "src/lib/characterPreview/card/ShowcasePortrait.tsx", "symbol": "handleSpineUnsupported" }],
-      "serves": ["preview.customize.display"],
+      "upstream": [
+        {
+          "file": "src/lib/characterPreview/card/ShowcasePortrait.tsx",
+          "symbol": "handleSpineUnsupported"
+        }
+      ],
+      "serves": [
+        "preview.customize.display"
+      ],
       "reason": "LoadingBlurredSpine 报告当前环境不支持时的回调，只负责把这张卡切回静态肖像。条件已记在 preview.customize.display 里，不是独立的用户操作。"
     },
     {
       "id": "preview.mech.spineRuntime",
       "title": "Spine 动画渲染运行时",
       "upstream": [
-        { "file": "src/lib/spine/LoadingBlurredSpine.tsx", "symbol": "LoadingBlurredSpine" },
-        { "file": "src/lib/spine/SpinePortrait.tsx", "symbol": "SpinePortrait" },
-        { "file": "src/lib/spine/spineEngine.ts", "symbol": "createSpineInstance" }
+        {
+          "file": "src/lib/spine/LoadingBlurredSpine.tsx",
+          "symbol": "LoadingBlurredSpine"
+        },
+        {
+          "file": "src/lib/spine/SpinePortrait.tsx",
+          "symbol": "SpinePortrait"
+        },
+        {
+          "file": "src/lib/spine/spineEngine.ts",
+          "symbol": "createSpineInstance"
+        }
       ],
-      "serves": ["preview.card.read", "preview.customize.display", "preview.portrait.set", "preview.character.edit", "metadata.imageCenter.edit"],
+      "serves": [
+        "preview.card.read",
+        "preview.customize.display",
+        "preview.portrait.set",
+        "preview.character.edit",
+        "metadata.imageCenter.edit"
+      ],
       "reason": "动态立绘的渲染底盘：模糊占位加载、onReady/onUnsupported 生命周期、WebGL 上下文丢失监听、页面不可见或失焦时自动暂停动画（展示卡、肖像编辑、元数据图片中心的动态立绘取景都走它）。开关与回退已登记在 preview.customize.display 和 preview.mech.spineFallback；渲染本身没有用户动作，在 M7 浏览器运行环境里照原样执行。"
     },
     {
       "id": "preview.mech.scoringRuntime",
       "title": "模拟评分引擎的请求与缓存生命周期",
       "upstream": [
-        { "file": "src/lib/scoring/scoringService.ts", "symbol": "requestScore" },
-        { "file": "src/lib/scoring/scoringService.ts", "symbol": "requestScoreUpgrades" },
-        { "file": "src/lib/scoring/scoringService.ts", "symbol": "getOrComputePreview" },
-        { "file": "src/lib/scoring/scoringService.ts", "symbol": "getCachedResult" },
-        { "file": "src/lib/scoring/scoringService.ts", "symbol": "computeScoringCacheKey" },
-        { "file": "src/lib/scoring/scoringService.ts", "symbol": "hasExceededRetries" },
-        { "file": "src/lib/scoring/scoringService.ts", "symbol": "hasExceededUpgradeRetries" },
-        { "file": "src/lib/scoring/scoringService.ts", "symbol": "releaseOrchestrator" },
-        { "file": "src/lib/scoring/scoringService.ts", "symbol": "releasePreview" }
+        {
+          "file": "src/lib/scoring/scoringService.ts",
+          "symbol": "requestScore"
+        },
+        {
+          "file": "src/lib/scoring/scoringService.ts",
+          "symbol": "requestScoreUpgrades"
+        },
+        {
+          "file": "src/lib/scoring/scoringService.ts",
+          "symbol": "getOrComputePreview"
+        },
+        {
+          "file": "src/lib/scoring/scoringService.ts",
+          "symbol": "getCachedResult"
+        },
+        {
+          "file": "src/lib/scoring/scoringService.ts",
+          "symbol": "computeScoringCacheKey"
+        },
+        {
+          "file": "src/lib/scoring/scoringService.ts",
+          "symbol": "hasExceededRetries"
+        },
+        {
+          "file": "src/lib/scoring/scoringService.ts",
+          "symbol": "hasExceededUpgradeRetries"
+        },
+        {
+          "file": "src/lib/scoring/scoringService.ts",
+          "symbol": "releaseOrchestrator"
+        },
+        {
+          "file": "src/lib/scoring/scoringService.ts",
+          "symbol": "releasePreview"
+        }
       ],
-      "serves": ["preview.simScore.read", "preview.scoring.typeSwitch", "preview.team.select", "preview.team.editTeammate", "preview.team.reset", "preview.team.sync", "preview.scoring.buffPriority", "preview.scoring.spdWeight", "preview.scoring.spdPrecision", "preview.scoring.spdBenchmark"],
+      "serves": [
+        "preview.simScore.read",
+        "preview.scoring.typeSwitch",
+        "preview.team.select",
+        "preview.team.editTeammate",
+        "preview.team.reset",
+        "preview.team.sync",
+        "preview.scoring.buffPriority",
+        "preview.scoring.spdWeight",
+        "preview.scoring.spdPrecision",
+        "preview.scoring.spdBenchmark"
+      ],
       "reason": "角色卡 SimScoring 面板背后的评分请求层：按缓存键去重、引用计数式申请/释放 orchestrator 与 preview、超过重试上限后停止重算。评分读取、类型切换、队伍编辑与速度/增益参数调整都经它触发重算。MCP 侧由 dps_score 等入口直接调用计算层，不走这套 UI 驱动的请求生命周期。"
     }
   ]

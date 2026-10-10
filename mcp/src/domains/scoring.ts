@@ -432,11 +432,14 @@ export function registerScoringTools(server: McpServer): void {
           if (excluded.includes(candidateId)) continue
           const pct = scorer.scoreRelicPotential(relic, candidateId as Any)
           if (pct.bestPct > best.bestPct) {
+            // Per-metric max even on a new bestPct holder — overwriting the
+            // running averagePct with the holder's would drop a higher average
+            // an earlier candidate set (batch keeps independent maxima).
             best = {
               bestPct: pct.bestPct,
-              averagePct: pct.averagePct,
-              rerollAvgPct: Math.max(0, pct.rerollAvgPct),
-              blockedRerollAvgPct: Math.max(0, pct.blockedRerollAvgPct),
+              averagePct: Math.max(best.averagePct, pct.averagePct),
+              rerollAvgPct: Math.max(best.rerollAvgPct, Math.max(0, pct.rerollAvgPct)),
+              blockedRerollAvgPct: Math.max(best.blockedRerollAvgPct, Math.max(0, pct.blockedRerollAvgPct)),
               characterId: candidateId,
             }
           } else {

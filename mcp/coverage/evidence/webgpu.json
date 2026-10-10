@@ -1,0 +1,16 @@
+{
+  "area": "webgpu",
+  "generatedAt": "2026-10-09T12:48:46.868Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "webgpu.tests.run",
+      "case": 0,
+      "desc": "(环境)受管浏览器 GPU 探测",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "available=true softwareAdapter=false vendor=nvidia architecture=turing maxBufferMB=2048",
+      "script": "mcp/scripts/verify-webgpu.mjs"
+    }
+  ]
+}

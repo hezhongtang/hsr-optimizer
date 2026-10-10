@@ -34,6 +34,7 @@ import {
   dirname,
   join,
   relative,
+  sep,
   resolve,
 } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -86,7 +87,9 @@ const INTERACTION_PATTERNS = [
 function listSourceFiles(dir, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
-    const rel = relative(repoRoot, full)
+    // The committed census and the features rows use forward slashes; keep the
+    // inventory identical on win32, where relative() yields backslashes.
+    const rel = relative(repoRoot, full).split(sep).join('/')
     if (entry.isDirectory()) {
       if (!EXCLUDED_DIRS.includes(rel)) listSourceFiles(full, out)
     } else if (/\.tsx?$/.test(entry.name) && !/\.(test|d)\.tsx?$/.test(entry.name)) {

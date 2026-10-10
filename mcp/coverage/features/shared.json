@@ -24,7 +24,7 @@
       "conditions": "基准生成器和套装基准审计只列出有输出类模拟评分配置的角色。个别入口不允许清空选择。",
       "runtime": "node",
       "state": { "owner": "useSelectModal 的本地筛选状态", "lifecycle": "ephemeral" },
-      "mcp": { "status": "implemented", "resources": ["game://metadata/characters", "game://metadata/characters/{id}"] },
+      "mcp": { "status": "verified", "resources": ["game://metadata/characters", "game://metadata/characters/{id}"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -33,7 +33,10 @@
           "按命途和属性筛选后的角色集合与网页端点对应筛选标签后一致",
           "标为有模拟评分配置的角色集合与基准生成器弹窗里列出的角色一致"
         ],
-        "tests": ["mcp/scripts/smoke-conditionals.mjs"]
+        "tests": ["mcp/scripts/smoke-conditionals.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/shared.json#shared.select.character cases 1-3 PASS 2026-10-09 (browser-parity)"
+        ]
       }
     },
     {
@@ -55,7 +58,7 @@
       "conditions": "命途默认筛选只是初值，可以取消后选其他命途的光锥。每次打开弹窗筛选条件都会重置为初值。",
       "runtime": "node",
       "state": { "owner": "useSelectModal 的本地筛选状态", "lifecycle": "ephemeral" },
-      "mcp": { "status": "implemented", "resources": ["game://metadata/lightcones", "game://metadata/lightcones/{id}", "game://metadata/characters"] },
+      "mcp": { "status": "verified", "resources": ["game://metadata/lightcones", "game://metadata/lightcones/{id}", "game://metadata/characters"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -64,7 +67,10 @@
           "按角色命途筛选后的光锥集合与网页端为该角色打开弹窗时默认显示的一致",
           "返回的角色专属光锥与网页端弹窗里排在最前的那一把一致"
         ],
-        "tests": ["mcp/scripts/smoke-conditionals.mjs"]
+        "tests": ["mcp/scripts/smoke-conditionals.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/shared.json#shared.select.lightCone cases 1-3 PASS 2026-10-09 (browser-parity)"
+        ]
       }
     }
   ],

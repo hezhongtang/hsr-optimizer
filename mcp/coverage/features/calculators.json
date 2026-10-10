@@ -54,7 +54,7 @@
       "runtime": "node",
       "state": { "owner": "useAhaTuningStore", "lifecycle": "persisted", "saveKey": "ahaSpeedTuner" },
       "sideEffects": ["每次改动后延迟写盘"],
-      "mcp": { "status": "implemented", "tools": ["calc_aha"] },
+      "mcp": { "status": "verified", "tools": ["calc_aha"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -62,7 +62,10 @@
           "载入网页端导出的存档后，按存档取值计算得到的阿哈速度与网页端打开该面板时显示的一致",
           "写回四个队友速度和目标值后导出存档，网页端载入后面板里显示的就是这组数值"
         ],
-       "tests": ["mcp/scripts/smoke-calculators.mjs"]
+       "tests": ["mcp/scripts/smoke-calculators.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/calculators.json#calculators.aha.form cases 1,2 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -82,7 +85,7 @@
       "runtime": "node",
       "state": { "owner": "由 useAhaTuningStore 的四个速度推导", "lifecycle": "derived" },
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": ["calc_aha"]
       },
       "scope": "baseline",
@@ -93,7 +96,10 @@
           "传入顺序打乱后结果不变",
           "不传队友时返回基础值 80"
         ],
-        "tests": ["mcp/scripts/smoke-misc.mjs"]
+        "tests": ["mcp/scripts/smoke-misc.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/calculators.json#calculators.aha.compute cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -114,7 +120,7 @@
       "conditions": "四格都填了就不出结果。目标值为空也不出结果。新队友的名次不固定：它可能排在已有队友之间，所需速度按它实际落到的名次计算。",
       "runtime": "node",
       "state": { "owner": "由 useAhaTuningStore 推导", "lifecycle": "derived" },
-      "mcp": { "status": "implemented", "tools": ["calc_aha"] },
+      "mcp": { "status": "verified", "tools": ["calc_aha"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -123,7 +129,10 @@
           "已填满四名队友时明确返回没有空位，而不是给出一个数",
           "当前阿哈速度已经不低于目标时标明已满足，数值与网页端一致"
         ],
-       "tests": ["mcp/scripts/smoke-calculators.mjs"]
+       "tests": ["mcp/scripts/smoke-calculators.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/calculators.json#calculators.aha.solve cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -153,7 +162,7 @@
       "conditions": "输入框清空后失焦会恢复成默认值。显示的概率限制在 0 到 100 之间。这组输入只在本次会话里保留，不写进存档。",
       "runtime": "node",
       "state": { "owner": "useEhrTuningStore", "lifecycle": "session" },
-      "mcp": { "status": "implemented", "tools": ["calc_ehr"] },
+      "mcp": { "status": "verified", "tools": ["calc_ehr"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -162,7 +171,10 @@
           "施加次数改为 3 时同时返回单次概率和三次内至少成功一次的概率，与网页端两个数值一致",
           "计算结果超过 100 时返回 100"
         ],
-       "tests": ["mcp/scripts/smoke-calculators.mjs"]
+       "tests": ["mcp/scripts/smoke-calculators.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/calculators.json#calculators.ehr.probability cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -182,7 +194,7 @@
       "conditions": "当前效果命中向下取到 5 的倍数作为中心行；下界不低于 0。表里每格用的基础概率、减益抵抗和施加次数取自上面的输入。",
       "runtime": "node",
       "state": { "owner": "由 useEhrTuningStore 推导；范围是 EhrPanelContent 的本地状态", "lifecycle": "derived" },
-      "mcp": { "status": "implemented", "tools": ["calc_ehr"] },
+      "mcp": { "status": "verified", "tools": ["calc_ehr"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -191,7 +203,10 @@
           "效果命中 52 时中心行是 50，效果抵抗 40 所在列被标为当前列",
           "范围改为 10 时只返回中心行上下各两档"
         ],
-       "tests": ["mcp/scripts/smoke-calculators.mjs"]
+       "tests": ["mcp/scripts/smoke-calculators.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/calculators.json#calculators.ehr.grid cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -213,7 +228,7 @@
       "runtime": "node",
       "state": { "owner": "由 useEhrTuningStore 推导", "lifecycle": "derived" },
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": ["calc_ehr"]
       },
       "scope": "baseline",
@@ -224,7 +239,10 @@
           "施加次数 2.4 与 2 的结果相同",
           "减益抵抗 100 时返回不可达和原因，而不是 0"
         ],
-        "tests": ["mcp/scripts/smoke-misc.mjs"]
+        "tests": ["mcp/scripts/smoke-misc.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/calculators.json#calculators.ehr.solve cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     }
   ]

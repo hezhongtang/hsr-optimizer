@@ -1,0 +1,205 @@
+{
+  "area": "leaderboard",
+  "generatedAt": "2026-10-09T12:29:41.392Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "leaderboard.characters.list",
+      "case": 1,
+      "desc": "返回的角色顺序、最高分(保留一位小数、向下截断)和人数与网页端列表逐行一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "52 active rows (order+score+public/total) vs MCP 52; all match",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.data.load",
+      "case": 1,
+      "desc": "下载并解压后得到的角色数、每个角色的最高分和参与人数与网页端角色列表一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "同一 fixture 两侧比对:web 69 行 vs MCP 69 行(active 52 + 数据不足 17);all match",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.characters.list",
+      "case": 3,
+      "desc": "未开榜的角色单独标出,与网页端「数据不足」一组一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web growing 17 rows [1102,1003,1004b1,1101,1104,1203,1209,1211,1503,8001,8002,8003,8004,8005,8006,8007,8008] vs MCP 数据不足 17 [1102,1003,1004b1,1101,1104,1203,1209,1211,1503,8001,8002,8003,8004,8005,8006,8007,8008]",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.characters.list",
+      "case": 2,
+      "desc": "按评分类型筛选后的角色集合与网页端点对应标签后一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web chip(DPS) filter → 45 角色 vs MCP dps tag 45 角色;差集 web= mcp=",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.board.read",
+      "case": 1,
+      "desc": "同一角色、同一评分类型下返回的名次、分数、星魂、叠影、光锥和队友与网页端名次列表",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "5 web 行(localhost 不做 150% 截断,条件见清单)前 3 行与 MCP 逐行一致(rank/scoreDisplay/光锥 id/队友头像 id),web 多余行全部 <150%=true",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.board.read",
+      "case": 2,
+      "desc": "不指定评分类型时取到的类型与网页端直接点该角色时一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP default configType=dps(requested=false);web 直接点开 1308 渲染同一榜单(5 行)",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.board.read",
+      "case": 3,
+      "desc": "结果不超过 100 行,且不含分数低于 150% 的配装",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "1308 榜 3 行(去重+150% 截断后),1217b1 榜恰 100 行(101 条合格,含 bld-heal-user? false);全部行分数≥1.5",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.board.filter",
+      "case": 2,
+      "desc": "指定星魂档位后返回的行与网页端一致,名次保持筛选前的数字",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "E6 筛选后 web 1 行 rank=2 vs MCP 1 行 rank=2",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.board.filter",
+      "case": 3,
+      "desc": "返回的可选队伍列表(队友与顺序)与网页端下拉面板一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP teams [acheron-std:1005,1105,1102 | acheron-alt:1005,1105,1217b1];web 下拉面板选项 3 项 [ | 1005,1105,1102 | 1005,1105,1217b1]",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.board.filter",
+      "case": 1,
+      "desc": "指定队伍后返回的行和名次与网页端一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "acheron-alt 队内榜:web 3 行(localhost 含 <150% 行)rank=1,2,3 vs MCP 1 行 rank=1",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.entry.read",
+      "case": 1,
+      "desc": "按配装编号返回的名次、分数、星魂、光锥、队友、套装件数和六件遗器与网页端打开同一",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "#leaderboard?b=bld-top → web banner rank=1/AEON=true/scope=all/score=204.9%/lc=23014/队友=1005,1105,1102/套装徽标 2pc;MCP rank=1/aeon=true/teamScope=all/scoreDisplay=204.9/setCounts={\"Passerby of Wandering Cloud\":2}(件数合计 2)",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.entry.read",
+      "case": 3,
+      "desc": "返回结果指明这套配装所在的榜单是全部队伍还是某支队伍,与网页端落到的榜单一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "bld-low(1.20<150%):MCP onBoard=false/teamScope=team/scoredTeamId=acheron-alt/rank=null;web 打开链接后全部榜名次=5,榜单标签=\"All teams\";bld-top 则在全部队伍榜(scope=all)",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.entry.read",
+      "case": 2,
+      "desc": "返回的分数是榜单记录的数值,不随本地评分设置变化",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "set_scoring_override(1308, SPD 权重=1) 前后 entry.score 均为 2.05(display 204.9);view=score 的 recorded 块同值(重算块 recomputed.percent=-0.6125259247334301,delta=-2.66252592473343——本地重算仅供对照)",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.entry.read",
+      "case": 4,
+      "desc": "配装编号不在榜上时返回明确的未找到",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP view=entry(buildId=no-such-build) → \"tool leaderboard isError: 未找到配装编号 no-such-build——它不在当前榜单数据(版本 2026-10-01T00:00:0\"",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.timeline.read",
+      "case": 1,
+      "desc": "返回的动态条目(角色、评分类型、名次、分数、涨幅、是否新开榜)与网页端列表逐条一",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP 2 条(黄泉 new_best score 205/delta 55% + 藿藿 new_character rank1),1 条畸形丢弃;web feedRow 2 条 [1308:4d# 1黄泉204.9%+55.0% / 1217b1:5d# 1藿藿162.0%NEW]",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.timeline.read",
+      "case": 2,
+      "desc": "每条动态带配装编号,可以直接用来读取配装详情",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP 每条事件带 buildId(bld-top,bld-heal-user);web 点黄泉动态行后地址栏=#leaderboard?b=bld-top",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.timeline.read",
+      "case": 3,
+      "desc": "动态文件不可用时返回空列表并说明原因",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "fx2(404 timeline)→ available=false, reason=\"动态文件不可用:排行榜数据拉取失败:HTTP 404 Not Found(http://127.0.0.1:58139/\", events=0",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.myRanks.read",
+      "case": 1,
+      "desc": "同一 UID 返回的名次、角色、评分类型、分数和是否为队伍内名次与网页端卡片一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP uid=100010001(存档 scorerId):1308 全部榜 rank1(isTeamRank=false)+1217b1 heal-solo 队内 rank1(isTeamRank=true);web 卡片渲染=true;文本含藿藿=true",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.myRanks.read",
+      "case": 2,
+      "desc": "不传 UID 时使用存档里展示柜页记住的 UID,没有则返回需要 UID 的提示",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "带存档 scorerId=100010001 → uidSource=saved;载入剥离 scorerId 的存档副本后报 \"需要 UID:view=my_ranks 未传 uid,且当前会话的展示柜页也没有记住的 UID——显式传入 9 位数字 uid,或先 lo\"",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.myRanks.read",
+      "case": 3,
+      "desc": "查询过程不产生任何带 UID 的网络请求",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "页面侧拦截到的榜单请求 URL 均不含 UID(140 次,样例 \"er/leaderboard/leaderboard-timeline.json\");服务端 manifest 下载 1 次",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.data.load",
+      "case": 2,
+      "desc": "同一会话内多次查询只下载一次",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP 会话内 characters/board/entry/score/timeline/my_ranks 共 8+ 次查询后,fixture 的 /fx1/leaderboard.json 被下载 1 次",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    },
+    {
+      "feature": "leaderboard.data.load",
+      "case": 3,
+      "desc": "下载失败时返回明确的错误,而不是空榜单",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "404 fixture → \"tool leaderboard isError: 排行榜数据拉取失败:HTTP 404 Not Found(http://127.0.0.1:58139/missing/lead\"(网页端行为按清单 conditions:下载失败列表为空、页面不报错)",
+      "script": "mcp/scripts/verify-leaderboard.mjs"
+    }
+  ]
+}

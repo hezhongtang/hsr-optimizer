@@ -16,12 +16,15 @@
       "conditions": "officialOnly 为 true 时条目里涉及未上线内容的文字被替换为空串。",
       "runtime": "node",
       "state": { "owner": "ChangelogTab 组件内的页码", "lifecycle": "ephemeral" },
-      "mcp": { "status": "implemented", "resources": ["game://changelog"] },
+      "mcp": { "status": "verified", "resources": ["game://changelog"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["game://changelog 返回的条目数、顺序与每条的 title/date/content 与 getChangelogContent() 逐条一致"],
-        "tests": ["mcp/scripts/smoke-conditionals.mjs"]
+        "tests": ["mcp/scripts/smoke-conditionals.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/changelog.json#changelog.entries.read cases 1 PASS 2026-10-09 (browser-parity)"
+        ]
       }
     }
   ]

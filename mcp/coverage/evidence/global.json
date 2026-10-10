@@ -1,0 +1,169 @@
+{
+  "area": "global",
+  "generatedAt": "2026-10-08T15:56:52.404Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "global.state.bootLoad",
+      "case": 1,
+      "desc": "同一份存档经网页启动载入与 load_save 载入后，SaveState.sa",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "同一份存档:网页启动载入的 SaveState.save() 输出与 MCP load_save 后导出逐键一致: 15 个顶层键逐键相等",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.state.bootLoad",
+      "case": 2,
+      "desc": "MCP 进程重启后不带路径恢复上次存档，角色数、遗器数与重启前一致",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "MCP 进程重启后不带路径恢复上次存档(bootLoaded=true、path=null): loaded=true,bootLoaded=true,path=null | 角色数与遗器数与重启前一致(162/8): 162/8 vs 162/8",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.state.autosave",
+      "case": 1,
+      "desc": "写操作后 save_status.dirty 变为 true，防抖结束后落盘文件",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "写操作后立即 save_status.dirty=true(防抖未落盘): dirty=true | 防抖结束后 dirty=false(已落盘): dirty=false | 落盘文件与 SaveState.save() 输出逐键一致(团队写入在盘上可见): 逐键相等",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.state.autosave",
+      "case": 2,
+      "desc": "集合被清空时自动写回被拦截并在 save_status.blockedWrite",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "集合被清空(reset_all)后自动写回被拦截:磁盘存档保持 162 件遗器 / 8 角色: 磁盘 162 遗器 / 8 角色 | 拦截在 save_status.blockedWrite 中报告(且 dirty 保持 true): dirty=true,blockedWrite={\"at\":1791474994934,\"reason\":\"防擦写护栏拦截:拒绝用空的遗器+角色集合覆写仍持有数据的存档文件 C:\\\\Users\\\\he_al\\\\AppData\\\\Local\\\\Temp\\\\hsr-mcp-verify-global-MM8bu6\\\\wipe-guard/sample.json(刻意",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.navigate.page",
+      "case": 1,
+      "desc": "site://pages 列出 13 个页面的 hash、标题和对应的 MCP ",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "site://pages 列出全部 13 页(AppPages 全集): count=13 | 每页 hash 与上游 PageToHash 逐条一致(含 CALCULATORS→#aha): 13 页全对 | render 工具 page 参数枚举 = PageToHash 值集 + #ehr(无 #teams),即 HashToPage 收录集: 14 个枚举值",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.navigate.page",
+      "case": 2,
+      "desc": "浏览器运行环境按 page 打开后 activeKey 与地址栏 hash 与网",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "侧边栏逐项点击:activeKey 与地址栏 hash 逐项命中(PageToHash 预期): 10 项全对 | hashchange 直达 #ehr → activeKey=CALCULATORS(HashToPage 归一): hash=#ehr,active=CALCULATORS | hashchange 直达 #teams → activeKey=CHARACTERS(HashToPage 归一): hash=#teams,active=CHARACTERS | hashchange 直达 #webgpu → activeKey=WEBGPU_TEST(HashToPage 归一)",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.sidebar.collapse",
+      "case": 1,
+      "desc": "update_state 写入 sidebarCollapsed 后导出的存档与",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "update_state(sidebarCollapsed=true) 后导出存档该键 = true: sidebarCollapsed=true | 浏览器运行环境渲染出折叠态侧边栏(点击菜单按钮后导航文字消失、图标保留): 折叠态渲染确认 | 折叠态经防抖保存写入 savedSession.global.sidebarCollapsed=true: sidebarCollapsed=true",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.settings.update",
+      "case": 1,
+      "desc": "get_state 返回六项设置的当前值、可选值与默认值，与 SettingOp",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "六项设置定义齐备(键 = 上游 SettingOptions 键集): RelicEquippingBehavior,PermutationsSidebarBehavior,ExpandedInfoPanelPosition,ShowLocatorInRelicsModal,ShowComboDmgWarning,NewCharacterDefaultRank | 每项枚举值序列与上游 SettingOptions 一致: 六项全对 | 每项默认值与上游 DefaultSettingOptions 一致: 六项全对 | 示例存档无 settings 字段 → 当前值 = 上游默认值: {\"Re",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.settings.update",
+      "case": 2,
+      "desc": "逐项修改后导出的存档 settings 与网页修改同一项后的存档一致；非法取值被",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "逐项 update_state 后导出存档 settings = 六项目标值: 六项全对 | 非法取值被拒绝并列出合法枚举: tool update_state returned isError: update_state(section=settings): 字段 RelicEquippingBehavior 的值无效 — | 六项逐项修改后输入框值 = 目标项中文文案: 与该遗器装备者交换遗器 | 最小化工具栏如果侧边工具栏的任何部分被隐藏 | 在遗器预览上方显示扩展信息 | 在遗物编辑器中显示遗物定位器 | 隐藏警告 | 最低优先级 | 网页修改同一项后的存档 settings 与 MC",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.settings.update",
+      "case": 3,
+      "desc": "把 RelicEquippingBehavior 改为 Swap 后 equip",
+      "method": "inprocess-parity",
+      "result": "PASS",
+      "detail": "默认 Replace:B 拿走 A 的头部件,A 头部清空: B.Head=8de51c73-36b5-40ea-91a2-e566d97da2a9,A.Head=null | 改为 Swap 后:B 拿走 A 的头部件,A 收到 B 原头部件(交换): B.Head=8de51c73-36b5-40ea-91a2-e566d97da2a9,A.Head=e898e418-bc4e-404d-be3f-2477dec9839a(期望 e898e418-bc4e-404d-be3f-2477dec9839a)",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.language.switch",
+      "case": 1,
+      "desc": "切到 en_US 后 describe_conditionals 等返回的标签与",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "默认语言 zh_CN(渲染语言与偏好一致): {\"activeKey\":\"HOME\",\"scoringAlgorithmFocusCharacter\":null,\"statTracesDrawerFocusCharacter\":null,\"language\":\"zh_CN\",\"activeLanguage\":\"zh_CN\"} | update_state(language=en_US) 提交后偏好切到 en_US: {\"activeKey\":\"HOME\",\"scoringAlgorithmFocusCharacter\":null,\"statTracesDrawerFocusCharacter\"",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.language.switch",
+      "case": 2,
+      "desc": "浏览器运行环境在指定语言下渲染的角色卡文字与网页同语言截图一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "zh_CN 预置语言下角色卡文字为中文(含角色名「镜流」): 叠1 - 此身为剑/镜流/等级80 1魂/生命值/3850/攻击力/2419/防御力/1037/速度/134.0/暴击率/46.0%/暴击伤害/245.3%/效 | 语言下拉(UI 真路径)切 en_US:卡面变英文并写 i18nextLng 缓存键(与 MCP update_state(language) 同一键): i18nextLng=en_US | 指定语言(en_US)渲染的角色卡文字与网页同语言切换结果一致、且与 zh_CN 不同: en 前 50:S1 - I Shall Be My Own Sword/Jingliu",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.gettingStarted.loadSample",
+      "case": 1,
+      "desc": "load_save(sample=true) 之后导出的存档与网页点击「试一试」",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "load_save(sample=true) 载入内置示例(162 遗器 / 8 角色,sample echo,无路径): 162/8 | 网页「试一试」后的存档与 load_save(sample=true) 导出逐键一致: 15 个顶层键逐键相等 | 试一经确认框执行并整体替换(162/8 全量示例): 162/8 | 服务器工作目录在仓库外(便携安装形态)时 sample=true 同样可用(示例存档内嵌于构建产物): cwd=C:\\Users\\he_al\\AppData\\Local\\Temp\\hsr-mcp-verify-global-MM8bu6\\outside-repo,162/8",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.links.external",
+      "case": 1,
+      "desc": "site://links 列出的链接与侧边栏、顶栏、入门抽屉、更新弹窗里的 hr",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "site://links 收录侧边栏、顶栏、更新弹窗的全部外链: 4 条全部收录 | 入门抽屉的外链同样逐条一致(四处 UI ⊆ site://links): 入门抽屉「查看完整指南」等链接未收录进 site://links:https://github.com/fribbels/hsr-optimizer/blob/main/docs/guides/en/optimizer.md——资源组仅覆盖首页社区卡/侧边栏链接组/页眉(resources.ts SITE_LINK_GROUPS),指南类链接只经 site://help/{topic} 部分提供",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.links.external",
+      "case": 2,
+      "desc": "site://help/optimizer 返回仓库内 docs/guides ",
+      "method": "inprocess-parity",
+      "result": "FAIL",
+      "detail": "site://help/optimizer 返回仓库内 docs/guides 对应指南的正文: 资源读取报错:MCP error -32603: 未知的帮助主题:optimizer。可用主题:reliquary / kelz / scorer / hoyolab / live-import——已注册帮助主题仅 reliquary/kelz/scorer/hoyolab/live-import(resources.ts SITE_HELP_TOPICS,导入页帮助区),无 optimizer 主题;docs/guides/en/optimizer.md 只被入门抽屉引用 | 旁证:site:/",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.changelog.whatsNew",
+      "case": 1,
+      "desc": "载入旧版本存档后 get_state 报告存档版本、当前版本和是否过期，与 is",
+      "method": "inprocess-parity",
+      "result": "FAIL",
+      "detail": "载入旧版本存档:load_save 直读存档 version 字段(v0.0.1): version=\"v0.0.1\" | get_state 报告存档版本、当前版本和是否过期(与 isVersionOutdated 一致): get_state(revision/session) 无任何版本/过期字段——当前版本仅 site://home.optimizerVersion 与导出快照 version(恒为 CURRENT_OPTIMIZER_VERSION)可读,「是否过期」未透出;与用例描述不符 | 可读版本面交叉核对:导出快照 version = site://home.optimize",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.changelog.whatsNew",
+      "case": 2,
+      "desc": "game://changelog 第一条带日期的条目与弹窗内容一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "更新弹窗可打开(自动弹出或 globalThis.openChangelogModal 入口): 经 openChangelogModal() 入口打开(受管环境内自动弹出未触发,详见报告) | 弹窗日期徽标 = game://changelog 首个带日期条目(2026-09-27): 弹窗=2026-09-27,资源=2026-09-27 | 弹窗正文逐条 = 资源条目内容(8 条非图片项): 全部在场",
+      "script": "mcp/scripts/verify-global.mjs"
+    },
+    {
+      "feature": "global.newFeature.badges",
+      "case": 1,
+      "desc": "标记 leaderboard 已读后导出的存档 seenFeatures 与网页",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "update_state(flags) 标记 leaderboard 后导出存档 seenFeatures=[\"leaderboard\"]: [\"leaderboard\"] | 进入排行榜页后存档 seenFeatures=[\"leaderboard\"](与 MCP flags 写入一致): reset=true,前=[],后=[\"leaderboard\"]",
+      "script": "mcp/scripts/verify-global.mjs"
+    }
+  ]
+}

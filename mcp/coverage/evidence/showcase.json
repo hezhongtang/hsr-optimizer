@@ -1,0 +1,133 @@
+{
+  "area": "showcase",
+  "generatedAt": "2026-10-09T13:39:28.845Z",
+  "gitCommit": "8ac1d045f7eadb8e45f03141c433d17a36c5f848",
+  "cases": [
+    {
+      "feature": "showcase.profile.fetch",
+      "case": 2,
+      "desc": "enka 与 mihomo 两种来源的样例数据都能解析，重复角色只保留第一次出现的",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "mihomo(克拉拉)解析=true(E2/LC20000/6件);enka(希儿+卡芙卡)解析=true(2角色);mihomo 重复档案去重=true(1105 保留 assist 位 E1 副本,2/3)——网页侧同一条 submitForm/process*Data 转换链经真实 UID 拉取在 case1 端到端复核",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "showcase.profile.fetch",
+      "case": 1,
+      "desc": "同一 UID 返回的角色列表与网页端头像行及各张展示卡一致",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "等待超时(10000ms):提交按钮可点",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "showcase.profile.fetch",
+      "case": 3,
+      "desc": "连续两次拉取之间不足 10 秒时第二次被拒绝并说明还要等多久",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "等待超时(10000ms):提交按钮可点(节流)",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "showcase.profile.fetch",
+      "case": 4,
+      "desc": "要求记住 UID 后，导出的存档里 savedSession.showcaseTab.scorerId 等于该 UID",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "web=null(submitForm setScorerId+delayedSave);mcp=100159999(fetch_showcase remember=true)",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "showcase.sidebar.toggle",
+      "case": 1,
+      "desc": "读到的展开状态与网页端一致；改动后网页端重新打开展示柜页按新状态显示",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "等待超时(10000ms):模拟栏状态可读",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "preview.customize.display",
+      "case": 2,
+      "desc": "（展示柜页的 UID 开关）改动后两边存档的 savedSession.global.showcaseUID 一致",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "等待超时(10000ms):Show UID 分段可点",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "showcase.card.read",
+      "case": 1,
+      "desc": "不导入的情况下，对展示柜里某个角色算出的遗器评分、属性汇总与 DPS 评分与网页一致",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "等待超时(150000ms):展示柜卡评分头",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "showcase.card.read",
+      "case": 2,
+      "desc": "算完之后存档里的角色与遗器没有任何变化",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP score_character(showcase) 前后存档完全相等=true;网页评分渲染后角色列表不变=true、遗器数不变=true",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "showcase.simulate.override",
+      "case": 1,
+      "desc": "替换角色与光锥后属性/评分一致",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "等待超时(10000ms):预设头像可读",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "showcase.simulate.override",
+      "case": 2,
+      "desc": "缺角色或缺光锥时被拒绝",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "等待超时(10000ms):加号预设可点",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "showcase.simulate.override",
+      "case": 3,
+      "desc": "计算不改动存档，也不改动缓存里的原始档案",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP 覆写评分后存档与评分前完全相等=true;重新拉取同 UID 档案首角色仍为 1408 E2(覆盖不落缓存)=true",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "showcase.import",
+      "case": 1,
+      "desc": "三种 mode 导入后的存档一致",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "phase error: 等待超时(10000ms):提交按钮可点(导入)",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "showcase.import",
+      "case": 2,
+      "desc": "只导遗器装备不变",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "phase error: 等待超时(10000ms):提交按钮可点(遗器)",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    },
+    {
+      "feature": "showcase.import",
+      "case": 3,
+      "desc": "重复导入无重复",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "phase error: 等待超时(10000ms):提交按钮可点(遗器)",
+      "script": "mcp/scripts/verify-showcase.mjs"
+    }
+  ]
+}

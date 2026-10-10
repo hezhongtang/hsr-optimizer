@@ -23,7 +23,7 @@
       "runtime": "node",
       "state": { "owner": "localStorage['state'] → 全部 store", "lifecycle": "persisted", "saveKey": "*" },
       "sideEffects": ["替换内存中的角色、遗器、评分覆盖、设置、会话等全部 store"],
-      "mcp": { "status": "implemented", "tools": ["save_status", "get_state"] },
+      "mcp": { "status": "verified", "tools": ["save_status", "get_state"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -31,7 +31,10 @@
           "同一份存档经网页启动载入与 load_save 载入后，SaveState.save() 的输出逐键一致",
           "MCP 进程重启后不带路径恢复上次存档，角色数、遗器数与重启前一致"
         ],
-        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/parity.mjs", "mcp/scripts/smoke-shutdown.mjs"]
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/parity.mjs", "mcp/scripts/smoke-shutdown.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/global.json#global.state.bootLoad cases 1,2 PASS 2026-10-08 (browser-parity + inprocess-parity)"
+        ]
       }
     },
     {
@@ -53,7 +56,7 @@
       "state": { "owner": "SaveState → localStorage['state']", "lifecycle": "persisted", "saveKey": "*" },
       "sideEffects": ["覆写 localStorage['state']"],
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": ["export_save", "save_status"],
         "gaps": "export_save(structured=true) 已提供无写入的结构化快照读取（saveSnapshot 镜像 SaveState.save 映射并有对拍回归，零副作用）。"
       },
@@ -64,7 +67,10 @@
           "写操作后 save_status.dirty 变为 true，防抖结束后落盘文件与 SaveState.save() 输出一致",
           "集合被清空时自动写回被拦截并在 save_status.blockedWrite 中报告，export_save 才能落盘"
         ],
-        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-shutdown.mjs"]
+        "tests": ["mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-shutdown.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/global.json#global.state.autosave cases 1,2 PASS 2026-10-08 (inprocess-parity)"
+        ]
       }
     },
     {
@@ -98,7 +104,7 @@
         "首次进入优化器页时初始化 worker 池",
         "window.scrollTo(0, 0)"
       ],
-      "mcp": { "status": "implemented", "tools": ["render"], "resources": ["site://pages"] },
+      "mcp": { "status": "verified", "tools": ["render"], "resources": ["site://pages"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -106,7 +112,10 @@
           "site://pages 列出 13 个页面的 hash、标题和对应的 MCP 入口，与 PageToHash/HashToPage 一致",
           "浏览器运行环境按 page 打开后 activeKey 与地址栏 hash 与网页点击侧边栏的结果一致"
         ],
-        "tests": ["mcp/scripts/smoke-render.mjs", "mcp/scripts/smoke-browser.mjs"]}
+        "tests": ["mcp/scripts/smoke-render.mjs", "mcp/scripts/smoke-browser.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/global.json#global.navigate.page cases 1,2 PASS 2026-10-08 (inprocess-parity + browser-parity)"
+        ]}
     },
     {
       "id": "global.sidebar.collapse",
@@ -123,12 +132,15 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.savedSession", "lifecycle": "persisted", "saveKey": "savedSession.global.sidebarCollapsed" },
       "sideEffects": ["SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
+      "mcp": { "status": "verified", "tools": ["get_state", "update_state"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["update_state 写入 sidebarCollapsed 后导出的存档与网页点击菜单按钮后的存档在该键上一致；浏览器运行环境渲染出折叠态侧边栏"],
-        "tests": ["mcp/scripts/smoke-state.mjs"]
+        "tests": ["mcp/scripts/smoke-state.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/global.json#global.sidebar.collapse cases 1 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -156,7 +168,7 @@
       "state": { "owner": "useGlobalStore.settings", "lifecycle": "persisted", "saveKey": "settings" },
       "sideEffects": ["SaveState.delayedSave()"],
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": ["get_state", "update_state"],
         "gaps": "get_state(section=settings) 给出六项设置的定义（枚举值/默认值派生自上游 SettingOptions/DefaultSettingOptions）与当前值；update_state(section=settings) 逐项写入并防抖保存。站点设置页资源（site://settings）不在本期。"
       },
@@ -168,7 +180,10 @@
           "逐项修改后导出的存档 settings 与网页修改同一项后的存档一致；非法取值被拒绝",
           "把 RelicEquippingBehavior 改为 Swap 后 equip_build 的行为随之改变"
         ],
-        "tests": ["mcp/scripts/smoke-state.mjs"]
+        "tests": ["mcp/scripts/smoke-state.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/global.json#global.settings.update cases 1,2,3 PASS 2026-10-08 (inprocess-parity + browser-parity)"
+        ]
       }
     },
     {
@@ -213,12 +228,15 @@
       "runtime": "node",
       "state": { "owner": "全部 store", "lifecycle": "persisted", "saveKey": "*" },
       "sideEffects": ["替换全部角色、遗器与设置", "立即 SaveState.save()"],
-      "mcp": { "status": "implemented", "tools": ["load_save"] },
+      "mcp": { "status": "verified", "tools": ["load_save"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["load_save(sample=true) 之后导出的存档与网页点击「试一试」之后的存档一致，且在仓库外的安装目录下同样可用"],
-        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-calculators.mjs"]
+        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/smoke-archive.mjs", "mcp/scripts/smoke-calculators.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/global.json#global.gettingStarted.loadSample cases 1 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -291,7 +309,7 @@
       "state": { "owner": "useNewFeatureStore.seenFeatures", "lifecycle": "persisted", "saveKey": "seenFeatures" },
       "sideEffects": ["SaveState.delayedSave()"],
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": ["get_state", "update_state"],
         "gaps": "get_state(section=flags) 返回 seenFeatures 与按 ACTIVE_NEW_FEATURES 派生的未读键；update_state(section=flags) 整组替换（读改写配合 baseRevision 即等价 markFeatureSeen/resetSeenFeatures）。蓝点渲染是网页表现。"
       },
@@ -299,7 +317,10 @@
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["标记 leaderboard 已读后导出的存档 seenFeatures 与网页进入排行榜页之后一致；清空后恢复为空数组"],
-        "tests": ["mcp/scripts/smoke-state.mjs"]
+        "tests": ["mcp/scripts/smoke-state.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/global.json#global.newFeature.badges cases 1 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {

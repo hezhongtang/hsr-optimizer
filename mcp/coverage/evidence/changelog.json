@@ -1,0 +1,16 @@
+{
+  "area": "changelog",
+  "generatedAt": "2026-10-09T10:27:59.831Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "changelog.entries.read",
+      "case": 1,
+      "desc": "game://changelog 返回的条目数、顺序与每条的 title/date/content 与 getChang…",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "首条(版本行)一致=true(web「Current data version: 4.6v5」 vs 资源「Current data version: 4.6v5」);条目数 web=52 资源=52;逐条差异 0 处;翻页 18 页",
+      "script": "mcp/scripts/verify-site.mjs"
+    }
+  ]
+}

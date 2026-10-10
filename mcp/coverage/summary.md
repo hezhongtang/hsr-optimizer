@@ -2,32 +2,32 @@
 
 本文件由 `npm run coverage:check -- --write` 生成，请勿手改。条目定义见 [README](../README.md)。
 
-基线：`6280c61c`（src 树 `838f222f2f33`）。
+基线：`8ac1d045`（src 树 `530b528336b8`）。
 
 ## 按域与状态
 
 | 域 | 功能条目 | missing | partial | implemented | verified | 机制项 |
 | --- | --- | --- | --- | --- | --- | --- |
-| global | 15 | 1 | 1 | 13 | 0 | 4 |
-| home | 2 | 0 | 0 | 2 | 0 | 0 |
-| changelog | 1 | 0 | 0 | 1 | 0 | 0 |
-| import | 13 | 0 | 0 | 13 | 0 | 0 |
-| characters | 22 | 0 | 0 | 22 | 0 | 0 |
-| preview | 21 | 0 | 0 | 21 | 0 | 4 |
-| teams | 13 | 0 | 0 | 13 | 0 | 2 |
-| relics | 12 | 0 | 0 | 12 | 0 | 0 |
-| optimizer | 43 | 3 | 0 | 40 | 0 | 5 |
+| global | 15 | 1 | 1 | 6 | 7 | 4 |
+| home | 2 | 0 | 0 | 1 | 1 | 0 |
+| changelog | 1 | 0 | 0 | 0 | 1 | 0 |
+| import | 13 | 0 | 0 | 2 | 11 | 0 |
+| characters | 22 | 0 | 0 | 0 | 22 | 0 |
+| preview | 21 | 0 | 0 | 3 | 18 | 4 |
+| teams | 13 | 0 | 0 | 0 | 13 | 2 |
+| relics | 12 | 0 | 0 | 2 | 10 | 0 |
+| optimizer | 43 | 3 | 0 | 3 | 37 | 5 |
 | showcase | 5 | 0 | 0 | 5 | 0 | 1 |
-| warp | 5 | 0 | 0 | 5 | 0 | 0 |
-| benchmarks | 7 | 0 | 0 | 7 | 0 | 0 |
-| calculators | 7 | 0 | 0 | 7 | 0 | 0 |
-| leaderboard | 7 | 0 | 0 | 7 | 0 | 0 |
+| warp | 5 | 0 | 0 | 0 | 5 | 0 |
+| benchmarks | 7 | 0 | 0 | 1 | 6 | 0 |
+| calculators | 7 | 0 | 0 | 1 | 6 | 0 |
+| leaderboard | 7 | 0 | 0 | 0 | 7 | 0 |
 | webgpu | 1 | 0 | 0 | 1 | 0 | 0 |
-| metadata | 9 | 0 | 0 | 9 | 0 | 2 |
-| shared | 2 | 0 | 0 | 2 | 0 | 3 |
-| **合计** | 185 | 4 | 1 | 180 | 0 | 21 |
+| metadata | 9 | 0 | 0 | 3 | 6 | 2 |
+| shared | 2 | 0 | 0 | 0 | 2 | 3 |
+| **合计** | 185 | 4 | 1 | 28 | 152 | 21 |
 
-网站基线条目 175 个：implemented 175 · partial 0 · missing 0 · verified 0。
+网站基线条目 175 个：implemented 175 · partial 0 · missing 0 · verified 152。
 
 ## 增强项（独立报告，不计入覆盖分母）
 

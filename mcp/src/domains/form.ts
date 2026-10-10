@@ -552,6 +552,10 @@ const statSimListEchoSchema = z.object({
     key: z.string(),
     name: z.string().nullable(),
     simType: z.string(),
+    // the stored request — the same object the web save persists per
+    // simulation (set names, four mains, stats); agents reading the list
+    // need it to reason about saved configs without a second get_form call
+    request: z.record(z.string(), z.unknown()),
   })),
 })
 
@@ -1444,6 +1448,7 @@ export function registerFormTools(server: McpServer): void {
             key: sim.key ?? '',
             name: sim.name ?? null,
             simType: String(sim.simType),
+            request: { ...(sim.request as unknown as Record<string, unknown>) },
           })),
         },
         warnings,

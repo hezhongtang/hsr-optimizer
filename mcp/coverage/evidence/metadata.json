@@ -1,0 +1,196 @@
+{
+  "area": "metadata",
+  "generatedAt": "2026-10-09T12:35:22.314Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "metadata.simulation.sets",
+      "case": 1,
+      "desc": "不载入存档即可读到每个角色的默认推荐遗器套装和饰品套装,与网页端表格里点亮的格子",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "63 web rows vs 63 resource entries compared cell-by-cell (asset URLs translated with the page Assets); all match",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.simulation.sets",
+      "case": 2,
+      "desc": "按命途分组后的角色集合与网页端九张表一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web 九张表按命途固定顺序渲染,每表角色数 [16,12,12,11,6,0,1,5,0] vs 资源按命途分组数 [16,12,12,11,6,0,1,5,0];非空表的命途推导 [Destruction,Hunt,Erudition,Nihility,Remembrance,(empty),Harmony,Elation,(empty)] 均在预期九命途内",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.simulation.teams",
+      "case": 1,
+      "desc": "不载入存档即可读到每个角色的默认三名队友及光锥,与网页端表格一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "63 web rows vs 63 resource entries (teammate id + light cone id per slot); all match",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.simulation.teams",
+      "case": 2,
+      "desc": "存档里自定义过队伍的角色,默认队伍仍与网页端这张表一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "浏览器会话已注入样例存档(8 角色),网页表格仍显示默认队伍(读 getGameMetadata,与存档无关);资源端同为默认值;样例存档未带 scoringMetadataOverrides",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.simulation.combo",
+      "case": 1,
+      "desc": "不载入存档即可读到每个角色的默认循环,行动顺序与网页端表格一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "63 web rows vs 63 resource entries(可读名称 \" - \" 连接;两侧均剔除空行动名后逐字比对——资源端 comboNames 对 NULL 行动产出空串,网页端在渲染前已剔除); all match",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.simulation.combo",
+      "case": 2,
+      "desc": "同时给出行动的内部代号和可读名称,可读名称与网页端显示的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "resource comboTurnAbilities(内部代号) non-empty for 63 characters, comboNames(可读名称)逐角色与网页端一致(上例)",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.setPresets.read",
+      "case": 1,
+      "desc": "返回的每个角色的预设套装和预设值与网页端表格里有内容的格子一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "81 web characters vs 81 resource entries with panel-registered presets (⚪=true / 数字文本逐格比对,同套装多名预设以后者为准);all match;网页 presetToSetMapping 未登记 WARRIOR_SET,MASTER_SMITH_SET,TENGOKU_SET,fnNavigatorSet,GENIUS_SET,WATCHMAKER_SET(13 个角色仅有未登记名预设→网页无格子,清单 conditions 已注明面板只认登记过的预设;资源端字段完整)",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.setPresets.read",
+      "case": 2,
+      "desc": "对带预设的角色,default_form 里对应套装条件的取值与预设值一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "default_form setConditionals spot-check on 1001, 1002, 1003(预设名经 presetToSetMapping 映射到套装); all match",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.substatWeights.read",
+      "case": 1,
+      "desc": "不载入存档即可读到每个角色九种副词条的默认权重,与网页端表格一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "108 web rows vs 108 resource entries (九列文本,0 显示为空); all match",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.substatWeights.read",
+      "case": 2,
+      "desc": "用户改过权重的角色,默认权重仍与网页端这张表一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "浏览器会话已注入样例存档,网页表格与资源端(均为默认配置)逐格一致;get_scoring_metadata 的生效值会合并用户覆盖,但本表口径是默认值",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.leaderboardTeams.read",
+      "case": 1,
+      "desc": "不载入存档即可读到每个五星角色在各评分类型下的参评队伍、允许光锥和副 C 标记,",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "68 web boards vs 70 resource entries (teammate ids + allowed light cone ids per slot); all match",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.leaderboardTeams.read",
+      "case": 2,
+      "desc": "没有专门配置的角色标明使用默认队伍,与网页端半透明的那一行一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "resource marks 20 characters usesDefaultTeam; web rows rendered with opacity 0.5 + DEFAULT 文本(逐板比对); all match",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.setAuditor.run",
+      "case": 2,
+      "desc": "返回的参照套装与网页端「Compared to」后显示的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web \"Compared to: Bone Collection's Serene Demesne\" vs MCP reference.ornament \"Bone Collection's Serene Demesne\"",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.setAuditor.run",
+      "case": 1,
+      "desc": "同一角色、光锥、队友和勾选项下,返回的每个套装的最佳差距、对应参数和红黄标记与网",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "0 web rows vs 28 MCP summaries (flag emoji + bestDelta +X.XX% + label); Rutilant Arena missing on web ; Bone Collection's Serene Demesne missing on web ; Arcadia of Woven Dreams missing on web",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.setAuditor.run",
+      "case": 3,
+      "desc": "展开数据(每组参数下的分数、参照分、差距)与网页端展开行一致",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "web drilldown text 369 chars; MCP first summary Rutilant Arena has 1 param rows (score/referenceScore/deltaPct finite); params {\"spd\":0,\"errRope\":false,\"subDps\":false}",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.colorGrid.view",
+      "case": 1,
+      "desc": "在同一组视觉调试参数下对多个角色批量渲染,得到的每张卡片与网页端总览里对应的卡片",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "1212b1 mean=32.1 hot=59.9% ; 1005 mean=18.8 hot=49.7%;对照(同一网页卡连拍两次)mean=0.00/hot=0.0%(两侧均为默认视觉调试参数:网页总览卡片 forceDebug 调试管线;MCP 侧先 update_state(visualDebug.cardDebug=true) 再 render(character_card)——但 render 域不消费会话 visualDebug/cardDebug(无 taskGlobals 桥接),截图走标准管线,与 forceDebug 调试管线像素不可对齐;MCP snapdom dpr2",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.colorGrid.view",
+      "case": 2,
+      "desc": "修改一项调试参数后重新渲染,所有卡片都按新参数变化",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "web slider() 40→+20 后截图变化=true;MCP update_state(visualDebug.portraitBlur=40→60) 后渲染变化=false——render 任务不消费 visualDebug 会话存储(无桥接),如实登记",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.imageCenter.edit",
+      "case": 1,
+      "desc": "给定角色和一组临时的立绘中心与缩放,渲染出的展示卡与网页端预览在同样数值下的外观",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "同角色 1212b1 同数值 x950/y900/z1.3 独立驱动两侧;数值一致=true;配置串一致=true;预览像素比对 mean=70.3 hot=75.3% (mcp 422x722@422x722 clip, web 422x722)",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.imageCenter.edit",
+      "case": 2,
+      "desc": "返回的配置文本与网页端显示的那一段逐字相同,数值按相同规则取整",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP \"imageCenter: { x: 950, y: 900, z: 1.3 }\" === web \"imageCenter: { x: 950, y: 900, z: 1.3 }\"",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.imageCenter.edit",
+      "case": 3,
+      "desc": "不传临时数值时使用配置里的现有值,与网页端点重置后的状态一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP no-params \"imageCenter: { x: 1024, y: 930, z: 1 }\";web 选角后未动(输入前读) \"imageCenter: { x: 1024, y: 930, z: 1 }\";web Reset 后 \"imageCenter: { x: 1024, y: 930, z: 1 }\"",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    },
+    {
+      "feature": "metadata.setAuditor.run",
+      "case": 4,
+      "desc": "带进度令牌时按已完成的基准数发送进度,取消后不返回半截结果",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "63 progress notification(s)(progress=已完成基准数,样例 progress=1/total=63);get_job(首条进度后即发)→2 条(running=0),RTT 57740ms;审计耗时 59.8s;cancelled=false, summaries=62——内联引擎占满服务器单线程,中途的 cancel 请求要等审计跑完才被读取(与 benchmarks.generate#3 同根因);未取消时返回的是完整汇总而非半截",
+      "script": "mcp/scripts/verify-metadata.mjs"
+    }
+  ]
+}

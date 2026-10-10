@@ -32,7 +32,7 @@
       "runtime": "node",
       "state": { "owner": "useWarpCalculatorStore.request", "lifecycle": "persisted", "saveKey": "warpRequest" },
       "sideEffects": ["SaveState.delayedSave(10000)"],
-      "mcp": { "status": "implemented", "tools": ["warp_plan"] },
+      "mcp": { "status": "verified", "tools": ["warp_plan"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -41,7 +41,10 @@
           "要求保存后，导出的存档里 warpRequest 与网页端填同样数值后的内容一致",
           "传入不存在的收入选项 id 时报错并列出合法 id"
         ],
-        "tests": ["mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke-calculators.mjs"]
+        "tests": ["mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke-calculators.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/warp.json#warp.resources.set cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -62,7 +65,7 @@
       "conditions": "简单模式下忽略目标列表，改用一个从零到 E6S5 的内置目标。",
       "runtime": "node",
       "state": { "owner": "useWarpCalculatorStore.request.plannerMode / strategy", "lifecycle": "persisted", "saveKey": "warpRequest" },
-      "mcp": { "status": "implemented", "tools": ["warp_plan"] },
+      "mcp": { "status": "verified", "tools": ["warp_plan"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -70,7 +73,10 @@
           "八种策略下各里程碑的期望抽数与达成概率，与网页端简单模式结果表逐行一致",
           "对一份处于简单模式的存档按网页端口径计算，结果与页面显示一致"
         ],
-        "tests": ["mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke-calculators.mjs"]
+        "tests": ["mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke-calculators.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/warp.json#warp.plan.simple cases 1,2 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -106,7 +112,7 @@
       "runtime": "node",
       "state": { "owner": "useWarpCalculatorStore.request.targets", "lifecycle": "persisted", "saveKey": "warpRequest" },
       "sideEffects": ["SaveState.delayedSave(10000)"],
-      "mcp": { "status": "implemented", "tools": ["warp_plan"] },
+      "mcp": { "status": "verified", "tools": ["warp_plan"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -116,7 +122,10 @@
           "只给角色 id 新增目标时，起点等于存档里该角色的星魂",
           "交换两个目标的顺序后，结果与网页端拖动后的表格一致"
         ],
-        "tests": ["mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke-calculators.mjs"]
+        "tests": ["mcp/scripts/smoke-misc.mjs", "mcp/scripts/smoke-calculators.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/warp.json#warp.plan.targets cases 1,2,3,4 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -135,7 +144,7 @@
       "runtime": "node",
       "state": { "owner": "由 useWarpCalculatorStore.request 推导", "lifecycle": "derived" },
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": ["warp_plan"]
       },
       "scope": "baseline",
@@ -146,7 +155,10 @@
           "每个目标每个里程碑的期望抽数与达成概率与网页端结果表逐行一致",
           "已垫抽数与必中状态变化后，结果与网页端同步变化"
         ],
-        "tests": ["mcp/scripts/smoke-misc.mjs"]
+        "tests": ["mcp/scripts/smoke-misc.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/warp.json#warp.results.read cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     },
     {
@@ -163,7 +175,7 @@
       "runtime": "host",
       "state": { "owner": "useWarpCalculatorStore.request（由扫描器事件改写）", "lifecycle": "persisted", "saveKey": "warpRequest" },
       "sideEffects": ["改写规划器里的星琼、专票、已垫抽数与必中状态", "SaveState.delayedSave(10000)"],
-      "mcp": { "status": "implemented", "tools": ["scanner"], "candidates": ["scanner(action=connect|disconnect|status|events)", "warp_plan(save=true)"] },
+      "mcp": { "status": "verified", "tools": ["scanner"], "candidates": ["scanner(action=connect|disconnect|status|events)", "warp_plan(save=true)"] },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -171,7 +183,10 @@
           "回放一段含资源更新与抽卡结果的扫描器事件后，存档里 warpRequest 的星琼、专票、两个卡池的已垫抽数与必中状态与网页端回放同一段事件后一致",
           "ingestWarpResources 关闭时同样的事件不改动 warpRequest"
         ],
-       "tests": ["mcp/scripts/smoke-scanner.mjs"]
+       "tests": ["mcp/scripts/smoke-scanner.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/warp.json#warp.scanner.sync cases 1,2 PASS 2026-10-08 (browser-parity)"
+        ]
       }
     }
   ]

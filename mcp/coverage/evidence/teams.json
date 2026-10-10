@@ -1,0 +1,178 @@
+{
+  "area": "teams",
+  "generatedAt": "2026-10-08T20:32:58.371Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "teams.working.setSlot",
+      "case": 1,
+      "desc": "空队伍里给第一个槽位选一个存有自定义评分队伍的角色，返回的四个槽位与网页自动补位后的结果一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页空队第0槽选 Jingliu 后四卡=[1212b1,1005,1102,1205];MCP compose set_slot(0,J)=[1212b1,1005,1102,1205](自定义评分队 [K,S,B] 按已拥有自动补位)",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.working.setSlot",
+      "case": 2,
+      "desc": "选一个未拥有的角色后，两边存档的 characters 都多出该角色（默认表单、空装备）",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页选未拥有角色 1107 后存档 characters 9 人(新增条目 form/equipped 与 MCP export 完全一致:true;MCP rosterAdded=[\"1107\"])",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.working.setSlot",
+      "case": 3,
+      "desc": "把已在第三槽的角色选进第一槽后，第三槽变空",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页 [1212b1,1005,1102,1205] 把第3槽 1205 选进第1槽后 [1205,1005,1102,];MCP compose set_slot(0,1205)=[1205,1005,1102,]",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.benchmarks.sync",
+      "case": 1,
+      "desc": "对同一支四人队伍同步后，两边存档里该队伍的 benchmarkSnapshot.members 逐项一致（含推断出的套装",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页同步按钮与 MCP sync_benchmarks 对同一队伍捕获的 4 名成员(光锥/星魂/叠影/推断遗器4件+饰品2件套装)逐项一致;成员=[[\"1212b1\",null,null],[\"1308\",null,null],[\"1402\",null,null],[\"1405\",null,null]]",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.cards.read",
+      "case": 1,
+      "desc": "对一支已同步基准的队伍，四名成员各自的评分与队伍面板四张卡上的分数一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "四卡(已同步快照,槽0主C/其余副C)=[1212b1:411857, 1308:58384, 1402:147201, 1405:112265] 与 MCP dps_score(team=snapshot) scores.original 逐个一致",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.cards.read",
+      "case": 2,
+      "desc": "未同步时返回的分数与各角色单独展示卡的分数一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "未同步队伍四卡=[1212b1:2190729, 1308:455097, 1402:1194574, 1405:567174] 与 MCP dps_score(team=default) 逐个一致(各自评分队伍)",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.benchmarks.sync",
+      "case": 2,
+      "desc": "有成员没装光锥时两边都拒绝并给出同类错误",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页:成员 1107(补入列表的默认表单无光锥)点同步 → toast \"No selected light cone\" 且队伍快照仍为空:true;MCP sync_benchmarks 报错:\"以下队伍成员未装备光锥,无法同步基准:1107(Clara)。请先为它们设置光锥再同步\"",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.working.reorder",
+      "case": 1,
+      "desc": "把第三槽角色换到第一槽后，该角色按主 C、原第一槽角色按副 C 评分，分数与网页拖拽后的两张卡一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页拖拽(合成鼠标事件) [1212b1,1308,1402,1405] → [1402,1308,1212b1,1405](槽位交换);槽0 1402(主C)=147201 vs MCP 147202;槽1 1308(副C)=58384 vs MCP 58385",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.working.clear",
+      "case": 1,
+      "desc": "清空后读到的工作队伍四槽皆空、没有基准快照，已保存队伍列表不变",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页清空后四卡皆空:true,已保存队伍不变(2支,与 MCP export 一致:true);MCP compose clear → 四槽 null/无快照:true/true",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.slot.scoringType",
+      "case": 1,
+      "desc": "在队伍面板把某槽位切到副词条评分后，两边存档里该角色的 showcasePreferences.scoringType ",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页槽位卡「基准」下拉切到 Substat Rolls 后存档 showcasePreferences[1212b1].scoringType=1;MCP update_state(showcase) 后=1",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.saved.save",
+      "case": 1,
+      "desc": "保存同样的四槽后，两边存档的 teamShowcaseSavedTeams 末尾多出的队伍除 id 外一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页把工作队伍改为 [1217,1005,1102,1205] 后保存 → 末尾新增「Team 2」(id f0033384…);MCP save_team 同槽位 → 「Team 2」(id fa1aee60…);名字/四槽一致,仅 id 不同",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.saved.save",
+      "case": 2,
+      "desc": "带着已同步的基准保存时，两边队伍里的 benchmarkSnapshot 一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页(改槽→同步→保存)与 MCP save_team(benchmarkSnapshot=true) 新增队伍均携带快照,成员(光锥/星魂/叠影/套装)逐项一致:true;成员数 web=4 mcp=4",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.saved.list",
+      "case": 1,
+      "desc": "list_teams 返回的队伍数量、顺序、名字、四槽角色与基准快照，和侧栏列表及存档内容一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "侧栏=[Probe One,Probe Two,Probe Three] 与 list_teams 顺序/名字一致:true;四槽/快照标志/快照成员与页面自身落盘一致:true(第二支带快照,第三支含两个空槽)",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.saved.load",
+      "case": 1,
+      "desc": "载入一支含未拥有角色的队伍后，两边存档的 characters 都多出该角色，返回的四槽与网页一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页载入 → 四卡=[1107,1102,1005,1205] 与 MCP manage_team(load) 一致:true;存档新增 1107 的条目 form 与 MCP export 完全一致:true",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.saved.load",
+      "case": 2,
+      "desc": "队伍里有一个元数据中不存在的角色 id 时，该槽位为空且不带基准快照",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页载入含未知 id 9999 的队伍 → 第2槽空卡(四卡=[1212b1,,1005,1102]),9999 不进角色列表:true;MCP load → 槽位 [1212b1,,1005,1102],hasBenchmarkSnapshot=false(槽位失配即弃快照)",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.saved.rename",
+      "case": 1,
+      "desc": "save_team(teamId, name) 之后的存档与网页行内重命名为同一名字后的存档一致，槽位与基准快照不变",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页行内重命名「Probe Two」→「Renamed Two」(回车提交)后队伍表(名字/四槽/快照)与 MCP save_team(teamId,name) export 完全一致:true",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.saved.delete",
+      "case": 1,
+      "desc": "删除一支队伍后两边存档的 teamShowcaseSavedTeams 一致，其余队伍顺序不变",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页删除第二支后剩 [Probe One,Probe Three];MCP manage_team(delete) 后剩 [Probe One,Probe Three];两侧队伍表逐项一致:true;返回 remainingTeamIds=2 支",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.saved.move",
+      "case": 1,
+      "desc": "把第三支队伍移到最前后，两边存档的 teamShowcaseSavedTeams 顺序一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页拖拽第三支到最前 → [Probe Three,Probe One,Probe Two];MCP manage_team(move 2→0) → [Probe Three,Probe One,Probe Two];两侧队伍表逐项一致:true",
+      "script": "mcp/scripts/verify-teams.mjs"
+    },
+    {
+      "feature": "teams.screenshot",
+      "case": 1,
+      "desc": "渲染出的队伍图片尺寸与网页下载的一致，四张卡的角色、分数与顺序相同",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页自身下载按钮捕获 PNG 4420×3540 vs MCP render(team_card) 4420×3540;四卡角色=[1212b1,1308,1402,1405](带模拟评分 411857/58384/147201/112265)",
+      "script": "mcp/scripts/verify-teams.mjs"
+    }
+  ]
+}

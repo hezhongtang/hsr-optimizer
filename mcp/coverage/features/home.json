@@ -20,12 +20,15 @@
       "runtime": "node",
       "state": { "owner": "外部展示柜接口 + useShowcaseTabStore", "lifecycle": "external" },
       "sideEffects": ["跳转到展示柜页并触发一次档案拉取（详见 showcase 域）"],
-      "mcp": { "status": "implemented", "tools": ["fetch_showcase"] },
+      "mcp": { "status": "verified", "tools": ["fetch_showcase"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["同一 UID 经首页搜索进入展示柜得到的角色列表与 fetch_showcase(uid) 返回的角色摘要一致；非 9 位数字两边都拒绝"],
-        "tests": ["mcp/scripts/smoke-imports.mjs"]
+        "tests": ["mcp/scripts/smoke-imports.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/home.json#home.search.uid cases 1 PASS 2026-10-09 (browser-parity)"
+        ]
       }
     },
     {

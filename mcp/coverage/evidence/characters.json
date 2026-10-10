@@ -1,0 +1,322 @@
+{
+  "area": "characters",
+  "generatedAt": "2026-10-08T21:34:04.958Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "characters.list.read",
+      "case": 1,
+      "desc": "list_characters 的顺序、rank 与网页角色网格一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web 1212b1,1005,1102,1217,1205,1202,1101,1105 vs mcp 1212b1,1005,1102,1217,1205,1202,1101,1105",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.list.read",
+      "case": 1,
+      "desc": "按命途、属性筛选的结果集与网页筛选条一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "name=流 web [1212b1] vs mcp [1212b1]",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.list.read",
+      "case": 1,
+      "desc": "补齐多选与 name 参数后与网页三轴筛选逐一对拍",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "三轴 web [1212b1] vs mcp [1212b1];卡芙卡轴 一致",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.detail.read",
+      "case": 1,
+      "desc": "get_character 返回的六槽遗器、已存表单、配装列表与评分元数据与网页选中该角色后看到的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "equipped 一致;form 一致;builds 一致;评分默认 一致",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.openInOptimizer",
+      "case": 1,
+      "desc": "与 optimizer.character.switch 同一用例:切换后存档里的 optimizerCharacter…",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "optimizerCharacterId web=1005 mcp=1005;离开角色(1212b1)表单 一致",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.rank.move",
+      "case": 1,
+      "desc": "把同一角色移到同一位置后,两边导出存档的 characters 顺序一致;index=0 与「移到顶部」等价",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "move 1101→0: web 1101,1212b1,1005,1102,1217,1205,1202,1105 vs mcp 1101,1212b1,1005,1102,1217,1205,1202,1105",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.rank.move",
+      "case": 1,
+      "desc": "第二次移动(1202→0)后顺序仍一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web 1202,1101,1212b1,1005,1102,1217,1205,1105 vs mcp 1202,1101,1212b1,1005,1102,1217,1205,1105",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.rank.sortByEffectiveSubstats",
+      "case": 1,
+      "desc": "同一存档排序后,两边导出存档的 characters 顺序一致(含得分相同时的稳定顺序)",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web 1102,1205,1212b1,1005,1217,1202,1101,1105 vs mcp 1102,1205,1212b1,1005,1217,1202,1101,1105;mcp scores=[]",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.upsert",
+      "case": 1,
+      "desc": "新建角色后两边存档里的该角色(默认表单、空装备、插入位置)一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "insert web@0 mcp@0 (NewCharacterDefaultRank=First);form 一致;equipped 两边均空",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.upsert",
+      "case": 2,
+      "desc": "修改已有角色的光锥、叠影、星魂后两边存档一致,其余表单字段不变",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "e3 表单 一致",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.delete",
+      "case": 1,
+      "desc": "删除后两边存档的角色列表一致,原佩戴遗器的 equippedBy 均为空",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "roster 一致;6 件原 1005 遗器 equippedBy=无",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.unequip",
+      "case": 1,
+      "desc": "卸下后两边存档里该角色的 equipped 为空,六件遗器的 equippedBy 为空",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "1205 equipped web={} mcp={}",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.switchRelics",
+      "case": 1,
+      "desc": "交换后两边存档里两名角色的 equipped 与相关遗器的 equippedBy 一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "1101 一致;1102 一致;归属表 一致",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.builds.save",
+      "case": 1,
+      "desc": "角色页来源:保存后两边存档里的该配装(遗器、光锥、星魂、队伍、评分配置类型)一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web {\"source\":\"character\",\"equipped\":{\"LinkRope\":\"c521dc03-6c6e-45ef-9933-811367312441\",\"PlanarSphere\":\"80abbd56-b1a0-4587-a349-754c33627217\",\"F vs mcp {\"source\":\"character\",\"equipped\":{\"LinkRope\":\"c521dc03-6c6e-45ef-9933-811367312441\",\"PlanarSphere\":\"80abbd56-b1a0-4587-a349-754c33627217\",\"F 差异:无",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.builds.list",
+      "case": 1,
+      "desc": "list_builds 返回的配装名、顺序、来源、遗器 id 与弹窗列表一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "弹窗 DOM [inject-preview,inject-main,inject-short,inject-steal,mcp-char-build] vs 存档序 [inject-preview,inject-main,inject-short,inject-steal,mcp-char-build];工具 [inject-preview,inject-main,inject-short,inject-steal,mcp-char-build] 内容一致=true",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.builds.save",
+      "case": 3,
+      "desc": "重名不带 overwrite 报错,带 overwrite 覆盖;名称不存在时带 overwrite 会静默新建并返回 …",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "重名报错:Build \"mcp-char-build\" already exists for 1212b1 — pass over;overwrite 成功;不存在名+overwrite → overwrote=false(网页「覆盖」按钮此时禁用:{\"saveDisabled\":true,\"overwriteDisabled\":false})",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.builds.preview",
+      "case": 1,
+      "desc": "对一个光锥、星魂与当前角色不同的已存配装,返回的属性与评分和弹窗里这张展示卡上的数值一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页卡评分行「17.0% · ?」(头部 [\"镜流\",\"等级80 0魂\"]) vs score_character 17.0% ?;属性 10 项逐项比一致",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.builds.loadInOptimizer",
+      "case": 1,
+      "desc": "载入同一配装后,get_form 返回的工作表单与网页优化器表单逐字段一致,optimizerCharacterId 指…",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "optimizerCharacterId web=1212b1 mcp=HOME;存档表单 一致",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.builds.equip",
+      "case": 1,
+      "desc": "装备带 3 名队友的配装后,两边存档的 equipped 与 scoringMetadataOverrides[角色].…",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "equipped 一致;归属 一致;评分队 一致",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.builds.equip",
+      "case": 2,
+      "desc": "队友不足 3 人的配装不改评分覆盖",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "短队装备后评分覆盖 web=[{\"characterId\":\"1101\",\"characterEidolon\":0,\"lightCone\":\"23003\",\"lightConeSuperi mcp=[{\"characterId\":\"1101\",\"characterEidolon\":0,\"lightCone\":\"23003\",\"lightConeSuperi",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.builds.equip",
+      "case": 3,
+      "desc": "配装遗器被他人佩戴时,Replace 与 Swap 两种设置下的归属变化与网页一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "设置 web=Swap mcp=Swap(点击 {\"selectOpen\":{\"ok\":true},\"swapOption\":{\"ok\":true}} 显示=false);Swap 后 1202 获得 5 件;归属 一致",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.builds.screenshot",
+      "case": 1,
+      "desc": "渲染出的图片尺寸、文字与数值和网页下载的配装截图一致,背景透明处理相同",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "PNG 头逐字节一致=true;render 2200x1760 4029882B via=app-camera",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.builds.delete",
+      "case": 1,
+      "desc": "删除后两边存档里该角色的 builds 一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web [inject-preview,inject-main,inject-steal,mcp-char-build] vs mcp [inject-preview,inject-main,inject-steal,mcp-char-build]",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.builds.clear",
+      "case": 1,
+      "desc": "清空后两边存档里该角色的 builds 都是空数组",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web 0 个;mcp 0 个",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.builds.save",
+      "case": 2,
+      "desc": "优化器来源:保存的表单快照是该次运行实际使用的表单",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web s=5;选中行在 MCP 结果第 0 行;差异 无;网页网格前两行=[{\"relicSetIndex\":\"\",\"ornamentSetIndex\":\"\",\"ATK\":\"2419\",\"DEF\":\"1037\",\"HP\":\"3850\",\"SPD\":\"134.0\",\"CR\":\"46.0\",\"CD\":\"257.3\",\"EHR\":\"7.7\",\"RES\":\"3.4\",\"BE\":\"11.0\",\"ERR\":\"0.0\",\"ELEMENTAL_DMG\":\"48.8\",\"EHP\":\"73",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.scoring.weights",
+      "case": 1,
+      "desc": "只把 ATK 权重改为 1 后,两边存档的 scoringMetadataOverrides 里 ATK 与 ATK% …",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web stats={\"ATK%\":1,\"ATK\":1};mcp stats={\"ATK%\":1,\"ATK\":1}(默认 ATK=0)",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.scoring.weights",
+      "case": 2,
+      "desc": "修改部位主词条候选后两边存档一致,与默认值相同的项被剪掉",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web parts={\"Body\":[\"CRIT Rate\",\"HP%\"]};mcp parts={\"Body\":[\"CRIT Rate\",\"HP%\"]}",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.scoring.weights",
+      "case": 3,
+      "desc": "恢复默认后该角色在 scoringMetadataOverrides 里没有任何条目",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web {};mcp {}",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.scoring.resetAll",
+      "case": 1,
+      "desc": "重置后两边存档的 scoringMetadataOverrides 都是空对象",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "前置覆盖 web=1212b1;重置后 web= mcp=(cleared=1)",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.traces.update",
+      "case": 1,
+      "desc": "关闭一个有后代的节点后,deactivated 包含它和全部后代,与网页取消勾选同一节点的结果一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web 2 项 vs 期望 2 项(11212203+1 后代);mcp expanded=2 项",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.traces.update",
+      "case": 2,
+      "desc": "重新启用一个深层节点后,它的全部前置节点一并启用",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "deep=11212204;web 剩余 0 项 mcp 0 项;前置启用=true",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.traces.update",
+      "case": 3,
+      "desc": "关闭行迹后 simulate_build 的基础属性与网页优化器里同一角色的数值一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页结果行匹配 MCP row[1](ATK 2270/2270.5664 DEF 1017/1017.4802 HP 5014/5014.0703 SPD 134/134.0320 CR 0.45399999999999996/0.4540 CD 2.161/2.1616 EHR 0.043/0.0432 RES 0.043/0.0432 BE 0.162/0.1620);simulate_build stats 键=HP%,ATK%,DEF%,SPD%,HP,ATK,DEF,SPD,CRIT Rate,CRIT DMG",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.traces.update",
+      "case": 4,
+      "desc": "角色详情资源返回的行迹树节点、前置关系和数值与网页抽屉里显示的树一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "节点数 web=10 资源=10;标签逐行 一致",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.panel.switch",
+      "case": 1,
+      "desc": "site://pages 把 #characters 与 #teams 列为角色页的两个面板;浏览器运行环境可直接打开其…",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "site://pages CHARACTERS.hash=#characters alias['#teams']=CHARACTERS 页的队伍展示锚点(HashToPage 归一到角色页);#characters 面板可见=true;tab 切换→hash=#teams 面板可见=true;直接打开 #teams 可见=true",
+      "script": "mcp/scripts/verify-characters.mjs"
+    },
+    {
+      "feature": "characters.grid.density",
+      "case": 1,
+      "desc": "写入 compact 后导出的存档与网页切到紧凑后的存档在该键上一致;非法取值被拒绝",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web=compact mcp=compact;非法值报错=update_state(section=session): 字段 characterGridDensity 的值无效 ",
+      "script": "mcp/scripts/verify-characters.mjs"
+    }
+  ]
+}

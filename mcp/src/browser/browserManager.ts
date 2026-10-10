@@ -250,9 +250,22 @@ function probeBrowserVersion(executable: string): string | null {
   if (executableVersionCache.has(executable)) return executableVersionCache.get(executable) ?? null
   let version: string | null = null
   try {
-    const result = spawnSync(executable, ['--version'], { encoding: 'utf8', timeout: 30_000 })
-    if (result.status === 0 && typeof result.stdout === 'string') {
-      version = result.stdout.trim() || null
+    if (process.platform === 'win32') {
+      // Windows 的 chrome.exe --version 不往 stdout 输出版本,且当浏览器已在运行时
+      // 这次调用会被转交给现有实例——在用户桌面上弹出空白标签。改为读 PE 版本资源。
+      const result = spawnSync(
+        'powershell',
+        ['-NoProfile', '-Command', `(Get-Item -LiteralPath '${executable.replaceAll(`'`, `''`)}').VersionInfo.ProductVersion`],
+        { encoding: 'utf8', timeout: 30_000, windowsHide: true },
+      )
+      if (result.status === 0 && typeof result.stdout === 'string') {
+        version = result.stdout.trim() || null
+      }
+    } else {
+      const result = spawnSync(executable, ['--version'], { encoding: 'utf8', timeout: 30_000 })
+      if (result.status === 0 && typeof result.stdout === 'string') {
+        version = result.stdout.trim() || null
+      }
     }
   } catch {
     version = null

@@ -1,0 +1,133 @@
+{
+  "area": "warp",
+  "generatedAt": "2026-10-08T20:31:41.259Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "warp.resources.set",
+      "case": 1,
+      "desc": "fromSaved 读出的请求与网页端打开页面时各输入框显示的值一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页输入 jades=8000/passes=20/垫抽=10,5/返利标签=\"11% refund (High)\" vs MCP fromSaved jades=8000/passes=20/pity=10,5/REFUND_HIGH;摘要\"8,000 + 20 + 72 + 300 = 157\"(8000+20+72+15=157);guaranteed勾选={\"checkedCount\":3,\"trueCount\":1}",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.resources.set",
+      "case": 3,
+      "desc": "传入不存在的收入选项 id 时报错并列出合法 id",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP warp_plan(income=['9.9_p9_1']) 报错含该 id 与合法表:未知的收入选项 id:9.9_p9_1。合法 id(随游戏版本手工维护,当前 4.5/4.6):4.5_p1_1(57抽), 4.5_p2_1(20抽), 4.5_p1_2(67抽;合法 id 表与网页端收入选项同源(WarpIncomeOptions);网页已选收入=[+1]",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.resources.set",
+      "case": 2,
+      "desc": "要求保存后，导出的存档里 warpRequest 与网页端填同样数值后的内容一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP warp_plan(save=true) → export_save → 网页载入后页面自身 SaveState 落盘的 warpRequest 与 MCP 持久化请求逐字段一致:true;webTargets=[[\"1005\",0,2]]",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.plan.simple",
+      "case": 1,
+      "desc": "八种策略下各里程碑的期望抽数与达成概率，与网页端简单模式结果表逐行一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "8 策略逐行比对(标签/概率%/期望抽数 ceil):s0:12行; s1:12行; s2:12行; s3:12行; s4:12行; s5:12行; s6:12行; s7:12行;示例 strategy0 E6S5=952.3抽",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.plan.simple",
+      "case": 2,
+      "desc": "对一份处于简单模式的存档按网页端口径计算，结果与页面显示一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "简单模式存档(fromSaved+applyPlannerMode,预算 400 抽)与页面表格 12 行逐行一致",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.results.read",
+      "case": 3,
+      "desc": "已垫抽数与必中状态变化后，结果与网页端同步变化",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "垫抽 0→89(输入位4=\"89\"):网页 E0S0 行 100%/90抽 → 100%/29抽;MCP 89.55抽(100.0%) → 28.26抽(100.0%),期望抽数同步下降",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.plan.targets",
+      "case": 2,
+      "desc": "同一角色先后两个目标交给工具规范化后，起止等级与网页端自动接续后的结果一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页两次「添加角色」(Acheron)自动接续 targets 等级[当前E,目标E,当前S,目标S]=[[-1,0,0,0],[0,1,0,0]];MCP normalizeTargets([{1308},{1308}])=[[-1,0,0,0],[0,1,0,0]](首尾相接 E-1→E0 接 E0→E1)",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.plan.targets",
+      "case": 1,
+      "desc": "给出「某角色 E0 到 E2，再加其专属光锥 S1」的目标串，各里程碑的期望抽数与达成概率与网页端同样编排后的表格一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页「角色+专属光锥」编排(Acheron:角色行 E-1→E2 + 光锥行 S0→S1)两个目标表格与 MCP warp_plan(同 targets)逐行一致(3行+1行)",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.plan.targets",
+      "case": 3,
+      "desc": "只给角色 id 新增目标时，起点等于存档里该角色的星魂",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页新增 Jingliu 目标起点 E1(→E2);MCP normalizeTargets 起点 E1(→E2);存档该角色星魂 E1",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.plan.targets",
+      "case": 4,
+      "desc": "交换两个目标的顺序后，结果与网页端拖动后的表格一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "拖拽重排 [1308,1308,1212b1] → [1212b1,1308,1308],网页各目标表格与 MCP warp_plan(同序 targets)逐行一致(ok)",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.results.read",
+      "case": 1,
+      "desc": "同一请求下总抽数、星芒返利折算的额外专票与网页端摘要一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页摘要\"32,000 + 9 + 160 = 217\"(32000玉+9票,4%返利 floor(8.36)=8 张=160 星芒 → 217);MCP 同请求 totalWarps=217 totalStarlight=160",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.results.read",
+      "case": 2,
+      "desc": "每个目标每个里程碑的期望抽数与达成概率与网页端结果表逐行一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页两个目标表格(1行+1行)与 MCP 逐行一致(首表首行 E0 100%/90抽)",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.scanner.sync",
+      "case": 1,
+      "desc": "回放一段含资源更新与抽卡结果的扫描器事件后，存档里 warpRequest 的星琼、专票、两个卡池的已垫抽数与必中状态与",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "同一假 Archiver 同时连接两侧(2 客户端),回放 4 帧后网页 warpRequest=[1920,6,8,false,20,true] vs MCP=[1920,6,8,false,20,true];期望=[1920,6,8,false,20,true](星琼=1600+320,专票=5+floor(37/20),角色垫抽 5+3,光锥重置 20+必中)",
+      "script": "mcp/scripts/verify-warp.mjs"
+    },
+    {
+      "feature": "warp.scanner.sync",
+      "case": 2,
+      "desc": "ingestWarpResources 关闭时同样的事件不改动 warpRequest",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "关闭(网页经存档 scannerSettings.ingestWarpResources=false / MCP update_state(section=scanner))后回放资源帧与抽卡帧:网页 warpRequest 不变:true(jades=1000,pity=5);MCP 不变:true(jades=1920,pity=8)",
+      "script": "mcp/scripts/verify-warp.mjs"
+    }
+  ]
+}

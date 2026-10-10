@@ -227,7 +227,12 @@ function serializeRelicPayload(relic: Relic) {
   return {
     ...serializeRelic(relic),
     previewSubstats: (relic.previewSubstats ?? []).map((s) => ({ stat: s.stat, value: s.value })),
-    ageIndex: relic.ageIndex ?? null,
+    // kelzFormatParser derives ageIndex from parseInt(_uid) — NaN for
+    // non-numeric scanner uids BY DESIGN (the web's own test expects NaN), and
+    // a relic added after such an import inherits NaN through the store's
+    // `last.ageIndex + 1` chain. The web tolerates it because JSON.stringify
+    // coerces NaN to null on save; mirror that instead of failing zod.
+    ageIndex: Number.isFinite(relic.ageIndex) ? relic.ageIndex : null,
   }
 }
 

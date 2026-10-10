@@ -1,0 +1,178 @@
+{
+  "area": "calculators",
+  "generatedAt": "2026-10-08T20:30:52.925Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "calculators.panel.switch",
+      "case": 2,
+      "desc": "浏览器运行环境按 #ehr 打开后显示的是效果命中面板，与网页端点击该页签的结果一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "#ehr hash→EHR面板:true;点击页签切AHA:true;再点击切回EHR:true;titles=[\"Debuff Application Calculator\",\"Target EHR Solver\"]",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.panel.switch",
+      "case": 1,
+      "desc": "site://pages 在计算器页下列出两个子面板，hash 分别是 #aha 与 #ehr，并指明对应的工具是 ca",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "site://pages 顶层键=[count,basePath,aliasHashes,note,pages];CALCULATORS.hash=#aha,note含#aha/#ehr:true;资源全文指明 calc_aha/calc_ehr:false(实测未提及工具名 — 清单描述超出资源实际内容)",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.aha.compute",
+      "case": 1,
+      "desc": "队友速度 160、120、100 时阿哈速度为 129，各名次的贡献为 32、12、5，与网页端贡献条一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页公式=129(期望129) vs MCP calc_aha=129;网页贡献条=[32,12,5] vs MCP=[32.0,12.0,5.0] (32/12/5)",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.aha.compute",
+      "case": 2,
+      "desc": "传入顺序打乱后结果不变",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页槽位序 [100,160,120,空] 显示 129;MCP calc_aha([100,160,120])=129 = MCP([160,120,100])=129",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.aha.compute",
+      "case": 3,
+      "desc": "不传队友时返回基础值 80",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "四格全空后网页公式=80;MCP calc_aha([]).ahaSpeed=80",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.aha.solve",
+      "case": 1,
+      "desc": "已有队友 180 与 135、目标 135 时返回第三名队友需要 110 速度，与网页端求解器显示的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页求解器标题=[\"Target Aha SPD\",\"3rd Teammate's SPD\"] 值=110;MCP calc_aha(fromSaved)={\"status\":\"solved\",\"requiredSpeed\":110,\"targetAhaSpeed\":135,\"nextTeammatePosition\":3}",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.aha.solve",
+      "case": 2,
+      "desc": "已填满四名队友时明确返回没有空位，而不是给出一个数",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "四格填满(180/135/160/150)后网页标题=[\"Target Aha SPD\",\"No slots open\"] 值=\"\";MCP={\"status\":\"noSlots\",\"requiredSpeed\":null,\"targetAhaSpeed\":135,\"nextTeammatePosition\":5}",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.aha.solve",
+      "case": 3,
+      "desc": "当前阿哈速度已经不低于目标时标明已满足，数值与网页端一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "底稿目标129(当前129.5) 网页标题=[\"Target Aha SPD\",\"SPD target already reached\"] 值=-10;MCP={\"status\":\"alreadyMet\",\"requiredSpeed\":-10,\"targetAhaSpeed\":129,\"nextTeammatePosition\":3}",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.aha.form",
+      "case": 2,
+      "desc": "写回四个队友速度和目标值后导出存档，网页端载入后面板里显示的就是这组数值",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "MCP calc_aha(save=true) 后 export_save → 网页载入:面板输入=[170,150,140,130,140] vs 写回底稿=[170,150,140,130,140]",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.aha.form",
+      "case": 1,
+      "desc": "载入网页端导出的存档后，按存档取值计算得到的阿哈速度与网页端打开该面板时显示的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "存档底稿(165/145) 网页面板显示=127.5 vs MCP calc_aha(fromSaved)=127.5;面板输入=[165,145,\"\",\"\",130]",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.ehr.probability",
+      "case": 1,
+      "desc": "效果命中 50、基础概率 100、效果抵抗 40、减益抵抗 0、施加 1 次时返回 90，与网页端公式一行的结果一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页公式行=\"(100.00100)Base chance×(1+50.00100)EHR multi×(1−40.00100)Eff RES multi×(1−0.00100)Debuff RES multi= | 90.00%chancePer attempt\" vs MCP calc_ehr(probability)=perAttempt 89.99999999999999%/累计 89.99999999999999%",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.ehr.probability",
+      "case": 3,
+      "desc": "计算结果超过 100 时返回 100",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "效果命中 250% 后网页显示=\"(100.00100)Base chance×(1+250.00100)EHR multi×(1−40.00100)Ef\";MCP perAttempt原始=2.100(>1) 显示钳制=100",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.ehr.probability",
+      "case": 2,
+      "desc": "施加次数改为 3 时同时返回单次概率和三次内至少成功一次的概率，与网页端两个数值一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页=\"(100.00100)Base chance×(1+50.00100)EHR multi×(1−40.00100)Eff RES multi×(1−0.00100)Debuff RES multi= | 90.00%chancePer attempt=99.90%chanceOver 3 attempts\" (90/99.9);MCP=单次89.99999999999999%/累计99.9%",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.ehr.grid",
+      "case": 1,
+      "desc": "默认输入、范围 50 时返回 21 行乘 9 列，行从 100 降到 0，各格数值与网页端表格逐格一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页 21 行(100→0) × 9 列 vs MCP 21 行(100→0);逐格比对全部一致",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.ehr.grid",
+      "case": 2,
+      "desc": "效果命中 52 时中心行是 50，效果抵抗 40 所在列被标为当前列",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "EHR 52 后网页当前行=50(带EHR标线),当前列下标=4(第5列=40%);MCP mode=grid centerEhr=50 nearestRes=40",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.ehr.grid",
+      "case": 3,
+      "desc": "范围改为 10 时只返回中心行上下各两档",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页范围10后 5 行(60,55,50,45,40);MCP windowHalf=10 → 5 行(60→40);交互=clicked/picked",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.ehr.solve",
+      "case": 1,
+      "desc": "效果抵抗 20、基础概率 100、施加 1 次、目标 100 时返回 25，与网页端求解器一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页求解器=\"25.00%\"(下拉切到20%:picked);MCP calc_ehr=25",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.ehr.solve",
+      "case": 2,
+      "desc": "施加次数 2.4 与 2 的结果相同",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页 attempts=2.4→25% vs =2→25%;MCP 2.4→25(attemptsUsed=2) vs 2→25",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    },
+    {
+      "feature": "calculators.ehr.solve",
+      "case": 3,
+      "desc": "减益抵抗 100 时返回不可达和原因，而不是 0",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页减益抵抗100%后求解器值=\"\"(空,非0);MCP achievable=false requiredEhr=null reasons=[\"敌方减益抵抗 = 100%\"]",
+      "script": "mcp/scripts/verify-calculators.mjs"
+    }
+  ]
+}

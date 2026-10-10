@@ -1,0 +1,61 @@
+{
+  "area": "shared",
+  "generatedAt": "2026-10-09T10:27:59.831Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "shared.select.character",
+      "case": 1,
+      "desc": "资源返回的角色集合与网页端弹窗不加筛选时的卡片集合一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页卡片 108 张 vs 资源 108 条;网页独有=0",
+      "script": "mcp/scripts/verify-site.mjs"
+    },
+    {
+      "feature": "shared.select.character",
+      "case": 2,
+      "desc": "按命途和属性筛选后的角色集合与网页端点对应筛选标签后一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "Fire+Destruction web [1310b1,1109,1310] vs 资源 [1109,1310,1310b1]",
+      "script": "mcp/scripts/verify-site.mjs"
+    },
+    {
+      "feature": "shared.select.character",
+      "case": 3,
+      "desc": "标为有模拟评分配置的角色集合与基准生成器弹窗里列出的角色一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "hasSimulation 集合 63 个;套装基准审计弹窗(withSimulation)卡片 63 张,一致=true;⚠清单口径:当前上游「基准生成器」(Benchmarks 页)的角色选择已不过滤 simulation,带该过滤的是套装基准审计弹窗(SetBenchmarkAuditor),见报告清单 bug",
+      "script": "mcp/scripts/verify-site.mjs"
+    },
+    {
+      "feature": "shared.select.lightCone",
+      "case": 1,
+      "desc": "资源返回的光锥集合与网页端弹窗不加筛选时的卡片集合一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "镜流(Destruction)命途过滤后网页 23 张 vs 资源同命途 23 把;集合一致=true",
+      "script": "mcp/scripts/verify-site.mjs"
+    },
+    {
+      "feature": "shared.select.lightCone",
+      "case": 2,
+      "desc": "按角色命途筛选后的光锥集合与网页端为该角色打开弹窗时默认显示的一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "弹窗默认即按已选角色命途过滤(optionGenerator.generateLightConeOptions(characterId));23 张",
+      "script": "mcp/scripts/verify-site.mjs"
+    },
+    {
+      "feature": "shared.select.lightCone",
+      "case": 3,
+      "desc": "返回的角色专属光锥与网页端弹窗里排在最前的那一把一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "网页弹窗首卡=23014;资源 signatureLightCone(1212b1)=23014",
+      "script": "mcp/scripts/verify-site.mjs"
+    }
+  ]
+}

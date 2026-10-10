@@ -1,0 +1,178 @@
+{
+  "area": "import",
+  "generatedAt": "2026-10-09T14:36:31.154Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "import.save.load",
+      "case": 1,
+      "desc": "同一存档经网页「载入数据」与 load_save 载入后,SaveState.s",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "both sides: 161 relics, relic[3] unequipped, seenFeatures kept",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.save.load",
+      "case": 2,
+      "desc": "带自定义 websocketUrl 的存档按手动载入语义载入后,websocke",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web=ws://127.0.0.1:23313/ws mcp=ws://127.0.0.1:23313/ws get_state.customUrl=false",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.save.load",
+      "case": 3,
+      "desc": "扫描器文件与缺少 relics/characters 的文件被拒绝,当前数据不变",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web rejected=true, save unchanged 162/8; mcp errors present=true",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.save.export",
+      "case": 1,
+      "desc": "export_save 写出的文件与网页「保存数据」下载的文件内容逐键一致,可被",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web SaveState.save() ≡ export_save file (162 relics, relic[1] +12); reloaded: mcp=162, web=162",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.save.clear",
+      "case": 1,
+      "desc": "reset_all(persist=true) 之后磁盘存档的 relics、c",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web: relics=0 chars=0 seen=feature.verify.keep; mcp disk: relics=0 chars=0 seen=feature.verify.keep",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.scanner.parseFile",
+      "case": 1,
+      "desc": "同一文件在网页确认页显示的遗器数、角色数与 import_scanner_jso",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "kelz true web 1/2 vs mcp 1/2; hoyolab true web 2/1 vs mcp 2/1; unknown true — web errText: Fribbels Star Rail Optimizer TOOLS Showcase Leaderboards NEW Benchmarks Calculat; mcp err: 无法识别的扫描器 JSON:sour",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.scanner.mergeRelicsOnly",
+      "case": 1,
+      "desc": "includeCharacters=false、merge=replace 导入",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "both: 3 relics / 8 chars; mcp replace charactersTouched=0; union keeps 162→163",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.scanner.mergeCharacters",
+      "case": 1,
+      "desc": "merge=replace 导入后的存档与网页点「导入角色与遗器」之后的存档一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "both: 3 relics / 9 chars; 1107 level 80 web=80 mcp=80; mcp charactersTouched=2",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.scanner.mergeCharacters",
+      "case": 2,
+      "desc": "existingCharactersOnly=true 与勾选「只导入已有角色」",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "both: 8 chars, 1107 absent, 3 relics",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.scanner.mergeRelicsOnly",
+      "case": "extra-1 (reliquary verified 分支专测)",
+      "desc": "verified 导入件同 hash 覆盖副词条/置真/id 改链(含已存配装引",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web: id=verify-777 verified=true spd=4.6 equippedBy=1205 slot=verify-777 build=verify-777 oldGone=true; mcp: id=verify-777 verified=true spd=4.6 equippedBy=1205 slot=verify-777 build=verify-777 oldGon",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.live.settings",
+      "case": 1,
+      "desc": "逐项修改后导出的存档 scannerSettings(含 customUrl)与",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web {\"ingest\":true,\"ingestCharacters\":true,\"ingestOnlyExistingCharacters\":true,\"ingestWarpResources\":true,\"websocketUrl\":\"ws://127.0.0.1:55331/ws\",\"customUrl\":true} ≡ mcp {\"ingest\":true,\"ingestCharact",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.live.settings",
+      "case": 2,
+      "desc": "已连接状态下打开 ingestCharacters 会触发一次按角色的重新导入,",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "both: scan(ingestCharacters off) relics-only 162→163 chars 8→8; flip on → chars 9, relics 163",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.live.connection",
+      "case": 1,
+      "desc": "对本地假扫描器服务:connect 后 status 报告已连接,服务端断开后报",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web connect/drop/reconnect=true/true/true; mcp connected=true, auto-reconnect=true",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.live.connection",
+      "case": 2,
+      "desc": "目标地址不可达时返回明确的连接失败原因,而不是空成功",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "mcp error: 连接扫描器失败:ws://127.0.0.1:51143/ws — connect ECONNREFUSED 127.0.0.1:51143。请确认扫描器(Re; web status after 4s: disconnected",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.live.events",
+      "case": 1,
+      "desc": "向 MCP 与网页回放同一段事件序列(InitialScan、UpdateRel",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "both: 164 relics, 8 chars after the 9-kind sequence",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.live.events",
+      "case": 2,
+      "desc": "四种开关组合(ingest × ingestCharacters × inges",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "wearers web={940:-,941:1305,942:1005,943:-} ≡ mcp={940:-,941:1305,942:1005,943:-}",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.live.events",
+      "case": 3,
+      "desc": "非 5★ 遗器的更新与删除事件不改动库存",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "post-flip 4★ update never lands: web=true mcp=true; its delete frame keeps counts: web 168→168 (true), mcp 168→168 (true)",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.live.rerollPreview",
+      "case": 1,
+      "desc": "对带 reroll_substats 的遗器事件,返回原/重掷两组副词条及各自的",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web modalOk=true (Rerol=true, Original=true), webShowsSpd=true; mcpOk=true (orig SPD4=true, reroll SPD6.4=true, score=77.6/77.6, scoredByOwner=true)",
+      "script": "mcp/scripts/verify-import.mjs"
+    },
+    {
+      "feature": "import.help.read",
+      "case": 1,
+      "desc": "site://help/{topic} 五个主题列出各来源的名称、要点与链接,与",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "page links ⊇ {reliquary, kelz, hoyolab-discussions, live-import.md} (4/4); resource topics=5/5 urls+internalHash verified=true",
+      "script": "mcp/scripts/verify-import.mjs"
+    }
+  ]
+}

@@ -5,25 +5,66 @@
     {
       "id": "benchmarks.configure.character",
       "title": "选择基准角色与光锥",
-      "surface": { "page": "BENCHMARKS", "overlay": "角色选择弹窗、光锥选择弹窗", "entry": "输入区中间一栏的角色、星魂、光锥与叠影" },
+      "surface": {
+        "page": "BENCHMARKS",
+        "overlay": "角色选择弹窗、光锥选择弹窗",
+        "entry": "输入区中间一栏的角色、星魂、光锥与叠影"
+      },
       "kind": "view",
       "action": "选定要生成基准的角色、星魂、光锥和叠影。换角色时自动带出一整套默认设置：角色在角色列表里就取它的星魂、光锥和叠影，不在就清空光锥让用户自己选；基准套装、副 C 开关和三名队友取该角色评分配置的推荐值，套装条件按队伍套用预设。",
       "upstream": [
-        { "file": "src/lib/tabs/tabBenchmarks/BenchmarksTab.tsx", "symbol": "MiddlePanel" },
-        { "file": "src/lib/tabs/tabBenchmarks/CharacterEidolonFormRadio.tsx", "symbol": "CharacterEidolonFormRadio" },
-        { "file": "src/lib/tabs/tabBenchmarks/LightConeSuperimpositionFormRadio.tsx", "symbol": "LightConeSuperimpositionFormRadio" },
-        { "file": "src/lib/tabs/tabBenchmarks/benchmarksTabController.ts", "symbol": "handleCharacterSelectChange" }
+        {
+          "file": "src/lib/tabs/tabBenchmarks/BenchmarksTab.tsx",
+          "symbol": "MiddlePanel"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/CharacterEidolonFormRadio.tsx",
+          "symbol": "CharacterEidolonFormRadio"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/LightConeSuperimpositionFormRadio.tsx",
+          "symbol": "LightConeSuperimpositionFormRadio"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/benchmarksTabController.ts",
+          "symbol": "handleCharacterSelectChange"
+        }
       ],
       "params": [
-        { "name": "characterId", "type": "CharacterId", "default": "页面内置的示例角色", "notes": "必须是有模拟评分配置的角色" },
-        { "name": "characterEidolon", "type": "0..6", "default": "0" },
-        { "name": "lightCone", "type": "LightConeId", "default": "页面内置的示例光锥" },
-        { "name": "lightConeSuperimposition", "type": "1..5", "default": "1" }
+        {
+          "name": "characterId",
+          "type": "CharacterId",
+          "default": "页面内置的示例角色",
+          "notes": "必须是有模拟评分配置的角色"
+        },
+        {
+          "name": "characterEidolon",
+          "type": "0..6",
+          "default": "0"
+        },
+        {
+          "name": "lightCone",
+          "type": "LightConeId",
+          "default": "页面内置的示例光锥"
+        },
+        {
+          "name": "lightConeSuperimposition",
+          "type": "1..5",
+          "default": "1"
+        }
       ],
       "conditions": "选了没有模拟评分配置的角色会提示不支持。这一页的输入都不落盘，刷新页面后回到内置示例。",
       "runtime": "node",
-      "state": { "owner": "BenchmarksTab 里的表单", "lifecycle": "session" },
-      "mcp": { "status": "implemented", "tools": ["benchmark_runs"] },
+      "state": {
+        "owner": "BenchmarksTab 里的表单",
+        "lifecycle": "session"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "benchmark_runs"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -32,33 +73,85 @@
           "对不在存档里的角色显式给出光锥后可以生成基准，结果与网页端一致",
           "对没有模拟评分配置的角色报错，原因与网页端的提示对应"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.configure.character cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "benchmarks.configure.teammates",
       "title": "配置基准队友",
-      "surface": { "page": "BENCHMARKS", "overlay": "角色编辑弹窗", "entry": "输入区中间一栏底部的三张队友卡" },
+      "surface": {
+        "page": "BENCHMARKS",
+        "overlay": "角色编辑弹窗",
+        "entry": "输入区中间一栏底部的三张队友卡"
+      },
       "kind": "view",
       "action": "点队友卡打开弹窗，为该位置选角色、星魂、光锥、叠影，以及它提供全队效果的遗器套装和饰品套装。默认队友来自基准角色的评分配置。队友变化后按新队伍重新套用套装条件的预设。",
       "upstream": [
-        { "file": "src/lib/tabs/tabBenchmarks/TeammateCards.tsx", "symbol": "Teammate" },
-        { "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts", "symbol": "setSelectedTeammateIndex" },
-        { "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts", "symbol": "onCharacterModalOk" },
-        { "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts", "symbol": "updateTeammate" },
-        { "file": "src/lib/tabs/tabBenchmarks/benchmarksTabController.ts", "symbol": "applyTeamAwareSetConditionalPresetsToBenchmarkFormInstance" }
+        {
+          "file": "src/lib/tabs/tabBenchmarks/TeammateCards.tsx",
+          "symbol": "Teammate"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts",
+          "symbol": "setSelectedTeammateIndex"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts",
+          "symbol": "onCharacterModalOk"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts",
+          "symbol": "updateTeammate"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/benchmarksTabController.ts",
+          "symbol": "applyTeamAwareSetConditionalPresetsToBenchmarkFormInstance"
+        }
       ],
       "params": [
-        { "name": "teammate0..2.characterId", "type": "CharacterId", "default": "评分配置的推荐队友" },
-        { "name": "teammate0..2.characterEidolon", "type": "0..6", "default": "推荐值" },
-        { "name": "teammate0..2.lightCone", "type": "LightConeId", "default": "推荐值" },
-        { "name": "teammate0..2.lightConeSuperimposition", "type": "1..5", "default": "推荐值" },
-        { "name": "teammate0..2.teamRelicSet / teamOrnamentSet", "type": "套装名 | 空", "default": "空" }
+        {
+          "name": "teammate0..2.characterId",
+          "type": "CharacterId",
+          "default": "评分配置的推荐队友"
+        },
+        {
+          "name": "teammate0..2.characterEidolon",
+          "type": "0..6",
+          "default": "推荐值"
+        },
+        {
+          "name": "teammate0..2.lightCone",
+          "type": "LightConeId",
+          "default": "推荐值"
+        },
+        {
+          "name": "teammate0..2.lightConeSuperimposition",
+          "type": "1..5",
+          "default": "推荐值"
+        },
+        {
+          "name": "teammate0..2.teamRelicSet / teamOrnamentSet",
+          "type": "套装名 | 空",
+          "default": "空"
+        }
       ],
       "conditions": "弹窗里没选角色或没选光锥时不接受。三名队友都要填齐才能生成。",
       "runtime": "node",
-      "state": { "owner": "useBenchmarksTabStore.teammate0..2", "lifecycle": "session" },
-      "mcp": { "status": "implemented", "tools": ["benchmark_runs"] },
+      "state": {
+        "owner": "useBenchmarksTabStore.teammate0..2",
+        "lifecycle": "session"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "benchmark_runs"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -66,30 +159,62 @@
           "不传 teammates 时使用的队友与网页端选中该角色后三张卡片显示的一致",
           "替换一名队友并给它指定队伍套装后，基准 COMBO 与网页端做同样设置后的结果一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.configure.teammates cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "benchmarks.configure.settings",
       "title": "设置速度基准、充能绳与副 C",
-      "surface": { "page": "BENCHMARKS", "entry": "输入区右侧「设置」一栏" },
+      "surface": {
+        "page": "BENCHMARKS",
+        "entry": "输入区右侧「设置」一栏"
+      },
       "kind": "view",
       "action": "设定基准配装要达到的面板速度（下拉里有常用档位，也可以手填），是否强制使用能量恢复连结绳，是否按副 C 计算。",
       "upstream": [
-        { "file": "src/lib/tabs/tabBenchmarks/BenchmarksTab.tsx", "symbol": "SpdBenchmarkSetting" },
-        { "file": "src/lib/tabs/tabBenchmarks/BenchmarkSettings.tsx", "symbol": "BenchmarkSetting" }
+        {
+          "file": "src/lib/tabs/tabBenchmarks/BenchmarksTab.tsx",
+          "symbol": "SpdBenchmarkSetting"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/BenchmarkSettings.tsx",
+          "symbol": "BenchmarkSetting"
+        }
       ],
       "params": [
-        { "name": "basicSpd", "type": "number", "default": "空", "notes": "必填；0 表示不限速" },
-        { "name": "errRope", "type": "boolean", "default": "false" },
-        { "name": "subDps", "type": "boolean", "default": "角色评分配置的 deprioritizeBuffs" }
+        {
+          "name": "basicSpd",
+          "type": "number",
+          "default": "空",
+          "notes": "必填；0 表示不限速"
+        },
+        {
+          "name": "errRope",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "name": "subDps",
+          "type": "boolean",
+          "default": "角色评分配置的 deprioritizeBuffs"
+        }
       ],
       "conditions": "速度没填时点生成会提示先选速度。",
       "runtime": "node",
-      "state": { "owner": "BenchmarksTab 里的表单", "lifecycle": "session" },
+      "state": {
+        "owner": "BenchmarksTab 里的表单",
+        "lifecycle": "session"
+      },
       "mcp": {
-        "status": "implemented",
-        "tools": ["benchmark_runs"]
+        "status": "verified",
+        "tools": [
+          "benchmark_runs"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -98,30 +223,74 @@
           "速度阈值 133.334、开启充能绳时的基准 COMBO 与网页端同样设置下的结果一致",
           "副 C 开关缺省时取角色评分配置的默认值，与网页端选中角色后的开关状态一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.configure.settings cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "benchmarks.configure.sets",
       "title": "选择基准套装与套装条件",
-      "surface": { "page": "BENCHMARKS", "overlay": "套装条件抽屉", "entry": "输入区右侧「基准套装」一栏" },
+      "surface": {
+        "page": "BENCHMARKS",
+        "overlay": "套装条件抽屉",
+        "entry": "输入区右侧「基准套装」一栏"
+      },
       "kind": "view",
       "action": "选两个遗器套装位（相同即四件套）和一个饰品套装作为这次要比较的配装，并可打开抽屉逐个设定套装效果按什么状态计算。套装条件的初值按角色和队伍套用预设。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/statSimulation/SetsSection.tsx", "symbol": "SetsSection" },
-        { "file": "src/lib/tabs/tabBenchmarks/BenchmarksTab.tsx", "symbol": "BENCHMARKS_SETS_DRAWER" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/FormSetConditionals.tsx", "symbol": "BENCHMARKS_SETS_DRAWER" },
-        { "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts", "symbol": "setSetConditional" },
-        { "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts", "symbol": "setSetConditionals" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/statSimulation/SetsSection.tsx",
+          "symbol": "SetsSection"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/BenchmarksTab.tsx",
+          "symbol": "BENCHMARKS_SETS_DRAWER"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/FormSetConditionals.tsx",
+          "symbol": "BENCHMARKS_SETS_DRAWER"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts",
+          "symbol": "setSetConditional"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts",
+          "symbol": "setSetConditionals"
+        }
       ],
       "params": [
-        { "name": "simRelicSet1 / simRelicSet2", "type": "遗器套装名", "default": "角色评分配置的第一组推荐套装" },
-        { "name": "simOrnamentSet", "type": "饰品套装名", "default": "角色评分配置的第一个推荐饰品" },
-        { "name": "setConditionals.<套装>", "type": "boolean | number", "default": "按角色与队伍套用预设后的值" }
+        {
+          "name": "simRelicSet1 / simRelicSet2",
+          "type": "遗器套装名",
+          "default": "角色评分配置的第一组推荐套装"
+        },
+        {
+          "name": "simOrnamentSet",
+          "type": "饰品套装名",
+          "default": "角色评分配置的第一个推荐饰品"
+        },
+        {
+          "name": "setConditionals.<套装>",
+          "type": "boolean | number",
+          "default": "按角色与队伍套用预设后的值"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "BenchmarksTab 里的表单 + useBenchmarksTabStore.setConditionals", "lifecycle": "session" },
-      "mcp": { "status": "implemented", "tools": ["benchmark_runs"] },
+      "state": {
+        "owner": "BenchmarksTab 里的表单 + useBenchmarksTabStore.setConditionals",
+        "lifecycle": "session"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "benchmark_runs"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -129,28 +298,56 @@
           "不改套装条件时，基准 COMBO 与网页端选同一套装后的结果一致",
           "把某个套装条件改成非默认档位后，基准 COMBO 与网页端在抽屉里做同样改动后的结果一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.configure.sets cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "benchmarks.generate",
       "title": "生成基准并累积对比",
-      "surface": { "page": "BENCHMARKS", "entry": "输入区右下的「生成基准」按钮" },
+      "surface": {
+        "page": "BENCHMARKS",
+        "entry": "输入区右下的「生成基准」按钮"
+      },
       "kind": "compute",
       "action": "为当前设置求出理论配装：在给定套装下搜索主词条与副词条分配，得到 100% 基准配装和 200% 完美配装的 COMBO 伤害。每点一次，当前选的遗器套装和饰品套装就加入对比清单，并把清单里所有遗器套装与饰品套装的组合全部算一遍，放进同一张结果表里比较。算过的组合有缓存，不会重复计算。",
       "upstream": [
-        { "file": "src/lib/tabs/tabBenchmarks/BenchmarksTab.tsx", "symbol": "handleBenchmarkFormSubmit" },
-        { "file": "src/lib/tabs/tabBenchmarks/benchmarksTabController.ts", "symbol": "handleBenchmarkFormSubmit" },
-        { "file": "src/lib/simulations/orchestrator/runCustomBenchmarkOrchestrator.ts", "symbol": "runCustomBenchmarkOrchestrator" },
-        { "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts", "symbol": "setResults" },
-        { "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts", "symbol": "setLoading" }
+        {
+          "file": "src/lib/tabs/tabBenchmarks/BenchmarksTab.tsx",
+          "symbol": "handleBenchmarkFormSubmit"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/benchmarksTabController.ts",
+          "symbol": "handleBenchmarkFormSubmit"
+        },
+        {
+          "file": "src/lib/simulations/orchestrator/runCustomBenchmarkOrchestrator.ts",
+          "symbol": "runCustomBenchmarkOrchestrator"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts",
+          "symbol": "setResults"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts",
+          "symbol": "setLoading"
+        }
       ],
       "conditions": "角色、星魂、光锥、叠影或任一队友没填齐时提示缺少字段；角色没有模拟评分配置时提示不支持；速度没填时提示先选速度。",
       "runtime": "node",
-      "state": { "owner": "useBenchmarksTabStore.orchestrators / storedRelics / storedOrnaments", "lifecycle": "session" },
+      "state": {
+        "owner": "useBenchmarksTabStore.orchestrators / storedRelics / storedOrnaments",
+        "lifecycle": "session"
+      },
       "mcp": {
         "status": "implemented",
-        "tools": ["benchmark_runs"]
+        "tools": [
+          "benchmark_runs"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -160,23 +357,45 @@
           "一次给出两组遗器套装乘两个饰品套装的四个预设，各自的 COMBO 与网页端分两次生成后表里的四组结果一致",
           "带进度令牌时逐预设收到进度通知，取消后返回已完成的部分"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs"
+        ]
       }
     },
     {
       "id": "benchmarks.results.read",
       "title": "查看基准结果表",
-      "surface": { "page": "BENCHMARKS", "entry": "页面下方的结果区，分 100% 与 200% 两个页签" },
+      "surface": {
+        "page": "BENCHMARKS",
+        "entry": "页面下方的结果区，分 100% 与 200% 两个页签"
+      },
       "kind": "read",
       "action": "两个页签分别列出 100% 基准和 200% 完美两种口径下的全部候选配装，每行是一种套装加主词条的组合：COMBO 伤害、与最优行的差距百分比、四个部位的主词条和套装，按伤害从高到低排，每页 25 行。点一行展开看这套配装的面板属性、战斗属性、各副词条的词条数和各技能伤害。",
       "upstream": [
-        { "file": "src/lib/tabs/tabBenchmarks/BenchmarkResults.tsx", "symbol": "BenchmarkTable" },
-        { "file": "src/lib/tabs/tabBenchmarks/BenchmarkResults.tsx", "symbol": "BenchmarkResults" },
-        { "file": "src/lib/tabs/tabBenchmarks/BenchmarkResults.tsx", "symbol": "ExpandedRow" }
+        {
+          "file": "src/lib/tabs/tabBenchmarks/BenchmarkResults.tsx",
+          "symbol": "BenchmarkTable"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/BenchmarkResults.tsx",
+          "symbol": "BenchmarkResults"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/BenchmarkResults.tsx",
+          "symbol": "ExpandedRow"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "由 useBenchmarksTabStore.orchestrators 推导；展开与翻页状态只在组件里", "lifecycle": "derived" },
-      "mcp": { "status": "implemented", "tools": ["benchmark_runs"] },
+      "state": {
+        "owner": "由 useBenchmarksTabStore.orchestrators 推导；展开与翻页状态只在组件里",
+        "lifecycle": "derived"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "benchmark_runs"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -185,26 +404,51 @@
           "200% 页签的全部行同样一致",
           "任取一行，返回的面板属性、战斗属性、副词条词条数和各技能伤害与网页端展开该行后显示的一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.results.read cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "benchmarks.clear",
       "title": "清空基准结果",
-      "surface": { "page": "BENCHMARKS", "entry": "输入区右下的「清空」按钮" },
+      "surface": {
+        "page": "BENCHMARKS",
+        "entry": "输入区右下的「清空」按钮"
+      },
       "kind": "view",
       "action": "清掉结果表、累积的套装对比清单和计算缓存，下次生成从头开始。输入区的设置保持不变。",
       "upstream": [
-        { "file": "src/lib/tabs/tabBenchmarks/BenchmarksTab.tsx", "symbol": "handleResetBenchmarks" },
-        { "file": "src/lib/tabs/tabBenchmarks/benchmarksTabController.ts", "symbol": "handleResetBenchmarks" },
-        { "file": "src/lib/tabs/tabBenchmarks/benchmarksTabController.ts", "symbol": "clearBenchmarkCache" },
-        { "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts", "symbol": "resetCache" }
+        {
+          "file": "src/lib/tabs/tabBenchmarks/BenchmarksTab.tsx",
+          "symbol": "handleResetBenchmarks"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/benchmarksTabController.ts",
+          "symbol": "handleResetBenchmarks"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/benchmarksTabController.ts",
+          "symbol": "clearBenchmarkCache"
+        },
+        {
+          "file": "src/lib/tabs/tabBenchmarks/useBenchmarksTabStore.ts",
+          "symbol": "resetCache"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "useBenchmarksTabStore.orchestrators / storedRelics / storedOrnaments", "lifecycle": "session" },
+      "state": {
+        "owner": "useBenchmarksTabStore.orchestrators / storedRelics / storedOrnaments",
+        "lifecycle": "session"
+      },
       "mcp": {
-        "status": "implemented",
-        "tools": ["benchmark_runs"]
+        "status": "verified",
+        "tools": [
+          "benchmark_runs"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -212,7 +456,12 @@
         "cases": [
           "benchmark_runs 每次调用只计算本次给出的预设，结果里不含之前调用的预设，等同于网页端清空后重新生成"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.clear cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     }
   ]

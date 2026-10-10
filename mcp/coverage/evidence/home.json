@@ -1,0 +1,34 @@
+{
+  "area": "home",
+  "generatedAt": "2026-10-09T10:27:59.830Z",
+  "gitCommit": "8ac1d045",
+  "cases": [
+    {
+      "feature": "home.search.uid",
+      "case": 1,
+      "desc": "同一 UID 经首页搜索进入展示柜得到的角色列表与 fetch_showcase(uid) 返回的角色摘要一致;非 9 …",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "非9位:网页警告=true 未跳转=true,MCP 报错=无效的 UID:「12345」——需要 9 位数字(比网页端更严:网页端只校验长度,本工具仅接受 9 位数字);有效 UID(传输层 stub 同一份档案):网页展示柜 #showcase?id=100000001 含克拉拉=true,scorerId=100000001",
+      "script": "mcp/scripts/verify-site.mjs"
+    },
+    {
+      "feature": "home.search.uid",
+      "case": 1,
+      "desc": "同一份档案两侧转换链的角色摘要一致(网页展示柜渲染克拉拉 vs fetch_showcase 转换结果)",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "fetch_showcase(json) characterCount=1,characters=[{\"id\":\"1107\",\"name\":\"Clara\"}];网页侧渲染克拉拉=true",
+      "script": "mcp/scripts/verify-site.mjs"
+    },
+    {
+      "feature": "home.content.read",
+      "case": 1,
+      "desc": "site://home 返回的六张功能卡片标题与要点、四张社区卡片的标题和链接与首页当前语言下的内容一致",
+      "method": "browser-parity",
+      "result": "FAIL",
+      "detail": "可过半句:四张社区卡链接一致=true;不可过半句:网页实际渲染六卡(Showcase=Character Showcase/Optimizer=Optimization Engine/Warp=跃迁规划器/DamageCalculator=Damage Calculator/Benchmarks=Build Benchmarks/RarityAnalysis=Rarity Analysis),site://home 载荷含这些标题=false(载荷只有 11 条页面入口 字段完整+版本 v4.6.5/4.6v5) → 清单 bug,见报告",
+      "script": "mcp/scripts/verify-site.mjs"
+    }
+  ]
+}

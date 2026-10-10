@@ -5,28 +5,83 @@
     {
       "id": "optimizer.character.switch",
       "title": "切换优化器的当前角色",
-      "surface": { "page": "OPTIMIZER", "overlay": "角色选择弹窗", "entry": "表单左上的角色立绘或角色下拉框" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "角色选择弹窗",
+        "entry": "表单左上的角色立绘或角色下拉框"
+      },
       "kind": "view",
       "action": "从全部角色里选一个作为优化对象，不限于已在角色列表里的。切换时先把上一个角色的当前表单同步进角色列表，清空结果表格和已选行，再载入新角色保存过的表单（没有保存过就生成默认表单，条件默认值垫在已存值下面），把优先级改成该角色在列表里的实际位置，恢复它保存的自定义模拟，并重算排列数和「当前装备」基线行。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CharacterSelectorDisplay.tsx", "symbol": "switchToCharacter" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/OptimizerTabCharacterPanel.tsx", "symbol": "CharacterPreviewInternalImage" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "switchToCharacter" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "updateCharacter" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "setCharacter" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setCharacterId" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "loadForm" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setFocusCharacterId" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setCharacterSelectModalOpen" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CharacterSelectorDisplay.tsx",
+          "symbol": "switchToCharacter"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/OptimizerTabCharacterPanel.tsx",
+          "symbol": "CharacterPreviewInternalImage"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "switchToCharacter"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "updateCharacter"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "setCharacter"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setCharacterId"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "loadForm"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setFocusCharacterId"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setCharacterSelectModalOpen"
+        }
       ],
       "params": [
-        { "name": "characterId", "type": "CharacterId", "default": "上次会话选中的角色", "notes": "可选全部已上线角色；未上线角色会显示提示条" }
+        {
+          "name": "characterId",
+          "type": "CharacterId",
+          "default": "上次会话选中的角色",
+          "notes": "可选全部已上线角色；未上线角色会显示提示条"
+        }
       ],
       "conditions": "不在角色列表里的角色，优先级按设置 NewCharacterDefaultRank 取列表首位或末位；它要到点「开始」或「装备」时才真正加入角色列表。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerDisplayStore.focusCharacterId + useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "savedSession.global.optimizerCharacterId" },
-      "sideEffects": ["上一个角色的表单写回 characters[].form", "结果表格与已选行被清空", "SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["get_form", "default_form", "update_form", "update_state"], "resources": ["game://metadata/characters"] },
+      "state": {
+        "owner": "useOptimizerDisplayStore.focusCharacterId + useOptimizerRequestStore",
+        "lifecycle": "persisted",
+        "saveKey": "savedSession.global.optimizerCharacterId"
+      },
+      "sideEffects": [
+        "上一个角色的表单写回 characters[].form",
+        "结果表格与已选行被清空",
+        "SaveState.delayedSave()"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "get_form",
+          "default_form",
+          "update_form",
+          "update_state"
+        ],
+        "resources": [
+          "game://metadata/characters"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -35,28 +90,61 @@
           "对不在角色列表里的角色，default_form 的结果与网页端选中它时生成的默认表单一致",
           "把会话里的当前角色改成另一个后，网页端重新打开优化器页显示的就是那个角色"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-conditionals.mjs", "mcp/scripts/smoke-form.mjs", "mcp/scripts/smoke-state.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-query.mjs",
+          "mcp/scripts/smoke-conditionals.mjs",
+          "mcp/scripts/smoke-form.mjs",
+          "mcp/scripts/smoke-state.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.character.switch cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.read",
       "title": "读取角色的优化表单",
-      "surface": { "page": "OPTIMIZER", "entry": "选中角色后整张表单的显示" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "选中角色后整张表单的显示"
+      },
       "kind": "read",
       "action": "显示当前角色的全部优化参数：角色与光锥、优化目标、遗器与套装筛选、副词条权重、属性与伤害的上下限、角色/光锥/套装条件、三名队友、敌人配置、额外战斗增益、连招定义和自定义模拟。没有保存过的字段显示默认值。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "getForm" },
-        { "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts", "symbol": "computeLoadForm" },
-        { "file": "src/lib/stores/optimizerForm/optimizerFormDefaults.ts", "symbol": "createDefaultFormState" },
-        { "file": "src/lib/stores/optimizerForm/optimizerFormConversions.ts", "symbol": "displayToInternal" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "getForm"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts",
+          "symbol": "computeLoadForm"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/optimizerFormDefaults.ts",
+          "symbol": "createDefaultFormState"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/optimizerFormConversions.ts",
+          "symbol": "displayToInternal"
+        }
       ],
-      "defaultsFrom": { "file": "src/lib/stores/optimizerForm/optimizerFormDefaults.ts", "symbol": "createDefaultFormState" },
+      "defaultsFrom": {
+        "file": "src/lib/stores/optimizerForm/optimizerFormDefaults.ts",
+        "symbol": "createDefaultFormState"
+      },
       "conditions": "界面上百分比属性按百分数显示（如 50 表示 50%），内部表单用小数（0.5）。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore", "lifecycle": "derived" },
+      "state": {
+        "owner": "useOptimizerRequestStore",
+        "lifecycle": "derived"
+      },
       "mcp": {
-        "status": "implemented",
-        "tools": ["get_form", "default_form"]
+        "status": "verified",
+        "tools": [
+          "get_form",
+          "default_form"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -65,25 +153,60 @@
           "get_form 返回的内部表单经单位换算后，与网页端表单每个控件显示的值一致",
           "fieldSources 标为 saved 的字段都能在存档的 characters[].form 里找到同值，标为 default 的字段等于默认表单的值"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-query.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-query.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.read cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.persist",
       "title": "表单改动写回角色并落盘",
-      "surface": { "page": "OPTIMIZER", "entry": "没有单独的按钮，由若干操作顺带触发" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "没有单独的按钮，由若干操作顺带触发"
+      },
       "kind": "write",
       "action": "表单上的改动先只留在页面里，在这些时刻写进角色自己的表单并落盘：点「开始」、点「装备」、切换到别的角色、关闭连招抽屉或改了连招抽屉里的套装选择、保存/覆盖/删除自定义模拟，以及关闭或刷新页面之前。写入时与角色已有表单按字段合并；角色还不在列表里时顺带把它加进去。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/combo/comboDrawerUtils.ts", "symbol": "syncFormToCharacterStore" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/comboDrawerUtils.ts", "symbol": "persistFormToCharacterStore" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "syncFormToCharacterStore" },
-        { "file": "src/lib/services/persistenceService.ts", "symbol": "upsertCharacterFromForm" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/comboDrawerUtils.ts",
+          "symbol": "syncFormToCharacterStore"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/comboDrawerUtils.ts",
+          "symbol": "persistFormToCharacterStore"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "syncFormToCharacterStore"
+        },
+        {
+          "file": "src/lib/services/persistenceService.ts",
+          "symbol": "upsertCharacterFromForm"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "useCharacterStore.characters[].form", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "sideEffects": ["不在角色列表里的角色在「开始」或「装备」时被加入列表", "SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["equip_build", "save_build", "update_form"] },
+      "state": {
+        "owner": "useCharacterStore.characters[].form",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "sideEffects": [
+        "不在角色列表里的角色在「开始」或「装备」时被加入列表",
+        "SaveState.delayedSave()"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "equip_build",
+          "save_build",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -92,37 +215,96 @@
           "导出的存档里 characters[].form 与网页端做同样改动并点「开始」后的存档一致",
           "equip_build(fromCache) 之后角色表单等于那次运行合并 formOverrides 后的表单"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-optimizer-generation.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-equip.mjs",
+          "mcp/scripts/smoke-optimizer-generation.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.persist cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.character",
       "title": "设置星魂、光锥与叠影",
-      "surface": { "page": "OPTIMIZER", "overlay": "光锥选择弹窗", "entry": "「角色选项」区的星魂分段、光锥下拉与叠影分段；点光锥图片也可打开选择弹窗" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "光锥选择弹窗",
+        "entry": "「角色选项」区的星魂分段、光锥下拉与叠影分段；点光锥图片也可打开选择弹窗"
+      },
       "kind": "write",
       "action": "为当前角色设定星魂（0–6）、光锥和叠影（1–5）。这三项决定可用的条件开关和基础属性，开始优化前必须选好光锥。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CharacterSelectorDisplay.tsx", "symbol": "setEidolon" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CharacterSelectorDisplay.tsx", "symbol": "setLightCone" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CharacterSelectorDisplay.tsx", "symbol": "setLightConeSuperimposition" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/OptimizerTabCharacterPanel.tsx", "symbol": "OptimizerTabCharacterPanel" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setEidolon" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setLightCone" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setLightConeSuperimposition" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setLightConeSelectModalOpen" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CharacterSelectorDisplay.tsx",
+          "symbol": "setEidolon"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CharacterSelectorDisplay.tsx",
+          "symbol": "setLightCone"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CharacterSelectorDisplay.tsx",
+          "symbol": "setLightConeSuperimposition"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/OptimizerTabCharacterPanel.tsx",
+          "symbol": "OptimizerTabCharacterPanel"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setEidolon"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setLightCone"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setLightConeSuperimposition"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setLightConeSelectModalOpen"
+        }
       ],
       "params": [
-        { "name": "characterEidolon", "type": "0..6", "default": "0" },
-        { "name": "lightCone", "type": "LightConeId", "default": "无", "notes": "不选不能开始优化" },
-        { "name": "lightConeSuperimposition", "type": "1..5", "default": "1" }
+        {
+          "name": "characterEidolon",
+          "type": "0..6",
+          "default": "0"
+        },
+        {
+          "name": "lightCone",
+          "type": "LightConeId",
+          "default": "无",
+          "notes": "不选不能开始优化"
+        },
+        {
+          "name": "lightConeSuperimposition",
+          "type": "1..5",
+          "default": "1"
+        }
       ],
       "conditions": "光锥命途与角色不符时，开始优化会给出警告但不阻止。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
+      "state": {
+        "owner": "useOptimizerRequestStore",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
       "mcp": {
-        "status": "implemented",
-        "tools": ["upsert_character", "optimize", "get_form"],
-        "resources": ["game://metadata/lightcones", "game://metadata/lightcones/{id}"]
+        "status": "verified",
+        "tools": [
+          "upsert_character",
+          "optimize",
+          "get_form"
+        ],
+        "resources": [
+          "game://metadata/lightcones",
+          "game://metadata/lightcones/{id}"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -132,29 +314,72 @@
           "在 formOverrides 里临时换光锥跑出的结果，与网页端换成同一光锥后的结果一致",
           "光锥详情资源返回的基础属性和各叠影的属性加成，与网页端换成该光锥和叠影后基础面板的变化一致"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-conditionals.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-equip.mjs",
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-conditionals.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.character cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.target",
       "title": "设置优化目标与保留条数",
-      "surface": { "page": "OPTIMIZER", "entry": "「角色选项」区的「优化目标」两个下拉框" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "「角色选项」区的「优化目标」两个下拉框"
+      },
       "kind": "write",
       "action": "选择搜索按哪一项排序取最优（分组下拉：COMBO、各技能伤害、EHP、各项属性等），以及保留排名前多少条结果。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CharacterSelectorDisplay.tsx", "symbol": "handleResultSortSelectChange" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CharacterSelectorDisplay.tsx", "symbol": "setResultsLimit" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setResultSort" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setResultsLimit" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CharacterSelectorDisplay.tsx",
+          "symbol": "handleResultSortSelectChange"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CharacterSelectorDisplay.tsx",
+          "symbol": "setResultsLimit"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setResultSort"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setResultsLimit"
+        }
       ],
       "params": [
-        { "name": "resultSort", "type": "SortOption 的键", "default": "有模拟评分配置的角色为 COMBO，否则取角色元数据的 sortOption", "notes": "为空时不能开始优化" },
-        { "name": "resultsLimit", "type": "number", "default": "1024", "notes": "可选 64、128、…、65536（每档翻倍，共 11 档）" }
+        {
+          "name": "resultSort",
+          "type": "SortOption 的键",
+          "default": "有模拟评分配置的角色为 COMBO，否则取角色元数据的 sortOption",
+          "notes": "为空时不能开始优化"
+        },
+        {
+          "name": "resultsLimit",
+          "type": "number",
+          "default": "1024",
+          "notes": "可选 64、128、…、65536（每档翻倍，共 11 档）"
+        }
       ],
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "get_form", "update_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "get_form",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -162,35 +387,110 @@
           "同一表单下把 resultSort 分别设为 COMBO 与 SPD，返回的首行与网页端相同目标下的首行一致",
           "保留 4096 条时返回的行数与网页端相同设置下结果表格的总行数一致"
         ],
-        "tests": ["mcp/scripts/parity.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs", "mcp/scripts/smoke-analysis.mjs"]
+        "tests": [
+          "mcp/scripts/parity.mjs",
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-form.mjs",
+          "mcp/scripts/smoke-analysis.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.target cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.options",
       "title": "设置遗器筛选选项",
-      "surface": { "page": "OPTIMIZER", "entry": "「角色选项」区的「优化器选项」一栏" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "「角色选项」区的「优化器选项」一栏"
+      },
       "kind": "write",
       "action": "决定哪些遗器进入搜索：是否允许拿别的角色身上的遗器、是否避开优先级更高的角色身上的遗器、是否必须保留当前已装备的遗器、排除哪些角色身上的遗器、最低强化等级、最低星级，以及把主词条按至少多少级来计算。另有「主 C / 副 C」开关控制增益的优先顺序。除最后一项外，改动后立即重算排列数。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/OptimizerOptionsDisplay.tsx", "symbol": "setFilterAndRecalculate" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/OptimizerOptionsDisplay.tsx", "symbol": "setDeprioritizeBuffs" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setRelicFilterField" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setDeprioritizeBuffs" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/OptimizerOptionsDisplay.tsx",
+          "symbol": "setFilterAndRecalculate"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/OptimizerOptionsDisplay.tsx",
+          "symbol": "setDeprioritizeBuffs"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setRelicFilterField"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setDeprioritizeBuffs"
+        }
       ],
       "params": [
-        { "name": "includeEquippedRelics", "type": "boolean", "default": "true", "notes": "关闭后只用没人装备的遗器" },
-        { "name": "rankFilter", "type": "boolean", "default": "true", "notes": "开启时不拿优先级更高的角色身上的遗器" },
-        { "name": "keepCurrentRelics", "type": "boolean", "default": "false", "notes": "开启时当前已装备的部位固定不换，只填空位" },
-        { "name": "exclude", "type": "CharacterId[]", "default": "[]", "notes": "不拿这些角色身上的遗器" },
-        { "name": "enhance", "type": "0 | 3 | 6 | 9 | 12 | 15", "default": "9", "notes": "最低强化等级" },
-        { "name": "grade", "type": "2..5", "default": "5", "notes": "最低星级" },
-        { "name": "mainStatUpscaleLevel", "type": "0..15", "default": "15", "notes": "主词条按不低于该等级计算" },
-        { "name": "deprioritizeBuffs", "type": "boolean", "default": "false", "notes": "false 为主 C，true 为副 C" }
+        {
+          "name": "includeEquippedRelics",
+          "type": "boolean",
+          "default": "true",
+          "notes": "关闭后只用没人装备的遗器"
+        },
+        {
+          "name": "rankFilter",
+          "type": "boolean",
+          "default": "true",
+          "notes": "开启时不拿优先级更高的角色身上的遗器"
+        },
+        {
+          "name": "keepCurrentRelics",
+          "type": "boolean",
+          "default": "false",
+          "notes": "开启时当前已装备的部位固定不换，只填空位"
+        },
+        {
+          "name": "exclude",
+          "type": "CharacterId[]",
+          "default": "[]",
+          "notes": "不拿这些角色身上的遗器"
+        },
+        {
+          "name": "enhance",
+          "type": "0 | 3 | 6 | 9 | 12 | 15",
+          "default": "9",
+          "notes": "最低强化等级"
+        },
+        {
+          "name": "grade",
+          "type": "2..5",
+          "default": "5",
+          "notes": "最低星级"
+        },
+        {
+          "name": "mainStatUpscaleLevel",
+          "type": "0..15",
+          "default": "15",
+          "notes": "主词条按不低于该等级计算"
+        },
+        {
+          "name": "deprioritizeBuffs",
+          "type": "boolean",
+          "default": "false",
+          "notes": "false 为主 C，true 为副 C"
+        }
       ],
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "permutations", "get_form", "update_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "permutations",
+          "get_form",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -198,27 +498,54 @@
           "逐项改动这八个选项后，permutations 返回的各部位数量与网页端侧栏显示的一致",
           "关闭 includeEquippedRelics 时返回的每行配装都不含别人身上的遗器"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-query.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.options cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.priority",
       "title": "在优化器里调整角色优先级",
-      "surface": { "page": "OPTIMIZER", "entry": "「优化器选项」里的「优先级」下拉框（可搜索）" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "「优化器选项」里的「优先级」下拉框（可搜索）"
+      },
       "kind": "write",
       "action": "把当前角色移到角色列表的指定位置。位置越靠前优先级越高，开启优先级过滤时别的角色就不会拿它身上的遗器。选完立即改动角色列表的顺序。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/OptimizerOptionsDisplay.tsx", "symbol": "PriorityCombobox" },
-        { "file": "src/lib/stores/character/characterStore.ts", "symbol": "insertCharacter" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/OptimizerOptionsDisplay.tsx",
+          "symbol": "PriorityCombobox"
+        },
+        {
+          "file": "src/lib/stores/character/characterStore.ts",
+          "symbol": "insertCharacter"
+        }
       ],
       "params": [
-        { "name": "rank", "type": "number", "default": "角色在列表里的当前位置", "notes": "从 0 开始" }
+        {
+          "name": "rank",
+          "type": "number",
+          "default": "角色在列表里的当前位置",
+          "notes": "从 0 开始"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "useCharacterStore.characters 的顺序", "lifecycle": "persisted", "saveKey": "characters" },
+      "state": {
+        "owner": "useCharacterStore.characters 的顺序",
+        "lifecycle": "persisted",
+        "saveKey": "characters"
+      },
       "mcp": {
-        "status": "implemented",
-        "tools": ["set_character_rank"]
+        "status": "verified",
+        "tools": [
+          "set_character_rank"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -227,73 +554,207 @@
           "set_character_rank 之后 get_form 返回的 rank 等于新位置，网页端优先级下拉显示同一位置",
           "把角色移到首位后，开启优先级过滤的排列数与网页端做同样移动后的一致"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-equip.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.priority cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.mainStats",
       "title": "限定各部位主词条",
-      "surface": { "page": "OPTIMIZER", "entry": "「遗器与属性筛选」区的四个主词条多选框" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "「遗器与属性筛选」区的四个主词条多选框"
+      },
       "kind": "write",
       "action": "为躯干、脚部、位面球、连结绳分别勾选允许的主词条，留空表示不限。改动后立即重算排列数。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicMainSetFilters.tsx", "symbol": "handleMainStatChange" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setMainStats" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicMainSetFilters.tsx",
+          "symbol": "handleMainStatChange"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setMainStats"
+        }
       ],
       "params": [
-        { "name": "mainBody", "type": "MainStats[]", "default": "[]" },
-        { "name": "mainFeet", "type": "MainStats[]", "default": "[]" },
-        { "name": "mainPlanarSphere", "type": "MainStats[]", "default": "[]" },
-        { "name": "mainLinkRope", "type": "MainStats[]", "default": "[]" }
+        {
+          "name": "mainBody",
+          "type": "MainStats[]",
+          "default": "[]"
+        },
+        {
+          "name": "mainFeet",
+          "type": "MainStats[]",
+          "default": "[]"
+        },
+        {
+          "name": "mainPlanarSphere",
+          "type": "MainStats[]",
+          "default": "[]"
+        },
+        {
+          "name": "mainLinkRope",
+          "type": "MainStats[]",
+          "default": "[]"
+        }
       ],
       "conditions": "头部和手部主词条固定，界面不提供选择。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "permutations", "get_form", "update_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "permutations",
+          "get_form",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "躯干限定暴击率与暴击伤害、脚部限定速度时，各部位数量与网页端侧栏一致，返回行的主词条都在限定范围内"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.mainStats cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.setFilters",
       "title": "限定遗器套装与饰品套装",
-      "surface": { "page": "OPTIMIZER", "overlay": "套装筛选弹窗", "entry": "「遗器与属性筛选」区的遗器套装与饰品套装两个输入框" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "套装筛选弹窗",
+        "entry": "「遗器与属性筛选」区的遗器套装与饰品套装两个输入框"
+      },
       "kind": "write",
       "action": "在弹窗里组合三类条件：四件套（多选，满足任意一个即可）、二件套组合（每条两个槽位，每个槽位可以是某个套装、某类属性标签或任意）、位面饰品（多选）。弹窗内可搜索套装名、在四件与二件模式间切换、撤销本次改动、清空全部；表单上的药丸也能逐条删除。改动后立即重算排列数。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicMainSetFilters.tsx", "symbol": "RelicSetFilterRow" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicMainSetFilters.tsx", "symbol": "OrnamentSetFilterRow" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/RelicSetFilterModal.tsx", "symbol": "RelicSetFilterModal" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/RelicSetFilterModalContent.tsx", "symbol": "RelicSetFilterModalContent" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/ResultsCollector.tsx", "symbol": "ResultsCollector" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetFilterBadges.tsx", "symbol": "IconBadge" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetFilterBadges.tsx", "symbol": "FourPieceBadges" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetFilterBadges.tsx", "symbol": "TwoPieceComboBadges" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetFilterBadges.tsx", "symbol": "PendingSlotBadge" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetFilterBadges.tsx", "symbol": "OrnamentBadges" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetFilterSummary.tsx", "symbol": "SetFilterSummary" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetGrid.tsx", "symbol": "SetGrid" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetRow.tsx", "symbol": "SetRow" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/StatChips.tsx", "symbol": "StatChips" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setSetFilters" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "removeFourPieceFilter" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "removeTwoPieceComboFilter" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "removeOrnamentFilter" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicMainSetFilters.tsx",
+          "symbol": "RelicSetFilterRow"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicMainSetFilters.tsx",
+          "symbol": "OrnamentSetFilterRow"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/RelicSetFilterModal.tsx",
+          "symbol": "RelicSetFilterModal"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/RelicSetFilterModalContent.tsx",
+          "symbol": "RelicSetFilterModalContent"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/ResultsCollector.tsx",
+          "symbol": "ResultsCollector"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetFilterBadges.tsx",
+          "symbol": "IconBadge"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetFilterBadges.tsx",
+          "symbol": "FourPieceBadges"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetFilterBadges.tsx",
+          "symbol": "TwoPieceComboBadges"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetFilterBadges.tsx",
+          "symbol": "PendingSlotBadge"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetFilterBadges.tsx",
+          "symbol": "OrnamentBadges"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetFilterSummary.tsx",
+          "symbol": "SetFilterSummary"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetGrid.tsx",
+          "symbol": "SetGrid"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/SetRow.tsx",
+          "symbol": "SetRow"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicSetFilterModal/StatChips.tsx",
+          "symbol": "StatChips"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setSetFilters"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "removeFourPieceFilter"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "removeTwoPieceComboFilter"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "removeOrnamentFilter"
+        }
       ],
       "params": [
-        { "name": "setFilters.fourPiece", "type": "SetsRelics[]", "default": "[]" },
-        { "name": "setFilters.twoPieceCombos", "type": "{ a, b }[]", "default": "[]", "notes": "槽位类型为 Set（指定套装）、Stat（属性标签）或 Any（任意）" },
-        { "name": "setFilters.ornaments", "type": "SetsOrnaments[]", "default": "[]" }
+        {
+          "name": "setFilters.fourPiece",
+          "type": "SetsRelics[]",
+          "default": "[]"
+        },
+        {
+          "name": "setFilters.twoPieceCombos",
+          "type": "{ a, b }[]",
+          "default": "[]",
+          "notes": "槽位类型为 Set（指定套装）、Stat（属性标签）或 Any（任意）"
+        },
+        {
+          "name": "setFilters.ornaments",
+          "type": "SetsOrnaments[]",
+          "default": "[]"
+        }
       ],
       "conditions": "三类都留空表示不限套装。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore.setFilters", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "permutations", "get_form", "update_form"], "resources": ["game://metadata/sets"] },
+      "state": {
+        "owner": "useOptimizerRequestStore.setFilters",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "permutations",
+          "get_form",
+          "update_form"
+        ],
+        "resources": [
+          "game://metadata/sets"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -302,28 +763,68 @@
           "二件组合的槽位用属性标签时，结果与网页端选同一标签时一致",
           "内部格式的 relicSets / ornamentSets 与显示格式的 setFilters 表达同一条件时结果相同"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-conditionals.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-conditionals.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.setFilters cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.weights",
       "title": "设置副词条权重与最低加权词条数",
-      "surface": { "page": "OPTIMIZER", "entry": "「遗器与属性筛选」区的副词条权重滑块" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "「遗器与属性筛选」区的副词条权重滑块"
+      },
       "kind": "write",
       "action": "给每种副词条一个 0 到 1 的权重（步长 0.25），再设定每件遗器至少要有多少加权词条数才进入搜索（步长 0.5）。权重同时决定结果里 WEIGHT 列的数值。改动最低词条数后立即重算排列数。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/FormStatRollSlider.tsx", "symbol": "WeightSlider" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/FormStatRollSlider.tsx", "symbol": "MinWeightedRollsSlider" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setWeight" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/FormStatRollSlider.tsx",
+          "symbol": "WeightSlider"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/FormStatRollSlider.tsx",
+          "symbol": "MinWeightedRollsSlider"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setWeight"
+        }
       ],
       "params": [
-        { "name": "weights.<副词条>", "type": "0 | 0.25 | 0.5 | 0.75 | 1", "default": "角色默认表单给出的推荐权重" },
-        { "name": "weights.minWeightedRolls", "type": "number", "default": "0", "notes": "步长 0.5" }
+        {
+          "name": "weights.<副词条>",
+          "type": "0 | 0.25 | 0.5 | 0.75 | 1",
+          "default": "角色默认表单给出的推荐权重"
+        },
+        {
+          "name": "weights.minWeightedRolls",
+          "type": "number",
+          "default": "0",
+          "notes": "步长 0.5"
+        }
       ],
       "conditions": "所有副词条权重都为 0 时不能开始优化。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore.weights", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "permutations", "get_form", "update_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore.weights",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "permutations",
+          "get_form",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -331,28 +832,68 @@
           "改动权重后返回行的 WEIGHT 列与网页端同设置下一致",
           "把最低加权词条数调到 3 时，各部位数量与网页端侧栏一致"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.weights cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.resultFilters",
       "title": "设置属性与伤害的上下限",
-      "surface": { "page": "OPTIMIZER", "entry": "「遗器与属性筛选」区的最小值/最大值输入框" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "「遗器与属性筛选」区的最小值/最大值输入框"
+      },
       "kind": "write",
       "action": "给结果设门槛：十项属性（生命、攻击、防御、速度、暴击率、暴击伤害、效果命中、效果抵抗、击破特攻、能量恢复）和 EHP、各技能伤害（普攻、战技、终结技、追击、忆灵战技、忆灵天赋、持续伤害、击破）各有最小值和最大值，留空表示不限。不满足的配装不会进入结果。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/layout/FilterRow.tsx", "symbol": "FilterRow" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setStatFilter" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setRatingFilter" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/layout/FilterRow.tsx",
+          "symbol": "FilterRow"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setStatFilter"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setRatingFilter"
+        }
       ],
       "params": [
-        { "name": "statFilters.min*/max*", "type": "number | 空", "default": "空", "notes": "Hp、Atk、Def、Spd、Cr、Cd、Ehr、Res、Be、Err；百分比项按百分数填写" },
-        { "name": "ratingFilters.min*/max*", "type": "number | 空", "default": "空", "notes": "Ehp、Basic、Skill、Ult、Fua、MemoSkill、MemoTalent、Dot、Break" }
+        {
+          "name": "statFilters.min*/max*",
+          "type": "number | 空",
+          "default": "空",
+          "notes": "Hp、Atk、Def、Spd、Cr、Cd、Ehr、Res、Be、Err；百分比项按百分数填写"
+        },
+        {
+          "name": "ratingFilters.min*/max*",
+          "type": "number | 空",
+          "default": "空",
+          "notes": "Ehp、Basic、Skill、Ult、Fua、MemoSkill、MemoTalent、Dot、Break"
+        }
       ],
       "conditions": "属性门槛比较的是面板属性还是战斗属性，取决于当前的属性视图（见 optimizer.grid.display）。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore.statFilters / ratingFilters", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "get_form", "update_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore.statFilters / ratingFilters",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "implemented",
+        "tools": [
+          "optimize",
+          "get_form",
+          "update_form"
+        ],
+        "gaps": "2026-10-10 复核:formOverrides.statFilters 的属性族口径与网页分歧——minSpd=134/minCr=40 时网页(基础属性视角,存档默认 statDisplay)产出 0 行,MCP 返回 32 行(战斗属性口径);需对照上游 optimizerWorker 的 statDisplay 绑定后修正再验收。子案例 #2/#3(格式等价/置空清除)已过,仅 #1 的族口径存疑"
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -361,36 +902,98 @@
           "显示格式（百分数）与内部格式（小数）表达同一门槛时结果相同",
           "把某项门槛显式置空后，该门槛不再生效"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/parity.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/parity.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ]
       }
     },
     {
       "id": "optimizer.form.conditionals",
       "title": "设置角色与光锥的条件开关",
-      "surface": { "page": "OPTIMIZER", "entry": "「角色选项」区的角色被动与光锥效果面板，以及每张队友卡上的条件" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "「角色选项」区的角色被动与光锥效果面板，以及每张队友卡上的条件"
+      },
       "kind": "write",
       "action": "逐项设定角色技能、行迹、星魂和光锥效果里那些视情况生效的部分：开关型勾选是否生效，数值型用滑块或下拉选层数与档位。主角色和三名队友各有一套，队友看到的是该角色作为队友时提供的效果。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/conditionals/FormSwitch.tsx", "symbol": "FormSwitch" },
-        { "file": "src/lib/tabs/tabOptimizer/conditionals/FormSlider.tsx", "symbol": "FormSlider" },
-        { "file": "src/lib/tabs/tabOptimizer/conditionals/FormSelect.tsx", "symbol": "FormSelect" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "handleConditionalChange" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setMainCharacterConditional" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setTeammateConditional" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setCharacterConditionals" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setLightConeConditionals" },
-        { "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts", "symbol": "computeSetMainCharacterConditional" },
-        { "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts", "symbol": "computeSetTeammateConditional" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/conditionals/FormSwitch.tsx",
+          "symbol": "FormSwitch"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/conditionals/FormSlider.tsx",
+          "symbol": "FormSlider"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/conditionals/FormSelect.tsx",
+          "symbol": "FormSelect"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "handleConditionalChange"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setMainCharacterConditional"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setTeammateConditional"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setCharacterConditionals"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setLightConeConditionals"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts",
+          "symbol": "computeSetMainCharacterConditional"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts",
+          "symbol": "computeSetTeammateConditional"
+        }
       ],
       "params": [
-        { "name": "characterConditionals", "type": "Record<条件键, boolean | number>", "default": "角色条件控制器的默认值" },
-        { "name": "lightConeConditionals", "type": "Record<条件键, boolean | number>", "default": "光锥条件控制器的默认值" },
-        { "name": "teammates[i].characterConditionals / lightConeConditionals", "type": "同上", "default": "队友视角的默认值" }
+        {
+          "name": "characterConditionals",
+          "type": "Record<条件键, boolean | number>",
+          "default": "角色条件控制器的默认值"
+        },
+        {
+          "name": "lightConeConditionals",
+          "type": "Record<条件键, boolean | number>",
+          "default": "光锥条件控制器的默认值"
+        },
+        {
+          "name": "teammates[i].characterConditionals / lightConeConditionals",
+          "type": "同上",
+          "default": "队友视角的默认值"
+        }
       ],
       "conditions": "有哪些条件、取值范围、默认值以及星魂和叠影门槛都由角色与光锥决定；未解锁的条件显示为禁用。网页端改角色/光锥（含队友）条件时只联动补丁连招的默认首分段（patchComboConditionalDefault），不覆盖逐回合的自定义值；MCP 侧要复刻这一联动而不能整段重写连招。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["describe_conditionals", "optimize", "simulate_build", "get_form", "update_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "describe_conditionals",
+          "optimize",
+          "simulate_build",
+          "get_form",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -398,31 +1001,81 @@
           "describe_conditionals 列出的条件键、类型、默认值和门槛与网页端条件面板逐项一致，主角色视角和队友视角各自正确",
           "改动一个开关型和一个数值型条件后，simulate_build 的 COMBO 与网页端做同样改动后选中当前装备行的数值一致"
         ],
-        "tests": ["mcp/scripts/smoke-conditionals.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-conditionals.mjs",
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-simulation.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.conditionals cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.setConditionals",
       "title": "设置套装效果的条件",
-      "surface": { "page": "OPTIMIZER", "overlay": "套装条件抽屉", "entry": "「遗器与属性筛选」区的「套装条件」按钮；自定义模拟面板底部的「条件」按钮打开同一个抽屉" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "套装条件抽屉",
+        "entry": "「遗器与属性筛选」区的「套装条件」按钮；自定义模拟面板底部的「条件」按钮打开同一个抽屉"
+      },
       "kind": "write",
       "action": "逐个套装设定它的效果按什么状态计算：有的是开关（是否触发），有的是下拉（层数或档位）。抽屉里列出全部遗器套装和饰品套装。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/FormSetConditionals.tsx", "symbol": "FormSetConditionals" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/FormSetConditionals.tsx", "symbol": "ConditionalSetOption" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicMainSetFilters.tsx", "symbol": "OPTIMIZER_SETS_DRAWER" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/StatSimulationDisplay.tsx", "symbol": "OPTIMIZER_SETS_DRAWER" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setSetConditional" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setSetConditionals" },
-        { "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts", "symbol": "computeSetSetConditional" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/FormSetConditionals.tsx",
+          "symbol": "FormSetConditionals"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/FormSetConditionals.tsx",
+          "symbol": "ConditionalSetOption"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RelicMainSetFilters.tsx",
+          "symbol": "OPTIMIZER_SETS_DRAWER"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/StatSimulationDisplay.tsx",
+          "symbol": "OPTIMIZER_SETS_DRAWER"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setSetConditional"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setSetConditionals"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts",
+          "symbol": "computeSetSetConditional"
+        }
       ],
       "params": [
-        { "name": "setConditionals.<套装>", "type": "boolean | number", "default": "src/lib/optimization/defaultForm.ts 的 defaultSetConditionals" }
+        {
+          "name": "setConditionals.<套装>",
+          "type": "boolean | number",
+          "default": "src/lib/optimization/defaultForm.ts 的 defaultSetConditionals"
+        }
       ],
       "conditions": "没有可调状态的套装显示为固定生效。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore.setConditionals", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "simulate_build", "get_form", "update_form", "describe_conditionals"] },
+      "state": {
+        "owner": "useOptimizerRequestStore.setConditionals",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "simulate_build",
+          "get_form",
+          "update_form",
+          "describe_conditionals"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -430,37 +1083,110 @@
           "列出的每个套装条件的类型、选项与默认值与抽屉里的控件逐项一致",
           "把一个下拉型套装条件改成非默认档位后，simulate_build 的 COMBO 与网页端做同样改动后的数值一致"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-simulation.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.setConditionals cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.teammates",
       "title": "配置三名队友",
-      "surface": { "page": "OPTIMIZER", "overlay": "角色选择弹窗、光锥选择弹窗", "entry": "「队友」区的三张队友卡" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "角色选择弹窗、光锥选择弹窗",
+        "entry": "「队友」区的三张队友卡"
+      },
       "kind": "write",
       "action": "为三个队友位各选一名角色，设定星魂、光锥与叠影、提供全队效果的遗器套装和饰品套装。选角色时自动带入该角色在角色列表里的星魂、光锥、叠影和身上的队伍套装，「从角色列表同步」按钮可以重新带入一次；清空角色即清空整个槽位，换光锥时把光锥条件重置为新光锥的默认值。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/TeammateCard.tsx", "symbol": "TeammateCard" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/TeammateCard.tsx", "symbol": "ClearableCombobox" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/teammate/updateTeammate.ts", "symbol": "updateTeammate" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setTeammate" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setTeammateField" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "clearTeammate" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "clearTeammateLightCone" },
-        { "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts", "symbol": "resolveLcDefaults" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/TeammateCard.tsx",
+          "symbol": "TeammateCard"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/TeammateCard.tsx",
+          "symbol": "ClearableCombobox"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/teammate/updateTeammate.ts",
+          "symbol": "updateTeammate"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setTeammate"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setTeammateField"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "clearTeammate"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "clearTeammateLightCone"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts",
+          "symbol": "resolveLcDefaults"
+        }
       ],
       "params": [
-        { "name": "teammates[i].characterId", "type": "CharacterId | 空", "default": "空" },
-        { "name": "teammates[i].characterEidolon", "type": "0..6", "default": "0" },
-        { "name": "teammates[i].lightCone", "type": "LightConeId | 空", "default": "空" },
-        { "name": "teammates[i].lightConeSuperimposition", "type": "1..5", "default": "1" },
-        { "name": "teammates[i].teamRelicSet", "type": "套装名 | 空", "default": "空", "notes": "只列有全队效果的遗器套装" },
-        { "name": "teammates[i].teamOrnamentSet", "type": "套装名 | 空", "default": "空", "notes": "只列有全队效果的饰品套装" }
+        {
+          "name": "teammates[i].characterId",
+          "type": "CharacterId | 空",
+          "default": "空"
+        },
+        {
+          "name": "teammates[i].characterEidolon",
+          "type": "0..6",
+          "default": "0"
+        },
+        {
+          "name": "teammates[i].lightCone",
+          "type": "LightConeId | 空",
+          "default": "空"
+        },
+        {
+          "name": "teammates[i].lightConeSuperimposition",
+          "type": "1..5",
+          "default": "1"
+        },
+        {
+          "name": "teammates[i].teamRelicSet",
+          "type": "套装名 | 空",
+          "default": "空",
+          "notes": "只列有全队效果的遗器套装"
+        },
+        {
+          "name": "teammates[i].teamOrnamentSet",
+          "type": "套装名 | 空",
+          "default": "空",
+          "notes": "只列有全队效果的饰品套装"
+        }
       ],
       "conditions": "角色有模拟评分配置而队友位没填满时，开始优化会给出警告但不阻止。队友的条件开关见 optimizer.form.conditionals。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore.teammates", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "simulate_build", "get_form", "update_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore.teammates",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "simulate_build",
+          "get_form",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -469,63 +1195,169 @@
           "把某个队友位置空后，该位的全部字段回到默认值",
           "换一名队友后 simulate_build 的 COMBO 与网页端做同样更换后的数值一致"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-simulation.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.teammates cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.enemy",
       "title": "配置敌人",
-      "surface": { "page": "OPTIMIZER", "overlay": "敌人配置抽屉", "entry": "「角色选项」区「高级选项」里的敌人配置按钮" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "敌人配置抽屉",
+        "entry": "「角色选项」区「高级选项」里的敌人配置按钮"
+      },
       "kind": "write",
       "action": "设定伤害计算用的敌人：等级、数量、属性抗性、效果抵抗、韧性上限、是否带对应属性弱点、是否已被击破。按钮上显示当前配置的摘要。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/AdvancedOptionsPanel.tsx", "symbol": "ENEMY_DRAWER" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/EnemyConfigurationsDrawer.tsx", "symbol": "EnemyConfigurationsDrawer" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/EnemyConfigurationsDrawer.tsx", "symbol": "EnemyConfigurationsDrawerContent" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setEnemyField" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/AdvancedOptionsPanel.tsx",
+          "symbol": "ENEMY_DRAWER"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/EnemyConfigurationsDrawer.tsx",
+          "symbol": "EnemyConfigurationsDrawer"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/EnemyConfigurationsDrawer.tsx",
+          "symbol": "EnemyConfigurationsDrawerContent"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setEnemyField"
+        }
       ],
       "params": [
-        { "name": "enemyLevel", "type": "number", "default": "95" },
-        { "name": "enemyCount", "type": "number", "default": "1" },
-        { "name": "enemyResistance", "type": "number", "default": "0.2" },
-        { "name": "enemyEffectResistance", "type": "number", "default": "0.3" },
-        { "name": "enemyMaxToughness", "type": "number", "default": "360" },
-        { "name": "enemyElementalWeak", "type": "boolean", "default": "true" },
-        { "name": "enemyWeaknessBroken", "type": "boolean", "default": "false" }
+        {
+          "name": "enemyLevel",
+          "type": "number",
+          "default": "95"
+        },
+        {
+          "name": "enemyCount",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "name": "enemyResistance",
+          "type": "number",
+          "default": "0.2"
+        },
+        {
+          "name": "enemyEffectResistance",
+          "type": "number",
+          "default": "0.3"
+        },
+        {
+          "name": "enemyMaxToughness",
+          "type": "number",
+          "default": "360"
+        },
+        {
+          "name": "enemyElementalWeak",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "name": "enemyWeaknessBroken",
+          "type": "boolean",
+          "default": "false"
+        }
       ],
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "simulate_build", "get_form", "update_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "simulate_build",
+          "get_form",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "把敌人数量改成 3、关闭属性弱点后，simulate_build 的各技能伤害与网页端同设置下选中当前装备行的数值一致"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-simulation.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.enemy cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.combatBuffs",
       "title": "添加额外战斗增益",
-      "surface": { "page": "OPTIMIZER", "overlay": "额外战斗增益抽屉", "entry": "「角色选项」区「高级选项」里的战斗增益按钮" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "额外战斗增益抽屉",
+        "entry": "「角色选项」区「高级选项」里的战斗增益按钮"
+      },
       "kind": "write",
       "action": "手工叠加一组不来自队伍配置的增益，用于模拟未建模的效果：各项属性的固定值与百分比、增伤、易伤、防御穿透、抗性穿透等，全部默认 0。「清空」把所有项归零。按钮上显示当前有几项非零。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/AdvancedOptionsPanel.tsx", "symbol": "COMBAT_BUFFS_DRAWER" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CombatBuffsDrawer.tsx", "symbol": "CombatBuffsDrawer" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CombatBuffsDrawer.tsx", "symbol": "CombatBuffsDrawerContent" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CombatBuffsDrawer.tsx", "symbol": "CombatBuff" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setCombatBuff" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/AdvancedOptionsPanel.tsx",
+          "symbol": "COMBAT_BUFFS_DRAWER"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CombatBuffsDrawer.tsx",
+          "symbol": "CombatBuffsDrawer"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CombatBuffsDrawer.tsx",
+          "symbol": "CombatBuffsDrawerContent"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/CombatBuffsDrawer.tsx",
+          "symbol": "CombatBuff"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setCombatBuff"
+        }
       ],
       "params": [
-        { "name": "combatBuffs.<增益键>", "type": "number", "default": "0", "notes": "键集合见 src/lib/constants/constants.ts 的 CombatBuffs；百分比项在界面上按百分数填写" }
+        {
+          "name": "combatBuffs.<增益键>",
+          "type": "number",
+          "default": "0",
+          "notes": "键集合见 src/lib/constants/constants.ts 的 CombatBuffs；百分比项在界面上按百分数填写"
+        }
       ],
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore.combatBuffs", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "simulate_build", "get_form", "update_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore.combatBuffs",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "simulate_build",
+          "get_form",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -533,27 +1365,60 @@
           "显示格式传攻击力百分比 50 与内部格式传 0.5 得到同一结果，且与网页端填 50 时的 COMBO 一致",
           "只覆盖其中一项时，其余已保存的增益保持不变"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.combatBuffs cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.presets",
       "title": "套用推荐预设",
-      "surface": { "page": "OPTIMIZER", "entry": "「角色选项」区的「推荐预设」按钮及其下拉菜单" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "「角色选项」区的「推荐预设」按钮及其下拉菜单"
+      },
       "kind": "write",
       "action": "一键把表单调成角色的标准设置：角色、光锥、队友和套装的条件恢复默认，按所选速度档位填入最低速度（主按钮不设速度下限，下拉菜单按类别列出各档位），再套用角色元数据里的推荐筛选；角色有模拟评分配置时把优化目标设为 COMBO。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RecommendedPresetsButton.tsx", "symbol": "RecommendedPresetsButton" },
-        { "file": "src/lib/conditionals/evaluation/applyPresets.ts", "symbol": "applySpdPreset" },
-        { "file": "src/lib/constants/spdPresetConfig.ts", "symbol": "generateSpdPresets" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/RecommendedPresetsButton.tsx",
+          "symbol": "RecommendedPresetsButton"
+        },
+        {
+          "file": "src/lib/conditionals/evaluation/applyPresets.ts",
+          "symbol": "applySpdPreset"
+        },
+        {
+          "file": "src/lib/constants/spdPresetConfig.ts",
+          "symbol": "generateSpdPresets"
+        }
       ],
       "params": [
-        { "name": "spd", "type": "number", "default": "0", "notes": "速度档位，取值来自 generateSpdPresets" }
+        {
+          "name": "spd",
+          "type": "number",
+          "default": "0",
+          "notes": "速度档位，取值来自 generateSpdPresets"
+        }
       ],
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["update_form", "default_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "update_form",
+          "default_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -561,61 +1426,156 @@
           "对同一角色套用某个速度档位后，得到的表单与网页端点同一预设后的表单逐字段一致",
           "列出的速度档位与下拉菜单里的选项一致"
         ],
-        "tests": ["mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.presets cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.form.reset",
       "title": "重置遗器筛选",
-      "surface": { "page": "OPTIMIZER", "overlay": "确认对话框", "entry": "侧栏「控制」区的「重置」按钮" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "确认对话框",
+        "entry": "侧栏「控制」区的「重置」按钮"
+      },
       "kind": "write",
       "action": "经确认后把遗器筛选恢复默认：最低强化与星级、优先级、排除的角色、是否使用已装备遗器、是否保留当前遗器、优先级过滤、主词条计算等级、各部位主词条和套装筛选。角色、光锥、条件、权重、上下限、队友和连招都不动。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/OptimizerControlsSection.tsx", "symbol": "ResetConfirm" },
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/OptimizerControlsSection.tsx", "symbol": "resetClicked" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "resetFilters" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "resetFilters" },
-        { "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts", "symbol": "computeResetFilters" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/OptimizerControlsSection.tsx",
+          "symbol": "ResetConfirm"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/OptimizerControlsSection.tsx",
+          "symbol": "resetClicked"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "resetFilters"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "resetFilters"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts",
+          "symbol": "computeResetFilters"
+        }
       ],
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["update_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "重置后 get_form 里上述筛选字段全部等于默认值，其余字段保持原值，与网页端点「重置」后的表单一致"
         ],
-        "tests": ["mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.reset cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.combo.definition",
       "title": "定义连招的技能序列",
-      "surface": { "page": "OPTIMIZER", "overlay": "确认对话框（重置时）", "entry": "「角色选项」区的「连招」一栏；连招抽屉顶部的技能格也能改" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "确认对话框（重置时）",
+        "entry": "「角色选项」区的「连招」一栏；连招抽屉顶部的技能格也能改"
+      },
       "kind": "write",
       "action": "COMBO 伤害按一串技能累计。简单模式直接用角色默认的技能序列；高级模式可以自己排最多 12 个技能，用加号和减号在末尾增删，逐格选择技能及其所处的回合位置，用重置按钮恢复角色默认序列并清空逐技能的条件设置。「预设」开关决定是否按技能自动套用对应的条件预设。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/ComboFilter.tsx", "symbol": "setComboType" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/ComboFilter.tsx", "symbol": "ComboBasicDefinition" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/TurnAbilitySelector.tsx", "symbol": "TurnAbilitySelector" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/TurnAbilitySelector.tsx", "symbol": "TurnAbilitySelectorSimple" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/TurnAbilitySelector.tsx", "symbol": "ControlledTurnAbilitySelector" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setComboType" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setComboTurnAbilities" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setComboPreprocessor" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts", "symbol": "setAbilityRotation" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/ComboFilter.tsx",
+          "symbol": "setComboType"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/ComboFilter.tsx",
+          "symbol": "ComboBasicDefinition"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/TurnAbilitySelector.tsx",
+          "symbol": "TurnAbilitySelector"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/TurnAbilitySelector.tsx",
+          "symbol": "TurnAbilitySelectorSimple"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/TurnAbilitySelector.tsx",
+          "symbol": "ControlledTurnAbilitySelector"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setComboType"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setComboTurnAbilities"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setComboPreprocessor"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts",
+          "symbol": "setAbilityRotation"
+        }
       ],
       "params": [
-        { "name": "comboType", "type": "simple | advanced", "default": "simple" },
-        { "name": "comboTurnAbilities", "type": "TurnAbilityName[]", "default": "角色评分元数据里的默认序列", "notes": "下标 0 是起手占位，其后最多 12 个技能" },
-        { "name": "comboPreprocessor", "type": "boolean", "default": "true" }
+        {
+          "name": "comboType",
+          "type": "simple | advanced",
+          "default": "simple"
+        },
+        {
+          "name": "comboTurnAbilities",
+          "type": "TurnAbilityName[]",
+          "default": "角色评分元数据里的默认序列",
+          "notes": "下标 0 是起手占位，其后最多 12 个技能"
+        },
+        {
+          "name": "comboPreprocessor",
+          "type": "boolean",
+          "default": "true"
+        }
       ],
       "conditions": "简单模式下技能格、增删、重置和预设开关都禁用。写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "simulate_build", "get_form", "default_form", "update_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "simulate_build",
+          "get_form",
+          "default_form",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -624,40 +1584,116 @@
           "高级模式下给出一串六个技能的序列时，simulate_build 的 COMBO 与轮次伤害与网页端排同一序列后的数值一致",
           "简单模式下的 COMBO 等于角色默认序列的 COMBO"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs",
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.combo.definition cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.combo.activations",
       "title": "逐技能设置条件的生效情况",
-      "surface": { "page": "OPTIMIZER", "overlay": "连招抽屉", "entry": "「连招」一栏的「高级连招」按钮" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "连招抽屉",
+        "entry": "「连招」一栏的「高级连招」按钮"
+      },
       "kind": "write",
       "action": "抽屉里是一张「条件 × 技能」的矩阵：每一行是主角色、队友、光锥或套装的一个条件，每一列是连招里的一个技能，勾选表示该条件在这一步生效，可以拖选一片格子批量切换。数值型条件可以拆成多段，每段一个取值并各自勾选在哪些技能上生效，也能增删分段；开关型条件可以改默认值。关闭抽屉时把整张矩阵写进表单并落盘。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/ComboFilter.tsx", "symbol": "COMBO_DRAWER" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/ComboDrawer.tsx", "symbol": "ComboDrawer" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/ComboDrawer.tsx", "symbol": "ComboDrawerContent" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/ConditionalInputs/BooleanSwitch.tsx", "symbol": "BooleanSwitch" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/ConditionalInputs/NumberSelect.tsx", "symbol": "NumberSelect" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/ConditionalInputs/NumberSlider.tsx", "symbol": "NumberSlider" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/comboDrawerUtils.ts", "symbol": "handlePartitionButtonClick" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts", "symbol": "setActivation" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts", "symbol": "setPartitionActivation" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts", "symbol": "batchSetActivations" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts", "symbol": "setBooleanDefault" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts", "symbol": "setNumberDefault" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts", "symbol": "addPartition" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts", "symbol": "deletePartition" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/comboDrawerService.ts", "symbol": "flushComboDrawerToForm" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setComboStateJson" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/ComboFilter.tsx",
+          "symbol": "COMBO_DRAWER"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/ComboDrawer.tsx",
+          "symbol": "ComboDrawer"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/ComboDrawer.tsx",
+          "symbol": "ComboDrawerContent"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/ConditionalInputs/BooleanSwitch.tsx",
+          "symbol": "BooleanSwitch"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/ConditionalInputs/NumberSelect.tsx",
+          "symbol": "NumberSelect"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/ConditionalInputs/NumberSlider.tsx",
+          "symbol": "NumberSlider"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/comboDrawerUtils.ts",
+          "symbol": "handlePartitionButtonClick"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts",
+          "symbol": "setActivation"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts",
+          "symbol": "setPartitionActivation"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts",
+          "symbol": "batchSetActivations"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts",
+          "symbol": "setBooleanDefault"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts",
+          "symbol": "setNumberDefault"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts",
+          "symbol": "addPartition"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts",
+          "symbol": "deletePartition"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/comboDrawerService.ts",
+          "symbol": "flushComboDrawerToForm"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setComboStateJson"
+        }
       ],
       "params": [
-        { "name": "comboStateJson", "type": "序列化的 ComboState", "default": "{}", "notes": "含 comboCharacter、comboTeammate0..2、comboTurnAbilities 与 version" }
+        {
+          "name": "comboStateJson",
+          "type": "序列化的 ComboState",
+          "default": "{}",
+          "notes": "含 comboCharacter、comboTeammate0..2、comboTurnAbilities 与 version"
+        }
       ],
       "conditions": "只在高级模式下能打开；简单模式下按钮禁用。",
       "runtime": "node",
-      "state": { "owner": "useComboDrawerStore，关闭时写入 useOptimizerRequestStore.comboStateJson", "lifecycle": "persisted", "saveKey": "characters[].form.comboStateJson" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "simulate_build", "get_form", "update_form"] },
+      "state": {
+        "owner": "useComboDrawerStore，关闭时写入 useOptimizerRequestStore.comboStateJson",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form.comboStateJson"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "simulate_build",
+          "get_form",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -666,51 +1702,109 @@
           "把某个开关型条件在第 2、3 个技能上关掉后，simulate_build 的轮次伤害与网页端做同样勾选后的数值一致",
           "给一个数值型条件加一段并只在终结技上生效后，保存的 comboStateJson 与网页端做同样操作后存档里的内容等价"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.combo.activations cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.combo.sets",
       "title": "选择参与逐技能设置的套装",
-      "surface": { "page": "OPTIMIZER", "overlay": "连招抽屉", "entry": "连招抽屉里的遗器套装与饰品套装多选框" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "连招抽屉",
+        "entry": "连招抽屉里的遗器套装与饰品套装多选框"
+      },
       "kind": "write",
       "action": "选定哪些遗器套装和饰品套装的条件要出现在矩阵里，选中的套装各占一行，可以逐技能设定是否生效。选择一改就写回表单并落盘。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/combo/SetSelectors.tsx", "symbol": "SetSelector" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts", "symbol": "updateSelectedSets" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/comboDrawerService.ts", "symbol": "persistSelectedSets" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/SetSelectors.tsx",
+          "symbol": "SetSelector"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts",
+          "symbol": "updateSelectedSets"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/comboDrawerService.ts",
+          "symbol": "persistSelectedSets"
+        }
       ],
       "conditions": "只在高级模式下可用。",
       "runtime": "node",
-      "state": { "owner": "useComboDrawerStore，写入 useOptimizerRequestStore.comboStateJson", "lifecycle": "persisted", "saveKey": "characters[].form.comboStateJson" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "get_form", "update_form"] },
+      "state": {
+        "owner": "useComboDrawerStore，写入 useOptimizerRequestStore.comboStateJson",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form.comboStateJson"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "get_form",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "加入一个套装行并设定它只在战技上生效后，保存的 comboStateJson 与网页端做同样操作后存档里的内容等价"
         ],
-        "tests": ["mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.combo.sets cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.permutations.read",
       "title": "查看排列数与各部位遗器数量",
-      "surface": { "page": "OPTIMIZER", "entry": "侧栏「排列」区" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "侧栏「排列」区"
+      },
       "kind": "compute",
       "action": "实时显示六个部位各有多少件遗器通过筛选（括号里是筛选前的总数）以及有效排列数。筛选相关的字段一改就自动重算。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "recalculatePermutations" },
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/PermutationsSection.tsx", "symbol": "PermutationsSection" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setPermutations" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setPermutationsNaive" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setPermutationDetails" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "recalculatePermutations"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/PermutationsSection.tsx",
+          "symbol": "PermutationsSection"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setPermutations"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setPermutationsNaive"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setPermutationDetails"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "useOptimizerDisplayStore.permutations / permutationsNaive / permutationDetails", "lifecycle": "derived" },
+      "state": {
+        "owner": "useOptimizerDisplayStore.permutations / permutationsNaive / permutationDetails",
+        "lifecycle": "derived"
+      },
       "mcp": {
-        "status": "implemented",
-        "tools": ["permutations"]
+        "status": "verified",
+        "tools": [
+          "permutations"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -719,30 +1813,76 @@
           "同一表单下各部位筛选后数量、筛选前总数和有效排列数与网页端侧栏逐项一致",
           "带 formOverrides 的估算与网页端做同样改动后的显示一致"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-query.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-query.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.permutations.read cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.run.start",
       "title": "开始优化搜索",
-      "surface": { "page": "OPTIMIZER", "overlay": "排列过多确认弹窗", "entry": "侧栏「控制」区的「开始」按钮" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "排列过多确认弹窗",
+        "entry": "侧栏「控制」区的「开始」按钮"
+      },
       "kind": "compute",
       "action": "按当前表单在全部有效排列里搜索，保留排序目标下最优的若干条配装。开始前先校验表单：没选光锥、没选角色或星魂、没选优化目标与保留条数、副词条权重全为 0 都会拒绝并提示；光锥命途不符、队友没填满只给警告。用 CPU 引擎且六个部位数量的乘积达到 10 亿时先弹窗确认。开始时清掉上一轮的选中行与结果筛选，并把表单写回角色。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/OptimizerControlsSection.tsx", "symbol": "startClicked" },
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/ManyPermsModal.tsx", "symbol": "ManyPermsModal" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "startOptimization" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "validateForm" },
-        { "file": "src/lib/optimization/optimizer.ts", "symbol": "Optimizer" },
-        { "file": "src/lib/gpu/webgpuOptimizer.ts", "symbol": "gpuOptimize" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setOptimizationId" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setOptimizationInProgress" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/OptimizerControlsSection.tsx",
+          "symbol": "startClicked"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/ManyPermsModal.tsx",
+          "symbol": "ManyPermsModal"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "startOptimization"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "validateForm"
+        },
+        {
+          "file": "src/lib/optimization/optimizer.ts",
+          "symbol": "Optimizer"
+        },
+        {
+          "file": "src/lib/gpu/webgpuOptimizer.ts",
+          "symbol": "gpuOptimize"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setOptimizationId"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setOptimizationInProgress"
+        }
       ],
       "conditions": "同一时间只能跑一轮。有效排列为 0 时不搜索，改为弹出原因与修复建议（见 optimizer.suggestions.zeroPermutations）。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerDisplayStore 的运行状态 + OptimizerTabController 的结果行", "lifecycle": "session" },
-      "sideEffects": ["表单写回 characters[].form（见 optimizer.form.persist）", "上一轮的结果被替换", "SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "tools": ["optimize"] },
+      "state": {
+        "owner": "useOptimizerDisplayStore 的运行状态 + OptimizerTabController 的结果行",
+        "lifecycle": "session"
+      },
+      "sideEffects": [
+        "表单写回 characters[].form（见 optimizer.form.persist）",
+        "上一轮的结果被替换",
+        "SaveState.delayedSave()"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -751,24 +1891,47 @@
           "缺光锥、缺优化目标、权重全为 0 三种表单分别被拒绝，原因与网页端的提示对应",
           "超过规模闸门时返回 rejected 及各部位数量，force 后可以运行"
         ],
-        "tests": ["mcp/scripts/parity.mjs", "mcp/scripts/smoke.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-optimizer-generation.mjs", "mcp/scripts/smoke-analysis.mjs"]
+        "tests": [
+          "mcp/scripts/parity.mjs",
+          "mcp/scripts/smoke.mjs",
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-optimizer-generation.mjs",
+          "mcp/scripts/smoke-analysis.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.run.start cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.run.cancel",
       "title": "取消正在进行的搜索",
-      "surface": { "page": "OPTIMIZER", "entry": "侧栏「控制」区的「取消」按钮" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "侧栏「控制」区的「取消」按钮"
+      },
       "kind": "compute",
       "action": "中止当前这轮搜索，已经找到的结果留在表格里。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/OptimizerControlsSection.tsx", "symbol": "cancelClicked" },
-        { "file": "src/lib/optimization/optimizer.ts", "symbol": "cancel" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/OptimizerControlsSection.tsx",
+          "symbol": "cancelClicked"
+        },
+        {
+          "file": "src/lib/optimization/optimizer.ts",
+          "symbol": "cancel"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "useOptimizerDisplayStore.optimizationInProgress", "lifecycle": "session" },
+      "state": {
+        "owner": "useOptimizerDisplayStore.optimizationInProgress",
+        "lifecycle": "session"
+      },
       "mcp": {
-        "status": "implemented",
-        "tools": ["optimize"]
+        "status": "verified",
+        "tools": [
+          "optimize"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -777,30 +1940,68 @@
           "客户端取消 optimize 请求后搜索停止，已搜到的行留在结果缓存里，get_results 的 summary.cancelled 为 true",
           "取消后可以立刻开始下一轮"
         ],
-        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/smoke-optimizer-generation.mjs"]
+        "tests": [
+          "mcp/scripts/smoke.mjs",
+          "mcp/scripts/smoke-optimizer-generation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.run.cancel cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.run.progress",
       "title": "查看搜索进度",
-      "surface": { "page": "OPTIMIZER", "entry": "侧栏「排列」区的已搜索数、结果数与进度条" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "侧栏「排列」区的已搜索数、结果数与进度条"
+      },
       "kind": "read",
       "action": "搜索过程中显示已搜索的排列数、已保留的结果数、完成百分比、每秒速度与预计剩余时间，并标明这一轮实际用的是哪个引擎；结束后显示总耗时。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/ProgressDisplay.tsx", "symbol": "ProgressDisplay" },
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/PermutationDisplay.tsx", "symbol": "PermutationDisplay" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setOptimizerProgress" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setPermutationsSearched" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setPermutationsResults" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setOptimizerStartTime" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setOptimizerEndTime" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setOptimizerRunningEngine" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/ProgressDisplay.tsx",
+          "symbol": "ProgressDisplay"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/PermutationDisplay.tsx",
+          "symbol": "PermutationDisplay"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setOptimizerProgress"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setPermutationsSearched"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setPermutationsResults"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setOptimizerStartTime"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setOptimizerEndTime"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setOptimizerRunningEngine"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "useOptimizerDisplayStore", "lifecycle": "session" },
+      "state": {
+        "owner": "useOptimizerDisplayStore",
+        "lifecycle": "session"
+      },
       "mcp": {
-        "status": "implemented",
-        "tools": ["optimize"]
+        "status": "verified",
+        "tools": [
+          "optimize"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -809,27 +2010,59 @@
           "带 progressToken 调用时能收到至少一条进度通知，含已搜索数、总数、结果数与每秒速度",
           "结束后 summary 里的已搜索数、有效排列数与耗时齐全"
         ],
-        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/smoke-optimizer-generation.mjs"]
+        "tests": [
+          "mcp/scripts/smoke.mjs",
+          "mcp/scripts/smoke-optimizer-generation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.run.progress cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.engine.select",
       "title": "选择计算引擎",
-      "surface": { "page": "OPTIMIZER", "entry": "侧栏「控制」区的引擎下拉菜单" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "侧栏「控制」区的引擎下拉菜单"
+      },
       "kind": "write",
       "action": "在三种引擎之间切换：GPU 加速（实验）、GPU 加速（稳定）和仅 CPU。切到 GPU 前先检测浏览器是否支持 WebGPU，不支持就保持原样并提示；启动时检测不到 GPU 会自动改成 CPU 并记住。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/ComputeEngineSelect.tsx", "symbol": "ComputeEngineSelect" },
-        { "file": "src/lib/gpu/webgpuDevice.ts", "symbol": "verifyWebgpuSupport" },
-        { "file": "src/lib/gpu/webgpuDevice.ts", "symbol": "getWebgpuDevice" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/ComputeEngineSelect.tsx",
+          "symbol": "ComputeEngineSelect"
+        },
+        {
+          "file": "src/lib/gpu/webgpuDevice.ts",
+          "symbol": "verifyWebgpuSupport"
+        },
+        {
+          "file": "src/lib/gpu/webgpuDevice.ts",
+          "symbol": "getWebgpuDevice"
+        }
       ],
       "params": [
-        { "name": "computeEngine", "type": "GPU 实验 | GPU 稳定 | CPU", "default": "GPU 稳定" }
+        {
+          "name": "computeEngine",
+          "type": "GPU 实验 | GPU 稳定 | CPU",
+          "default": "GPU 稳定"
+        }
       ],
       "conditions": "两种 GPU 引擎需要浏览器提供 WebGPU。用 GPU 引擎时开始搜索不受排列过多确认弹窗的限制。",
       "runtime": "browser",
-      "state": { "owner": "useGlobalStore.savedSession.computeEngine", "lifecycle": "persisted", "saveKey": "savedSession.global.computeEngine" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "get_runtime_capabilities"] },
+      "state": {
+        "owner": "useGlobalStore.savedSession.computeEngine",
+        "lifecycle": "persisted",
+        "saveKey": "savedSession.global.computeEngine"
+      },
+      "mcp": {
+        "status": "implemented",
+        "tools": [
+          "optimize",
+          "get_runtime_capabilities"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -838,28 +2071,55 @@
           "运行环境没有 WebGPU 时明确报告不可用并回退到 CPU",
           "改动引擎偏好后，网页端打开时下拉菜单显示同一选项"
         ],
-       "tests": ["mcp/scripts/smoke-state.mjs", "mcp/scripts/smoke-debug.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-state.mjs",
+          "mcp/scripts/smoke-debug.mjs"
+        ]
       }
     },
     {
       "id": "optimizer.results.read",
       "title": "浏览优化结果",
-      "surface": { "page": "OPTIMIZER", "entry": "表单下方的结果表格" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "表单下方的结果表格"
+      },
       "kind": "read",
       "action": "分页列出本轮保留的全部配装行：各项属性、EHP、各技能伤害与 COMBO，顶部固定一行是角色当前装备的基线。点列头按该列对全部结果重新排序；单元格按列内数值高低渐变着色。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/grid/OptimizerGrid.tsx", "symbol": "OptimizerGrid" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/grid/optimizerGridColumns.ts", "symbol": "*" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "getDataSource" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "setTopRow" },
-        { "file": "src/lib/optimization/optimizer.ts", "symbol": "calculateCurrentlyEquippedRow" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/grid/OptimizerGrid.tsx",
+          "symbol": "OptimizerGrid"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/grid/optimizerGridColumns.ts",
+          "symbol": "*"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "getDataSource"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "setTopRow"
+        },
+        {
+          "file": "src/lib/optimization/optimizer.ts",
+          "symbol": "calculateCurrentlyEquippedRow"
+        }
       ],
       "conditions": "显示哪一组列取决于属性视图与忆灵视图（见 optimizer.grid.display）。切换角色或开始新一轮搜索会清空表格。",
       "runtime": "node",
-      "state": { "owner": "OptimizerTabController 的结果行", "lifecycle": "session" },
+      "state": {
+        "owner": "OptimizerTabController 的结果行",
+        "lifecycle": "session"
+      },
       "mcp": {
-        "status": "implemented",
-        "tools": ["optimize", "get_results"]
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "get_results"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -869,25 +2129,49 @@
           "按速度升序翻到第二页，行内容与网页端同样排序翻页后一致",
           "equippedRow 的各列数值与网页端顶部固定行一致"
         ],
-        "tests": ["mcp/scripts/parity.mjs", "mcp/scripts/smoke.mjs", "mcp/scripts/smoke-optimizer-generation.mjs"]
+        "tests": [
+          "mcp/scripts/parity.mjs",
+          "mcp/scripts/smoke.mjs",
+          "mcp/scripts/smoke-optimizer-generation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.results.read cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.results.filter",
       "title": "用当前上下限筛选已有结果",
-      "surface": { "page": "OPTIMIZER", "entry": "侧栏「结果」区的「筛选」按钮" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "侧栏「结果」区的「筛选」按钮"
+      },
       "kind": "view",
       "action": "把表单里当前填的属性与伤害上下限直接套到已有的结果行上，不重新搜索。下一轮搜索开始时这层筛选自动清除。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/ResultsSection.tsx", "symbol": "applyRowFilters" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "applyRowFilters" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "clearFilterModel" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/ResultsSection.tsx",
+          "symbol": "applyRowFilters"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "applyRowFilters"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "clearFilterModel"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "OptimizerTabController 的筛选模型", "lifecycle": "session" },
+      "state": {
+        "owner": "OptimizerTabController 的筛选模型",
+        "lifecycle": "session"
+      },
       "mcp": {
-        "status": "implemented",
-        "tools": ["get_results"]
+        "status": "verified",
+        "tools": [
+          "get_results"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -895,29 +2179,66 @@
         "cases": [
           "对缓存结果加上「速度不低于 140、COMBO 不低于某值」后，剩下的行数与行内容与网页端填同样门槛后点「筛选」的结果一致"
         ],
-        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/smoke-optimizer-generation.mjs"]
+        "tests": [
+          "mcp/scripts/smoke.mjs",
+          "mcp/scripts/smoke-optimizer-generation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.results.filter cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.results.select",
       "title": "选中结果行查看配装",
-      "surface": { "page": "OPTIMIZER", "entry": "点结果表格里的一行；点顶部固定行则查看当前装备或被固定的配装" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "点结果表格里的一行；点顶部固定行则查看当前装备或被固定的配装"
+      },
       "kind": "read",
       "action": "选中一行后，表格下方显示这套配装的六件遗器卡片，每件附带它对当前角色的评分，并展开对比分析（见 optimizer.analysis.read）。点自定义模拟的行则把那条模拟回填到模拟输入区。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/grid/OptimizerGrid.tsx", "symbol": "onCellClicked" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "cellClicked" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "calculateRelicIdsFromId" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "calculateRelicsFromId" },
-        { "file": "src/lib/tabs/tabOptimizer/OptimizerBuildPreview.tsx", "symbol": "OptimizerBuildPreview" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setOptimizerBuild" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setOptimizerSelectedRowData" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/grid/OptimizerGrid.tsx",
+          "symbol": "onCellClicked"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "cellClicked"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "calculateRelicIdsFromId"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "calculateRelicsFromId"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/OptimizerBuildPreview.tsx",
+          "symbol": "OptimizerBuildPreview"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setOptimizerBuild"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setOptimizerSelectedRowData"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "useOptimizerDisplayStore.optimizerBuild / optimizerSelectedRowData", "lifecycle": "session" },
+      "state": {
+        "owner": "useOptimizerDisplayStore.optimizerBuild / optimizerSelectedRowData",
+        "lifecycle": "session"
+      },
       "mcp": {
-        "status": "implemented",
-        "tools": ["optimize", "get_results", "score_relics"]
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "get_results",
+          "score_relics"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -926,24 +2247,53 @@
           "任取一行，返回的六件遗器 id 与网页端选中同一行后下方显示的六件遗器一致",
           "对这六件遗器调用 score_relics 得到的评分与卡片上显示的一致"
         ],
-        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/smoke-optimizer-generation.mjs", "mcp/scripts/smoke-equip.mjs"]
+        "tests": [
+          "mcp/scripts/smoke.mjs",
+          "mcp/scripts/smoke-optimizer-generation.mjs",
+          "mcp/scripts/smoke-equip.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.results.select cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.results.editRelic",
       "title": "从结果配装里编辑遗器",
-      "surface": { "page": "OPTIMIZER", "overlay": "遗器编辑弹窗", "entry": "点选中配装下方的任意一张遗器卡片" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "遗器编辑弹窗",
+        "entry": "点选中配装下方的任意一张遗器卡片"
+      },
       "kind": "write",
       "action": "打开那件遗器的编辑弹窗，改完保存即更新库存里的这件遗器。弹窗两侧的箭头可以在这套配装的六个部位之间前后切换，自动跳过空位并首尾循环。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/OptimizerBuildPreview.tsx", "symbol": "openRelicModal" },
-        { "file": "src/lib/tabs/tabOptimizer/OptimizerBuildPreview.tsx", "symbol": "navigateRelic" },
-        { "file": "src/lib/overlays/modals/relicModal/relicModalController.ts", "symbol": "onEditOk" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/OptimizerBuildPreview.tsx",
+          "symbol": "openRelicModal"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/OptimizerBuildPreview.tsx",
+          "symbol": "navigateRelic"
+        },
+        {
+          "file": "src/lib/overlays/modals/relicModal/relicModalController.ts",
+          "symbol": "onEditOk"
+        }
       ],
       "conditions": "编辑的校验规则与遗器页的编辑弹窗相同（见 relics.upsert）。",
       "runtime": "node",
-      "state": { "owner": "useRelicStore", "lifecycle": "persisted", "saveKey": "relics" },
-      "mcp": { "status": "implemented", "tools": ["upsert_relic"] },
+      "state": {
+        "owner": "useRelicStore",
+        "lifecycle": "persisted",
+        "saveKey": "relics"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "upsert_relic"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -951,27 +2301,54 @@
           "按 id 修改结果配装里某件遗器的副词条后，库存里这件遗器的内容与网页端在弹窗里做同样修改后一致",
           "修改后重新 simulate_build 这套配装，数值反映新的副词条"
         ],
-        "tests": ["mcp/scripts/smoke-relics.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-relics.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.results.editRelic cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.results.equip",
       "title": "装备选中的结果配装",
-      "surface": { "page": "OPTIMIZER", "entry": "侧栏「结果」区的「装备」按钮" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "侧栏「结果」区的「装备」按钮"
+      },
       "kind": "write",
       "action": "把选中那一行的六件遗器装到当前角色身上，顶部固定行随之更新为新装备。同时把当前表单写回角色。没有选中行，或选中的是自定义模拟行时，只保存表单不装备。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/ResultsSection.tsx", "symbol": "equipClicked" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "equipClicked" },
-        { "file": "src/lib/services/equipmentService.ts", "symbol": "equipRelicIds" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/ResultsSection.tsx",
+          "symbol": "equipClicked"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "equipClicked"
+        },
+        {
+          "file": "src/lib/services/equipmentService.ts",
+          "symbol": "equipRelicIds"
+        }
       ],
       "conditions": "遗器原本在别的角色身上时，按设置 RelicEquippingBehavior 决定是直接取走还是与对方交换。",
       "runtime": "node",
-      "state": { "owner": "useRelicStore + useCharacterStore", "lifecycle": "persisted", "saveKey": "relics / characters[].equipped" },
-      "sideEffects": ["被换下的遗器变为无人装备或转给原持有者", "角色表单被覆盖为当前表单", "SaveState.delayedSave()"],
+      "state": {
+        "owner": "useRelicStore + useCharacterStore",
+        "lifecycle": "persisted",
+        "saveKey": "relics / characters[].equipped"
+      },
+      "sideEffects": [
+        "被换下的遗器变为无人装备或转给原持有者",
+        "角色表单被覆盖为当前表单",
+        "SaveState.delayedSave()"
+      ],
       "mcp": {
-        "status": "implemented",
-        "tools": ["equip_build"]
+        "status": "verified",
+        "tools": [
+          "equip_build"
+        ]
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -981,51 +2358,115 @@
           "原持有者身上的变化在 Replace 与 Swap 两种设置下分别与网页端一致",
           "装备后角色表单等于那次运行用的表单"
         ],
-        "tests": ["mcp/scripts/smoke-equip.mjs", "mcp/scripts/smoke-optimizer-generation.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-equip.mjs",
+          "mcp/scripts/smoke-optimizer-generation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.results.equip cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.results.pin",
       "title": "固定结果行用于对比",
-      "surface": { "page": "OPTIMIZER", "entry": "侧栏「结果」区的「固定」与「清除」按钮" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "侧栏「结果」区的「固定」与「清除」按钮"
+      },
       "kind": "view",
       "action": "把选中的结果行钉到表格顶部，重新排序或翻页时一直可见，方便和别的行对比；「清除」去掉所有固定行，只留第一行（当前装备）。同一行不会重复固定，自定义模拟行不能固定。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/ResultsSection.tsx", "symbol": "addToPinned" },
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/ResultsSection.tsx", "symbol": "clearPinned" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/ResultsSection.tsx",
+          "symbol": "addToPinned"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/ResultsSection.tsx",
+          "symbol": "clearPinned"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "结果表格的固定行（AG Grid 的 pinnedTopRowData）", "lifecycle": "ephemeral" },
-      "mcp": { "status": "implemented", "tools": ["get_results"] },
+      "state": {
+        "owner": "结果表格的固定行（AG Grid 的 pinnedTopRowData）",
+        "lifecycle": "ephemeral"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "get_results"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "按行 id 取回三行，内容与这三行在网页端固定到顶部后显示的一致，且不受当前排序与筛选影响"
         ],
-        "tests": ["mcp/scripts/smoke.mjs", "mcp/scripts/smoke-analysis.mjs"]
+        "tests": [
+          "mcp/scripts/smoke.mjs",
+          "mcp/scripts/smoke-analysis.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.results.pin cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.grid.display",
       "title": "切换属性视图与忆灵视图",
-      "surface": { "page": "OPTIMIZER", "entry": "侧栏的「属性与筛选视图」分段和忆灵视图分段" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "侧栏的「属性与筛选视图」分段和忆灵视图分段"
+      },
       "kind": "view",
       "action": "属性视图在「战斗属性」和「面板属性」之间切换：既决定结果表格显示哪一组属性列，也决定表单里的属性上下限比较的是哪一种。忆灵视图在召唤者与忆灵之间切换表格显示谁的属性，角色没有忆灵时固定为召唤者。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/StatsViewSelect.tsx", "symbol": "StatsViewSelect" },
-        { "file": "src/lib/tabs/tabOptimizer/sidebar/MemoViewSelect.tsx", "symbol": "MemoViewSelect" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setStatDisplay" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setMemoDisplay" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/StatsViewSelect.tsx",
+          "symbol": "StatsViewSelect"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/sidebar/MemoViewSelect.tsx",
+          "symbol": "MemoViewSelect"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setStatDisplay"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setMemoDisplay"
+        }
       ],
       "params": [
-        { "name": "statDisplay", "type": "combat | base", "default": "combat" },
-        { "name": "memoDisplay", "type": "summoner | memo", "default": "summoner" }
+        {
+          "name": "statDisplay",
+          "type": "combat | base",
+          "default": "combat"
+        },
+        {
+          "name": "memoDisplay",
+          "type": "summoner | memo",
+          "default": "summoner"
+        }
       ],
       "conditions": "写盘时机见 optimizer.form.persist。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore.statDisplay / memoDisplay", "lifecycle": "persisted", "saveKey": "characters[].form" },
-      "mcp": { "status": "implemented", "tools": ["optimize", "get_results", "get_form", "update_form"] },
+      "state": {
+        "owner": "useOptimizerRequestStore.statDisplay / memoDisplay",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "get_results",
+          "get_form",
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -1033,31 +2474,80 @@
           "statDisplay 为 base 时最低速度门槛按面板速度判定，为 combat 时按战斗速度判定，两种情况下的结果都与网页端对应视图一致",
           "返回行里的面板属性列与战斗属性列分别与网页端两种视图下的列一致"
         ],
-        "tests": ["mcp/scripts/parity.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/parity.mjs",
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.grid.display cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.analysis.read",
       "title": "查看选中配装的对比分析",
-      "surface": { "page": "OPTIMIZER", "entry": "选中结果行后表单下方展开的「分析」区" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "选中结果行后表单下方展开的「分析」区"
+      },
       "kind": "compute",
       "action": "以顶部第一行（通常是当前装备）为基准，对比选中的配装：属性与伤害的新旧差值、连招伤害按技能和伤害类型的拆分（可在「默认技能」与「连招轮次」两种口径间切换）、伤害类型占比、每种副词条多一个词条的收益、给队友更换套装的收益（替换方案可展开或收起），以及逐技能的增益来源明细。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/analysis/ExpandedDataPanel.tsx", "symbol": "ExpandedDataPanel" },
-        { "file": "src/lib/tabs/tabOptimizer/analysis/DamageSplits.tsx", "symbol": "DamageSplits" },
-        { "file": "src/lib/tabs/tabOptimizer/analysis/DamageSplits.tsx", "symbol": "ModeToggle" },
-        { "file": "src/lib/tabs/tabOptimizer/analysis/TeammateUpgrades.tsx", "symbol": "TeammateUpgrades" },
-        { "file": "src/lib/tabs/tabOptimizer/analysis/expandedDataPanelController.ts", "symbol": "generateAnalysisData" },
-        { "file": "src/lib/tabs/tabOptimizer/analysis/expandedDataPanelController.ts", "symbol": "calculateStatUpgrades" },
-        { "file": "src/lib/tabs/tabOptimizer/analysis/expandedDataPanelController.ts", "symbol": "calculateTeammateUpgrades" },
-        { "file": "src/lib/tabs/tabOptimizer/analysis/expandedDataPanelController.ts", "symbol": "getPinnedRowData" },
-        { "file": "src/lib/tabs/tabOptimizer/analysis/expandedDataPanelController.ts", "symbol": "getCachedForm" },
-        { "file": "src/lib/tabs/tabOptimizer/analysis/expandedDataPanelController.ts", "symbol": "mismatchedCharacter" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/analysis/ExpandedDataPanel.tsx",
+          "symbol": "ExpandedDataPanel"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/analysis/DamageSplits.tsx",
+          "symbol": "DamageSplits"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/analysis/DamageSplits.tsx",
+          "symbol": "ModeToggle"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/analysis/TeammateUpgrades.tsx",
+          "symbol": "TeammateUpgrades"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/analysis/expandedDataPanelController.ts",
+          "symbol": "generateAnalysisData"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/analysis/expandedDataPanelController.ts",
+          "symbol": "calculateStatUpgrades"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/analysis/expandedDataPanelController.ts",
+          "symbol": "calculateTeammateUpgrades"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/analysis/expandedDataPanelController.ts",
+          "symbol": "getPinnedRowData"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/analysis/expandedDataPanelController.ts",
+          "symbol": "getCachedForm"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/analysis/expandedDataPanelController.ts",
+          "symbol": "mismatchedCharacter"
+        }
       ],
       "conditions": "选中的是自定义模拟行时不显示。分析用的是那一轮搜索当时的表单；表单里的角色与当前角色不一致时不显示。",
       "runtime": "node",
-      "state": { "owner": "由选中行、基准行和运行时的表单推导", "lifecycle": "derived" },
-      "mcp": { "status": "implemented", "tools": ["analyze_build", "simulate_build"] },
+      "state": {
+        "owner": "由选中行、基准行和运行时的表单推导",
+        "lifecycle": "derived"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "analyze_build",
+          "simulate_build"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -1067,37 +2557,105 @@
           "副词条收益表与队友套装收益表逐行与网页端一致",
           "trace 模式下逐技能的增益来源与网页端的增益明细一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-analysis.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs",
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-analysis.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.analysis.read cases 1-4 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.statSim.run",
       "title": "运行自定义属性模拟",
-      "surface": { "page": "OPTIMIZER", "entry": "「自定义属性模拟」区的输入栏与「模拟」按钮" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "「自定义属性模拟」区的输入栏与「模拟」按钮"
+      },
       "kind": "compute",
       "action": "不依赖库存里的遗器，直接描述一套假想配装：两个遗器套装位与一个饰品套装、四个部位的主词条、每种副词条的词条数。点「模拟」把所有已保存的模拟各算一行，按当前优化目标排序后显示在结果表格里，可以像普通结果一样选中查看。模式开关可以整体关闭这个面板。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/StatSimulationDisplay.tsx", "symbol": "setStatSimulationDisplay" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/StatSimulationDisplay.tsx", "symbol": "startOptimizerStatSimulation" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/statSimulation/SimulationInputs.tsx", "symbol": "SimulationInputs" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/statSimulation/SetsSection.tsx", "symbol": "OptimizerSetsSection" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/statSimulation/MainStatsSection.tsx", "symbol": "MainStatSelector" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/statSimulation/StatInput.tsx", "symbol": "StatInput" },
-        { "file": "src/lib/simulations/statSimulationController.ts", "symbol": "startOptimizerStatSimulation" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "updateStatSimField" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setStatSimulationDisplay" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/StatSimulationDisplay.tsx",
+          "symbol": "setStatSimulationDisplay"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/StatSimulationDisplay.tsx",
+          "symbol": "startOptimizerStatSimulation"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/statSimulation/SimulationInputs.tsx",
+          "symbol": "SimulationInputs"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/statSimulation/SetsSection.tsx",
+          "symbol": "OptimizerSetsSection"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/statSimulation/MainStatsSection.tsx",
+          "symbol": "MainStatSelector"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/statSimulation/StatInput.tsx",
+          "symbol": "StatInput"
+        },
+        {
+          "file": "src/lib/simulations/statSimulationController.ts",
+          "symbol": "startOptimizerStatSimulation"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "updateStatSimField"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setStatSimulationDisplay"
+        }
       ],
       "params": [
-        { "name": "simRelicSet1 / simRelicSet2", "type": "遗器套装名", "default": "空", "notes": "两个相同即四件套" },
-        { "name": "simOrnamentSet", "type": "饰品套装名", "default": "空" },
-        { "name": "simBody / simFeet / simPlanarSphere / simLinkRope", "type": "主词条", "default": "空", "notes": "四个都选了才能保存" },
-        { "name": "stats", "type": "Record<副词条, 词条数>", "default": "空" },
-        { "name": "name", "type": "string", "default": "空", "notes": "模拟的显示名，可不填" }
+        {
+          "name": "simRelicSet1 / simRelicSet2",
+          "type": "遗器套装名",
+          "default": "空",
+          "notes": "两个相同即四件套"
+        },
+        {
+          "name": "simOrnamentSet",
+          "type": "饰品套装名",
+          "default": "空"
+        },
+        {
+          "name": "simBody / simFeet / simPlanarSphere / simLinkRope",
+          "type": "主词条",
+          "default": "空",
+          "notes": "四个都选了才能保存"
+        },
+        {
+          "name": "stats",
+          "type": "Record<副词条, 词条数>",
+          "default": "空"
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "default": "空",
+          "notes": "模拟的显示名，可不填"
+        }
       ],
       "conditions": "只有已保存的模拟会被计算（见 optimizer.statSim.saved）。条件、队友、敌人等沿用当前表单。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore.statSim 的输入 + useOptimizerDisplayStore.statSimulationDisplay", "lifecycle": "session" },
-      "mcp": { "status": "implemented", "tools": ["stat_simulate"] },
+      "state": {
+        "owner": "useOptimizerRequestStore.statSim 的输入 + useOptimizerDisplayStore.statSimulationDisplay",
+        "lifecycle": "session"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "stat_simulate"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -1105,33 +2663,91 @@
           "同一份模拟定义得到的 COMBO、各技能伤害与属性，与网页端保存同一模拟后点「模拟」得到的那一行一致",
           "直接运行表单里已保存的全部模拟时，返回的行数与顺序与网页端结果表格一致"
         ],
-        "tests": ["mcp/scripts/smoke-simulation.mjs", "mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-simulation.mjs",
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.statSim.run cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.statSim.saved",
       "title": "管理已保存的模拟",
-      "surface": { "page": "OPTIMIZER", "overlay": "确认对话框（全部删除时）", "entry": "「自定义属性模拟」区左侧的模拟列表与右侧的保存、覆盖、删除按钮" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "确认对话框（全部删除时）",
+        "entry": "「自定义属性模拟」区左侧的模拟列表与右侧的保存、覆盖、删除按钮"
+      },
       "kind": "write",
       "action": "把当前填写的内容存成一条模拟（内容完全相同的不重复保存，四个主词条没选全不让存）；用当前输入覆盖选中的那一条（覆盖后获得新的 key 并重新选中，重复检测排除被覆盖的那条）；删除单条，或经确认后全部删除；点列表里的一行把它的内容回填到输入区——回填时未选的主词条（0 值）转成 null、切换到该条的模拟模式，并同步选中优化结果网格里的对应行。保存的模拟随角色表单一起落盘。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/SimulatedBuildsGrid.tsx", "symbol": "SimulatedBuildsGrid" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/StatSimulationDisplay.tsx", "symbol": "StatSimulationDisplay" },
-        { "file": "src/lib/simulations/statSimulationController.ts", "symbol": "saveStatSimulationBuildFromForm" },
-        { "file": "src/lib/simulations/statSimulationController.ts", "symbol": "overwriteStatSimulationBuild" },
-        { "file": "src/lib/simulations/statSimulationController.ts", "symbol": "deleteStatSimulationBuild" },
-        { "file": "src/lib/simulations/statSimulationController.ts", "symbol": "deleteAllStatSimulationBuilds" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "setStatSim" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setStatSimulations" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "addSimulation" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "replaceSimulation" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "removeSimulation" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "clearSimulations" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setSelectedStatSimulations" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/SimulatedBuildsGrid.tsx",
+          "symbol": "SimulatedBuildsGrid"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/StatSimulationDisplay.tsx",
+          "symbol": "StatSimulationDisplay"
+        },
+        {
+          "file": "src/lib/simulations/statSimulationController.ts",
+          "symbol": "saveStatSimulationBuildFromForm"
+        },
+        {
+          "file": "src/lib/simulations/statSimulationController.ts",
+          "symbol": "overwriteStatSimulationBuild"
+        },
+        {
+          "file": "src/lib/simulations/statSimulationController.ts",
+          "symbol": "deleteStatSimulationBuild"
+        },
+        {
+          "file": "src/lib/simulations/statSimulationController.ts",
+          "symbol": "deleteAllStatSimulationBuilds"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "setStatSim"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setStatSimulations"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "addSimulation"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "replaceSimulation"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "removeSimulation"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "clearSimulations"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setSelectedStatSimulations"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "useOptimizerDisplayStore.statSimulations，写入角色表单的 statSim.simulations", "lifecycle": "persisted", "saveKey": "characters[].form.statSim" },
-      "mcp": { "status": "implemented", "tools": ["update_form"] },
+      "state": {
+        "owner": "useOptimizerDisplayStore.statSimulations，写入角色表单的 statSim.simulations",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form.statSim"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "update_form"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
@@ -1140,50 +2756,110 @@
           "保存内容相同的模拟被拒绝，主词条不全的模拟被拒绝，原因与网页端的提示对应",
           "覆盖、删除单条、全部删除之后的列表分别与网页端一致"
         ],
-        "tests": ["mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.statSim.saved cases 1-3 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.statSim.importResult",
       "title": "把结果配装导入为模拟",
-      "surface": { "page": "OPTIMIZER", "entry": "「自定义属性模拟」区的「导入」按钮" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "「自定义属性模拟」区的「导入」按钮"
+      },
       "kind": "write",
       "action": "把结果表格里选中的那一行换算成一条模拟：取它的套装与四个主词条，把各副词条的数值折算成词条数，填进输入区并保存为一条新模拟，便于在它的基础上增减词条做对比。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/StatSimulationDisplay.tsx", "symbol": "importOptimizerBuild" },
-        { "file": "src/lib/simulations/statSimulationController.ts", "symbol": "importOptimizerBuild" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/components/StatSimulationDisplay.tsx",
+          "symbol": "importOptimizerBuild"
+        },
+        {
+          "file": "src/lib/simulations/statSimulationController.ts",
+          "symbol": "importOptimizerBuild"
+        }
       ],
       "conditions": "必须先选中一行真实配装，选中的是模拟行时不导入。",
       "runtime": "node",
-      "state": { "owner": "useOptimizerRequestStore.statSim + useOptimizerDisplayStore.statSimulations", "lifecycle": "persisted", "saveKey": "characters[].form.statSim" },
-      "mcp": { "status": "implemented", "tools": ["stat_simulate"] },
+      "state": {
+        "owner": "useOptimizerRequestStore.statSim + useOptimizerDisplayStore.statSimulations",
+        "lifecycle": "persisted",
+        "saveKey": "characters[].form.statSim"
+      },
+      "mcp": {
+        "status": "implemented",
+        "tools": [
+          "stat_simulate"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "mirror",
       "acceptance": {
         "cases": [
           "由结果行折算出的套装、主词条与各副词条词条数，与网页端选中同一行点「导入」后输入区里的值一致"
         ],
-        "tests": ["mcp/scripts/smoke-form.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form.mjs"
+        ]
       }
     },
     {
       "id": "optimizer.suggestions.zeroPermutations",
       "title": "排列为零时的原因与修复建议",
-      "surface": { "page": "OPTIMIZER", "overlay": "零排列建议弹窗", "entry": "有效排列为 0 时点「开始」自动弹出" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "零排列建议弹窗",
+        "entry": "有效排列为 0 时点「开始」自动弹出"
+      },
       "kind": "compute",
       "action": "逐条列出造成没有可搜索配装的原因，并各给一个一键修复：还没导入遗器（跳到导入页）、某个部位限定的主词条没有对应遗器、遗器套装或饰品套装凑不齐（清掉对应筛选）、开着「保留当前遗器」、优先级过滤挡住了遗器（把角色移到列表首位）、排除了某些角色、没开「使用已装备遗器」、最低加权词条数太高。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/OptimizerSuggestionsModal.tsx", "symbol": "ZeroPermutationsSuggestionsModal" },
-        { "file": "src/lib/tabs/tabOptimizer/OptimizerSuggestionsModal.tsx", "symbol": "convertRootCauseToDisplay" },
-        { "file": "src/lib/tabs/tabOptimizer/suggestionsEngine.ts", "symbol": "detectZeroPermutationCauses" },
-        { "file": "src/lib/tabs/tabOptimizer/suggestionsEngine.ts", "symbol": "ZeroPermRootCauseFixes" },
-        { "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts", "symbol": "applySuggestionFixes" },
-        { "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts", "symbol": "computeApplySuggestionFixes" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/OptimizerSuggestionsModal.tsx",
+          "symbol": "ZeroPermutationsSuggestionsModal"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/OptimizerSuggestionsModal.tsx",
+          "symbol": "convertRootCauseToDisplay"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/suggestionsEngine.ts",
+          "symbol": "detectZeroPermutationCauses"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/suggestionsEngine.ts",
+          "symbol": "ZeroPermRootCauseFixes"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/useOptimizerRequestStore.ts",
+          "symbol": "applySuggestionFixes"
+        },
+        {
+          "file": "src/lib/stores/optimizerForm/optimizerFormStoreActions.ts",
+          "symbol": "computeApplySuggestionFixes"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "由当前表单与库存推导", "lifecycle": "derived" },
-      "sideEffects": ["点修复按钮直接改表单", "「把角色移到首位」会改角色列表顺序", "「去导入」会跳到导入页"],
-      "mcp": { "status": "implemented", "tools": ["optimize", "permutations"] },
+      "state": {
+        "owner": "由当前表单与库存推导",
+        "lifecycle": "derived"
+      },
+      "sideEffects": [
+        "点修复按钮直接改表单",
+        "「把角色移到首位」会改角色列表顺序",
+        "「去导入」会跳到导入页"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize",
+          "permutations"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -1191,26 +2867,62 @@
           "对十二种原因各构造一个表单，返回的原因列表与网页端弹窗列出的一致",
           "把返回的修复作为 formOverrides 套用后，有效排列数与网页端点对应修复按钮后的一致"
         ],
-        "tests": ["mcp/scripts/smoke-form-overrides.mjs", "mcp/scripts/smoke-query.mjs", "mcp/scripts/smoke-analysis.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-form-overrides.mjs",
+          "mcp/scripts/smoke-query.mjs",
+          "mcp/scripts/smoke-analysis.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.suggestions.zeroPermutations cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.suggestions.zeroResults",
       "title": "结果为零时的原因与修复建议",
-      "surface": { "page": "OPTIMIZER", "overlay": "零结果建议弹窗", "entry": "搜索跑完却没有任何结果时自动弹出" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "overlay": "零结果建议弹窗",
+        "entry": "搜索跑完却没有任何结果时自动弹出"
+      },
       "kind": "compute",
       "action": "列出可能把结果全部挡掉的上下限（各项属性与各项伤害的最小值、最大值），每条可以单独清除，也可以一键全部清除；属性视图可能选错时提示切换视图。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/OptimizerSuggestionsModal.tsx", "symbol": "ZeroResultSuggestionModal" },
-        { "file": "src/lib/tabs/tabOptimizer/OptimizerSuggestionsModal.tsx", "symbol": "ZeroResultSuggestionContent" },
-        { "file": "src/lib/tabs/tabOptimizer/OptimizerSuggestionsModal.tsx", "symbol": "activateZeroResultSuggestionsModal" },
-        { "file": "src/lib/tabs/tabOptimizer/suggestionsEngine.ts", "symbol": "detectZeroResultCauses" },
-        { "file": "src/lib/tabs/tabOptimizer/suggestionsEngine.ts", "symbol": "ZeroResultRootCauseFixes" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/OptimizerSuggestionsModal.tsx",
+          "symbol": "ZeroResultSuggestionModal"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/OptimizerSuggestionsModal.tsx",
+          "symbol": "ZeroResultSuggestionContent"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/OptimizerSuggestionsModal.tsx",
+          "symbol": "activateZeroResultSuggestionsModal"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/suggestionsEngine.ts",
+          "symbol": "detectZeroResultCauses"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/suggestionsEngine.ts",
+          "symbol": "ZeroResultRootCauseFixes"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "由当前表单推导", "lifecycle": "derived" },
-      "sideEffects": ["点清除按钮直接改表单里对应的上下限"],
-      "mcp": { "status": "implemented", "tools": ["optimize"] },
+      "state": {
+        "owner": "由当前表单推导",
+        "lifecycle": "derived"
+      },
+      "sideEffects": [
+        "点清除按钮直接改表单里对应的上下限"
+      ],
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "optimize"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -1218,87 +2930,178 @@
           "设一个不可能达到的最低速度后搜索，返回的原因列表与网页端弹窗列出的一致",
           "按返回的修复清掉对应上下限后重新搜索有结果"
         ],
-       "tests": ["mcp/scripts/smoke-analysis.mjs"]
+        "tests": [
+          "mcp/scripts/smoke-analysis.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.suggestions.zeroResults cases 1-2 PASS 2026-10-09 (8ac1d045)"
+        ]
       }
     },
     {
       "id": "optimizer.layout.sections",
       "title": "折叠与展开表单分区",
-      "surface": { "page": "OPTIMIZER", "entry": "各分区左侧的标题条" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "各分区左侧的标题条"
+      },
       "kind": "view",
       "action": "表单分成「角色选项」「遗器与属性筛选」「队友」「自定义属性模拟」「分析」几个分区，点标题条折叠或展开，状态会记住。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/layout/FormRow.tsx", "symbol": "FormRow" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/layout/optimizerMenuIds.ts", "symbol": "OptimizerMenuIds" },
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setMenuState" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/layout/FormRow.tsx",
+          "symbol": "FormRow"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/layout/optimizerMenuIds.ts",
+          "symbol": "OptimizerMenuIds"
+        },
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setMenuState"
+        }
       ],
       "params": [
-        { "name": "menuState", "type": "Record<分区 id, boolean>", "default": "「自定义属性模拟」折叠，其余展开" }
+        {
+          "name": "menuState",
+          "type": "Record<分区 id, boolean>",
+          "default": "「自定义属性模拟」折叠，其余展开"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "useOptimizerDisplayStore.menuState", "lifecycle": "persisted", "saveKey": "optimizerMenuState" },
-      "mcp": { "status": "implemented", "tools": ["get_state", "update_state"] },
+      "state": {
+        "owner": "useOptimizerDisplayStore.menuState",
+        "lifecycle": "persisted",
+        "saveKey": "optimizerMenuState"
+      },
+      "mcp": {
+        "status": "verified",
+        "tools": [
+          "get_state",
+          "update_state"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": [
           "读到的各分区折叠状态与网页端一致；改动后网页端重新打开时按新状态显示"
         ],
-        "tests": ["mcp/scripts/smoke-state.mjs"]}
+        "tests": [
+          "mcp/scripts/smoke-state.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.layout.sections cases 1-1 PASS 2026-10-09 (8ac1d045)"
+        ]
+      }
     },
     {
       "id": "optimizer.results.history",
       "title": "多运行结果历史（增强项）",
-      "surface": { "page": "OPTIMIZER", "entry": "网页端只保留最近一次运行的结果与表单快照；保存多个 runId 的历史是 MCP 新增能力" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "网页端只保留最近一次运行的结果与表单快照；保存多个 runId 的历史是 MCP 新增能力"
+      },
       "kind": "read",
       "action": "保存多次运行的结果与运行时表单快照（runId 区分），可回看、比较与再次装备；网页端的内部表单快照缓存（optimizerFormCache，上限 50 份）不等于用户可见的历史。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "optimizerFormCache" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "optimizerFormCache"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "MCP 结果历史（待建）", "lifecycle": "session" },
-      "mcp": { "status": "missing", "candidates": ["get_results(history=true)"] },
+      "state": {
+        "owner": "MCP 结果历史（待建）",
+        "lifecycle": "session"
+      },
+      "mcp": {
+        "status": "missing",
+        "candidates": [
+          "get_results(history=true)"
+        ]
+      },
       "scope": "enhancement",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["两次运行后两个 runId 的结果与各自表单快照都可独立取回", "缓存世代检查对历史行依然生效（跨存档装备被拒）"]
+        "cases": [
+          "两次运行后两个 runId 的结果与各自表单快照都可独立取回",
+          "缓存世代检查对历史行依然生效（跨存档装备被拒）"
+        ]
       }
     },
     {
       "id": "optimizer.run.resume",
       "title": "长任务跨重启续跑（增强项）",
-      "surface": { "page": "OPTIMIZER", "entry": "网页端刷新即丢运行状态；MCP 进程重启后继续未完成的优化是新增能力" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "网页端刷新即丢运行状态；MCP 进程重启后继续未完成的优化是新增能力"
+      },
       "kind": "compute",
       "action": "把长时优化的进度持久化，MCP 重启后从检查点续跑而非从头再来；依赖统一任务管理（global.jobs.manage）。",
       "upstream": [
-        { "file": "src/lib/worker/workerPool.ts", "symbol": "WorkerPool" }
+        {
+          "file": "src/lib/worker/workerPool.ts",
+          "symbol": "WorkerPool"
+        }
       ],
       "runtime": "node",
-      "state": { "owner": "MCP 任务管理器（待建）", "lifecycle": "session" },
-      "mcp": { "status": "missing", "candidates": ["optimize(resume=true)"] },
+      "state": {
+        "owner": "MCP 任务管理器（待建）",
+        "lifecycle": "session"
+      },
+      "mcp": {
+        "status": "missing",
+        "candidates": [
+          "optimize(resume=true)"
+        ]
+      },
       "scope": "enhancement",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["模拟进程重启后续跑的结果与一次跑完的结果一致", "取消后的任务重启时不被自动续跑"]
+        "cases": [
+          "模拟进程重启后续跑的结果与一次跑完的结果一致",
+          "取消后的任务重启时不被自动续跑"
+        ]
       }
     },
     {
       "id": "optimizer.analysis.chartExport",
       "title": "任意图表图片导出（增强项）",
-      "surface": { "page": "OPTIMIZER", "entry": "展开数据面板里的伤害拆分柱状图与伤害标签饼图；导出为图片文件是 MCP 新增能力" },
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "展开数据面板里的伤害拆分柱状图与伤害标签饼图；导出为图片文件是 MCP 新增能力"
+      },
       "kind": "artifact",
       "action": "把伤害拆分与伤害标签图表渲染成图片并返回文件路径、MIME 与尺寸；固定语言与素材以保证可重现。",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/analysis/DamageSplitsChart.tsx", "symbol": "DamageSplitsChart" },
-        { "file": "src/lib/tabs/tabOptimizer/analysis/DamageTagPieChart.tsx", "symbol": "DamageTagPieChart" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/analysis/DamageSplitsChart.tsx",
+          "symbol": "DamageSplitsChart"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/analysis/DamageTagPieChart.tsx",
+          "symbol": "DamageTagPieChart"
+        }
       ],
       "runtime": "browser",
-      "state": { "owner": "无", "lifecycle": "none" },
-      "mcp": { "status": "missing", "candidates": ["render(target=chart)"] },
+      "state": {
+        "owner": "无",
+        "lifecycle": "none"
+      },
+      "mcp": {
+        "status": "missing",
+        "candidates": [
+          "render(target=chart)"
+        ]
+      },
       "scope": "enhancement",
       "upstreamChange": "none",
       "acceptance": {
-        "cases": ["导出图片的尺寸、配色与图例文字和网页端图表一致", "空数据返回明确错误而非空白图"]
+        "cases": [
+          "导出图片的尺寸、配色与图例文字和网页端图表一致",
+          "空数据返回明确错误而非空白图"
+        ]
       }
     }
   ],
@@ -1307,56 +3110,125 @@
       "id": "optimizer.mech.comboDrawerLifecycle",
       "title": "连招抽屉的状态往返",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts", "symbol": "initialize" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts", "symbol": "reset" },
-        { "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts", "symbol": "getComboState" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts",
+          "symbol": "initialize"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts",
+          "symbol": "reset"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/combo/useComboDrawerStore.ts",
+          "symbol": "getComboState"
+        }
       ],
-      "serves": ["optimizer.combo.activations", "optimizer.combo.sets", "optimizer.combo.definition"],
+      "serves": [
+        "optimizer.combo.activations",
+        "optimizer.combo.sets",
+        "optimizer.combo.definition"
+      ],
       "reason": "打开抽屉时把表单里的连招数据展开成矩阵状态，关闭后清掉，getComboState 再把它收拢成可序列化的对象。只是同一份数据在表单与抽屉之间的往返，读写都已有条目。"
     },
     {
       "id": "optimizer.mech.contextCache",
       "title": "优化上下文缓存",
       "upstream": [
-        { "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts", "symbol": "setContext" }
+        {
+          "file": "src/lib/stores/optimizerUI/useOptimizerDisplayStore.ts",
+          "symbol": "setContext"
+        }
       ],
-      "serves": ["optimizer.form.conditionals", "optimizer.grid.display", "optimizer.analysis.read"],
+      "serves": [
+        "optimizer.form.conditionals",
+        "optimizer.grid.display",
+        "optimizer.analysis.read"
+      ],
       "reason": "缓存由当前表单生成的优化上下文（角色有哪些技能、有没有忆灵等），供界面决定显示哪些列和控件。上下文完全由表单推导，MCP 每次调用时自行生成。"
     },
     {
       "id": "optimizer.mech.runFormCache",
       "title": "按运行缓存当时的表单",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts", "symbol": "optimizerFormCache" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts",
+          "symbol": "optimizerFormCache"
+        }
       ],
-      "serves": ["optimizer.analysis.read", "optimizer.results.select"],
+      "serves": [
+        "optimizer.analysis.read",
+        "optimizer.results.select"
+      ],
       "reason": "按运行 id 记住那一轮搜索用的表单（最多 50 份），让事后查看结果时用的还是当时的参数。MCP 的结果缓存里同样带着那一轮的表单。"
     },
     {
       "id": "optimizer.mech.gridPlumbing",
       "title": "结果表格的数据通道",
       "upstream": [
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "setMetadata" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "setRows" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "getRows" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "getAggregations" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "getColumnsToAggregate" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "getColumnsToAggregateMap" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "resetDataSource" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "redrawRows" },
-        { "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts", "symbol": "scrollToGrid" },
-        { "file": "src/lib/stores/gridStore.ts", "symbol": "gridStore" }
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "setMetadata"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "setRows"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "getRows"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "getAggregations"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "getColumnsToAggregate"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "getColumnsToAggregateMap"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "resetDataSource"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "redrawRows"
+        },
+        {
+          "file": "src/lib/tabs/tabOptimizer/optimizerTabController.ts",
+          "symbol": "scrollToGrid"
+        },
+        {
+          "file": "src/lib/stores/gridStore.ts",
+          "symbol": "gridStore"
+        }
       ],
-      "serves": ["optimizer.results.read", "optimizer.results.select", "optimizer.results.filter", "relics.grid.read"],
+      "serves": [
+        "optimizer.results.read",
+        "optimizer.results.select",
+        "optimizer.results.filter",
+        "relics.grid.read"
+      ],
       "reason": "把引擎产出的结果行和各部位遗器表交给表格、算每列的最大最小值用于着色、在数据变化后刷新或滚动到表格。gridStore 只是保存两张表格（优化结果与遗器库存）的句柄。它们搬运的数据都已由结果读取、选中和筛选这几个条目覆盖。"
     },
     {
       "id": "optimizer.mech.workerPool",
       "title": "后台计算线程池",
       "upstream": [
-        { "file": "src/lib/worker/workerPool.ts", "symbol": "WorkerPool" }
+        {
+          "file": "src/lib/worker/workerPool.ts",
+          "symbol": "WorkerPool"
+        }
       ],
-      "serves": ["optimizer.run.start", "optimizer.run.cancel", "preview.simScore.read", "relics.insights.read"],
+      "serves": [
+        "optimizer.run.start",
+        "optimizer.run.cancel",
+        "preview.simScore.read",
+        "relics.insights.read"
+      ],
       "reason": "管理浏览器里的后台线程：按需创建、排队派发任务、收消息、取消时丢弃排队任务。优化搜索、模拟评分和遗器潜力估算都经它执行；MCP 在 Node 里用自己的 worker_threads 驱动同一套引擎。"
     }
   ]

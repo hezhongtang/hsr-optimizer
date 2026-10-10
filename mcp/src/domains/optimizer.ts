@@ -31,7 +31,6 @@ import {
 } from 'lib/stores/character/characterStore'
 import {
   displayToInternal,
-  internalToDisplay,
 } from 'lib/stores/optimizerForm/optimizerFormConversions'
 import { computeLoadForm } from 'lib/stores/optimizerForm/optimizerFormStoreActions'
 import { useOptimizerRequestStore } from 'lib/stores/optimizerForm/useOptimizerRequestStore'
@@ -695,10 +694,13 @@ export function registerOptimizerTools(server: McpServer): void {
       // leak past the transaction boundary). formOverrides are per-run
       // parameters and deliberately excluded — applyFixes never writes a form
       // the agent did not save.
-      // internalToDisplay mirrors loadForm's conversion wholesale — applyFormOverrides
-      // would reject display-only keys saved forms legitimately carry (minCv…).
-      const probeState = { ...useOptimizerRequestStore.getState(), ...internalToDisplay(character.form as Any) } as Any
-      const savedRequest: Any = displayToInternal(probeState)
+      // NOTE: internalToDisplay() only converts statFilters/ratingFilters/
+      // teammates — spreading it over the live store left every other field
+      // (mainBody, weights, …) at whatever the previous load left there, which
+      // silently broke zero-perm detection on this probe. Build the probe
+      // through the same computeLoadForm → displayToInternal pipeline the
+      // diagnose path uses, minus the per-run overrides.
+      const savedRequest: Any = displayToInternal(computeLoadForm(character.form as Any))
       savedRequest.characterId = characterId
       savedRequest.rank = getCharacters().findIndex((c: Any) => c.id === characterId)
       savedRequest.resultsLimit = resultsLimit
