@@ -1,2 +1,4 @@
 spike/.build/
+profile/
+output_zcode/
 !coverage/
