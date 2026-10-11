@@ -279,6 +279,63 @@ try {
             && gpuRun.comparison?.column != null && gpuRun.comparison.cpuRows > 0,
           `column=${gpuRun.comparison?.column} cpuTop=${gpuRun.comparison?.cpuTop} gpuTop=${gpuRun.comparison?.gpuTop}`,
         )
+        // Structured rows come from the page's results hook (site dist built
+        // with src/lib/sync/optimizerResultsHook.ts); a dist that predates it
+        // only has the display rows asserted above.
+        if (gpuRun.rows == null) {
+          console.log('[SKIP] engine=gpu 结构化结果断言 — 站点 dist 早于结果钩子(仓库根目录 npm run build 后重跑)')
+        } else {
+          const column = gpuRun.summary.gridSortColumn
+          check(
+            'engine=gpu returns structured rows with six-relic builds, sorted, matching the CPU builds',
+            gpuRun.rows.length === gpuRun.comparison.cpuRows
+              && gpuRun.rows.every((row) => Object.keys(row.build.relics).length === 6)
+              && gpuRun.rows.every((row, i, all) => i === 0 || all[i - 1].stats[column] >= row.stats[column])
+              && gpuRun.comparison.topBuildMatch === true
+              && gpuRun.comparison.matchingBuilds >= gpuRun.rows.length - 1,
+            `rows=${gpuRun.rows.length} matchingBuilds=${gpuRun.comparison.matchingBuilds} gpuTopExact=${gpuRun.comparison.gpuTopExact}`,
+          )
+          const cached = await callTool(client, 'get_results', { limit: 1 })
+          check(
+            'engine=gpu rows are cached for get_results under the returned cacheId',
+            gpuRun.summary.cacheId !== '' && cached.cacheId === gpuRun.summary.cacheId && cached.rows[0]?.id === gpuRun.rows[0].id,
+            `cacheId=${gpuRun.summary.cacheId}`,
+          )
+          const unchecked = await callTool(
+            client,
+            'optimize',
+            { characterId: TARGET, resultsLimit: 5, engine: 'gpu', crossCheck: false },
+            { timeout: 600_000 },
+          )
+          check(
+            'engine=gpu crossCheck=false skips the CPU pass and returns the same top build',
+            unchecked.status === 'completed' && unchecked.comparison == null
+              && unchecked.rows?.[0]?.id === gpuRun.rows[0].id
+              && unchecked.summary.cacheId !== gpuRun.summary.cacheId,
+            `rows=${unchecked.rows?.length} comparison=${unchecked.comparison == null ? 'absent' : 'present'}`,
+          )
+          // Sorting by an action the character does not have crashes the GPU
+          // pipeline at startup on current upstream. The page only toasts and
+          // drops its in-progress flag; that must surface as an error, never
+          // as a completed run with zero rows.
+          const { error: crashErr, payload: crashRun } = await callOrError(
+            client,
+            'optimize',
+            { characterId: TARGET, resultsLimit: 5, engine: 'gpu', crossCheck: false, formOverrides: { resultSort: 'DOT' } },
+            { timeout: 600_000 },
+          )
+          if (crashErr == null) {
+            console.log(`[SKIP] engine=gpu 崩溃路径断言 — 该排序在本环境未触发 GPU 崩溃(${crashRun.rows?.length} 行)`)
+          } else {
+            check(
+              'engine=gpu run that crashes in the page fails explicitly (no completed-with-zero-rows)',
+              /未跑完本次搜索|未进入优化运行状态/.test(crashErr),
+              crashErr.slice(0, 90),
+            )
+            const afterCrash = await callTool(client, 'get_results', { limit: 1 })
+            check('a crashed engine=gpu run leaves the previous result cache in place', afterCrash.cacheId === unchecked.summary.cacheId)
+          }
+        }
       } else {
         console.log('[SKIP] engine=gpu 对拍断言 — 网页实际引擎为 cpu(设备能力回落),返回含 note 说明')
       }

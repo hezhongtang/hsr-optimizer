@@ -43,7 +43,7 @@
 
 - **范围**：baseline 175 · foundation 3 · enhancement 7
 - **运行环境**：node 171 · browser 13 · host 1
-- **是否需要动上游**：none 142 · mirror 38 · export 5 · extract 0
+- **是否需要动上游**：none 141 · mirror 38 · export 6 · extract 0
 - **类型**：read 34 · write 85 · compute 27 · artifact 5 · external 8 · navigate 4 · view 22
 - **状态生命周期**：persisted 91 · session 42 · ephemeral 16 · derived 25 · external 4 · none 7
 

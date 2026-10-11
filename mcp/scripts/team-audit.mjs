@@ -16,8 +16,9 @@
 //   --server <entry>           server entry, relative to mcp/ (default dist/index.js)
 //   --out <file>               write the JSON result here instead of stdout
 //   --engine <name>            auto (default, CPU) | cpu | gpu | gpu-experimental; the GPU engines
-//                              run in the managed browser and return display rows only, so the
-//                              audit reports COMBO and the CPU cross-check but skips the swaps
+//                              run in the managed browser against the site dist (npm run build)
+//   --cross-check              with a GPU engine: also run the search on the CPU and report the
+//                              comparison (off by default, it costs the whole CPU search)
 //   --verbose                  forward server stderr
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -125,6 +126,9 @@ function parseArgs(argv) {
         break
       case '--engine':
         args.engine = value()
+        break
+      case '--cross-check':
+        args.crossCheck = true
         break
       case '--verbose':
         args.verbose = true
@@ -611,21 +615,24 @@ async function main(args) {
 
     // ── 3. Search ────────────────────────────────────────────────────────────
     log(`optimize: ${chosen.permutations.toLocaleString('en-US')} 排列(初始 ${initialPermutations.toLocaleString('en-US')})`)
+    const gpuEngine = args.engine === 'gpu' || args.engine === 'gpu-experimental'
     const optimized = await timed('optimize', () =>
       call('optimize', {
         characterId,
         formOverrides,
         resultsLimit: args.resultsLimit,
         ...(args.engine && { engine: args.engine }),
+        ...(gpuEngine && { crossCheck: args.crossCheck === true }),
       }))
     if (optimized.status !== 'completed' && optimized.status !== 'cancelled') {
       return finish('rejected', { reason: optimized.reason ?? `optimize 返回 ${optimized.status}` })
     }
 
-    // The GPU engines run in the managed browser: their rows are the page grid's
+    // A GPU run normally returns the same structured rows as a CPU run. Against
+    // a site dist built before the results hook it only has the page grid's
     // display strings, without relic builds and outside the result cache, so
     // COMBO can be reported but swaps cannot be derived from them.
-    if (optimized.gpuRows) {
+    if (optimized.gpuRows && !optimized.rows) {
       const comboOf = (cells) => {
         const parsed = Number(cells?.COMBO?.replace(/[,\s]/g, ''))
         return cells?.COMBO && Number.isFinite(parsed) ? parsed : null
@@ -646,7 +653,9 @@ async function main(args) {
         swapSummary: null,
         bestConflictFreeRow: null,
       })
-      warnings.push('GPU 引擎的结果行是网页网格的显示值(取整),不含遗器明细也不进结果缓存:换装分析已跳过,需要换装清单请用默认 CPU 引擎')
+      warnings.push(
+        '站点 dist 早于结果钩子:GPU 引擎只返回了网页网格的显示值(取整),不含遗器明细也不进结果缓存,换装分析已跳过——在仓库根目录 npm run build 后重试,或改用默认 CPU 引擎',
+      )
       await addScores()
       await addFingerprint()
       return finish('completed')
@@ -657,6 +666,9 @@ async function main(args) {
     const topRow = rows[0] ?? null
     const comboNow = optimized.equippedRow?.stats.COMBO ?? null
     const comboBest = topRow?.stats.COMBO ?? null
+    if (gpuEngine && optimized.actualEngine !== args.engine) {
+      warnings.push(`请求的是 ${args.engine} 引擎,网页实际以 ${optimized.actualEngine} 引擎完成(设备不可用时会回落),结果按实际引擎理解`)
+    }
     if (!rows.length) warnings.push('搜索完成但没有结果行:属性/评分过滤条件可能过严')
     if (!optimized.equippedRow) warnings.push('引擎未返回当前装备的基线行(极快或被取消的运行会这样),comboNow 为空')
     const unleveledOf = (row) => PARTS.filter((part) => row.build.relics[part] && row.build.relics[part].enhance < upscaleLevel)
@@ -665,11 +677,15 @@ async function main(args) {
     }
     Object.assign(output, {
       optimize: {
+        ...(optimized.engine && { engine: optimized.engine }),
         actualEngine: optimized.actualEngine,
         searched: summary.searched,
         durationMs: summary.durationMs,
         cancelled: summary.cancelled,
         sortColumn: summary.gridSortColumn,
+        ...(optimized.adapter && { adapter: optimized.adapter }),
+        ...(optimized.comparison && { comparison: optimized.comparison }),
+        ...(optimized.note && { note: optimized.note }),
       },
       comboNow,
       comboBest,

@@ -28,6 +28,7 @@ import { Metadata } from 'lib/state/metadataInitializer'
 import { SaveState } from 'lib/state/saveState'
 import { resetSeenFeatures } from 'lib/stores/newFeatureStore'
 import { initFullStateSync } from 'lib/sync/fullStateSyncClient'
+import { initOptimizerResultsHook } from 'lib/sync/optimizerResultsHook'
 
 import { workerPool } from 'lib/worker/workerPool'
 import { OverlayScrollbars } from 'overlayscrollbars'
@@ -103,6 +104,7 @@ window.__HSR_DEBUG = {
 Metadata.initialize()
 SaveState.load(false, false)
 void initFullStateSync()
+initOptimizerResultsHook()
 
 void verifyWebgpuSupport(false)
 

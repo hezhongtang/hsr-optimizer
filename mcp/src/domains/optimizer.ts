@@ -22,7 +22,9 @@ import {
   COMPUTE_ENGINE_GPU_EXPERIMENTAL,
   COMPUTE_ENGINE_GPU_STABLE,
   Constants,
+  PartsArray,
 } from 'lib/constants/constants'
+import { SortOption } from 'lib/optimization/sortOptions'
 import { getGameMetadata } from 'lib/state/gameMetadata'
 import {
   getCharacterById,
@@ -45,7 +47,10 @@ import {
 } from 'lib/tabs/tabOptimizer/suggestionsEngine'
 import { z } from 'zod'
 
-import type { OptimizerDisplayData } from 'lib/optimization/bufferPacker'
+import {
+  BufferPacker,
+  type OptimizerDisplayData,
+} from 'lib/optimization/bufferPacker'
 import { browserManager } from '../browser/browserManager'
 import { runtimeContext } from '../context'
 import { ensureI18nReady } from '../i18n/i18nNode'
@@ -243,13 +248,28 @@ function serializeRowStats(row: OptimizerDisplayData): Record<string, number> {
 // exactly like a user does: seed the page with the GPU computeEngine, let
 // OptimizerForm boot the character (savedSession.optimizerCharacterId,
 // OptimizerForm.tsx:46-49), click the site's own Start button and wait for the
-// grid rows the engine produces. The same request is then re-run on the Node
-// CPU driver and the two top rows are compared (delta summary).
+// run to finish.
+//
+// Results are read two ways:
+//   • structured — window.__HSR_OPTIMIZER_RESULTS (src/lib/sync/
+//     optimizerResultsHook.ts) hands out the rows the page's grid is fed from
+//     plus the six relic ids each row id decodes to. A row id indexes the relic
+//     lists the PAGE filtered for the run — which the GPU's tuple mode re-sorts
+//     in place, so the Node driver's lists cannot decode it. These rows are
+//     full precision, complete (resultsLimit of them) and go into the
+//     get_results cache exactly like a CPU run's (consumers read the cached
+//     builds; nothing re-decodes a cached row id).
+//   • display — the ag-grid DOM scrape (gpuRows / equippedRowCells): what the
+//     page shows, i.e. floor-rounded strings for the rendered rows only. Kept
+//     because the output contract is add-only, and it is all there is when the
+//     site dist predates the hook.
+//
+// crossCheck (default true, the pre-existing behaviour) re-runs the same
+// request on the Node CPU driver and reports the comparison; crossCheck=false
+// skips that pass, which is the entire cost of a large search on this path.
 //
 // No progress notifications / cooperative cancellation on this path (the run
-// lives inside the managed browser); rows stay DOM-scraped display values and
-// are NOT pushed into the get_results cache (that cache holds the CPU driver's
-// structured rows).
+// lives inside the managed browser).
 
 interface GpuEngineRunOptions {
   request: Any
@@ -259,6 +279,91 @@ interface GpuEngineRunOptions {
   engine: 'gpu' | 'gpu-experimental'
   validPermutations: number
   naivePermutations: number
+  crossCheck: boolean
+}
+
+type BuildIds = Partial<Record<string, string | undefined>>
+
+/** HsrOptimizerRunStatus (src/lib/sync/optimizerResultsHook.ts) plus the page clock's time since the run ended */
+type GpuPageStatus = {
+  inProgress: boolean,
+  runningEngine: string,
+  startedAt: number | null,
+  runStartedAt: number | null,
+  finishedAt: number | null,
+  progress: number,
+  permutations: number,
+  permutationsNaive: number,
+  permutationsSearched: number,
+  permutationsResults: number,
+  rowCount: number,
+  sortColumn: string | null,
+  sinceFinishMs: number | null,
+}
+
+type GpuPageResults = {
+  status: GpuPageStatus,
+  rows: Array<{ row: OptimizerDisplayData, build: BuildIds }>,
+  equippedRow: Record<string, unknown> | null,
+  /** Toasts on screen when the run ended (the page reports a crashed GPU run this way) */
+  notifications: string[],
+}
+
+// The hook's payloads cross CDP as JSON text: returnByValue would have to walk
+// every row object, and JSON.stringify gives NaN/Infinity one defined fate (null).
+const GPU_PAGE_HAS_HOOK = `() => typeof window.__HSR_OPTIMIZER_RESULTS?.status === 'function'`
+const GPU_PAGE_STATUS = `() => {
+  const status = window.__HSR_OPTIMIZER_RESULTS.status()
+  return JSON.stringify({ ...status, sinceFinishMs: status.finishedAt == null ? null : Date.now() - status.finishedAt })
+}`
+// A row object also carries the engine's traced container (tracedX/xa/ca,
+// ~20KB of a ~21KB row) that no consumer of the result cache reads — only the
+// numeric columns leave the page.
+const GPU_PAGE_NUMERIC_COLUMNS = `(row) => Object.fromEntries(Object.entries(row).filter((entry) => typeof entry[1] === 'number'))`
+// The grid re-sorts its data source array in place a frame after the engine
+// publishes it, so the rows are copied out in ONE page turn and paged from
+// that copy — paging the live array could repeat one row and drop another.
+const GPU_PAGE_SNAPSHOT_ROWS = `() => {
+  const numericColumns = ${GPU_PAGE_NUMERIC_COLUMNS}
+  window.__HSR_MCP_GPU_ROWS__ = window.__HSR_OPTIMIZER_RESULTS.rows().map((entry) => ({ row: numericColumns(entry.row), build: entry.build }))
+  return window.__HSR_MCP_GPU_ROWS__.length
+}`
+const GPU_PAGE_ROWS = `(offset, limit) => JSON.stringify(window.__HSR_MCP_GPU_ROWS__.slice(offset, offset + limit))`
+const GPU_PAGE_EQUIPPED_ROW = `() => {
+  const row = window.__HSR_OPTIMIZER_RESULTS.equippedRow()
+  return JSON.stringify(row == null ? null : (${GPU_PAGE_NUMERIC_COLUMNS})(row))
+}`
+const GPU_PAGE_NOTIFICATIONS = `() => Array.from(document.querySelectorAll('[role="alert"], .mantine-Notification-root'))
+  .map((n) => (n.textContent ?? '').trim())
+  .filter((t) => t.length > 0)`
+const GPU_PAGE_ROWS_PER_CALL = 2000
+const GPU_PAGE_POLL_MS = 200
+const GPU_GRID_POLL_MS = 1_500
+// Rows land a tick after the in-progress flag drops (webgpuOptimizer.ts defers
+// outputResults). The page's CPU fallback counts permutationsResults per worker
+// batch rather than per kept row, so the two need not meet: past this long
+// after the flag dropped the row list is taken as final.
+const GPU_PAGE_PUBLISH_SETTLE_MS = 1_000
+// The grid renders its rows a few frames after the data source is swapped in.
+const GPU_GRID_RENDER_WAIT_MS = 3_000
+
+// CPU rows come out of BufferPacker with a fixed column set (absent actions are
+// 0); GPU rows only carry the columns the character declares. Cached rows get
+// the CPU column set so get_results can sort and filter them the same way.
+const CPU_ROW_DEFAULTS: Record<string, number> = Object.fromEntries(
+  Object.entries(BufferPacker.extractCharacter(new Float32Array(BufferPacker.createFloatBuffer(1)), 0, 0))
+    .filter(([key, value]) => typeof value === 'number' && key !== 'id'),
+) as Record<string, number>
+
+function buildKey(build: BuildIds): string {
+  return PartsArray.map((part) => build[part] ?? '').join('|')
+}
+
+/** Grid sort column when neither the CPU driver nor the page reported one (memo columns need the run's context, which only they have). */
+function fallbackGridSortColumn(request: Any): string {
+  const sortOption = (SortOption as Any)[request.resultSort]
+  if (!sortOption) return 'COMBO'
+  return request.statDisplay === 'combat' ? sortOption.combatGridColumn : sortOption.basicGridColumn
 }
 
 /** ag-grid DOM scrape of the optimizer results grid. Values are the page's
@@ -318,6 +423,8 @@ async function runGpuEngineOptimize(opts: GpuEngineRunOptions): Promise<CallTool
     async (page) => {
       await page.goto('#main', { timeoutMs: 60_000 })
 
+      const readStatus = async () => JSON.parse(await page.evaluate<string>(GPU_PAGE_STATUS)) as GpuPageStatus
+
       // The site's own Start button — located by its bolt icon (locale-free).
       // Tabs stagger-mount (Tabs.tsx:105-108) and the optimizer form boots the
       // character through an effect (OptimizerForm.tsx:46-49); clicking Start
@@ -330,6 +437,10 @@ async function runGpuEngineOptimize(opts: GpuEngineRunOptions): Promise<CallTool
         const notifications = () => Array.from(document.querySelectorAll('[role="alert"], .mantine-Notification-root'))
           .map((n) => (n.textContent ?? '').trim())
           .filter((t) => t.length > 0)
+        // A run that started and already ended (a small search, or a GPU
+        // pipeline that crashed at once) never shows loading at a 300ms check;
+        // the results hook, when the page has it, remembers that it ran.
+        const ranOnce = () => window.__HSR_OPTIMIZER_RESULTS?.status?.().runStartedAt != null
         for (let attempt = 0; attempt < 5; attempt++) {
           const btn = boltButton()
           if (!btn) return { started: false, reason: '未找到开始按钮(闪电图标)', toasts: [] }
@@ -337,7 +448,7 @@ async function runGpuEngineOptimize(opts: GpuEngineRunOptions): Promise<CallTool
           const settle = Date.now() + 6000
           while (Date.now() < settle) {
             await new Promise((r) => setTimeout(r, 300))
-            if (boltButton()?.getAttribute('data-loading') === 'true') return { started: true, toasts: [] }
+            if (boltButton()?.getAttribute('data-loading') === 'true' || ranOnce()) return { started: true, toasts: [] }
           }
         }
         return { started: false, reason: 'Start 后按钮未转为 loading(页面表单校验未通过或 GPU 设备请求失败)', toasts: notifications() }
@@ -351,25 +462,38 @@ async function runGpuEngineOptimize(opts: GpuEngineRunOptions): Promise<CallTool
         )
       }
 
+      // A site dist built before the hook existed still runs the search; only
+      // the display rows can be read back from it. Probed once the run is
+      // underway, when the app has certainly booted.
+      const hasHook = await page.evaluate<boolean>(GPU_PAGE_HAS_HOOK)
+
       const buttonState = `(() => {
         const btn = Array.from(document.querySelectorAll('button'))
           .find((b) => b.querySelector('svg[class*="tabler-icon-bolt-filled"]'))
         return { loading: btn?.getAttribute('data-loading') === 'true' }
       })()`
 
-      // startAttempt above already confirmed loading=true — now wait for the
-      // run to finish (button leaves loading).
+      // startAttempt above already confirmed the run started — now wait for the
+      // run to finish: the hook's own flag plus published rows when the page
+      // has it, the Start button leaving loading otherwise.
       const startedAt = Date.now()
       const doneDeadline = Date.now() + 540_000
       for (;;) {
-        await new Promise((resolve) => setTimeout(resolve, 1_500))
-        const state = await page.evaluate<Record<string, unknown>>(buttonState)
-        if (state['loading'] !== true) break
+        await new Promise((resolve) => setTimeout(resolve, hasHook ? GPU_PAGE_POLL_MS : GPU_GRID_POLL_MS))
+        if (hasHook) {
+          const status = await readStatus()
+          const published = status.rowCount === status.permutationsResults
+            || (status.sinceFinishMs != null && status.sinceFinishMs >= GPU_PAGE_PUBLISH_SETTLE_MS)
+          if (!status.inProgress && published) break
+        } else {
+          const state = await page.evaluate<Record<string, unknown>>(buttonState)
+          if (state['loading'] !== true) break
+        }
         if (Date.now() >= doneDeadline) {
           throw new Error('optimize(engine=gpu):浏览器内 GPU 优化 9 分钟未完成——可缩小 resultsLimit 或改用 engine=cpu')
         }
       }
-      const durationMs = Date.now() - startedAt
+      const polledDurationMs = Date.now() - startedAt
 
       // Which engine did the page ACTUALLY run? Boot-time verifyWebgpuSupport
       // flips the session to CPU when the adapter dies (webgpuDevice.ts:31-40),
@@ -377,22 +501,176 @@ async function runGpuEngineOptimize(opts: GpuEngineRunOptions): Promise<CallTool
       const harvested = await page.harvestSaveState()
       const actualEngineValue: string | null = harvested?.savedSession?.global?.computeEngine ?? null
 
-      const rows = await page.evaluate<Array<{ pinned: boolean, cells: Record<string, string> }>>(
-        scrapeOptimizerGridRows.toString(),
-      )
-      return { durationMs, actualEngineValue, rows }
+      let results: GpuPageResults | null = null
+      if (hasHook) {
+        const status = await readStatus()
+        const copied = await page.evaluate<number>(GPU_PAGE_SNAPSHOT_ROWS)
+        const resultRows: GpuPageResults['rows'] = []
+        for (let offset = 0; offset < copied; offset += GPU_PAGE_ROWS_PER_CALL) {
+          resultRows.push(...JSON.parse(await page.evaluate<string>(GPU_PAGE_ROWS, [offset, GPU_PAGE_ROWS_PER_CALL])) as GpuPageResults['rows'])
+        }
+        const equippedRow = JSON.parse(await page.evaluate<string>(GPU_PAGE_EQUIPPED_ROW)) as Record<string, unknown> | null
+        const notifications = await page.evaluate<string[]>(GPU_PAGE_NOTIFICATIONS)
+        results = { status, rows: resultRows, equippedRow, notifications }
+      }
+
+      // Display rows: the grid shows a single placeholder row until it has
+      // rendered the new data source, so give it a moment when the hook says
+      // there is more to come.
+      const expectedGridRows = Math.min(results?.status.rowCount ?? 0, 2)
+      const renderDeadline = Date.now() + GPU_GRID_RENDER_WAIT_MS
+      let rows: Array<{ pinned: boolean, cells: Record<string, string> }>
+      for (;;) {
+        rows = await page.evaluate<Array<{ pinned: boolean, cells: Record<string, string> }>>(scrapeOptimizerGridRows.toString())
+        const rendered = rows.filter((r) => !r.pinned && Object.values(r.cells).some((text) => text !== ''))
+        if (rendered.length >= expectedGridRows || Date.now() >= renderDeadline) break
+        await new Promise((resolve) => setTimeout(resolve, GPU_PAGE_POLL_MS))
+      }
+
+      // Wall clock of the run, as before; the page's own in-progress edges
+      // bracket it exactly, the poll loop only to one poll interval.
+      // (optimizerStartTime is no substitute: the GPU engines reset it after
+      // pipeline warmup.)
+      const pageDurationMs = results?.status.runStartedAt != null && results.status.finishedAt != null
+        ? results.status.finishedAt - results.status.runStartedAt
+        : null
+      return { durationMs: pageDurationMs != null && pageDurationMs >= 0 ? pageDurationMs : polledDurationMs, actualEngineValue, rows, results }
     },
   )
 
-  // Same-request CPU run on the Node driver for the cross-check summary.
-  const cpu = await runOptimization(runtimeContext.requireSave().data, opts.request, {})
+  const pageRanGpu = gpu.actualEngineValue === upstreamEngine
+  const pageStatus = gpu.results?.status ?? null
 
-  if (generation !== runtimeContext.getSaveGeneration()) {
-    throw new Error('运行期间 load_save 切换了存档,GPU 对拍结果已丢弃——请对当前存档重新优化')
+  // The session kept the GPU engine but gpuOptimize never started (it stamps
+  // the running engine first thing): getWebgpuDevice returned null at run
+  // time, the page toasted an error and dropped the in-progress flag. That is
+  // not a completed run with zero rows.
+  if (pageRanGpu && pageStatus != null && pageStatus.runningEngine !== upstreamEngine) {
+    throw new Error(
+      `optimize(engine=${opts.engine}):网页端未能启动 GPU 引擎(运行时 GPU 设备请求失败,页面实际引擎标记为 ${pageStatus.runningEngine})。`
+        + '请改用 engine=cpu(或默认 auto),或用 get_runtime_capabilities(action=launch) 重新确认设备能力。',
+    )
   }
 
+  // The page builds its own request from the seeded form. Its valid
+  // permutation count has to equal the estimate for THIS call's request —
+  // otherwise it searched something else and its rows must not be reported
+  // (or cached) as this call's result.
+  if (pageStatus != null && pageStatus.permutations !== opts.validPermutations) {
+    throw new Error(
+      `optimize(engine=${opts.engine}):网页端实际搜索的有效排列数 ${pageStatus.permutations.toLocaleString()} `
+        + `与本次请求的估算 ${opts.validPermutations.toLocaleString()} 不一致——页面运行的表单与请求不符,结果已丢弃。`
+        + '请改用 engine=cpu;若可稳定复现,请连同 formOverrides 一并反馈。',
+    )
+  }
+
+  // gpuOptimize started but did not run to completion: a pipeline or device
+  // error drops the in-progress flag and toasts (optimizer.ts catch,
+  // device.onuncapturederror) without ever reaching progress 1 — whatever
+  // rows it left are not this request's result. A finished run also publishes
+  // exactly the rows its queue kept.
+  if (
+    pageRanGpu && pageStatus != null && gpu.results != null
+    && (pageStatus.progress < 1 || gpu.results.rows.length !== pageStatus.permutationsResults)
+  ) {
+    const toasts = gpu.results.notifications.join(' | ')
+    throw new Error(
+      `optimize(engine=${opts.engine}):网页端 GPU 引擎未跑完本次搜索(进度 ${Math.round(pageStatus.progress * 100)}%,`
+        + `已搜索 ${pageStatus.permutationsSearched.toLocaleString()} / ${pageStatus.permutations.toLocaleString()},`
+        + `保留 ${pageStatus.permutationsResults} 行、发布 ${gpu.results.rows.length} 行)——GPU 管线或设备在运行中出错,结果已丢弃`
+        + `${toasts ? `;页面提示:${toasts}` : ''}。请改用 engine=cpu(或默认 auto)。`,
+    )
+  }
+
+  // Same-request CPU run on the Node driver for the cross-check summary —
+  // only once the page's run is known to be this request's, complete.
+  const cpu = opts.crossCheck ? await runOptimization(runtimeContext.requireSave().data, opts.request, {}) : null
+
+  if (generation !== runtimeContext.getSaveGeneration()) {
+    throw new Error('运行期间 load_save 切换了存档,GPU 运行结果已丢弃——请对当前存档重新优化')
+  }
+
+  const gpuRows = gpu.rows.filter((r) => !r.pinned)
+  const equippedCells = gpu.rows.find((r) => r.pinned)?.cells ?? null
+  const column = cpu?.summary.gridSortColumn ?? pageStatus?.sortColumn ?? fallbackGridSortColumn(opts.request)
+
+  // Structured rows: sorted by the grid column like the CPU driver's (the GPU
+  // publishes in the order of its own float32 sort values, which can swap near
+  // ties against the re-simulated column), then cached for get_results /
+  // fromCache consumers.
+  let structured:
+    | { rows: OptimizerDisplayData[], builds: BuildIds[], cacheId: string, equippedRow: { stats: Record<string, number>, build: BuildIds } | null }
+    | null = null
+  if (gpu.results != null) {
+    const sortValue = (row: OptimizerDisplayData) => {
+      const value = Number((row as Any)[column])
+      return Number.isFinite(value) ? value : -Infinity
+    }
+    const entries = [...gpu.results.rows].sort((a, b) => sortValue(b.row) - sortValue(a.row))
+    const rows = entries.map((entry) => ({ ...CPU_ROW_DEFAULTS, ...entry.row }) as OptimizerDisplayData)
+    const builds = entries.map((entry) => entry.build)
+    const cacheId = runtimeContext.nextCacheId()
+    runtimeContext.cacheOptimizeResult({
+      summary: {
+        cacheId,
+        characterId: opts.characterId,
+        gridSortColumn: column,
+        validPermutations: opts.validPermutations,
+        naivePermutations: opts.naivePermutations,
+        searched: gpu.results.status.permutationsSearched,
+        durationMs: gpu.durationMs,
+        cancelled: false,
+        resultsLimit: opts.resultsLimit,
+      },
+      rows,
+      builds,
+      displayState: opts.state,
+      generation,
+      at: Date.now(),
+    })
+    // The seed's equipped map, not the live store's: the baseline stats were
+    // simulated in the page from the seed.
+    const equipped = seededChar?.equipped as BuildIds | undefined
+    structured = {
+      rows,
+      builds,
+      cacheId,
+      equippedRow: gpu.results.equippedRow != null
+        ? { stats: serializeRowStats(gpu.results.equippedRow as unknown as OptimizerDisplayData), build: equipped ?? {} }
+        : null,
+    }
+  }
+  const structuredFields = structured != null
+    ? {
+      rows: structured.rows.map((row, index) => ({
+        id: row.id,
+        stats: serializeRowStats(row),
+        build: serializeBuild(structured.builds[index] ?? {}, opts.characterId),
+      })),
+      equippedRow: structured.equippedRow != null
+        ? { stats: structured.equippedRow.stats, build: serializeBuild(structured.equippedRow.build, opts.characterId) }
+        : null,
+    }
+    : {}
+  const summary = {
+    characterId: opts.characterId,
+    resultsLimit: opts.resultsLimit,
+    validPermutations: opts.validPermutations,
+    naivePermutations: opts.naivePermutations,
+    searched: pageStatus?.permutationsSearched ?? opts.validPermutations,
+    durationMs: gpu.durationMs,
+    cancelled: false,
+    gridSortColumn: column,
+    cacheId: structured?.cacheId ?? '',
+  }
+  const resultsNote = structured != null
+    ? `rows/equippedRow 为网页内存中的完整结构化结果(全精度,含 6 件遗器配装明细),已进入 get_results 缓存(cacheId ${structured.cacheId});`
+      + 'gpuRows/equippedRowCells 为 DOM 抓取的显示口径(取整,仅网格已渲染的行)'
+    : '站点 dist 不含结果钩子(window.__HSR_OPTIMIZER_RESULTS,dist 早于该钩子):只有 DOM 抓取的显示口径 gpuRows(取整,仅网格已渲染的行),'
+      + '未进入 get_results 缓存——在仓库根目录 npm run build 重建站点产物后可得到结构化 rows'
+
   const engineEcho = { engine: opts.engine, actualEngine: opts.engine }
-  if (gpu.actualEngineValue !== upstreamEngine) {
+  if (!pageRanGpu) {
     // The page fell back to CPU (or flipped the session) — report what ran.
     return toolResult(
       {
@@ -402,33 +680,51 @@ async function runGpuEngineOptimize(opts: GpuEngineRunOptions): Promise<CallTool
         adapter: launch.webgpu,
         note: `网页实际以 ${
           gpu.actualEngineValue ?? '未知'
-        } 引擎完成运行(请求 ${upstreamEngine})——启动时 verifyWebgpuSupport 检测到设备不可用会回落 CPU;结果按实际引擎理解`,
-        gpuRows: gpu.rows.filter((r) => !r.pinned).map((r) => ({ cells: r.cells })),
-        rowCount: gpu.rows.filter((r) => !r.pinned).length,
+        } 引擎完成运行(请求 ${upstreamEngine})——启动时 verifyWebgpuSupport 检测到设备不可用会回落 CPU;结果按实际引擎理解。${resultsNote}`,
+        gpuRows: gpuRows.map((r) => ({ cells: r.cells })),
+        rowCount: gpuRows.length,
         gpuDurationMs: gpu.durationMs,
-        comparison: {
-          column: cpu.summary.gridSortColumn,
-          cpuRows: cpu.rows.length,
-          gpuRows: gpu.rows.filter((r) => !r.pinned).length,
-          note: '页面引擎与请求不一致,对拍仅供参考',
-        },
+        ...structuredFields,
+        ...(structured != null ? { summary } : {}),
+        ...(cpu != null
+          ? {
+            comparison: {
+              column: cpu.summary.gridSortColumn,
+              cpuRows: cpu.rows.length,
+              gpuRows: gpuRows.length,
+              note: '页面引擎与请求不一致,对拍仅供参考',
+            },
+          }
+          : {}),
       },
       `optimize(${opts.characterId}, engine=${opts.engine}) 完成,但网页实际以 ${gpu.actualEngineValue ?? '未知'} 引擎运行(设备不可用回落)——`
-        + `GPU 侧 ${gpu.rows.filter((r) => !r.pinned).length} 行,CPU 对拍 ${cpu.rows.length} 行。`,
+        + `页面侧 ${structured?.rows.length ?? gpuRows.length} 行${cpu != null ? `,CPU 对拍 ${cpu.rows.length} 行` : ''}。`,
     )
   }
 
-  const gpuRows = gpu.rows.filter((r) => !r.pinned)
-  const equippedCells = gpu.rows.find((r) => r.pinned)?.cells ?? null
-  const column = cpu.summary.gridSortColumn
   const parseCell = (cells: Record<string, string> | null | undefined) => {
     const text = cells?.[column]
     if (text == null) return null
     const num = Number(text.replace(/[,\s]/g, ''))
     return Number.isFinite(num) ? num : null
   }
-  const cpuTop = cpu.rows[0] != null ? Number((cpu.rows[0] as Any)[column]) : null
+  const cpuTopValue = Number((cpu?.rows[0] as Any)?.[column])
+  const cpuTop = Number.isFinite(cpuTopValue) ? cpuTopValue : null
   const gpuTop = parseCell(gpuRows[0]?.cells)
+  // Build-level agreement needs no tolerance: the two engines either picked
+  // the same six relics or they did not.
+  const cpuBuildKeys = cpu != null ? new Set(cpu.builds.map(buildKey)) : null
+  const structuredComparison = cpu != null && cpuBuildKeys != null && structured != null
+    ? {
+      structuredRows: structured.rows.length,
+      matchingBuilds: structured.builds.filter((build) => cpuBuildKeys.has(buildKey(build))).length,
+      ...(structured.builds[0] != null && cpu.builds[0] != null
+        ? { topBuildMatch: buildKey(structured.builds[0]) === buildKey(cpu.builds[0]) }
+        : {}),
+      ...(Number.isFinite(Number((structured.rows[0] as Any)?.[column])) ? { gpuTopExact: Number((structured.rows[0] as Any)[column]) } : {}),
+    }
+    : {}
+  const rowCountText = structured != null ? `${structured.rows.length} 行(已缓存 ${structured.cacheId})` : `${gpuRows.length} 行(显示口径)`
 
   return toolResult(
     {
@@ -439,35 +735,32 @@ async function runGpuEngineOptimize(opts: GpuEngineRunOptions): Promise<CallTool
       rowCount: gpuRows.length,
       ...(equippedCells ? { equippedRowCells: equippedCells } : {}),
       gpuDurationMs: gpu.durationMs,
-      comparison: {
-        column,
-        ...(cpuTop != null ? { cpuTop } : {}),
-        ...(gpuTop != null ? { gpuTop } : {}),
-        ...(cpuTop != null && gpuTop != null
-          ? { topDelta: cpuTop - gpuTop, topDeltaNote: 'GPU 值取自页面显示口径(向下取整),|topDelta|≤1 视为一致' }
-          : {}),
-        cpuRows: cpu.rows.length,
-        gpuRows: gpuRows.length,
-        cpuDurationMs: cpu.summary.durationMs,
-      },
-      summary: {
-        characterId: opts.characterId,
-        resultsLimit: opts.resultsLimit,
-        validPermutations: opts.validPermutations,
-        naivePermutations: opts.naivePermutations,
-        searched: opts.validPermutations,
-        durationMs: gpu.durationMs,
-        cancelled: false,
-        gridSortColumn: column,
-        cacheId: '',
-      },
+      ...structuredFields,
+      ...(cpu != null
+        ? {
+          comparison: {
+            column,
+            ...(cpuTop != null ? { cpuTop } : {}),
+            ...(gpuTop != null ? { gpuTop } : {}),
+            ...(cpuTop != null && gpuTop != null
+              ? { topDelta: cpuTop - gpuTop, topDeltaNote: 'GPU 值取自页面显示口径(向下取整),|topDelta|≤1 视为一致' }
+              : {}),
+            cpuRows: cpu.rows.length,
+            gpuRows: gpuRows.length,
+            cpuDurationMs: cpu.summary.durationMs,
+            ...structuredComparison,
+          },
+        }
+        : {}),
+      summary,
       note: 'GPU 运行在受管浏览器内执行(网页端主线程 WebGPU 路径,非 workerPool——后者只承载 CPU worker);'
-        + '结果为 DOM 抓取的显示口径(取整),未进入 get_results 缓存(其为 CPU 驱动的结构化缓存);'
-        + 'CPU 对拍行数/头部值见 comparison',
+        + `${resultsNote};`
+        + `${cpu != null ? 'CPU 对拍行数/头部值/配装重合度见 comparison' : '本次未做 CPU 对拍(crossCheck=false)'}`,
     },
-    `optimize(${opts.characterId}, engine=${opts.engine}) 完成:GPU 引擎 ${gpuRows.length} 行,`
+    `optimize(${opts.characterId}, engine=${opts.engine}) 完成:GPU 引擎 ${rowCountText},`
       + `耗时 ${(gpu.durationMs / 1000).toFixed(2)}s`
       + `${cpuTop != null && gpuTop != null ? `,CPU 对拍头部 ${column} ${cpuTop.toLocaleString()} vs ${gpuTop.toLocaleString()}` : ''}`
+      + `${cpu == null ? ',未做 CPU 对拍' : ''}`
       + `${launch.webgpu?.softwareAdapter === true ? '(软件适配器)' : ''}。`,
   )
 }
@@ -506,7 +799,8 @@ export function registerOptimizerTools(server: McpServer): void {
       + 'applyFixes=true 应用可应用的修复到角色已保存表单(withChange 事务,可回滚;baseRevision 冲突时报错且不落地),'
       + '返回应用结果与修复前后的排列数对比。resultsLimit 上限 65536(网页端保留条数的最大档)。'
       + 'engine 可选引擎(默认 auto):auto/cpu=Node 侧 CPU 驱动(与网页 CPU 引擎同一台上游引擎,行为不变);'
-      + 'gpu/gpu-experimental=受管浏览器里的网页端真实 WebGPU 引擎(点网页自己的开始按钮、抓结果网格,同请求 CPU 对拍报 delta;需要本机 Chrome 与 WebGPU,缺能力时返回明确中文错误)。',
+      + 'gpu/gpu-experimental=受管浏览器里的网页端真实 WebGPU 引擎(点网页自己的开始按钮;rows/equippedRow 返回与 CPU 路径同形的结构化结果并进入 get_results 缓存,'
+      + 'gpuRows 另附结果网格的显示口径;默认同请求 CPU 对拍报 delta,crossCheck=false 可跳过;需要本机 Chrome 与 WebGPU,缺能力时返回明确中文错误)。',
     inputSchema: {
       characterId: z.string().describe('角色 id,如 "1212b1"(可用 id 见 load_save 返回的 characterIds)'),
       formOverrides: z.record(z.string(), z.unknown()).optional().describe(
@@ -535,9 +829,14 @@ export function registerOptimizerTools(server: McpServer): void {
         '计算引擎,默认 auto:引擎选择只影响搜索执行方式,结果语义一致。'
           + 'auto/cpu=Node 侧 CPU 多线程驱动(与既有行为完全一致);'
           + 'gpu/gpu-experimental=网页端真实 WebGPU 引擎(GPU Stable/GPU Experimental),'
-          + '在受管浏览器里点网页自己的开始按钮执行并抓取结果网格,同请求再跑一次 CPU 对拍报头部值差;'
+          + '在受管浏览器里点网页自己的开始按钮执行,从页面读回结构化结果行(rows/equippedRow,同 CPU 路径形状,进入 get_results 缓存)'
+          + '并抓取结果网格的显示口径(gpuRows),默认同请求再跑一次 CPU 对拍报头部值差(crossCheck);'
           + '设备无 WebGPU 时返回明确的中文能力错误(绝不假称已用 GPU 执行);'
-          + 'GPU 路径无进度通知与协作取消,结果不进入 get_results 缓存',
+          + 'GPU 路径无进度通知与协作取消;站点 dist 早于结果钩子时只有显示口径 gpuRows、不进缓存(note 说明)',
+      ),
+      crossCheck: z.boolean().default(true).describe(
+        '仅 engine=gpu/gpu-experimental 生效,默认 true(既有行为):同请求再跑一次 Node CPU 驱动做对拍并返回 comparison。'
+          + 'false 跳过对拍、不返回 comparison——GPU 路径的 rows 已是完整结构化结果,大排列空间下可省掉整段 CPU 搜索耗时',
       ),
     },
     outputSchema: {
@@ -556,8 +855,8 @@ export function registerOptimizerTools(server: McpServer): void {
         uniformBufferStandardLayout: z.boolean().nullable(),
       }).nullable().optional().describe('engine=gpu 路径的 WebGPU 适配器摘要'),
       gpuRows: z.array(z.object({ cells: z.record(z.string(), z.string()) })).optional()
-        .describe('engine=gpu:从网页结果网格抓取的行(显示口径字符串值,colId→文本)'),
-      rowCount: z.number().int().optional().describe('engine=gpu:非置顶结果行数'),
+        .describe('engine=gpu:从网页结果网格抓取的行(显示口径字符串值,colId→文本;只含网格已渲染的行,完整结果见 rows)'),
+      rowCount: z.number().int().optional().describe('engine=gpu:网格已渲染的非置顶结果行数(=gpuRows 长度)'),
       equippedRowCells: z.record(z.string(), z.string()).nullable().optional()
         .describe('engine=gpu:置顶的已装备基线行(显示口径;无则为 null/缺省)'),
       gpuDurationMs: z.number().optional().describe('engine=gpu:浏览器内 GPU 运行耗时(毫秒)'),
@@ -570,8 +869,12 @@ export function registerOptimizerTools(server: McpServer): void {
         cpuRows: z.number().int(),
         gpuRows: z.number().int(),
         cpuDurationMs: z.number().optional(),
+        structuredRows: z.number().int().optional().describe('GPU 结构化结果行数(rows 长度)'),
+        matchingBuilds: z.number().int().optional().describe('GPU 结构化结果中,6 件遗器配装同样出现在 CPU 结果里的行数'),
+        topBuildMatch: z.boolean().optional().describe('GPU 与 CPU 头部行是否为同一套 6 件遗器(头部值并列时两边可能各取一套,此时为 false 不代表结果不一致)'),
+        gpuTopExact: z.number().optional().describe('GPU 结构化头部行在对拍列上的全精度值(gpuTop 为显示口径取整值)'),
         note: z.string().optional(),
-      }).optional().describe('engine=gpu:同一请求 CPU 驱动对拍(头部值/行数)'),
+      }).optional().describe('engine=gpu 且 crossCheck=true(默认):同一请求 CPU 驱动对拍(头部值/行数/配装重合度)'),
       reason: z.string().optional(),
       note: z.string().optional().describe('fixed 模式:无修复时的说明(表单保持原样)'),
       valid: z.boolean().optional().describe('validate 模式:是否通过全部致命校验'),
@@ -603,7 +906,7 @@ export function registerOptimizerTools(server: McpServer): void {
       dirty: z.boolean().optional(),
     },
   }, async (
-    { characterId, formOverrides, resultsLimit, force, validate, diagnose, applyFixes, baseRevision, engine },
+    { characterId, formOverrides, resultsLimit, force, validate, diagnose, applyFixes, baseRevision, engine, crossCheck },
     extra,
   ): Promise<CallToolResult> => {
     runtimeContext.ensureMetadataReady()
@@ -820,7 +1123,8 @@ export function registerOptimizerTools(server: McpServer): void {
     // ── engine=gpu / gpu-experimental: the web's real GPU execution path ────
     // Gate semantics are shared with the CPU path above (same valid-permutation
     // ceiling, same force override); the GPU run additionally needs the managed
-    // browser with WebGPU and runs an equal CPU pass for the delta summary.
+    // browser with WebGPU and, unless crossCheck=false, runs an equal CPU pass
+    // for the delta summary.
     if (useGpuEngine) {
       return runGpuEngineOptimize({
         request,
@@ -830,6 +1134,7 @@ export function registerOptimizerTools(server: McpServer): void {
         engine: engineRequested as 'gpu' | 'gpu-experimental',
         validPermutations: estimate.validPermutations,
         naivePermutations: estimate.naivePermutations,
+        crossCheck: crossCheck !== false,
       })
     }
 

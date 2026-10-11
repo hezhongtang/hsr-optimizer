@@ -2067,12 +2067,13 @@
         ]
       },
       "scope": "baseline",
-      "upstreamChange": "none",
+      "upstreamChange": "export",
       "acceptance": {
         "cases": [
           "在受管浏览器里用 GPU 引擎跑同一表单，返回的结果行与 CPU 引擎一致",
           "运行环境没有 WebGPU 时明确报告不可用并回退到 CPU",
-          "改动引擎偏好后，网页端打开时下拉菜单显示同一选项"
+          "改动引擎偏好后，网页端打开时下拉菜单显示同一选项",
+          "GPU 引擎返回与 CPU 引擎同形的结构化结果行（全精度属性与 6 件遗器配装），并进入结果缓存可翻页读取；关闭 CPU 对拍时不再执行 CPU 搜索"
         ],
         "tests": [
           "mcp/scripts/smoke-state.mjs",

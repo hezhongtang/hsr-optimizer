@@ -1,5 +1,6 @@
 // This file must be a module for `declare global` to work
 import type { HsrFullSyncApi } from 'lib/sync/fullSyncTypes'
+import type { HsrOptimizerResultsApi } from 'lib/sync/optimizerResultsHook'
 
 export {}
 
@@ -37,6 +38,9 @@ declare global {
 
     // M8 full-state sync client hook (opt-in; independent of __HSR_DEBUG)
     __HSR_FULL_SYNC?: HsrFullSyncApi
+
+    // Read-only optimizer results hook for the MCP's managed-browser GPU path
+    __HSR_OPTIMIZER_RESULTS?: HsrOptimizerResultsApi
 
     title: string
     WEBGPU_DEBUG: boolean

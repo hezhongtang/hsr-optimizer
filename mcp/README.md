@@ -292,7 +292,7 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | `debug_utility`            | `action=webgpu_tests / image_center / populate_characters / reset_showcase_colors / export_showcase_colors`:隐藏 WebGPU 测试页真跑(逐用例状态 + CPU/GPU 数值 + 公差;本机 250 条全量约 2–4 分钟)、图片中心编辑器驱动(center/zoom 调整 + 预览截图 + 配置复制)、`window.__HSR_DEBUG` 三个控制台工具的 Node 侧直调                |
 | `set_portrait`             | `action=set / reset`:自定义肖像写入/清除,逐字镜像上游 showcaseOnEditPortraitOk 语义(set 对缺库角色自动补入、reset 保留角色);PNG/JPEG/WebP 尺寸嗅探纯 Node 实现(data URL 就地/远程流式截断),crop 参数与 artistName 署名齐备                                                                                                    |
 
-本里程碑的既有工具扩展:`optimize` 新增 `engine=auto / cpu / gpu / gpu-experimental`(默认 auto=Node CPU 路径不变;GPU 路径在受管浏览器里驱动网页真实 GPU 引擎——经查上游 GPU 走主线程 gpuOptimize 而非 workerPool,UI 驱动即真实执行路径——返回 actualEngine 与 CPU 对拍 delta);`get_state/update_state` 新增 `visualDebug`(19 个视觉调试参数 + cardDebug,会话态不落盘)、`relicsTab`(excludedRelicPotentialCharacters 落盘读写 + recentRelics 只读投影)、`layout`(表单分区折叠状态落盘读写)三段。
+本里程碑的既有工具扩展:`optimize` 新增 `engine=auto / cpu / gpu / gpu-experimental`(默认 auto=Node CPU 路径不变;GPU 路径在受管浏览器里驱动网页真实 GPU 引擎——经查上游 GPU 走主线程 gpuOptimize 而非 workerPool,UI 驱动即真实执行路径——返回 actualEngine 与 CPU 对拍 delta;2026-10-11 起 GPU 路径另返回与 CPU 路径同形的结构化 `rows`/`equippedRow`(全精度 + 6 件遗器配装明细,取自网页只读钩子 `window.__HSR_OPTIMIZER_RESULTS`,进入 `get_results` 缓存,`fromCache` 类工具可直接引用),新增可选参数 `crossCheck`(默认 true=既有行为,false 跳过同请求 CPU 对拍——大排列空间下 GPU 审计从分钟级降到秒级);站点 dist 早于该钩子时退回只有显示口径 `gpuRows` 的旧形状并在 note 说明,重建 dist 即可);`get_state/update_state` 新增 `visualDebug`(19 个视觉调试参数 + cardDebug,会话态不落盘)、`relicsTab`(excludedRelicPotentialCharacters 落盘读写 + recentRelics 只读投影)、`layout`(表单分区折叠状态落盘读写)三段。
 
 ### M9 收尾与验收(不新增工具,全部走参数扩展)
 
