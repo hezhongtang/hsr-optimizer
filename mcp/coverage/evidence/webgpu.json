@@ -1,6 +1,6 @@
 {
   "area": "webgpu",
-  "generatedAt": "2026-10-09T12:48:46.868Z",
+  "generatedAt": "2026-10-11T04:44:08.929Z",
   "gitCommit": "8ac1d045",
   "cases": [
     {
@@ -10,6 +10,42 @@
       "method": "browser-parity",
       "result": "PASS",
       "detail": "available=true softwareAdapter=false vendor=nvidia architecture=turing maxBufferMB=2048",
+      "script": "mcp/scripts/verify-webgpu.mjs"
+    },
+    {
+      "feature": "webgpu.tests.run",
+      "case": 1,
+      "desc": "在受管浏览器里执行后返回的用例数、每个用例是否通过与网页端手动点按钮跑完后一致",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "web 251 例 vs tool 251 例;逐用例状态比对全部一致;两侧各自独立跑完整套件(真实 GPU nvidia/turing)",
+      "script": "mcp/scripts/verify-webgpu.mjs"
+    },
+    {
+      "feature": "webgpu.tests.run",
+      "case": 2,
+      "desc": "有失败项时返回具体的属性名、CPU 值、GPU 值、差值和允许精度",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "实测 2 条失败用例,逐行携带 stat/cpu/gpu/delta/precision/pass;字段齐备",
+      "script": "mcp/scripts/verify-webgpu.mjs"
+    },
+    {
+      "feature": "webgpu.tests.run",
+      "case": 3,
+      "desc": "浏览器不支持 WebGPU 时返回明确的不可用原因,而不是零个用例",
+      "method": "browser-parity",
+      "result": "UNPROVEN",
+      "detail": "本机受管浏览器探测到真实适配器(available=true),工具面无法以无 WebGPU 方式启动受管浏览器(launchArgs 不经工具暴露)——该分支在当前环境不可触发,如实记 UNPROVEN",
+      "script": "mcp/scripts/verify-webgpu.mjs"
+    },
+    {
+      "feature": "webgpu.tests.run",
+      "case": 4,
+      "desc": "测试在独立页面里运行,跑完后其他计算不受调试开关影响",
+      "method": "browser-parity",
+      "result": "PASS",
+      "detail": "工具跑完后的新任务页面 WEBGPU_DEBUG=false(fresh 文档重置);服务器引擎 benchmark_runs 前后逐字段一致=true(100% 2851115.7351781228→2851115.7351781228, 200% 3914443.8632204896→3914443.8632204896)",
       "script": "mcp/scripts/verify-webgpu.mjs"
     }
   ]

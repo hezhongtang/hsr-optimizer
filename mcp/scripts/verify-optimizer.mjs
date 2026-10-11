@@ -647,6 +647,13 @@ async function persistViaSwitchAway(page, pick = 'Aglaea') {
 const FN_SCRAPE_ROWS = `(async (count, baseIndex = 0) => {
   const viewport = document.querySelector('.ag-body-viewport')
   if (!viewport) return []
+  // ag-grid v35 hosts horizontal scrolling on a dedicated element
+  // (.ag-body-horizontal-scroll-viewport { overflow-x: scroll }); the center
+  // .ag-body-viewport is overflow-x:hidden, so its scrollLeft neither drives
+  // column virtualization nor sticks. Scroll BOTH viewports and recompute
+  // maxLeft each round (the horizontal viewport's scrollWidth settles late),
+  // otherwise trailing columns like COMBO may never virtualize into the DOM.
+  const hViewport = document.querySelector('.ag-body-horizontal-scroll-viewport')
   const seen = new Map()
   // cells is a plain object from Object.fromEntries — Object.values, NOT
   // cells.values() (which throws on the second collect round)
@@ -667,15 +674,47 @@ const FN_SCRAPE_ROWS = `(async (count, baseIndex = 0) => {
       }
     }
   }
-  const maxLeft = viewport.scrollWidth - viewport.clientWidth
+  const maxLeft = () => Math.max(
+    hViewport ? hViewport.scrollWidth - hViewport.clientWidth : 0,
+    viewport.scrollWidth - viewport.clientWidth,
+  )
+  // A scroll re-virtualizes cells: ag-grid REUSES cell DOM, so for a short
+  // window a cell's col-id can already name the new column while its text
+  // still holds the previous column's value (or vice versa). Collecting
+  // inside that window poisons the cross-capture merge — its non-empty
+  // overwrite would fixate the mismatched (col-id, text) pair. Wait until
+  // two consecutive signatures of the target rows agree before collecting.
+  // NOTE: no dollar-brace interpolation anywhere in here — this whole FN_*
+  // body is itself a template string of the outer script.
+  const rowSignature = () => Array.from(document.querySelectorAll('.ag-center-cols-container .ag-row'))
+    .filter((row) => {
+      const idx = Number(row.getAttribute('row-index'))
+      return Number.isInteger(idx) && idx >= baseIndex && idx < baseIndex + count
+    })
+    .flatMap((row) => Array.from(row.querySelectorAll('.ag-cell')).map((c) => (c.getAttribute('col-id') || '') + '=' + (c.textContent || '').trim()))
+    .join('|')
+  const settle = async () => {
+    await new Promise((r) => setTimeout(r, 60))
+    let prev = null
+    for (let t = 0; t < 24; t++) {
+      const sig = rowSignature()
+      if (sig === prev) return true
+      prev = sig
+      await new Promise((r) => setTimeout(r, 80))
+    }
+    return false
+  }
   for (let round = 0; round < 14 && seen.size < count; round++) {
     viewport.scrollTop = 0
     viewport.scrollLeft = 0
+    if (hViewport) hViewport.scrollLeft = 0
+    await settle()
     collect()
-    if (seen.size >= count && maxLeft <= 0) break
-    for (const left of [0, maxLeft / 2, maxLeft]) {
+    if (seen.size >= count && maxLeft() <= 0) break
+    for (const left of [0, maxLeft() / 2, maxLeft()]) {
       viewport.scrollLeft = left
-      await new Promise((r) => setTimeout(r, 60))
+      if (hViewport) hViewport.scrollLeft = left
+      await settle()
       for (let i = 0; i < count; i++) {
         viewport.scrollTop = i * 33
         await new Promise((r) => setTimeout(r, 25))
@@ -688,6 +727,7 @@ const FN_SCRAPE_ROWS = `(async (count, baseIndex = 0) => {
   }
   viewport.scrollTop = 0
   viewport.scrollLeft = 0
+  if (hViewport) hViewport.scrollLeft = 0
   return Array.from(seen.entries()).sort((a, b) => a[0] - b[0]).map((e) => e[1])
 })`
 
@@ -701,6 +741,37 @@ const FN_PAGER_TEXT = `() => {
   const panel = document.querySelector('.ag-paging-row-summary-panel') || document.querySelector('.ag-paging-panel')
   return panel ? (panel.textContent || '').replace(/\s+/g, ' ').trim() : null
 }`
+
+/** Poll the results grid until `minRows` rows carry a non-empty COMBO cell,
+ * scrolling the v35 horizontal viewport right each round so the trailing
+ * COMBO column virtualizes into the DOM. Replaces the fixed sleeps that
+ * raced the post-run render. Returns { ready } plus, on timeout, a compact
+ * diagnostics snapshot (row count / first-row keys / combos / pager) so a
+ * failure is reported honestly instead of an empty cell collapsing to 0. */
+const FN_WAIT_GRID_ROWS = `(async (minRows, timeoutMs) => {
+  const deadline = Date.now() + timeoutMs
+  const readRows = () => Array.from(document.querySelectorAll('.ag-center-cols-container .ag-row')).map((row) =>
+    Object.fromEntries(Array.from(row.querySelectorAll('.ag-cell')).map((c) => [c.getAttribute('col-id') || '', (c.textContent || '').trim()])))
+  for (;;) {
+    const rows = readRows()
+    const comboRows = rows.filter((r) => (r.COMBO ?? '') !== '')
+    if (comboRows.length >= minRows) return { ready: true, rowCount: rows.length, comboRows: comboRows.length }
+    const hs = document.querySelector('.ag-body-horizontal-scroll-viewport')
+    if (hs) hs.scrollLeft = hs.scrollWidth - hs.clientWidth
+    if (Date.now() >= deadline) {
+      const pager = document.querySelector('.ag-paging-panel')
+      return {
+        ready: false,
+        rowCount: rows.length,
+        comboRows: comboRows.length,
+        keys: rows.length ? Object.keys(rows[0]) : [],
+        combos: rows.map((r) => r.COMBO ?? '(missing)'),
+        pager: pager ? (pager.textContent || '').replace(/\\s+/g, ' ').trim() : null,
+      }
+    }
+    await new Promise((r) => setTimeout(r, 500))
+  }
+})`
 
 const FN_CLICK_BUTTON_TEXT = `(text) => {
   const visible = Array.from(document.querySelectorAll('button'))
@@ -718,7 +789,10 @@ const FN_CLICK_BUTTON_TEXT = `(text) => {
 async function trustedClickText(page, text) {
   const found = await page.evaluate(`(text) => {
     const visible = Array.from(document.querySelectorAll('button, label'))
-      .filter((b) => b.offsetParent !== null && b.getAttribute('disabled') !== 'true' && (b.textContent || '').includes(text))
+      // disabled == null excludes BOTH aria-style disabled="true" and the
+      // native disabled="" attribute (Mantine's disabled prop) — clicking a
+      // natively disabled button is a silent no-op, not a mode switch.
+      .filter((b) => b.offsetParent !== null && b.getAttribute('disabled') == null && (b.textContent || '').includes(text))
     if (!visible.length) return null
     const el = visible[visible.length - 1]
     el.setAttribute('data-vtrusted', '1')
@@ -1542,7 +1616,9 @@ async function scenarioFormTarget() {
     const comboTopSpd = parseDisplayNumber(combo.web.rows[0]?.[spdCol])
     const spdTopGreater = spdTopSpd !== null && comboTopSpd !== null && spdTopSpd >= comboTopSpd
     if (!comboOk || !spdOk) {
-      return fail(`comboOk=${comboOk} spdOk=${spdOk}; combo row0=${JSON.stringify(combo.web.rows[0]).slice(0, 140)}; spd row0=${JSON.stringify(spd.web.rows[0]).slice(0, 140)}`)
+      // include the rowCmp verdicts — a bare boolean hides WHICH column or
+      // row count diverged, and the row0 JSON alone gets truncated away
+      return fail(`comboOk=${comboOk} (${combo.rowCmp.detail}) spdOk=${spdOk} (${spd.rowCmp.detail}); combo row0=${JSON.stringify(combo.web.rows[0]).slice(0, 100)}; spd row0=${JSON.stringify(spd.web.rows[0]).slice(0, 100)}`)
     }
     if (!spdTopGreater) return fail(`SPD-sorted web top row not faster than COMBO-sorted top (spd=${spd.web.rows[0]?.xSPD} combo=${combo.web.rows[0]?.xSPD})`)
     return ok(`COMBO top web=${combo.web.rows[0].COMBO} mcp=${combo.mcpOverrides.rows[0].stats.COMBO}; ${spdCol} top web=${spd.web.rows[0][spdCol]} mcp=${spd.mcpOverrides.rows[0].stats[spdCol]}`)
@@ -1792,7 +1868,7 @@ async function scenarioFormResultFilters() {
   await runCase('optimizer.form.resultFilters', 1, 'browser-parity', async () => {
     const r = await webRunRows('filters-spd-cr', (f) => {
       f.minSpd = 134
-      f.minCr = 40 // save-format stat bounds are display percents
+      f.minCr = 0.4 // save-format stat bounds are internal (percent bounds are fractions)
     }, { statFilters: { minSpd: 134, minCr: 40 } }, { resultsLimit: 32, scrapeCount: 10 })
     if (!r.rowCmp.ok) return fail(r.rowCmp.detail)
     const spdCol = 'xSPD' in (r.web.rows[0] ?? {}) ? 'xSPD' : 'SPD'
@@ -3770,14 +3846,18 @@ async function scenarioStatSim() {
     const web = await webTask('statsim-run', baked.state, async (page) => {
       await bootOptimizer(page)
       await page.evaluate(FN_TOGGLE_SECTION, ['Character custom stats simulation'])
-      await trustedClickText(page, 'Simulate custom substat rolls')
+      const seg = await trustedClickText(page, 'Simulate custom substat rolls')
+      if (!seg) throw new Error('statSim mode segment not found')
       await sleep(1500)
       const clicked = await trustedClickText(page, 'Simulate builds')
       if (!clicked) throw new Error('Simulate builds button not found')
-      await sleep(15000)
+      // poll for the rendered sim row instead of a fixed sleep that raced it
+      const wait = await page.evaluate(FN_WAIT_GRID_ROWS, [1, 45_000])
+      if (!wait.ready) throw new Error(`sim rows never rendered: ${JSON.stringify(wait)}`)
       const rows = await page.evaluate(FN_SCRAPE_ROWS, [4])
       const pinned = await page.evaluate(FN_SCRAPE_PINNED)
-      return { rows, pinned }
+      const pager = await page.evaluate(FN_PAGER_TEXT)
+      return { rows, pinned, pager }
     }, 300_000)
     await call('load_save', { path: baked.path })
     const statRun = await call('stat_simulate', { characterId: TARGET, saved: true })
@@ -3785,6 +3865,11 @@ async function scenarioStatSim() {
     if (!variant) return fail('stat_simulate(saved) returned no variants')
     const webSimRow = web.rows.find((r) => 'COMBO' in r) ?? web.rows[0]
     if (!webSimRow) return fail('web sim rows missing')
+    // empty/missing COMBO must not collapse to 0 via parseDisplayNumber('') —
+    // report the scraped row shape instead of a bogus 0-vs-simScore diff
+    if (webSimRow.COMBO == null || webSimRow.COMBO === '') {
+      return fail(`COMBO cell missing on scraped row, keys=${Object.keys(webSimRow).join(',')} rowCount=${(web.rows ?? []).length} pager=${web.pager ?? '(none)'}`)
+    }
     const webCombo = parseDisplayNumber(webSimRow.COMBO)
     if (webCombo === null || Math.abs(webCombo - variant.simScore) >= 2) {
       return fail(`web sim COMBO=${webCombo} mcp simScore=${variant.simScore}`)
@@ -3803,10 +3888,14 @@ async function scenarioStatSim() {
     const web = await webTask('statsim-run2', baked.state, async (page) => {
       await bootOptimizer(page)
       await page.evaluate(FN_TOGGLE_SECTION, ['Character custom stats simulation'])
-      await trustedClickText(page, 'Simulate custom substat rolls')
+      const seg = await trustedClickText(page, 'Simulate custom substat rolls')
+      if (!seg) throw new Error('statSim mode segment not found')
       await sleep(1500)
-      await trustedClickText(page, 'Simulate builds')
-      await sleep(20000)
+      const clicked = await trustedClickText(page, 'Simulate builds')
+      if (!clicked) throw new Error('Simulate builds button not found')
+      // poll for both rendered sim rows instead of a fixed sleep that raced them
+      const wait = await page.evaluate(FN_WAIT_GRID_ROWS, [2, 45_000])
+      if (!wait.ready) throw new Error(`sim rows never rendered: ${JSON.stringify(wait)}`)
       const rows = await page.evaluate(FN_SCRAPE_ROWS, [4])
       const pager = await page.evaluate(FN_PAGER_TEXT)
       return { rows, pager }
@@ -4001,7 +4090,9 @@ async function scenarioStatSim() {
     const setsOk = webSims.some((s) => s.request?.simOrnamentSet === impOrnament)
       || webInput.simOrnamentSet === impOrnament
     if (!webHasSim || !setsOk) {
-      const toastHead = String(web.toast ?? '').slice(0, 160).split('\n').join(' ')
+      // web.toast is the {rejected, notes} object — String() it and the real
+      // toast text vanishes into "[object Object]"; serialize it properly
+      const toastHead = JSON.stringify(web.toast ?? null)?.slice(0, 200) ?? '(none)'
       return fail(`web sims=${JSON.stringify(webSims.map((s) => s.request?.simOrnamentSet))} input=${webInput.simOrnamentSet} vs imported=${impOrnament}; button ${JSON.stringify(web.preImport)}; toast head: ${toastHead}`)
     }
     return ok(`imported build converts to a stat sim (ornament ${impOrnament}, body ${impBody}) — matches the web input area`)

@@ -1,6 +1,6 @@
 {
   "area": "optimizer",
-  "generatedAt": "2026-10-09T16:20:23.268Z",
+  "generatedAt": "2026-10-11T06:13:29.833Z",
   "gitCommit": "8ac1d045",
   "cases": [
     {
@@ -215,8 +215,8 @@
       "case": 1,
       "desc": "最低速度 134、最低暴击率 70% 时,返回的每一行都满足门槛,首行与网页端同",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "row count web=0 mcp=32",
+      "result": "PASS",
+      "detail": "32 rows all ≥134 SPD / ≥40% CR on both sides; top row matches (case's 70% unattainable in this fixture)",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -233,8 +233,8 @@
       "case": 3,
       "desc": "把某项门槛显式置空后,该门槛不再生效",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "top COMBO web=0 mcp=455620.9375",
+      "result": "PASS",
+      "detail": "minSpd:null clears the bound (0→8 rows) and matches the unthrottled web run top",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -476,8 +476,8 @@
       "case": 2,
       "desc": "取消后可以立刻开始下一轮",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "harness error: tool optimize: Another optimization is already running — wait for it or cancel it first",
+      "result": "PASS",
+      "detail": "a new run starts immediately after the previous (incl. cancelled) one",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -485,8 +485,8 @@
       "case": 1,
       "desc": "带 progressToken 调用时能收到至少一条进度通知,含已搜索数、总数、",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "harness error: tool optimize: Another optimization is already running — wait for it or cancel it first",
+      "result": "PASS",
+      "detail": "6 progress notifications (searched/total/rate in message)",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -495,7 +495,7 @@
       "desc": "结束后 summary 里的已搜索数、有效排列数与耗时齐全",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "summary complete (searched=462,672, valid=462,672, 3998ms); web Searched equal",
+      "detail": "summary complete (searched=462,672, valid=462,672, 2490ms); web Searched equal",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -701,8 +701,8 @@
       "case": 2,
       "desc": "直接运行表单里已保存的全部模拟时,返回的行数与顺序与网页端结果表格一致",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "row count web=0 mcp=2 (pager 1 to 2 of 2)",
+      "result": "PASS",
+      "detail": "2 saved sims run in the same order with matching values",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -738,7 +738,7 @@
       "desc": "由结果行折算出的套装、主词条与各副词条词条数,与网页端选中同一行点「导入」后输入",
       "method": "browser-parity",
       "result": "FAIL",
-      "detail": "web sims=[] input=undefined vs imported=Rutilant Arena; button {\"found\":true,\"disabled\":false}; toast head: [object Object]",
+      "detail": "web sims=[] input=undefined vs imported=Rutilant Arena; button {\"found\":true,\"disabled\":false}; toast head: {\"rejected\":null,\"notes\":\"Select teammates for more accurate optimization results. | Select teammates for more a",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {

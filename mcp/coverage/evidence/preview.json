@@ -1,7 +1,7 @@
 {
   "area": "preview",
-  "generatedAt": "2026-10-09T10:20:29.633Z",
-  "gitCommit": "8ac1d045f7eadb8e45f03141c433d17a36c5f848",
+  "generatedAt": "2026-10-11T04:24:03.612Z",
+  "gitCommit": "f7cca7d48ab55d741c6227d3d281133bec014435",
   "cases": [
     {
       "feature": "preview.disclaimer.dismiss",
@@ -188,8 +188,8 @@
       "case": 1,
       "desc": "把基准速度设为某个阈值后，返回的基准速度、分数与网页在同一输入下的展示卡一致",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "网页标题 \"? SPD Benchmark\",分数 15.6%;MCP spdBenchmark=105, 12.1%",
+      "result": "PASS",
+      "detail": "网页标题 \"100.0 SPD Benchmark\",分数 12.1%;MCP spdBenchmark=105, 12.1%",
       "script": "mcp/scripts/verify-preview.mjs"
     },
     {
@@ -252,7 +252,7 @@
       "desc": "用同一 URL、裁剪与署名设置肖像后，两边存档的 characters[].portrait 一致",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "web portrait 字段=已存(imageUrl=http://127.0.0.1:54821/hsr-opt…,artist=verify-artist);MCP 严格相等=true(web cropper 的 croppedArea/cropper 原值透传)",
+      "detail": "web portrait 字段=已存(imageUrl=http://127.0.0.1:50617/hsr-opt…,artist=verify-artist);MCP 严格相等=true(web cropper 的 croppedArea/cropper 原值透传)",
       "script": "mcp/scripts/verify-preview.mjs"
     },
     {

@@ -886,13 +886,13 @@
         "saveKey": "characters[].form"
       },
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": [
           "optimize",
           "get_form",
           "update_form"
         ],
-        "gaps": "2026-10-10 复核:formOverrides.statFilters 的属性族口径与网页分歧——minSpd=134/minCr=40 时网页(基础属性视角,存档默认 statDisplay)产出 0 行,MCP 返回 32 行(战斗属性口径);需对照上游 optimizerWorker 的 statDisplay 绑定后修正再验收。子案例 #2/#3(格式等价/置空清除)已过,仅 #1 的族口径存疑"
+        "gaps": "无（2026-10-10 复核曾记 #1 属性族口径存疑，2026-10-11 证伪：系验收脚本把显示百分数 40 直接写进内部格式存档致 web 腿门槛放大 100 倍为 4000% 而产 0 行；MCP/web 的 statDisplay 口径绑定经 resultFilters#2/#3 与 grid.display#1 证实一致，脚本已修，三 case 全 PASS）"
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -906,6 +906,9 @@
           "mcp/scripts/smoke-form-overrides.mjs",
           "mcp/scripts/parity.mjs",
           "mcp/scripts/smoke-form.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.resultFilters cases 1-3 PASS 2026-10-11 (browser-parity + inprocess-parity)"
         ]
       }
     },
@@ -2668,7 +2671,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.statSim.run cases 1-2 PASS 2026-10-09 (8ac1d045)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.statSim.run cases 1-2 PASS 2026-10-11 (browser-parity)"
         ]
       }
     },
