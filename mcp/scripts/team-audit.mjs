@@ -15,6 +15,9 @@
 //   --save <file>              save file, relative to mcp/ (default profile/fribbels-optimizer-save.json)
 //   --server <entry>           server entry, relative to mcp/ (default dist/index.js)
 //   --out <file>               write the JSON result here instead of stdout
+//   --engine <name>            auto (default, CPU) | cpu | gpu | gpu-experimental; the GPU engines
+//                              run in the managed browser and return display rows only, so the
+//                              audit reports COMBO and the CPU cross-check but skips the swaps
 //   --verbose                  forward server stderr
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -119,6 +122,9 @@ function parseArgs(argv) {
         break
       case '--out':
         args.out = value()
+        break
+      case '--engine':
+        args.engine = value()
         break
       case '--verbose':
         args.verbose = true
@@ -578,11 +584,72 @@ async function main(args) {
       })
     }
 
+    // dps_score rates the equipped build against the scoring team, which is a
+    // different baseline from the audit teammates above.
+    const scoreOf = async (id) => {
+      const scored = await tryCall('dps_score', { characterId: id, team: 'default' })
+      if (!scored.ok) return { characterId: id, error: scored.error }
+      const { percent, grade, scores, upgrades } = scored.data
+      return { characterId: id, team: scored.data.team, percent, grade, scores, upgrades }
+    }
+    const addScores = () =>
+      timed('score', async () => {
+        output.score = await scoreOf(characterId)
+        output.teammatesScores = []
+        for (const teammate of (base.teammates ?? []).filter(Boolean)) output.teammatesScores.push(await scoreOf(teammate.characterId))
+      })
+    const addFingerprint = () =>
+      timed('fingerprint', async () => {
+        const relics = []
+        for (let offset = 0;; offset += RELIC_PAGE_SIZE) {
+          const page = await call('list_relics', { offset, limit: RELIC_PAGE_SIZE })
+          relics.push(...page.relics)
+          if (relics.length >= page.total || page.relics.length === 0) break
+        }
+        output.inventoryFingerprint = fingerprintInventory(relics, { characterId, form, overrides: formOverrides })
+      })
+
     // ── 3. Search ────────────────────────────────────────────────────────────
     log(`optimize: ${chosen.permutations.toLocaleString('en-US')} 排列(初始 ${initialPermutations.toLocaleString('en-US')})`)
-    const optimized = await timed('optimize', () => call('optimize', { characterId, formOverrides, resultsLimit: args.resultsLimit }))
+    const optimized = await timed('optimize', () =>
+      call('optimize', {
+        characterId,
+        formOverrides,
+        resultsLimit: args.resultsLimit,
+        ...(args.engine && { engine: args.engine }),
+      }))
     if (optimized.status !== 'completed' && optimized.status !== 'cancelled') {
       return finish('rejected', { reason: optimized.reason ?? `optimize 返回 ${optimized.status}` })
+    }
+
+    // The GPU engines run in the managed browser: their rows are the page grid's
+    // display strings, without relic builds and outside the result cache, so
+    // COMBO can be reported but swaps cannot be derived from them.
+    if (optimized.gpuRows) {
+      const comboOf = (cells) => {
+        const parsed = Number(cells?.COMBO?.replace(/[,\s]/g, ''))
+        return cells?.COMBO && Number.isFinite(parsed) ? parsed : null
+      }
+      Object.assign(output, {
+        optimize: {
+          engine: optimized.engine,
+          actualEngine: optimized.actualEngine,
+          durationMs: optimized.gpuDurationMs,
+          adapter: optimized.adapter,
+          comparison: optimized.comparison,
+          note: optimized.note,
+        },
+        comboNow: comboOf(optimized.equippedRowCells),
+        comboBest: comboOf(optimized.gpuRows[0]?.cells),
+        topRows: optimized.gpuRows.map((row) => ({ combo: comboOf(row.cells) })),
+        zeroCostSwaps: null,
+        swapSummary: null,
+        bestConflictFreeRow: null,
+      })
+      warnings.push('GPU 引擎的结果行是网页网格的显示值(取整),不含遗器明细也不进结果缓存:换装分析已跳过,需要换装清单请用默认 CPU 引擎')
+      await addScores()
+      await addFingerprint()
+      return finish('completed')
     }
     const rows = optimized.rows ?? []
     const summary = optimized.summary
@@ -615,20 +682,7 @@ async function main(args) {
       })),
     })
 
-    // ── 4. Scores ────────────────────────────────────────────────────────────
-    // dps_score rates the equipped build against the scoring team, which is a
-    // different baseline from the audit teammates above.
-    const scoreOf = async (id) => {
-      const scored = await tryCall('dps_score', { characterId: id, team: 'default' })
-      if (!scored.ok) return { characterId: id, error: scored.error }
-      const { percent, grade, scores, upgrades } = scored.data
-      return { characterId: id, team: scored.data.team, percent, grade, scores, upgrades }
-    }
-    await timed('score', async () => {
-      output.score = await scoreOf(characterId)
-      output.teammatesScores = []
-      for (const teammate of (base.teammates ?? []).filter(Boolean)) output.teammatesScores.push(await scoreOf(teammate.characterId))
-    })
+    await addScores()
 
     // ── 5. Zero-cost swaps ───────────────────────────────────────────────────
     // Two valuations meet here and must not be subtracted from each other:
@@ -707,16 +761,7 @@ async function main(args) {
       }
     })
 
-    // ── 6. Inventory fingerprint ─────────────────────────────────────────────
-    await timed('fingerprint', async () => {
-      const relics = []
-      for (let offset = 0;; offset += RELIC_PAGE_SIZE) {
-        const page = await call('list_relics', { offset, limit: RELIC_PAGE_SIZE })
-        relics.push(...page.relics)
-        if (relics.length >= page.total || page.relics.length === 0) break
-      }
-      output.inventoryFingerprint = fingerprintInventory(relics, { characterId, form, overrides: formOverrides })
-    })
+    await addFingerprint()
 
     return finish(summary.cancelled ? 'cancelled' : 'completed')
   } finally {
