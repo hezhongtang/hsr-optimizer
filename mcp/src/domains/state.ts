@@ -1,7 +1,7 @@
 // State & session domain (M4-B): get_state / update_state over the runtime
 // context's revision, the persisted settings, saved-session fields, seen-feature
 // flags and the scanner ingest configuration. Owned by the M4-B state
-// workstream — see mcp/hsr-optimizer-MCP-全站覆盖计划.md §5 M4.
+// workstream — see mcp/docs/hsr-optimizer-MCP-全站覆盖计划.md §5 M4.
 //
 // The persisted sections map 1:1 onto what SaveState.save() writes:
 //   - settings → globalStore.settings (the SettingsDrawer's six selects)

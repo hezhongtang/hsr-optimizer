@@ -22,5 +22,5 @@
 ## 相关文档（仓库既有）
 
 - `mcp/README.md` — MCP 服务器使用入口
-- `mcp/hsr-optimizer-MCP-调研报告.md` / `hsr-optimizer-MCP-实施方案.md` / `hsr-optimizer-MCP-契约冻结.md` — 建设期文档（M1-M9）
+- `hsr-optimizer-MCP-调研报告.md` / `hsr-optimizer-MCP-实施方案.md` / `hsr-optimizer-MCP-契约冻结.md` — 建设期文档（M1-M9，本目录内）
 - `mcp/coverage/` — 验收协议：features JSON + 15 个 verify-*.mjs + coverage-check 门禁（185 features / 153 verified 基线）

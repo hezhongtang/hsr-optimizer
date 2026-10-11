@@ -1,8 +1,8 @@
 # HSR Optimizer MCP Server
 
-让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **61 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4 + M5 角色/遗器/表单/队伍域 4 + M6 扫描器/评分/榜单/分析域 4 + M7 浏览器/渲染/诊断域 5)与 **11 个资源**(`game://` 元数据 7 项 + `site://` 站点面 4 项),覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4–M9 全主线:状态基础、角色/遗器/表单/队伍操作、实时导入、四配置角色评分、排行榜数据层与本地复算、遗器分析,以及受管浏览器运行环境下的图片导出、WebGPU 检验与 GPU 优化执行;M9 收尾后网站基线 175/175 全部接入(矩阵见 coverage/summary.md)。操作视角的接入文档见[使用指南](./hsr-optimizer-MCP-使用指南.md)。
+让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **61 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4 + M5 角色/遗器/表单/队伍域 4 + M6 扫描器/评分/榜单/分析域 4 + M7 浏览器/渲染/诊断域 5)与 **11 个资源**(`game://` 元数据 7 项 + `site://` 站点面 4 项),覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4–M9 全主线:状态基础、角色/遗器/表单/队伍操作、实时导入、四配置角色评分、排行榜数据层与本地复算、遗器分析,以及受管浏览器运行环境下的图片导出、WebGPU 检验与 GPU 优化执行;M9 收尾后网站基线 175/175 全部接入(矩阵见 coverage/summary.md)。操作视角的接入文档见[使用指南](./docs/hsr-optimizer-MCP-使用指南.md)。
 
-- 设计与分期依据:[`hsr-optimizer-MCP-实施方案.md`](./hsr-optimizer-MCP-实施方案.md)(§6.1 规模闸门、§6.2 一致性验收、§7 验收标准)
+- 设计与分期依据:[`hsr-optimizer-MCP-实施方案.md`](./docs/hsr-optimizer-MCP-实施方案.md)(§6.1 规模闸门、§6.2 一致性验收、§7 验收标准)
 - 可行性实测背景(spike)已删除,历史见 commit `81f0789a`(见文末「与 spike 的关系」)
 
 上游引擎**原样**在 Node 无头运行:`Optimizer.optimize` 跑在上游原版调度器 + `node:worker_threads` 池上(网页端默认 WebGPU 引擎,本服务为 CPU 多线程版,结果一致、耗时更长)。浏览器全局垫片、文件后端 localStorage、`?worker → worker_threads` 适配层全部集中在 `src/shims.ts` 与 `src/worker/`。
@@ -59,7 +59,7 @@ npm run check:packaged # M9 仓库外完整安装验收:组装便携树 → 空�
 dprint 的 glob 相对当前工作目录解析——在 `mcp/` 下执行会静默假绿,务必在仓库根:
 
 ```bash
-npx dprint check "mcp/src/**/*.ts" "mcp/scripts/*.mjs" "mcp/*.ts" "mcp/*.json" "mcp/README.md" "mcp/hsr-optimizer-MCP-使用指南.md"
+npx dprint check "mcp/src/**/*.ts" "mcp/scripts/*.mjs" "mcp/*.ts" "mcp/*.json" "mcp/README.md" "mcp/docs/*.md"
 npx oxlint mcp/src mcp/scripts
 npx tsgo --noEmit -p mcp/tsconfig.json
 ```
