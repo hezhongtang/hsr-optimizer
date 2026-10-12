@@ -377,6 +377,54 @@
       }
     },
     {
+      "id": "import.scanner.unionEquip",
+      "title": "并集导入时导入件优先占槽（增强项）",
+      "surface": {
+        "page": "IMPORT",
+        "entry": "网页端整库替换没有「只导入一部分遗器还要保住其余库存」这一步；MCP 的 merge=union 在这之上保住未覆盖的遗器"
+      },
+      "kind": "write",
+      "action": "merge=union 把未被本次导入覆盖的库存遗器接回写入清单末尾，再交给 persistenceService.mergeRelics。连同导入角色时，这些接回件去掉 equippedBy 再写入：上游按清单顺序用佩戴者回写角色槽位，旧件若排在导入件后面会把刚穿上的新件盖掉。hash 命中仍取库存原记录，佩戴者留在那条记录上；上游末尾清理只在该槽位已被导入件占用时清掉旧件的佩戴者。文件没给这个部位新件时，角色槽位和旧件的佩戴者都不变。不导入角色时不改穿戴。参数名、类型、默认值不变。",
+      "upstream": [
+        {
+          "file": "mcp/src/domains/imports.ts",
+          "symbol": "planAndRunImport"
+        },
+        {
+          "file": "src/lib/services/persistenceService.ts",
+          "symbol": "mergeRelics"
+        }
+      ],
+      "runtime": "node",
+      "state": {
+        "owner": "useRelicStore / useCharacterStore",
+        "lifecycle": "persisted",
+        "saveKey": "relics, characters"
+      },
+      "sideEffects": [
+        "连同导入角色的并集导入会改写被导入件占用的槽位，并清掉让出该槽位的旧件的佩戴者"
+      ],
+      "mcp": {
+        "status": "implemented",
+        "tools": [
+          "import_scanner_json",
+          "import_hoyolab"
+        ]
+      },
+      "scope": "enhancement",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "并集导入一件新的头部给已有角色后，该角色的头部改为这件新遗器，旧头部的佩戴者被清空，库存件数加一",
+          "同一份导入没有替换的部位仍穿原来的遗器；文件只替换手部时头部穿戴不变",
+          "includeCharacters=false 的并集导入不改角色现有穿戴，新遗器不装备"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-imports.mjs"
+        ]
+      }
+    },
+    {
       "id": "import.live.settings",
       "title": "实时导入的开关与连接地址",
       "surface": {

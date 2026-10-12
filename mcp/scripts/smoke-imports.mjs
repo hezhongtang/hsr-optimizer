@@ -6,7 +6,9 @@
 //     import into a 162-relic inventory must yield 163, never 1),
 //     same-hash skip stats, existingCharactersOnly, level normalization,
 //     dryRun (no store write, no disk write), strict-subset union anti-wipe,
-//     replace-mode shrink (intentional upstream semantics), parse errors
+//     partial union import equipment (an imported piece wins its slot; a slot
+//     the file does not replace keeps the old piece), replace-mode shrink
+//     (intentional upstream semantics), parse errors
 //     (i18n-localized version mismatch, wrong-tool shape, bad source, args).
 //   import_hoyolab — minimal fixture walk-through (union add + character
 //     creation + equipment) and a same-hash skip via an owner-matched relic.
@@ -510,6 +512,106 @@ try {
     'store holds exactly the 1 imported relic after replace',
     afterReplace.total === 1 && afterReplace.relics[0].set === headRelic.set && afterReplace.relics[0].part === 'Head',
     `${afterReplace.total}: ${afterReplace.relics[0]?.set}/${afterReplace.relics[0]?.part}`,
+  )
+
+  // 7b. Partial union import must not let an uncovered old piece take back a
+  // slot the import just claimed. mergeRelics asserts character.equipped[part]
+  // for every relic that still carries equippedBy, and union appends uncovered
+  // inventory relics after the import — so the old Head used to overwrite the
+  // new one, and the trailing cleanup then unequipped the import.
+  const incomingHead = {
+    ...scannerRelicFromStore(headRelic, '888001', novelSubstats),
+    location: '1005',
+  }
+  const handsTemplate = pristineSave.relics.find((r) => r.part === 'Hands' && r.grade === 5)
+  if (handsTemplate == null) throw new Error('no 5★ Hands in sample save')
+  const incomingHands = {
+    ...scannerRelicFromStore(handsTemplate, '888002', { 0: handsTemplate.substats[0].value + 10 }),
+    location: '1005',
+  }
+  const otherHead = pristineSave.characters.find((c) => c.id === '1212b1')
+  if (otherHead?.equipped?.Head == null) throw new Error('sample save 1212b1 has no Head')
+
+  async function relicById(id) {
+    const listed = await callTool(client, 'list_relics', { limit: 500 })
+    return listed.relics.find((r) => r.id === id)
+  }
+
+  const phaseEquip = freshSavePath()
+  await callTool(client, 'load_save', { path: phaseEquip })
+  const beforeEquip = await callTool(client, 'get_character', { characterId: '1005' })
+  const oldHeadId = beforeEquip.equippedSlots?.Head?.equippedId
+  const oldHandsId = beforeEquip.equippedSlots?.Hands?.equippedId
+  if (oldHeadId == null || oldHandsId == null) throw new Error(`1005 is missing Head/Hands: ${oldHeadId}/${oldHandsId}`)
+  const equippedHead = await callTool(client, 'import_scanner_json', {
+    inline: scannerJson([incomingHead], [CH_EXISTING]),
+  })
+  const afterHead = await callTool(client, 'get_character', { characterId: '1005' })
+  const importedHead = await relicById('888001')
+  const displacedHead = await relicById(oldHeadId)
+  const keptHands = await relicById(oldHandsId)
+  const untouchedOther = await callTool(client, 'get_character', { characterId: '1212b1' })
+  check(
+    'partial union: imported Head wins the slot (888001 worn by 1005, inventory 163)',
+    equippedHead.added === 1
+      && equippedHead.totalBefore === 162
+      && equippedHead.totalAfter === 163
+      && afterHead.equippedSlots?.Head?.equippedId === '888001'
+      && importedHead?.equippedBy === '1005',
+    `added=${equippedHead.added} ${equippedHead.totalBefore}→${equippedHead.totalAfter} head=${afterHead.equippedSlots?.Head?.equippedId} equippedBy=${importedHead?.equippedBy}`,
+  )
+  check(
+    'partial union: the old Head is unequipped, and a slot the file did not replace stays worn',
+    displacedHead?.equippedBy == null
+      && afterHead.equippedSlots?.Hands?.equippedId === oldHandsId
+      && keptHands?.equippedBy === '1005'
+      && untouchedOther.equippedSlots?.Head?.equippedId === otherHead.equipped.Head,
+    `oldHead.equippedBy=${displacedHead?.equippedBy} hands=${afterHead.equippedSlots?.Hands?.equippedId} otherHead=${untouchedOther.equippedSlots?.Head?.equippedId}`,
+  )
+
+  // The file replaces Hands only, so the previously worn Head must stay.
+  const phaseSlot = freshSavePath()
+  await callTool(client, 'load_save', { path: phaseSlot })
+  const beforeSlot = await callTool(client, 'get_character', { characterId: '1005' })
+  const keptHeadId = beforeSlot.equippedSlots?.Head?.equippedId
+  const replacedHandsId = beforeSlot.equippedSlots?.Hands?.equippedId
+  const equippedHands = await callTool(client, 'import_scanner_json', {
+    inline: scannerJson([incomingHands], [CH_EXISTING]),
+  })
+  const afterHands = await callTool(client, 'get_character', { characterId: '1005' })
+  const importedHandsRelic = await relicById('888002')
+  const stillWornHead = await relicById(keptHeadId)
+  const displacedHands = await relicById(replacedHandsId)
+  check(
+    'partial union: a slot the file does not replace keeps the old piece',
+    equippedHands.added === 1
+      && afterHands.equippedSlots?.Head?.equippedId === keptHeadId
+      && stillWornHead?.equippedBy === '1005'
+      && afterHands.equippedSlots?.Hands?.equippedId === '888002'
+      && importedHandsRelic?.equippedBy === '1005'
+      && displacedHands?.equippedBy == null,
+    `head=${afterHands.equippedSlots?.Head?.equippedId} headBy=${stillWornHead?.equippedBy} hands=${afterHands.equippedSlots?.Hands?.equippedId} oldHandsBy=${displacedHands?.equippedBy}`,
+  )
+
+  // No characters in the merge: uncovered relics must not be stripped, and the
+  // new piece must not be worn (upstream only asserts slots when characters
+  // were imported).
+  const phaseRelicsOnly = freshSavePath()
+  await callTool(client, 'load_save', { path: phaseRelicsOnly })
+  const beforeRelicsOnly = await callTool(client, 'get_character', { characterId: '1005' })
+  const relicsOnlyImport = await callTool(client, 'import_scanner_json', {
+    inline: scannerJson([incomingHead], [CH_EXISTING]),
+    includeCharacters: false,
+  })
+  const afterRelicsOnly = await callTool(client, 'get_character', { characterId: '1005' })
+  const unwornImport = await relicById('888001')
+  check(
+    'includeCharacters=false union does not move existing equipment',
+    relicsOnlyImport.added === 1
+      && relicsOnlyImport.charactersTouched === 0
+      && afterRelicsOnly.equippedSlots?.Head?.equippedId === beforeRelicsOnly.equippedSlots?.Head?.equippedId
+      && unwornImport?.equippedBy == null,
+    `touched=${relicsOnlyImport.charactersTouched} head=${afterRelicsOnly.equippedSlots?.Head?.equippedId} importBy=${unwornImport?.equippedBy}`,
   )
 
   // 8. parse/argument error paths (Chinese where the web app is Chinese)

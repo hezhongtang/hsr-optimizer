@@ -17,6 +17,14 @@
 //     re-attach every uncovered existing relic to the write list, so the
 //     upstream replace path receives the true union. A guard rejects the write
 //     when the synthesized list is somehow smaller than the inventory.
+//     When the import also carries characters, those re-attached copies clear
+//     equippedBy. mergeRelics asserts character.equipped[part] for every relic
+//     that still has a wearer, in list order, and uncovered relics come last —
+//     leaving the wearer on would let an old piece take back a slot the import
+//     just claimed (a partial scan, a HoYoLAB export). The hash-match branch
+//     keeps the store record's wearer, and the upstream cleanup drops it only
+//     when an imported piece now occupies that slot. With no characters,
+//     mergeRelics never asserts slots, so the store wearer is left as-is.
 //   - replace: the raw upstream behavior — inventory becomes the import,
 //     uncovered relics are discarded (character-only imports keep the relics).
 //
@@ -282,6 +290,22 @@ function importWouldChange(incoming: Relic, found: Relic, charactersImported: bo
   return false
 }
 
+/**
+ * Copy that will not assert a character slot.
+ *
+ * mergeRelics overwrites `character.equipped[part]` whenever the relic it is
+ * looking at still has `equippedBy` and characters were imported. Union puts
+ * uncovered inventory relics after the import, so their stored wearer would
+ * undo a slot the import just set. Clearing `equippedBy` on a copy (never the
+ * store object) skips that assertion. The hash match still returns the store
+ * record, which keeps its wearer until the upstream cleanup sees that an
+ * imported piece now occupies the slot.
+ */
+function withoutEquipClaim(relic: Relic): Relic {
+  if (relic.equippedBy == null) return relic
+  return { ...relic, equippedBy: undefined }
+}
+
 export type ImportOutcome = {
   added: number,
   updated: number,
@@ -327,7 +351,11 @@ export function planAndRunImport(relics: Relic[], characters: Form[], merge: Mer
     for (const bucket of buckets.values()) uncovered.push(...bucket)
   }
 
-  const writeList = merge === 'union' ? [...relics, ...uncovered] : relics
+  // See withoutEquipClaim. Order stays [...import, ...uncovered]: moving the
+  // uncovered relics forward would change which store record each hash bucket
+  // shift() returns, and the added/updated/skipped counts replay that pairing.
+  const uncoveredForWrite = charactersImported ? uncovered.map(withoutEquipClaim) : uncovered
+  const writeList = merge === 'union' ? [...relics, ...uncoveredForWrite] : relics
 
   // Anti-wipe guard at the import layer: a union list can never shrink the
   // inventory, so a smaller synthesized list means the wrapper logic broke —
@@ -423,7 +451,8 @@ export function registerImportTools(server: McpServer): void {
     title: '导入扫描器 JSON',
     description: '导入扫描器导出的 JSON(HSR-Scanner / Reliquary Archiver / Yas)——对应网页端「导入」标签页的扫描器文件上传入口与确认页「导入角色与遗器」按钮。'
       + '按遗器 hash(部位/套装/稀有度/等级/主词条/副词条归一值)与现有库存匹配:导入件已验证(reliquary)时覆盖同 hash 库存件的副词条并置 verified,否则仅更新佩戴者/顺序;未命中 hash 的作为新遗器加入,并同步角色装备与已存配装的遗器引用。'
-      + 'merge=union(默认):保留库存中未被本次导入覆盖的遗器(合成完整并集清单后走上游整库写入;并集清单意外小于现有库存时拒绝落盘);'
+      + 'merge=union(默认):保留库存中未被本次导入覆盖的遗器(合成完整并集清单后走上游整库写入;并集清单意外小于现有库存时拒绝落盘)。'
+      + '连同导入角色时,未覆盖的旧遗器不再用库存里的佩戴者回写槽位:导入件占用的部位以导入件为准,文件没给新件的部位仍穿原来的遗器;不导入角色时不改任何穿戴。'
       + 'merge=replace:与网页端原生行为完全一致——库存重置为导入件,未被覆盖的旧遗器会被丢弃(仅角色无遗器的导入除外)。'
       + 'dryRun=true 只解析并统计,不写入。existingCharactersOnly=true 仅导入库存中已存在的角色(遗器不受影响)。'
       + 'includeCharacters=false 对应网页确认页「导入遗器」按钮:只导入遗器,不新增也不修改角色(默认 true=「导入角色与遗器」,与既有行为一致)。'
@@ -434,7 +463,9 @@ export function registerImportTools(server: McpServer): void {
       ),
       path: z.string().optional().describe('扫描器 JSON 文件路径(HSRScanData.json / archiver_output.json / hsr.json)'),
       inline: z.unknown().optional().describe('内联扫描器 JSON(对象或 JSON 字符串,与 path 二选一)'),
-      merge: z.enum(['union', 'replace']).default('union').describe('合并模式:union=按 hash 并集保留现有库存;replace=整库替换为导入件'),
+      merge: z.enum(['union', 'replace']).default('union').describe(
+        '合并模式:union=按 hash 并集保留现有库存(连同导入角色时,未覆盖的旧遗器不回写槽位,导入件优先);replace=整库替换为导入件',
+      ),
       existingCharactersOnly: z.boolean().optional().describe(
         '只导入库存中已存在的角色(与网页端「仅导入现有角色」勾选一致),遗器不受影响;仅在 includeCharacters=true 时有意义',
       ),
@@ -459,13 +490,15 @@ export function registerImportTools(server: McpServer): void {
     title: '导入 Hoyolab 战绩数据',
     description: '导入 HoYoLAB 网页端角色战绩导出的 JSON(含 data.avatar_list)——对应网页端「导入」标签页的 Hoyolab 上传入口与确认页「导入角色与角色遗器」按钮。'
       + '遗器按 hash 与现有库存匹配,合并/替换/dryRun/existingCharactersOnly 语义与 import_scanner_json 完全一致:'
-      + 'union(默认)按 hash 并集保留现有库存(并集清单意外小于现有库存时拒绝落盘);replace 整库替换,未被导入件覆盖的旧遗器会被丢弃;'
+      + 'union(默认)按 hash 并集保留现有库存(并集清单意外小于现有库存时拒绝落盘;连同导入角色时未覆盖的旧遗器不回写槽位,导入件优先,文件没给新件的部位仍穿原来的遗器);replace 整库替换,未被导入件覆盖的旧遗器会被丢弃;'
       + 'hoyolab 导入件未验证,同 hash 库存件只更新佩戴者/顺序,不覆盖副词条。导入角色的等级与光锥等级一律规范化为 80(与网页端一致)。'
       + 'includeCharacters=false 对应网页确认页「导入遗器」按钮:只导入遗器,不新增也不修改角色(默认 true,与既有行为一致)。',
     inputSchema: {
       path: z.string().optional().describe('Hoyolab 战绩导出 JSON 文件路径'),
       inline: z.unknown().optional().describe('内联 Hoyolab 导出 JSON(对象或 JSON 字符串,与 path 二选一)'),
-      merge: z.enum(['union', 'replace']).default('union').describe('合并模式:union=按 hash 并集保留现有库存;replace=整库替换为导入件'),
+      merge: z.enum(['union', 'replace']).default('union').describe(
+        '合并模式:union=按 hash 并集保留现有库存(连同导入角色时,未覆盖的旧遗器不回写槽位,导入件优先);replace=整库替换为导入件',
+      ),
       existingCharactersOnly: z.boolean().optional().describe('只导入库存中已存在的角色,遗器不受影响;仅在 includeCharacters=true 时有意义'),
       includeCharacters: z.boolean().optional().describe(
         '是否连同导入角色(默认 true=网页「导入角色与角色遗器」);false=只导入遗器(网页确认页「导入遗器」按钮):角色不新增不修改,hash 命中件的佩戴者也保持不变',

@@ -11,7 +11,7 @@
 | global | 15 | 1 | 1 | 6 | 7 | 4 |
 | home | 2 | 0 | 0 | 1 | 1 | 0 |
 | changelog | 1 | 0 | 0 | 0 | 1 | 0 |
-| import | 13 | 0 | 0 | 2 | 11 | 0 |
+| import | 14 | 0 | 0 | 3 | 11 | 0 |
 | characters | 22 | 0 | 0 | 0 | 22 | 0 |
 | preview | 21 | 0 | 0 | 3 | 18 | 4 |
 | teams | 13 | 0 | 0 | 0 | 13 | 2 |
@@ -25,7 +25,7 @@
 | webgpu | 1 | 0 | 0 | 1 | 0 | 0 |
 | metadata | 9 | 0 | 0 | 3 | 6 | 2 |
 | shared | 2 | 0 | 0 | 0 | 2 | 3 |
-| **合计** | 186 | 4 | 1 | 28 | 153 | 21 |
+| **合计** | 187 | 4 | 1 | 29 | 153 | 21 |
 
 网站基线条目 175 个：implemented 175 · partial 0 · missing 0 · verified 153。
 
@@ -33,6 +33,7 @@
 
 - global.debug.consoleUtilities：implemented
 - global.state.categorizedClear：missing
+- import.scanner.unionEquip：implemented
 - import.bridge.push：implemented
 - import.bridge.fullSync：implemented
 - optimizer.relicPool.unleveled：implemented
@@ -42,11 +43,11 @@
 
 ## 分布
 
-- **范围**：baseline 175 · foundation 3 · enhancement 8
-- **运行环境**：node 172 · browser 13 · host 1
-- **是否需要动上游**：none 142 · mirror 38 · export 6 · extract 0
-- **类型**：read 34 · write 85 · compute 28 · artifact 5 · external 8 · navigate 4 · view 22
-- **状态生命周期**：persisted 91 · session 42 · ephemeral 16 · derived 25 · external 4 · none 8
+- **范围**：baseline 175 · foundation 3 · enhancement 9
+- **运行环境**：node 173 · browser 13 · host 1
+- **是否需要动上游**：none 143 · mirror 38 · export 6 · extract 0
+- **类型**：read 34 · write 86 · compute 28 · artifact 5 · external 8 · navigate 4 · view 22
+- **状态生命周期**：persisted 92 · session 42 · ephemeral 16 · derived 25 · external 4 · none 8
 
 ## 工具面与预算
 
