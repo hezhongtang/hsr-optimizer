@@ -102,15 +102,15 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | `get_character`   | 单角色深度信息:六槽装备明细、savedForm、已保存配装、评分元数据                                          |
 | `get_form`        | 规范化后的内部优化表单(与 optimize 同一条构造路径),附字段来源标注;`expandCombo=true` 附连招矩阵展开形态 |
 | `default_form`    | 任意角色全新默认表单(不依赖存档);`spdPreset` 直接取某档速度预设                                         |
-| `permutations`    | 搜索空间估算 + 规模闸门预判(与 optimize 同一条估算路径)                                                 |
+| `permutations`    | 搜索空间估算 + 规模闸门预判(与 optimize 同一条估算路径);可选 `relicPool` 按限制后的遗器池计数           |
 | `list_relics`     | 遗器库存结构化筛选(词条/roll 反解/套装/归属/排序)                                                       |
 
 **优化域(optimizer)** — 网页端 Optimizer 页签的 Start 按钮:
 
-| 工具          | 功能                                                                                                                               |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `optimize`    | 执行优化搜索:formOverrides 合并、5e7 排列闸门、进度通知、可取消保留部分结果、每行附 6 件遗器配装明细、附当前装备基线行 equippedRow |
-| `get_results` | 翻页/排序/过滤最近一次 optimize 的缓存结果,响应附该次运行 summary(cancelled/searched/validPermutations 等)                         |
+| 工具          | 功能                                                                                                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `optimize`    | 执行优化搜索:formOverrides 合并、5e7 排列闸门、进度通知、可取消保留部分结果、每行附 6 件遗器配装明细、附当前装备基线行 equippedRow;可选 `relicPool` 只约束 +0 遗器能否进候选池 |
+| `get_results` | 翻页/排序/过滤最近一次 optimize 的缓存结果,响应附该次运行 summary(cancelled/searched/validPermutations 等)                                                                     |
 
 优化运行期间若调用 `load_save` 切换存档,该次优化结束时返回错误并丢弃结果。`get_results`、`equip_build` 与 `save_build` 的缓存引用均须属于当前载入的存档;切档后须重新优化。
 
@@ -293,6 +293,8 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | `set_portrait`             | `action=set / reset`:自定义肖像写入/清除,逐字镜像上游 showcaseOnEditPortraitOk 语义(set 对缺库角色自动补入、reset 保留角色);PNG/JPEG/WebP 尺寸嗅探纯 Node 实现(data URL 就地/远程流式截断),crop 参数与 artistName 署名齐备                                                                                                    |
 
 本里程碑的既有工具扩展:`optimize` 新增 `engine=auto / cpu / gpu / gpu-experimental`(默认 auto=Node CPU 路径不变;GPU 路径在受管浏览器里驱动网页真实 GPU 引擎——经查上游 GPU 走主线程 gpuOptimize 而非 workerPool,UI 驱动即真实执行路径——返回 actualEngine 与 CPU 对拍 delta;2026-10-11 起 GPU 路径另返回与 CPU 路径同形的结构化 `rows`/`equippedRow`(全精度 + 6 件遗器配装明细,取自网页只读钩子 `window.__HSR_OPTIMIZER_RESULTS`,进入 `get_results` 缓存,`fromCache` 类工具可直接引用),新增可选参数 `crossCheck`(默认 true=既有行为,false 跳过同请求 CPU 对拍——大排列空间下 GPU 审计从分钟级降到秒级);站点 dist 早于该钩子时退回只有显示口径 `gpuRows` 的旧形状并在 note 说明,重建 dist 即可);`get_state/update_state` 新增 `visualDebug`(19 个视觉调试参数 + cardDebug,会话态不落盘)、`relicsTab`(excludedRelicPotentialCharacters 落盘读写 + recentRelics 只读投影)、`layout`(表单分区折叠状态落盘读写)三段。
+
+`optimize` 与 `permutations` 的可选参数 `relicPool`(增强项,网页端无对应入口):本次运行只约束 +0 遗器能否进候选池——`excludeUnleveled=true` 全部排除,或 `unleveledMinWeightedRolls=N` 只放行加权强化次数≥N 的(口径同 `weights.minWeightedRolls`);已强化的遗器与角色当前穿戴的遗器始终保留,表单过滤照常叠加,存档与表单都不改。引擎把 +0 遗器按「主词条升满、副词条取初始值」估值,数量又常占库存大头,不限制时排列规模几乎全由它们决定;分层之后可以不锁套装而把已强化的遗器穷尽。估算、规模闸门、validate/diagnose 与 CPU/GPU 搜索用同一个池,输出回显 `relicPool`(生效的限制与被排除的遗器数)。`scripts/team-audit.mjs` 的默认策略 tiered 即建立在它之上:第一遍穷尽已强化遗器(主榜单),第二遍在时间预算内放进尽可能多的 +0 遗器,只用来列「值得强化」的候选;两遍各出「可取用低排名角色的遗器」与「不占用任何角色」两个口径,并附主榜单最优配装的短板部位与刷取目标。
 
 ### M9 收尾与验收(不新增工具,全部走参数扩展)
 

@@ -51,6 +51,12 @@ import {
   estimatePermutations,
   gateVerdict,
 } from '../permutations'
+import {
+  relicPoolEchoSchema,
+  relicPoolSchema,
+  resolveRelicPool,
+  withRelicPool,
+} from '../relicPool'
 import { serializeRelic } from '../serializers/builds'
 import type { SerializedRelic } from '../serializers/builds'
 import {
@@ -542,7 +548,7 @@ export function registerQueryTools(server: McpServer): void {
     title: '搜索空间估算',
     description: '优化前的搜索空间估算——对应网页端优化器网格上方“排列数”计数,与 optimize 的规模闸门用同一条估算路径: '
       + '各部件过滤后数量(含过滤前总量)、validPermutations(套装约束下的有效排列)、naivePermutations(槽位乘积)、'
-      + '闸门判定(有效排列 > 5e7 时 optimize 默认拒绝)与收紧建议。可选 formOverrides(语义与 optimize 相同)。不执行搜索。',
+      + '闸门判定(有效排列 > 5e7 时 optimize 默认拒绝)与收紧建议。可选 formOverrides 与 relicPool(语义与 optimize 相同)。不执行搜索。',
     inputSchema: {
       characterId: z.string().describe('Character id, e.g. "1212b1"'),
       formOverrides: z.record(z.string(), z.unknown()).optional().describe(
@@ -551,9 +557,13 @@ export function registerQueryTools(server: McpServer): void {
           + 'Flat percentage filters use fractions, nested statFilters use percentages. '
           + 'format:"internal"/"display" selects combatBuffs units; absent format, internal-only keys select fractions, otherwise percentages',
       ),
+      relicPool: relicPoolSchema.optional().describe(
+        '遗器候选池限制(可选,语义与 optimize 的 relicPool 相同):只约束 +0 遗器,估算按限制后的池计数',
+      ),
     },
     outputSchema: {
       characterId: z.string(),
+      relicPool: relicPoolEchoSchema.optional().describe('传了 relicPool 且确有限制时:生效的限制与被排除的遗器数'),
       partCounts: z.record(z.string(), z.number()),
       partCountsBeforeFilters: z.record(z.string(), z.number()),
       validPermutations: z.number(),
@@ -561,7 +571,7 @@ export function registerQueryTools(server: McpServer): void {
       gate: z.object({ gate: z.number(), wouldReject: z.boolean(), reason: z.string() }),
       suggestions: z.array(z.string()),
     },
-  }, async ({ characterId, formOverrides }) => {
+  }, async ({ characterId, formOverrides, relicPool }) => {
     runtimeContext.ensureMetadataReady()
     runtimeContext.requireSave()
 
@@ -576,11 +586,13 @@ export function registerQueryTools(server: McpServer): void {
     request.characterId = characterId as CharacterId
     request.rank = rank
 
-    const estimate = estimatePermutations(request)
+    const pool = resolveRelicPool(request, relicPool)
+    const estimate = withRelicPool(pool, () => estimatePermutations(request))
 
     return toolResult(
       {
         characterId,
+        ...(pool ? { relicPool: pool.echo } : {}),
         partCounts: estimate.counts,
         partCountsBeforeFilters: estimate.preCounts,
         validPermutations: estimate.validPermutations,

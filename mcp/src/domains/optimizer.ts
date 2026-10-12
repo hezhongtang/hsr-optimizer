@@ -61,6 +61,14 @@ import {
   PERMUTATION_GATE,
 } from '../permutations'
 import {
+  pruneSave,
+  relicPoolEchoSchema,
+  relicPoolSchema,
+  type ResolvedRelicPool,
+  resolveRelicPool,
+  withRelicPool,
+} from '../relicPool'
+import {
   isOptimizationRunning,
   type OptimizeRunResult,
   runOptimization,
@@ -280,6 +288,8 @@ interface GpuEngineRunOptions {
   validPermutations: number
   naivePermutations: number
   crossCheck: boolean
+  /** Per-run pool restriction, already resolved to excluded relic ids; null = the whole inventory */
+  relicPool: ResolvedRelicPool | null
 }
 
 type BuildIds = Partial<Record<string, string | undefined>>
@@ -406,7 +416,9 @@ async function runGpuEngineOptimize(opts: GpuEngineRunOptions): Promise<CallTool
   // state (saved form + formOverrides) is written back into the seeded
   // character's saved form the same way applyFixes persists a live form
   // (displayToInternal merge), so the page runs THIS call's exact form.
-  const snapshot = JSON.parse(JSON.stringify(readStructuredSnapshot())) as Any
+  // A relicPool restriction is applied to this seed copy only: the page then
+  // filters, counts and searches the restricted inventory with its own code.
+  const snapshot = pruneSave(JSON.parse(JSON.stringify(readStructuredSnapshot())) as Any, opts.relicPool)
   snapshot.savedSession.global.computeEngine = upstreamEngine
   snapshot.savedSession.global.optimizerCharacterId = opts.characterId
   const seededChar = (snapshot.characters as Any[])?.find((c) => c?.id === opts.characterId)
@@ -584,7 +596,9 @@ async function runGpuEngineOptimize(opts: GpuEngineRunOptions): Promise<CallTool
 
   // Same-request CPU run on the Node driver for the cross-check summary —
   // only once the page's run is known to be this request's, complete.
-  const cpu = opts.crossCheck ? await runOptimization(runtimeContext.requireSave().data, opts.request, {}) : null
+  const cpu = opts.crossCheck
+    ? await runOptimization(pruneSave(runtimeContext.requireSave().data, opts.relicPool), opts.request, {})
+    : null
 
   if (generation !== runtimeContext.getSaveGeneration()) {
     throw new Error('运行期间 load_save 切换了存档,GPU 运行结果已丢弃——请对当前存档重新优化')
@@ -669,7 +683,11 @@ async function runGpuEngineOptimize(opts: GpuEngineRunOptions): Promise<CallTool
     : '站点 dist 不含结果钩子(window.__HSR_OPTIMIZER_RESULTS,dist 早于该钩子):只有 DOM 抓取的显示口径 gpuRows(取整,仅网格已渲染的行),'
       + '未进入 get_results 缓存——在仓库根目录 npm run build 重建站点产物后可得到结构化 rows'
 
-  const engineEcho = { engine: opts.engine, actualEngine: opts.engine }
+  const engineEcho = {
+    engine: opts.engine,
+    actualEngine: opts.engine,
+    ...(opts.relicPool ? { relicPool: opts.relicPool.echo } : {}),
+  }
   if (!pageRanGpu) {
     // The page fell back to CPU (or flipped the session) — report what ran.
     return toolResult(
@@ -800,7 +818,8 @@ export function registerOptimizerTools(server: McpServer): void {
       + '返回应用结果与修复前后的排列数对比。resultsLimit 上限 65536(网页端保留条数的最大档)。'
       + 'engine 可选引擎(默认 auto):auto/cpu=Node 侧 CPU 驱动(与网页 CPU 引擎同一台上游引擎,行为不变);'
       + 'gpu/gpu-experimental=受管浏览器里的网页端真实 WebGPU 引擎(点网页自己的开始按钮;rows/equippedRow 返回与 CPU 路径同形的结构化结果并进入 get_results 缓存,'
-      + 'gpuRows 另附结果网格的显示口径;默认同请求 CPU 对拍报 delta,crossCheck=false 可跳过;需要本机 Chrome 与 WebGPU,缺能力时返回明确中文错误)。',
+      + 'gpuRows 另附结果网格的显示口径;默认同请求 CPU 对拍报 delta,crossCheck=false 可跳过;需要本机 Chrome 与 WebGPU,缺能力时返回明确中文错误)。'
+      + 'relicPool 可选:本次运行只让部分 +0 遗器进候选池(已强化的全留),用于在不锁套装的前提下把排列规模压到可穷尽的范围。',
     inputSchema: {
       characterId: z.string().describe('角色 id,如 "1212b1"(可用 id 见 load_save 返回的 characterIds)'),
       formOverrides: z.record(z.string(), z.unknown()).optional().describe(
@@ -838,6 +857,12 @@ export function registerOptimizerTools(server: McpServer): void {
         '仅 engine=gpu/gpu-experimental 生效,默认 true(既有行为):同请求再跑一次 Node CPU 驱动做对拍并返回 comparison。'
           + 'false 跳过对拍、不返回 comparison——GPU 路径的 rows 已是完整结构化结果,大排列空间下可省掉整段 CPU 搜索耗时',
       ),
+      relicPool: relicPoolSchema.optional().describe(
+        '本次运行的遗器候选池限制(可选,默认不限制;不改存档与表单):只约束 +0 遗器——excludeUnleveled=true 全部排除,'
+          + '或 unleveledMinWeightedRolls=N 只放行加权强化次数≥N 的(口径同 weights.minWeightedRolls);'
+          + '已强化的遗器与角色当前穿戴的遗器始终保留,表单过滤照常叠加。排列估算、规模闸门、搜索(CPU/GPU)与 validate/diagnose 都按限制后的池计;'
+          + 'applyFixes 模式忽略。引擎把 +0 遗器按「主词条升满、副词条取初始值」估值,数量又占库存大头,不限制时排列规模几乎全由它们决定',
+      ),
     },
     outputSchema: {
       status: z.enum(['rejected', 'completed', 'cancelled', 'validated', 'diagnosed', 'fixed']),
@@ -845,6 +870,7 @@ export function registerOptimizerTools(server: McpServer): void {
         .describe('本次调用请求的计算引擎(auto=未传时的默认)'),
       actualEngine: z.enum(['cpu', 'gpu', 'gpu-experimental']).optional()
         .describe('实际执行引擎:CPU 路径恒为 cpu;GPU 路径以页面运行结束时存档里的引擎值为准(设备不可用时网页会回落 cpu)'),
+      relicPool: relicPoolEchoSchema.optional().describe('传了 relicPool 且确有限制时:本次生效的候选池限制与被排除的遗器数'),
       adapter: z.object({
         available: z.boolean().nullable(),
         softwareAdapter: z.boolean().nullable(),
@@ -906,7 +932,7 @@ export function registerOptimizerTools(server: McpServer): void {
       dirty: z.boolean().optional(),
     },
   }, async (
-    { characterId, formOverrides, resultsLimit, force, validate, diagnose, applyFixes, baseRevision, engine, crossCheck },
+    { characterId, formOverrides, resultsLimit, force, validate, diagnose, applyFixes, baseRevision, engine, crossCheck, relicPool },
     extra,
   ): Promise<CallToolResult> => {
     runtimeContext.ensureMetadataReady()
@@ -939,7 +965,12 @@ export function registerOptimizerTools(server: McpServer): void {
     request.rank = getCharacters().findIndex((c: Any) => c.id === characterId)
     request.resultsLimit = resultsLimit
 
-    const estimate = estimatePermutations(request)
+    // Per-run pool restriction (like formOverrides, never part of a saved form:
+    // applyFixes ignores it). Every estimate below counts the restricted pool.
+    const pool = resolveRelicPool(request, relicPool)
+    const poolEcho = pool ? { relicPool: pool.echo } : {}
+
+    const estimate = withRelicPool(pool, () => estimatePermutations(request))
 
     // ── validate: the Start button's pre-flight checks, no search ────────────
     if (validate === true) {
@@ -948,6 +979,7 @@ export function registerOptimizerTools(server: McpServer): void {
         {
           status: 'validated',
           ...engineEcho,
+          ...poolEcho,
           valid: errors.length === 0,
           errors,
           warnings,
@@ -967,7 +999,7 @@ export function registerOptimizerTools(server: McpServer): void {
       // what a run with this exact form would trigger (updateCharacter recipe).
       useOptimizerRequestStore.getState().setStatDisplay(state.statDisplay ?? 'combat')
 
-      const zeroPerm = estimate.validPermutations === 0 ? detectZeroPermutationCauses(request) : []
+      const zeroPerm = estimate.validPermutations === 0 ? withRelicPool(pool, () => detectZeroPermutationCauses(request)) : []
       const zeroResult = detectZeroResultCauses(request)
       const diagnosis = [
         ...zeroPerm.map((cause) => suggestionView('zeroPermutations', cause)),
@@ -977,6 +1009,7 @@ export function registerOptimizerTools(server: McpServer): void {
         {
           status: 'diagnosed',
           ...engineEcho,
+          ...poolEcho,
           validPermutations: estimate.validPermutations,
           naivePermutations: estimate.naivePermutations,
           partCounts: estimate.counts,
@@ -1108,6 +1141,7 @@ export function registerOptimizerTools(server: McpServer): void {
         {
           status: 'rejected',
           ...engineEcho,
+          ...poolEcho,
           reason: `有效排列 ${estimate.validPermutations.toLocaleString()} 超过 ${PERMUTATION_GATE.toExponential()} 闸门`,
           validPermutations: estimate.validPermutations,
           naivePermutations: estimate.naivePermutations,
@@ -1135,6 +1169,7 @@ export function registerOptimizerTools(server: McpServer): void {
         validPermutations: estimate.validPermutations,
         naivePermutations: estimate.naivePermutations,
         crossCheck: crossCheck !== false,
+        relicPool: pool,
       })
     }
 
@@ -1188,7 +1223,7 @@ export function registerOptimizerTools(server: McpServer): void {
     const generation = runtimeContext.getSaveGeneration()
     let run: OptimizeRunResult
     try {
-      run = await runOptimization(runtimeContext.requireSave().data, request, {
+      run = await runOptimization(pruneSave(runtimeContext.requireSave().data, pool), request, {
         onProgress,
         signal: cancelController.signal,
       })
@@ -1255,6 +1290,7 @@ export function registerOptimizerTools(server: McpServer): void {
       {
         status: run.summary.cancelled ? 'cancelled' : 'completed',
         ...engineEcho,
+        ...poolEcho,
         rows,
         equippedRow,
         summary: {

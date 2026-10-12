@@ -3000,6 +3000,64 @@
       }
     },
     {
+      "id": "optimizer.relicPool.unleveled",
+      "title": "按强化等级分层的遗器候选池（增强项）",
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "网页端的强化等级下限与加权强化次数门槛对所有遗器一视同仁；「已强化的全留、+0 的按门槛进池」是 MCP 新增能力"
+      },
+      "kind": "compute",
+      "action": "单次运行内只约束 +0 遗器能否进入候选池：全部排除，或只放行加权强化次数达标的；已强化的遗器与角色当前穿戴的遗器始终保留，表单自身的过滤条件照常叠加。排列估算、规模闸门与搜索（CPU / GPU）按限制后的池计，存档与表单都不改。",
+      "upstream": [
+        {
+          "file": "src/lib/relics/relicFilters.ts",
+          "symbol": "getFilteredRelicCounts"
+        },
+        {
+          "file": "src/lib/relics/scoring/substatScoring.ts",
+          "symbol": "weightedSubstatMinRolls"
+        }
+      ],
+      "params": [
+        {
+          "name": "relicPool.excludeUnleveled",
+          "type": "boolean",
+          "notes": "true 时 +0 遗器全部不进候选池"
+        },
+        {
+          "name": "relicPool.unleveledMinWeightedRolls",
+          "type": "number",
+          "notes": "+0 遗器的准入门槛，口径同 weights.minWeightedRolls（平值属性按 0.4 折算，预览副词条计入）；与 excludeUnleveled 二选一"
+        }
+      ],
+      "conditions": "+0 遗器按「主词条升满、副词条取初始值」估值；存档里同一 id 的两条记录（一条已强化、一条 +0）只排除 +0 的那条。两个字段二选一，未知字段报错。applyFixes 模式忽略本参数。",
+      "runtime": "node",
+      "state": {
+        "owner": "单次调用参数（不落盘，不进表单，不改库存）",
+        "lifecycle": "none"
+      },
+      "mcp": {
+        "status": "implemented",
+        "tools": [
+          "optimize",
+          "permutations"
+        ]
+      },
+      "scope": "enhancement",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "excludeUnleveled 的各部位数量、有效排列数与结果行，等于把强化等级下限设为 1 的同一请求",
+          "unleveledMinWeightedRolls 按加权强化次数放行 +0 遗器（平值折算与预览副词条都计入），放行的遗器出现在结果行里",
+          "同一 id 两条记录时，已强化的那条留在池里，+0 的旧记录照常受限（该 id 正被角色穿戴时也一样）；角色穿戴的 +0 遗器没有已强化记录时留在池里",
+          "带限制的估算、校验、诊断与搜索（CPU 与 GPU）使用同一个池，池清空某个部位时诊断给出零排列原因；调用结束后库存与不带限制的估算不变"
+        ],
+        "tests": [
+          "mcp/scripts/smoke-relic-pool.mjs"
+        ]
+      }
+    },
+    {
       "id": "optimizer.results.history",
       "title": "多运行结果历史（增强项）",
       "surface": {
