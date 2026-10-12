@@ -191,12 +191,12 @@ try {
       console.log(`[SKIP] webgpu_tests real-path assertions — 受管浏览器无 WebGPU:${suite.reason ?? ''}`)
     } else {
       check(
-        'webgpu_tests real path: suite ran with valid statuses and delta rows',
+        'webgpu_tests real path: every case passes with complete delta rows',
         suite.total >= 1
-          && suite.passed + suite.failed + suite.incomplete === suite.total
+          && suite.passed === suite.total && suite.failed === 0 && suite.incomplete === 0
           && suite.tests.length >= 1 && suite.tests.length <= suite.total
           && suite.tests.every((t) => ['passed', 'failed', 'incomplete'].includes(t.status) && Array.isArray(t.deltas)),
-        `total=${suite.total} passed=${suite.passed} failed=${suite.failed} matched=${suite.tests.length}`,
+        `total=${suite.total} passed=${suite.passed} failed=${suite.failed} incomplete=${suite.incomplete} matched=${suite.tests.length}`,
       )
       const withDeltas = suite.tests.filter((t) => t.deltas.length > 0)
       check(

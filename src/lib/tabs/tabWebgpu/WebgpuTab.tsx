@@ -64,7 +64,7 @@ function WebgpuDashboard() {
         {tests.map((test) => {
           const item = RenderTest(test)
           return (
-            <Accordion.Item key={item.key} value={item.key}>
+            <Accordion.Item key={item.key} value={item.key} data-webgpu-test>
               <Accordion.Control>{item.label}</Accordion.Control>
               <Accordion.Panel>{item.children}</Accordion.Panel>
             </Accordion.Item>
