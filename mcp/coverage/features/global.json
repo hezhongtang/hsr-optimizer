@@ -410,6 +410,36 @@
         "tests": ["mcp/scripts/smoke-browser.mjs"]}
     },
     {
+      "id": "global.state.duplicateRelicIds",
+      "title": "重复遗器 id 检测（增强项）",
+      "surface": { "page": "GLOBAL", "entry": "网页端没有任何提示；存档 relics 数组里同一个 id 出现多次时网页与 MCP 都照单载入" },
+      "kind": "read",
+      "action": "扫描内存里的 relics 数组，报告出现多次的 id（总数，明细最多列 50 个）及每条记录的数组下标、部位、套装、强化等级、穿戴者，以及按 id 取明细时命中的是哪一条。只检测，不修复。",
+      "upstream": [
+        { "file": "src/lib/stores/relic/relicStore.ts", "symbol": "buildRelicsById" },
+        { "file": "src/lib/stores/relic/relicStore.ts", "symbol": "upsertRelic" },
+        { "file": "src/lib/services/persistenceService.ts", "symbol": "processRelics" }
+      ],
+      "conditions": "上游载入链不去重：setRelics 原样保留数组，buildRelicsById 后写覆盖，processRelics 倒序认领穿戴槽位；之后首次 upsertRelic / batchUpsertRelics / deleteRelic 用 relicsById 重建数组，未被索引的记录丢失。字段反映调用时刻的内存状态。",
+      "runtime": "node",
+      "state": { "owner": "useRelicStore（relics / relicsById）", "lifecycle": "derived" },
+      "mcp": {
+        "status": "implemented",
+        "tools": ["load_save", "save_status"],
+        "gaps": "只检测不修复：是否自动去重、保留哪一条会改变用户数据，尚待用户决定"
+      },
+      "scope": "enhancement",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "样例存档不注入时 load_save 与 save_status 的 duplicateRelicIds 为 count=0、两个列表为空、truncated=false，文字摘要与改动前逐字相同",
+          "注入一对重复 id 后两个工具报告同一 id、两条记录的强化等级与下标，resolvedById 落在数组靠后的那条；载入不去重，存档文件逐字节不变",
+          "启动自动恢复遇到重复 id 时在 stderr 打一行警告，没有重复时不打"
+        ],
+        "tests": ["mcp/scripts/smoke-duplicate-relics.mjs"]
+      }
+    },
+    {
       "id": "global.state.categorizedClear",
       "title": "分类清空（增强项）",
       "surface": { "page": "GLOBAL", "entry": "网页端只有整体重置；按分类清空是 MCP 新增能力" },

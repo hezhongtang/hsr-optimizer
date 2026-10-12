@@ -23,6 +23,7 @@ npm start              # stdio 启动(供 MCP client 拉起)
 npm run smoke          # 基础闭环:listTools → load_save → list_relics → optimize → 取消路径 → export/reset
 npm run smoke:query    # 查询域:list_characters/get_character/get_form/default_form/permutations/list_relics
 npm run smoke:archive  # 存档回归:载入失败保留未落盘修改、完整恢复会话、换档时缺省字段恢复默认
+npm run smoke:duplicate-relics # 重复遗器 id 报告:load_save/save_status 的 duplicateRelicIds、启动恢复的 stderr 警告、只检测不去重
 npm run smoke:revision # M4 变更协调器:revision 读不变/写递增、载入失败回滚修订号与脏标记
 npm run smoke:state    # M4 状态域:get_state/update_state 五分支读写、baseRevision 冲突、未知键拒绝
 npm run smoke:jobs     # M4 任务域:optimize/benchmark_runs 任务生命周期、进度查询、cancel_job 路由
@@ -55,7 +56,7 @@ npm run smoke:imports  # 导入 + 展示柜:union 并集语义(1+162→163)、dr
 npm run smoke:misc     # 计算器(warp_plan/calc_aha/calc_ehr 对拍上游公式)/ teams(list/save 往返与
                         # 快照保留规则)/ 同步桥(ws 帧逐字段校验、回灌上游解析器、变更驱动重推)
 npm run smoke:m8       # M8 双向同步端到端:受管浏览器载真实站点连全量桥,六条验收(缺 Chrome/dist 自动 [SKIP])
-npm run smoke:all      # 依次跑全部三十份(浏览器套件在缺 Chrome/dist 的环境自动 [SKIP];视觉回归对基线 PNG 容差比对)
+npm run smoke:all      # 依次跑全部三十一份(浏览器套件在缺 Chrome/dist 的环境自动 [SKIP];视觉回归对基线 PNG 容差比对)
 npm run check:packaged # M9 仓库外完整安装验收:组装便携树 → 空目录启动 → i18n/媒体渲染/GPU/重启恢复断言
 ```
 
@@ -92,9 +93,9 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 | 工具          | 功能                                                                                                                |
 | ------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `load_save`   | 载入存档文件/内联 JSON(完整迁移链),替换当前状态                                                                     |
+| `load_save`   | 载入存档文件/内联 JSON(完整迁移链),替换当前状态;返回 `duplicateRelicIds`(重复出现的遗器 id,只检测不去重)            |
 | `export_save` | 当前状态序列化写回磁盘(网页「导出存档」,带护栏,见下);`structured=true` 返回无写入的结构化快照(与写盘输出逐字段对拍) |
-| `save_status` | 当前存档概况:来源、数量、dirty、revision/generation、最近优化缓存                                                   |
+| `save_status` | 当前存档概况:来源、数量、dirty、revision/generation、最近优化缓存、`duplicateRelicIds`                              |
 | `reset_all`   | 清空恢复默认(仅内存,写回被擦写保护拦截)                                                                             |
 
 `load_save` 替换全部存档状态:新档没有提供的会话与设置字段恢复为默认值。载入失败时恢复调用前的内存状态,包括防抖窗口内尚未落盘的修改,原存档路径与待写回状态保持不变。
@@ -402,6 +403,7 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 16. **浏览器工具的平台条件**(M7,如实登记):`deliver_artifact(copy)` 写入的是受管无头浏览器的剪贴板(桌面 Chrome 通常即系统剪贴板,服务器环境可能无接收方);`share` 依赖 Web Share 平台分支,无头环境预期不可用并如实返回原因——不宣称任意 MCP 客户端都支持系统分享。`debug_utility(action=webgpu_tests)` 全量真跑约 2–4 分钟(250 条);GPU 可用性取决于设备(软适配器会在探测里标明)。CDP 剪贴板授权经实测**反而**会让 headless 拒写(Chrome 154),故不授权——详见 browserManager 源码注释。
 17. **`render(target=portrait, animation=true)` 的 L2D 帧是就绪后截取的当帧**:spine 画布 `preserveDrawingBuffer:false`,snapdom 无法捕获,用 CDP 截屏(与上游截图链对静态图的替换策略一致);spine 渲染循环在页面失焦时暂停,无头下偶发静止帧属平台现状。
 18. **eidolon 术语统一为「星魂」**:工具文案中的 eidolon 规范写作「星魂」(2026-10 复核批次已清理 showcase/simulation/equipment 等全部旧写法「魂影」,现 `mcp/src` 内零残留)。入参字段名(`characterEidolon`/`eidolon`)与取值不变。
+19. **存档里重复出现的遗器 id 只报告、不去重**:存档的 `relics` 数组可能让同一个 id 出现两次(同一件遗器的两条记录,强化等级不同)。上游载入链(`persistenceService.loadSaveData` → `relicStore.setRelics`)不去重,网页端与 MCP 走的是同一条链,表现一致:①两条记录都留在 `relics` 数组里,各自通过表单遗器过滤(强化等级、品级、排除项)后都是 `optimize`/`permutations` 的候选——旧记录的强化等级低于表单的强化下限时被过滤挡掉,下限放到 0 时两条都进排列;②`relicsById` 后写覆盖,按 id 取明细的路径(`get_character` 的穿戴槽位、配装明细、评分缓存)只命中数组里靠后的那一条——靠后的若是旧记录,角色身上 +15 的遗器会被报成 +0,穿戴基线数值偏低;③两条记录各带不同穿戴者时,两个角色的同一部位会指向同一个 id;④**装备、编辑、删除任何一件遗器都会让上游 store 用 `relicsById` 重建数组**,没被索引命中的那条记录就此丢失,随后的写回把结果落盘——丢的是哪一条只看数组顺序,不看强化等级;删除的若正是重复 id 本身,该 id 的记录全部删除。`load_save` 与 `save_status` 的 `duplicateRelicIds`(`count` 总数 / `ids` / `entries[].records[]`:数组下标、部位、套装、强化等级、穿戴者、`resolvedById` / `truncated`;`ids` 与 `entries` 最多列 50 个)把这种情况报出来,文字摘要同时带 ⚠ 提示;启动自动恢复在 stderr 打一行 `bootLoad: WARNING`。没有重复时 `count` 为 0、两个列表为空、`truncated` 为 false。MCP 不替用户决定保留哪一条:要修复,先在存档文件里删掉不要的记录再 `load_save`。
 
 ## P3 登记(已知但暂不修)
 

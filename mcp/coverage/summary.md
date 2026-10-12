@@ -8,7 +8,7 @@
 
 | 域 | 功能条目 | missing | partial | implemented | verified | 机制项 |
 | --- | --- | --- | --- | --- | --- | --- |
-| global | 15 | 1 | 1 | 6 | 7 | 4 |
+| global | 16 | 1 | 1 | 7 | 7 | 4 |
 | home | 2 | 0 | 0 | 1 | 1 | 0 |
 | changelog | 1 | 0 | 0 | 0 | 1 | 0 |
 | import | 14 | 0 | 0 | 3 | 11 | 0 |
@@ -25,13 +25,14 @@
 | webgpu | 1 | 0 | 0 | 1 | 0 | 0 |
 | metadata | 9 | 0 | 0 | 3 | 6 | 2 |
 | shared | 2 | 0 | 0 | 0 | 2 | 3 |
-| **合计** | 189 | 4 | 1 | 31 | 153 | 21 |
+| **合计** | 190 | 4 | 1 | 32 | 153 | 21 |
 
 网站基线条目 175 个：implemented 175 · partial 0 · missing 0 · verified 153。
 
 ## 增强项（独立报告，不计入覆盖分母）
 
 - global.debug.consoleUtilities：implemented
+- global.state.duplicateRelicIds：implemented（只检测不修复：是否自动去重、保留哪一条会改变用户数据，尚待用户决定）
 - global.state.categorizedClear：missing
 - import.scanner.unionEquip：implemented
 - import.bridge.push：implemented
@@ -45,11 +46,11 @@
 
 ## 分布
 
-- **范围**：baseline 175 · foundation 3 · enhancement 11
-- **运行环境**：node 175 · browser 13 · host 1
-- **是否需要动上游**：none 145 · mirror 38 · export 6 · extract 0
-- **类型**：read 35 · write 86 · compute 29 · artifact 5 · external 8 · navigate 4 · view 22
-- **状态生命周期**：persisted 92 · session 42 · ephemeral 16 · derived 25 · external 4 · none 10
+- **范围**：baseline 175 · foundation 3 · enhancement 12
+- **运行环境**：node 176 · browser 13 · host 1
+- **是否需要动上游**：none 146 · mirror 38 · export 6 · extract 0
+- **类型**：read 36 · write 86 · compute 29 · artifact 5 · external 8 · navigate 4 · view 22
+- **状态生命周期**：persisted 92 · session 42 · ephemeral 16 · derived 26 · external 4 · none 10
 
 ## 工具面与预算
 

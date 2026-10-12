@@ -23,6 +23,10 @@ import {
 } from './bridge/fullSyncServer'
 import { bridgeNotifyChange } from './domains/bridge'
 import {
+  describeDuplicateRelicIds,
+  findDuplicateRelicIds,
+} from './duplicateRelics'
+import {
   captureSaveStores,
   restoreBootSaveStores,
 } from './saveStores'
@@ -196,6 +200,25 @@ function maybeBootLoad(): void {
     // markers the chain wrote before throwing).
     restoreStores()
     process.stderr.write(`[mcp] bootLoad: restore failed, keeping default empty state: ${String(e)}\n`)
+    return
+  }
+  warnBootDuplicateRelicIds()
+}
+
+/** Report-only, and deliberately outside the restore's try block: the restore
+ * keeps every record exactly as the web does, and a failing diagnostic must
+ * never be mistaken for a failed restore and roll it back. */
+function warnBootDuplicateRelicIds(): void {
+  try {
+    const duplicates = findDuplicateRelicIds()
+    if (duplicates.count === 0) return
+    process.stderr.write(
+      `[mcp] bootLoad: WARNING ${duplicates.count} relic id(s) appear more than once in the restored state: `
+        + `${describeDuplicateRelicIds(duplicates)} — every record stays in the inventory, `
+        + 'id lookups resolve to the last record only; see save_status.duplicateRelicIds\n',
+    )
+  } catch (e) {
+    process.stderr.write(`[mcp] bootLoad: duplicate relic id check failed: ${String(e)}\n`)
   }
 }
 

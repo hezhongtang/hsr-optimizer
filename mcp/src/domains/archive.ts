@@ -28,6 +28,12 @@ import type { HsrOptimizerSaveFormat } from 'types/store'
 import { z } from 'zod'
 
 import { runtimeContext } from '../context'
+import {
+  describeDuplicateRelicIds,
+  type DuplicateRelicIds,
+  findDuplicateRelicIds,
+  NO_DUPLICATE_RELIC_IDS,
+} from '../duplicateRelics'
 import { readStructuredSnapshot } from '../saveSnapshot'
 import { replaceSaveStores } from '../saveStores'
 import { toolResult } from '../toolResult'
@@ -55,6 +61,35 @@ function saveCounts() {
     characters: getCharacters().length,
     characterIds: getCharacters().map((c) => c.id),
   }
+}
+
+// Shared by load_save and save_status. Value fields stay nullable: the rows are
+// read straight off user save records, and a malformed record must not turn a
+// diagnostic into an output-validation failure of the whole call.
+const duplicateRelicIdsSchema = z.object({
+  count: z.number().int().describe('重复出现的 id 总数(0=没有重复)'),
+  ids: z.array(z.string()).describe('重复的遗器 id,按首次出现顺序,最多列 50 个'),
+  entries: z.array(z.object({
+    id: z.string(),
+    records: z.array(z.object({
+      index: z.number().int().describe('该记录在内存 relics 数组中的下标(与导出存档的顺序一致)'),
+      part: z.string().nullable(),
+      set: z.string().nullable(),
+      enhance: z.number().nullable().describe('强化等级'),
+      equippedBy: z.string().nullable().describe('载入后该记录保留的穿戴者(角色 id)'),
+      resolvedById: z.boolean().describe('true=按 id 取遗器明细时命中的那一条(上游 relicsById 后写覆盖)'),
+    })),
+  })).describe('每个重复 id 的全部记录,与 ids 逐项对应'),
+  truncated: z.boolean().describe('true=count 超过 50,ids/entries 只列了前 50 个'),
+}).describe(
+  '库存里重复出现的遗器 id(只检测、不修复):同一 id 的多条记录都留在库存,各自通过表单遗器过滤后都是 optimize 的候选,'
+    + '但按 id 取明细的路径只看得到 resolvedById=true 的那一条。上游载入链不去重,MCP 与之一致。',
+)
+
+function duplicateRelicIdsNote(duplicates: DuplicateRelicIds): string {
+  if (duplicates.count === 0) return ''
+  return `;⚠ ${duplicates.count} 个遗器 id 重复出现:${describeDuplicateRelicIds(duplicates)}`
+    + '——多条记录都留在库存,按 id 取明细只命中其中一条,明细见 duplicateRelicIds'
 }
 
 /**
@@ -101,6 +136,7 @@ export function registerArchiveTools(server: McpServer): void {
       + 'sample=true 会整体替换当前数据(与网页端「试一试」语义一致,网页端须经确认框,MCP 侧由调用方自行确认);'
       + '载入后语义同普通 load_save(示例来源无文件路径,视同内联 JSON,导出需显式 path)。'
       + '载入后即可用 list_relics / optimize 等工具操作这份数据。'
+      + '返回的 duplicateRelicIds 列出存档里重复出现的遗器 id 及各条记录的强化等级(只检测,载入不去重,与网页端一致)。'
       + '可选 baseRevision 做乐观并发检查(与 update_state 同款):载入前状态已被其他变更改动即报冲突。',
     inputSchema: {
       path: z.string().optional().describe('存档文件路径(fribbels-optimizer-save.json)'),
@@ -117,6 +153,7 @@ export function registerArchiveTools(server: McpServer): void {
       // 直读用户存档文件的 version 字段——上游迁移链可能写出任意形状,不收紧
       version: z.unknown(),
       sample: z.boolean().optional().describe('sample=true 载入内置示例存档时为 true(echo)'),
+      duplicateRelicIds: duplicateRelicIdsSchema,
     },
   }, async ({ path, json, sample, baseRevision }) => {
     runtimeContext.ensureMetadataReady()
@@ -196,6 +233,7 @@ export function registerArchiveTools(server: McpServer): void {
 
     const counts = saveCounts()
     const fromSample = sample === true
+    const duplicateRelicIds = findDuplicateRelicIds()
     return toolResult(
       {
         loaded: true,
@@ -203,10 +241,11 @@ export function registerArchiveTools(server: McpServer): void {
         ...counts,
         version: data.version ?? null,
         ...(fromSample ? { sample: true } : {}),
+        duplicateRelicIds,
       },
       `已载入存档:${counts.relics} 件遗器、${counts.characters} 个角色${
         resolvedPath ? `(来自 ${resolvedPath})` : fromSample ? '(内置示例存档,网页端「入门」抽屉「试一试」同源)' : '(内联 JSON)'
-      }`,
+      }${duplicateRelicIdsNote(duplicateRelicIds)}`,
     )
   })
 
@@ -303,7 +342,11 @@ export function registerArchiveTools(server: McpServer): void {
       + 'dirty=true 且 blockedWrite 非空表示存在被防擦写护栏拦截的写回:变更仍在内存中未落盘,刻意重置请用 export_save。'
       + 'bootLoaded=true 表示当前存档来自进程启动时的自动恢复(HSR_MCP_STATE_FILE 状态文件里的 state 键,'
       + '镜像网页打开即载入的 SaveState.load(false,false) 链;此时 path 为 null——状态文件后端是真源,与内联 JSON 同形态)。'
-      + '设置 HSR_MCP_NO_BOOT_LOAD=1 可关闭该自动恢复。',
+      + '设置 HSR_MCP_NO_BOOT_LOAD=1 可关闭该自动恢复。'
+      + 'duplicateRelicIds 报告当前库存里重复出现的遗器 id(count=0 表示没有):同一 id 的多条记录都留在库存,'
+      + '各自通过表单遗器过滤(强化等级、品级、排除项)后都是 optimize 的候选,'
+      + '但按 id 取明细(配装明细、角色穿戴)只命中 resolvedById=true 的那一条;装备、编辑、删除任何一件遗器都会让上游 store '
+      + '丢掉其余记录(删除重复 id 本身则该 id 的记录全部删除),随后的写回把结果落盘,所以该字段反映的是调用时刻的内存状态。',
     inputSchema: {},
     outputSchema: {
       loaded: z.boolean(),
@@ -325,12 +368,14 @@ export function registerArchiveTools(server: McpServer): void {
         rows: z.number().int(),
         at: z.number(),
       }).nullable(),
+      duplicateRelicIds: duplicateRelicIdsSchema,
     },
   }, async () => {
     const save = runtimeContext.getSave()
     const last = runtimeContext.getLastOptimizeResult()
     const blockedWrite = runtimeContext.getLastBlockedWrite()
     const bootLoaded = runtimeContext.isBootLoaded()
+    const duplicateRelicIds = save ? findDuplicateRelicIds() : NO_DUPLICATE_RELIC_IDS
     return toolResult(
       {
         loaded: save != null,
@@ -349,13 +394,14 @@ export function registerArchiveTools(server: McpServer): void {
             at: last.at,
           }
           : null,
+        duplicateRelicIds,
       },
       save
         ? `存档已载入${
           save.path ? `(来自 ${save.path})` : bootLoaded ? '(进程启动时自动恢复,状态文件后端为真源)' : '(内联 JSON)'
         }:${getRelics().length} 件遗器、${getCharacters().length} 个角色${runtimeContext.isDirty() ? '(有未落盘变更)' : ''}${
           blockedWrite ? `(写回被拦截:${blockedWrite.reason})` : ''
-        }`
+        }${duplicateRelicIdsNote(duplicateRelicIds)}`
         : '尚未载入存档',
     )
   })
