@@ -416,7 +416,11 @@ export const runtimeContext = {
     }
     let path: string | null = null
     let blockedWipe = false
-    if (loadedSave?.path) {
+    // A clean save is not rewritten. SaveState.save() is a canonical form: writing
+    // it back would drop top-level keys the stores never loaded, so a read-only
+    // search (team_audit, optimize with no pending edit) must not touch the file.
+    // Pending edits still flush — dirty stays true until a clean write.
+    if (loadedSave?.path && dirty) {
       const wipe = detectWipe(stateString, loadedSave.path)
       if (wipe != null) {
         blockedWipe = true

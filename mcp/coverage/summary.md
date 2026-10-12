@@ -16,7 +16,7 @@
 | preview | 21 | 0 | 0 | 3 | 18 | 4 |
 | teams | 13 | 0 | 0 | 0 | 13 | 2 |
 | relics | 12 | 0 | 0 | 2 | 10 | 0 |
-| optimizer | 44 | 3 | 0 | 3 | 38 | 5 |
+| optimizer | 46 | 3 | 0 | 5 | 38 | 5 |
 | showcase | 5 | 0 | 0 | 5 | 0 | 1 |
 | warp | 5 | 0 | 0 | 0 | 5 | 0 |
 | benchmarks | 7 | 0 | 0 | 1 | 6 | 0 |
@@ -25,7 +25,7 @@
 | webgpu | 1 | 0 | 0 | 1 | 0 | 0 |
 | metadata | 9 | 0 | 0 | 3 | 6 | 2 |
 | shared | 2 | 0 | 0 | 0 | 2 | 3 |
-| **合计** | 187 | 4 | 1 | 29 | 153 | 21 |
+| **合计** | 189 | 4 | 1 | 31 | 153 | 21 |
 
 网站基线条目 175 个：implemented 175 · partial 0 · missing 0 · verified 153。
 
@@ -37,25 +37,27 @@
 - import.bridge.push：implemented
 - import.bridge.fullSync：implemented
 - optimizer.relicPool.unleveled：implemented
+- optimizer.teamAudit.run：implemented
+- optimizer.teamAudit.planDiff：implemented
 - optimizer.results.history：missing
 - optimizer.run.resume：missing
 - optimizer.analysis.chartExport：missing
 
 ## 分布
 
-- **范围**：baseline 175 · foundation 3 · enhancement 9
-- **运行环境**：node 173 · browser 13 · host 1
-- **是否需要动上游**：none 143 · mirror 38 · export 6 · extract 0
-- **类型**：read 34 · write 86 · compute 28 · artifact 5 · external 8 · navigate 4 · view 22
-- **状态生命周期**：persisted 92 · session 42 · ephemeral 16 · derived 25 · external 4 · none 8
+- **范围**：baseline 175 · foundation 3 · enhancement 11
+- **运行环境**：node 175 · browser 13 · host 1
+- **是否需要动上游**：none 145 · mirror 38 · export 6 · extract 0
+- **类型**：read 35 · write 86 · compute 29 · artifact 5 · external 8 · navigate 4 · view 22
+- **状态生命周期**：persisted 92 · session 42 · ephemeral 16 · derived 25 · external 4 · none 10
 
 ## 工具面与预算
 
-- 已注册工具 61 个（被条目引用 61 个），已注册资源 11 个。
+- 已注册工具 63 个（被条目引用 63 个），已注册资源 11 个。
 - 候选新工具 0 个：无。
 - 候选新资源 0 个：无。
 - 需扩展参数的现有工具 9 个：`analyze_relic`、`get_results`、`leaderboard`、`optimize`、`render`、`reset_all`、`scanner`、`update_state`、`warp_plan`。
-- 全部建成后工具数 61，预算 70。
+- 全部建成后工具数 63，预算 70。
 
 ## 普查对照
 

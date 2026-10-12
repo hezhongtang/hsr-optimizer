@@ -3058,6 +3058,164 @@
       }
     },
     {
+      "id": "optimizer.teamAudit.run",
+      "title": "单队一键审计（增强项）",
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "网页端要手工走完「估算排列、调过滤、开始搜索、对比当前配装、逐件看评分」几步才能得到的结论；一次调用给出整份结论是 MCP 新增能力"
+      },
+      "kind": "compute",
+      "action": "对一个角色（可带最多三名队友）给出：当前配装的 COMBO、库存能配出的最优与前若干行、逐件换装清单（零成本的、要从别的角色身上拿的、要先强化的）、不占用其他角色遗器时的最优整套、值得强化的 +0 遗器、最优配装的短板部位与刷取目标、伤害评分，以及判断这份结论是否过期用的指纹。默认按强化等级分两遍搜索：第一遍不锁套装、穷尽已强化的遗器，第二遍在时间预算内放进尽可能多的 +0 遗器，只用来列待强化候选。全程由已有工具组合而成，不含新的引擎逻辑。",
+      "upstream": [],
+      "params": [
+        {
+          "name": "characterId",
+          "type": "string"
+        },
+        {
+          "name": "teammates",
+          "type": "array",
+          "notes": "最多三名；缺省沿用已保存表单的队友，各队友缺省取其已保存表单的星魂、光锥、叠影"
+        },
+        {
+          "name": "lightConeId / eidolon / superimposition",
+          "type": "string / number / number",
+          "notes": "只用于已保存表单没有光锥的角色"
+        },
+        {
+          "name": "formOverrides",
+          "type": "object",
+          "notes": "语义同 optimize，最后应用"
+        },
+        {
+          "name": "strategy",
+          "type": "tiered | locked",
+          "default": "tiered",
+          "notes": "locked 是锁套装与主词条、收紧到目标排列数后只搜一次的策略"
+        },
+        {
+          "name": "budgetSeconds",
+          "type": "number",
+          "default": "60",
+          "notes": "第二遍（+0 遗器候选）的搜索时间预算，上限 540"
+        },
+        {
+          "name": "leveledBudgetSeconds",
+          "type": "number",
+          "default": "300"
+        },
+        {
+          "name": "candidateRows",
+          "type": "number",
+          "default": "2000"
+        },
+        {
+          "name": "candidateTolerance",
+          "type": "number",
+          "default": "0.05"
+        },
+        {
+          "name": "resultsLimit",
+          "type": "number",
+          "default": "50"
+        },
+        {
+          "name": "enhanceFloor",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "name": "autoTighten / targetPermutations",
+          "type": "boolean / number",
+          "notes": "只对 locked 策略有意义"
+        },
+        {
+          "name": "engine",
+          "type": "auto | cpu | gpu | gpu-experimental",
+          "notes": "tiered 默认 gpu，浏览器环境不齐时自动改用 cpu 并给出提示"
+        },
+        {
+          "name": "crossCheck",
+          "type": "boolean",
+          "notes": "GPU 引擎下是否再用 CPU 搜一遍对拍，默认不做"
+        }
+      ],
+      "conditions": "+0 遗器按「主词条升满、副词条取初始值」估值，是强化后的下限。存档里同一 id 出现两次的遗器不列为待强化候选，并给出提示。排列为零或超出时间预算时返回 rejected 与原因，不抛错。",
+      "runtime": "node",
+      "state": {
+        "owner": "单次调用（不写存档，不写表单）",
+        "lifecycle": "none"
+      },
+      "sideEffects": [
+        "替换服务端最近一次优化结果的缓存",
+        "存档已有未落盘修改时,搜索前会把它们写回;没有未落盘修改时不改写存档文件"
+      ],
+      "mcp": {
+        "status": "implemented",
+        "tools": [
+          "team_audit"
+        ]
+      },
+      "scope": "enhancement",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "主榜单榜首、当前配装基线、有效排列数与不占用他人遗器的最优，等于手工对同一表单调用优化搜索（只含已强化遗器）的结果",
+          "第二遍的最优等于手工对同一门槛的遗器池调用优化搜索的结果；单独换上就超过已强化最优的 +0 遗器被列为保底候选",
+          "刷取建议里六件遗器的评级与遗器评分一致，伤害评分与评分工具一致",
+          "只调用只读工具；调用前后表单、存档修订号、库存数量不变",
+          "队友缺省取各自已保存表单；时间预算不足时明确报告第二遍被跳过",
+          "locked 策略实际搜索的就是它报告的收紧后表单",
+          "排列为零时返回 rejected 与诊断；角色不存在或队友缺光锥时报错"
+        ],
+        "tests": [
+          "mcp/scripts/verify-team-audit.mjs"
+        ]
+      }
+    },
+    {
+      "id": "optimizer.teamAudit.planDiff",
+      "title": "审计过期判断（增强项）",
+      "surface": {
+        "page": "OPTIMIZER",
+        "entry": "网页端没有「哪些结论因为库存或角色变化而失效」的入口；MCP 新增能力"
+      },
+      "kind": "read",
+      "action": "拿此前的审计结果与当前存档比较，逐条判断是否需要重新审计：可能参与那次搜索的遗器集合是否变了（按审计留下的范围在当前库存上重算哈希）、核心与队友的星魂、光锥、叠影是否变了、归属规则是否变了（角色排名顺序、rankFilter、exclude、是否取用他人遗器）、引擎是否变了（有 git 提交时比提交，否则比服务端入口的构建时间）。只比较指纹，不做搜索。",
+      "upstream": [],
+      "params": [
+        {
+          "name": "audits",
+          "type": "array",
+          "notes": "此前的审计输出，可原样传入；只读取 characterId、inventoryFingerprint、roster、engine，可选 key 作为标识"
+        }
+      ],
+      "conditions": "遗器范围按宽口径划定，宁可多报变化，不会漏报。不给 roster 时不比较名单。",
+      "runtime": "node",
+      "state": {
+        "owner": "单次调用（无状态，基线由调用方保存并传入）",
+        "lifecycle": "none"
+      },
+      "mcp": {
+        "status": "implemented",
+        "tools": [
+          "plan_diff"
+        ]
+      },
+      "scope": "enhancement",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "存档未变时全部判为未过期，重算的哈希与遗器数等于审计时留下的",
+          "只改动审计范围之外的遗器时仍判为未过期",
+          "改动范围内的遗器、核心的叠影、角色排名顺序或引擎时判为过期，并分别给出原因与变化的字段"
+        ],
+        "tests": [
+          "mcp/scripts/verify-team-audit.mjs"
+        ]
+      }
+    },
+    {
       "id": "optimizer.results.history",
       "title": "多运行结果历史（增强项）",
       "surface": {

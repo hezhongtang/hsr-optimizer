@@ -29,6 +29,8 @@ npm run smoke:jobs     # M4 任务域:optimize/benchmark_runs 任务生命周期
 npm run smoke:snapshot # M4 结构化快照:与写盘输出逐字段对拍、零副作用(不动护栏引用/不写文件)
 npm run smoke:optimizer-generation # 优化时换档:拒绝旧结果与跨档缓存;同档取消保留部分结果
 npm run smoke:form-overrides # 表单覆盖回归:get_form 内部字段与显示表单字段均正确生效
+npm run smoke:relic-pool # 遗器候选池分层:relicPool 的计数/门槛/同池(估算、校验、诊断、CPU 与 GPU 搜索)
+npm run verify:team-audit # 队伍审计域:team_audit 与手工调用底层工具逐项对拍、只读性、plan_diff 过期判断
 npm run smoke:form      # M5 表单域:update_form 全参数面(切换自动保存/预设/连招同步/假想配装)
 npm run smoke:relics    # M5 遗器 CRUD:编辑器保存语义/装备转移/预览不落盘/删除清引用
 npm run smoke:teams     # M5 队伍域:manage_team 五动作/基准快照/traces 级联/自动排序/评分队伍联动
@@ -82,7 +84,7 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | `HSR_MCP_ARTIFACTS_DIR` | `$TMPDIR/hsr-mcp-artifacts`       | render/图片导出产物的落盘目录(运行期用户数据,不进仓库)                                                                                                                                                                 |
 | `HSR_MCP_NO_BOOT_LOAD`  | 未设(=启用)                       | 设为 `1` 关闭进程启动时从 `HSR_MCP_STATE_FILE` 的 `state` 键自动恢复上次存档(默认开启,镜像网页「打开即载入」;恢复走 SaveState.load(false,false) 同链,会恢复扫描器地址——与手动 load_save 的安全语义不同,属网页启动语义) |
 
-## 工具清单(61 个,按域)
+## 工具清单(63 个,按域)
 
 ### M1 基础域(26 个)
 
@@ -299,7 +301,7 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 本里程碑的既有工具扩展:`optimize` 新增 `engine=auto / cpu / gpu / gpu-experimental`(默认 auto=Node CPU 路径不变;GPU 路径在受管浏览器里驱动网页真实 GPU 引擎——经查上游 GPU 走主线程 gpuOptimize 而非 workerPool,UI 驱动即真实执行路径——返回 actualEngine 与 CPU 对拍 delta;2026-10-11 起 GPU 路径另返回与 CPU 路径同形的结构化 `rows`/`equippedRow`(全精度 + 6 件遗器配装明细,取自网页只读钩子 `window.__HSR_OPTIMIZER_RESULTS`,进入 `get_results` 缓存,`fromCache` 类工具可直接引用),新增可选参数 `crossCheck`(默认 true=既有行为,false 跳过同请求 CPU 对拍——大排列空间下 GPU 审计从分钟级降到秒级);站点 dist 早于该钩子时退回只有显示口径 `gpuRows` 的旧形状并在 note 说明,重建 dist 即可);`get_state/update_state` 新增 `visualDebug`(19 个视觉调试参数 + cardDebug,会话态不落盘)、`relicsTab`(excludedRelicPotentialCharacters 落盘读写 + recentRelics 只读投影)、`layout`(表单分区折叠状态落盘读写)三段。
 
-`optimize` 与 `permutations` 的可选参数 `relicPool`(增强项,网页端无对应入口):本次运行只约束 +0 遗器能否进候选池——`excludeUnleveled=true` 全部排除,或 `unleveledMinWeightedRolls=N` 只放行加权强化次数≥N 的(口径同 `weights.minWeightedRolls`);已强化的遗器与角色当前穿戴的遗器始终保留,表单过滤照常叠加,存档与表单都不改。引擎把 +0 遗器按「主词条升满、副词条取初始值」估值,数量又常占库存大头,不限制时排列规模几乎全由它们决定;分层之后可以不锁套装而把已强化的遗器穷尽。估算、规模闸门、validate/diagnose 与 CPU/GPU 搜索用同一个池,输出回显 `relicPool`(生效的限制与被排除的遗器数)。`scripts/team-audit.mjs` 的默认策略 tiered 即建立在它之上:第一遍穷尽已强化遗器(主榜单),第二遍在时间预算内放进尽可能多的 +0 遗器,只用来列「值得强化」的候选;两遍各出「可取用低排名角色的遗器」与「不占用任何角色」两个口径,并附主榜单最优配装的短板部位与刷取目标。
+`optimize` 与 `permutations` 的可选参数 `relicPool`(增强项,网页端无对应入口):本次运行只约束 +0 遗器能否进候选池——`excludeUnleveled=true` 全部排除,或 `unleveledMinWeightedRolls=N` 只放行加权强化次数≥N 的(口径同 `weights.minWeightedRolls`);已强化的遗器与角色当前穿戴的遗器始终保留,表单过滤照常叠加,存档与表单都不改。引擎把 +0 遗器按「主词条升满、副词条取初始值」估值,数量又常占库存大头,不限制时排列规模几乎全由它们决定;分层之后可以不锁套装而把已强化的遗器穷尽。估算、规模闸门、validate/diagnose 与 CPU/GPU 搜索用同一个池,输出回显 `relicPool`(生效的限制与被排除的遗器数)。`team_audit` 的默认策略 tiered 即建立在它之上:第一遍穷尽已强化遗器(主榜单),第二遍在时间预算内放进尽可能多的 +0 遗器,只用来列「值得强化」的候选;两遍各出「可取用低排名角色的遗器」与「不占用任何角色」两个口径,并附主榜单最优配装的短板部位与刷取目标。
 
 ### M9 收尾与验收(不新增工具,全部走参数扩展)
 
@@ -320,6 +322,17 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 - **协议**(`src/bridge/fullSyncProtocol.ts`,网页侧形状镜像):语义操作带 sessionId/opId/baseRevision——过期修订**明确冲突**回执(网页弹「重载快照/重新应用」二选一,绝不静默覆盖);断线重连按环形缓冲补增量、跨世代/重启发快照;`load_save` 切档清缓冲并推新世代快照(不串档);回声双向抑制。
 - **同步面**:角色(表单/配装/肖像随行)、遗器、队伍、评分覆盖、设置、会话、展示偏好、分区折叠、遗器页状态;优化任务生命周期事件(completed 带 resultRef)与结果行按需 `resource/fetch` 拉取。
 - 已知残余:同一防抖窗口内网页操作与无关 MCP 写合并广播时,来源会话会被整条排除到下次广播/重连收敛(代码注释在案);通知文案暂为内置英文。
+
+### 队伍审计域(2 个,增强项)
+
+增量更新路线图第 ② 步:把「单队一键审计」做成一等工具。两个工具都不含新的引擎逻辑,也不改表单;存档没有未落盘修改时不改写存档文件。`team_audit` 在服务端按固定顺序调用已有工具(经进程内传输连到同进程的第二个服务端实例,校验、默认值与返回载荷和外部调用完全相同),`plan_diff` 只比较指纹。
+
+| 工具         | 功能                                                                                                                                                                                                                                                                                                                                                             |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `team_audit` | 对一个角色(可带最多 3 名队友)一次给出:当前配装 COMBO、库存最优与前 N 行、逐件换装清单(零成本 / 要从别的角色身上拿 / 要先强化)、不占用其他角色遗器的最优整套、值得强化的 +0 遗器(guaranteed / potential)、最优配装的短板部位与刷取目标、dps_score、指纹。`strategy=tiered`(默认)不锁套装分两遍搜,`locked` 为锁套装收紧后搜一次;会替换最近一次 optimize 的结果缓存 |
+| `plan_diff`  | 把此前的 `team_audit` 输出原样传入,判断哪些已经过期:范围内的遗器变了(`relicsChanged`)、核心或队友的星魂/光锥/叠影变了(`rosterChanged`)、归属规则变了(`ownershipChanged`:角色排名、rankFilter、exclude、是否取用他人遗器)、引擎变了(`engineChanged`:有 git 提交时比提交,否则比构建时间);无状态,不搜索                                                             |
+
+命令行外壳 `npm run team-audit -- --character <id> [--teammates a,b,c] [--out file]`(参数见 `scripts/team-audit.mjs` 头部注释):在存档的临时副本上启动服务端、调一次 `team_audit`、输出结构化结果,真实存档只读不写。
 
 ### game:// 与 site:// 资源(11 项)
 
@@ -407,7 +420,7 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 - `fetch_showcase` / `import_showcase`(enka/mihomo 档案)✅
 - teams 数据面(`save_team`/`list_teams`)✅
 - stats 归约器(`ComputedStatsContainer → JSON`,随 simulate_build/stat_simulate 返回)✅;套装效果描述面(`game://metadata/sets`)✅;「行→配装」按方案有意折叠进 optimize/get_results 的行内 builds 字段,不另设 resource
-- 全部工具的 outputSchema 声明(§9 D7)✅(61 个工具全覆盖;11 个 `game://`+`site://` 资源不适用——SDK 的资源配置无 outputSchema 参数,见方案 §10 D12)
+- 全部工具的 outputSchema 声明(§9 D7)✅(63 个工具全覆盖;11 个 `game://`+`site://` 资源不适用——SDK 的资源配置无 outputSchema 参数,见方案 §10 D12)
 - 追加交付:同步桥 `sync_bridge_start/status/stop/push`(MCP→网页端单向推送,变更驱动自动重推)与 6 项 `game://` 元数据资源
 
 留尾巴(未做成/未覆盖,如实登记):

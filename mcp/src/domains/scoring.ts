@@ -419,7 +419,8 @@ export function registerScoringTools(server: McpServer): void {
             blockedRerollAvgPct: potential.blockedRerollAvgPct,
             ...(potential.meta?.blockedStat != null ? { blockedStat: potential.meta.blockedStat } : {}),
           },
-          ...(estTbpDays != null ? { estTbpDays } : {}),
+          // A relic no farming run can beat has no finite estimate; JSON would turn it into null.
+          ...(estTbpDays != null && Number.isFinite(estTbpDays) ? { estTbpDays } : {}),
         }
       }
 

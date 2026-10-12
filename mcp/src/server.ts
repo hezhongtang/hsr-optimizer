@@ -25,13 +25,18 @@ import { registerScoringTools } from './domains/scoring'
 import { registerShowcaseTools } from './domains/showcase'
 import { registerSimulationTools } from './domains/simulation'
 import { registerStateTools } from './domains/state'
+import { registerTeamAuditTools } from './domains/teamAudit'
 import { registerTeamsTools } from './domains/teams'
+import { setLoopbackServerFactory } from './loopback'
 import { registerGameResources } from './resources'
 
 export const SERVER_INFO = {
   name: 'hsr-optimizer',
   version: '0.1.0',
 } as const
+
+// Tools that compose other tools call them on a second instance of this server.
+setLoopbackServerFactory(() => createMcpServer())
 
 export function createMcpServer(): McpServer {
   // One-time game metadata init before any tool can touch the stores
@@ -60,6 +65,7 @@ export function createMcpServer(): McpServer {
   registerShowcaseTools(server)
   registerSimulationTools(server)
   registerStateTools(server)
+  registerTeamAuditTools(server)
   registerTeamsTools(server)
   registerGameResources(server)
   return server
