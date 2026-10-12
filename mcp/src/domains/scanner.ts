@@ -441,12 +441,14 @@ async function applyInitialScan(data: unknown, bytes: number): Promise<void> {
 
     // 与 import_scanner_json 同一条合并链(union 并集,防部分扫描擦库;见文件头
     // divergence 说明)。planAndRunImport 内部完成 mergeRelics + markDirty。
-    const outcome = planAndRunImport(parsed.relics, characters, 'union', false)
+    // 实时帧来自 Reliquary Archiver,遗器 id 跨帧稳定 → 开启同 id 替换。
+    const outcome = planAndRunImport(parsed.relics, characters, 'union', false, true)
     return {
       added: outcome.added,
       updated: outcome.updated,
       skipped: outcome.skipped,
       removed: outcome.removed,
+      replacedById: outcome.replacedById,
       totalBefore: outcome.totalBefore,
       totalAfter: outcome.totalAfter,
       characters: characters.length,
@@ -459,6 +461,7 @@ async function applyInitialScan(data: unknown, bytes: number): Promise<void> {
     result: 'applied',
     bytes,
     summary: `完整扫描并入(union):新增 ${detail.added}、更新 ${detail.updated}、跳过 ${detail.skipped}、移除 ${detail.removed} 件遗器,`
+      + (detail.replacedById > 0 ? `同 id 替换旧记录 ${detail.replacedById} 件,` : '')
       + `库存 ${detail.totalBefore} → ${detail.totalAfter},角色 ${detail.characters} 个${settings.ingestCharacters ? '' : '(未导入角色)'}`,
     detail,
   })
@@ -1014,7 +1017,8 @@ export function registerScannerTools(server: McpServer): void {
       + 'action=status:连接状态/地址/在线时长/累计帧统计(接收/应用/忽略/出错)/最近错误/扫描缓存概况(只读,不递增 revision)。'
       + 'action=events(offset,limit):查询事件日志环形缓冲(上限 500 条,含帧类型/时间/应用结果摘要;连接生命周期也记入)。'
       + '事件应用语义(受 update_state(section=scanner) 的四个 ingest 开关控制,改动从下一帧起生效、不回放):'
-      + 'InitialScan 按 import_scanner_json 的 union 并集链整库并入(角色等级统一 80,ingestCharacters 关闭时不导入角色);'
+      + 'InitialScan 按 import_scanner_json 的 union 并集链整库并入(角色等级统一 80,ingestCharacters 关闭时不导入角色;'
+      + '库存中与扫描件同 _uid 但 hash 不同的旧记录是同一件遗器强化前的状态,由扫描件覆盖,不与它并存,事件 detail.replacedById 为覆盖掉的旧记录数);'
       + 'UpdateRelics 仅 5★ 落库,已有遗器在 ingestCharacters 关闭时保留原佩戴者;UpdateCharacters 需 ingest 与 ingestCharacters 同开;'
       + 'DeleteRelics 仅删除 5★ 且以帧内 _uid 定位;UpdateLightCones/UpdateMaterials 只进扫描缓存;'
       + 'UpdateGachaFunds 在 ingest 与 ingestWarpResources 同开时把 星琼+古老梦华 写入跃迁规划底稿;'

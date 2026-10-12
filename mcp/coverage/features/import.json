@@ -290,7 +290,8 @@
         "tools": [
           "import_scanner_json",
           "import_hoyolab"
-        ]
+        ],
+        "gaps": "merge=union(MCP 默认,网页无对应入口)在上游整库替换之上合成并集清单。Reliquary Archiver 来源(id 取自游戏数据包,跨导出稳定)下,与导入件同 id 而 hash 不同、且部位/套装/稀有度/主词条一致、等级不高于导入件的库存件,是同一件遗器强化前的旧状态,由导入件覆盖而不并存——该件遗器的记录与网页整库替换的结果逐字段一致(smoke-imports.mjs 对照 merge=replace)。分歧在佩戴者:同 id 替换件按 hash 命中件的规则处理(未连同导入角色、或导入件不带佩戴者时沿用旧记录的佩戴者),网页原生路径把它当新遗器,导入件佩戴者与角色槽位不一致时该件变为未穿戴。HSR-Scanner(位置编号)/ Yas(未确认稳定)/ HoYoLAB(每次新 uuid)不做同 id 替换;merge=replace 不受影响。回归见 smoke-imports.mjs 7b–7f,未做浏览器对拍。"
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -359,7 +360,8 @@
         "tools": [
           "import_scanner_json",
           "import_hoyolab"
-        ]
+        ],
+        "gaps": "merge=union(MCP 默认,网页无对应入口)在上游整库替换之上合成并集清单。Reliquary Archiver 来源(id 取自游戏数据包,跨导出稳定)下,与导入件同 id 而 hash 不同、且部位/套装/稀有度/主词条一致、等级不高于导入件的库存件,是同一件遗器强化前的旧状态,由导入件覆盖而不并存——该件遗器的记录与网页整库替换的结果逐字段一致(smoke-imports.mjs 对照 merge=replace)。佩戴者:导入件带佩戴者时以导入件为准(与网页一致);导入件不带佩戴者时沿用旧记录的佩戴者(与网页对未变化遗器的处理一致,网页对强化过的遗器则因当作新遗器而变为未穿戴)。HSR-Scanner(位置编号)/ Yas(未确认稳定)/ HoYoLAB(每次新 uuid)不做同 id 替换;merge=replace 不受影响。回归见 smoke-imports.mjs 7b–7f,未做浏览器对拍。"
       },
       "scope": "baseline",
       "upstreamChange": "none",
@@ -678,7 +680,8 @@
         ],
         "candidates": [
           "scanner(action=events)"
-        ]
+        ],
+        "gaps": "InitialScan 走 import_scanner_json 的 union 并集链而非网页的整库替换(部分扫描不擦库);库存中与扫描件同 _uid 而 hash 不同的旧记录是同一件遗器强化前的状态,由扫描件覆盖,不与它并存(事件 detail.replacedById 计数),对完整扫描的结果与网页一致。回归见 smoke-scanner.mjs 19b。"
       },
       "scope": "baseline",
       "upstreamChange": "mirror",

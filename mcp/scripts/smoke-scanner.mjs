@@ -614,6 +614,24 @@ try {
   const finalRelics = await pollUntil('final frame applied', async () => ({ ok: await relicsTotal() === 168, total: await relicsTotal() }))
   check('session continues after the manual re-connect (167 → 168)', finalRelics.ok, `total=${finalRelics.total}`)
 
+  // 19b. a re-scan carrying a relic whose stats changed since it was stored
+  // (same archiver _uid, another hash): the scan's state replaces the stored
+  // record — one record per id, inventory unchanged (imports.ts same-id rule).
+  frame('InitialScan', archiverJson([novel('9007', 75)]))
+  const rescan = await pollUntil('same-id rescan applied', async () => {
+    const log = await callTool(client, 'scanner', { action: 'events' })
+    const entry = log.entries.find((e) => e.type === 'InitialScan' && e.detail?.replacedById === 1)
+    return { ok: entry != null, entry }
+  })
+  const rescanned = (await callTool(client, 'export_save', { structured: true })).snapshot.relics
+  check(
+    'InitialScan same-id rescan: 1 updated, replacedById=1, one record under the id, inventory stays 168',
+    rescan.ok && rescan.entry.detail.updated === 1 && rescan.entry.detail.added === 0 && rescan.entry.detail.totalAfter === 168
+      && rescanned.length === 168 && rescanned.filter((relic) => relic.id === '9007').length === 1
+      && rescanned.find((relic) => relic.id === '9007').substats[0].value === headRelic.substats[0].value + 75,
+    `detail=${JSON.stringify(rescan.entry?.detail)}, records=${rescanned.filter((relic) => relic.id === '9007').length}, total=${rescanned.length}`,
+  )
+
   // 20. persisted: the live writes flushed into the loaded save file copy
   await sleep(1800)
   const flushed1 = JSON.parse(readFileSync(phase1, 'utf8'))

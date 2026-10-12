@@ -46,8 +46,10 @@ npm run smoke:conditionals # 条件面板 + game:// 资源:zh_CN 标签、星魂
 npm run smoke:simulation   # 模拟域:simulate_build(trace 归因)/ stat_simulate(确定性 + 变体差值)/
                         # analyze_build(+1 roll 升级表)/ benchmark_runs(预设批量跑分 + 取消语义)
 npm run smoke:imports  # 导入 + 展示柜:union 并集语义(1+162→163)、dryRun、replace 收缩、并集反擦写、
-                        # 部分并集导入的穿戴(导入件占槽、未替换的槽位保留旧件)、解析错误路径;
-                        # showcase 全部错误路径(离线 stub fetch)+ 内联档案导入
+                        # 部分并集导入的穿戴(导入件占槽、未替换的槽位保留旧件)、
+                        # 同 id 替换(Reliquary 来源强化后再导入仍是一条记录:佩戴者/已存配装引用/hash 孪生/
+                        # 库存已有重复 id;HSR-Scanner 的位置编号 id 不参与)、
+                        # 解析错误路径;showcase 全部错误路径(离线 stub fetch)+ 内联档案导入
 npm run smoke:misc     # 计算器(warp_plan/calc_aha/calc_ehr 对拍上游公式)/ teams(list/save 往返与
                         # 快照保留规则)/ 同步桥(ws 帧逐字段校验、回灌上游解析器、变更驱动重推)
 npm run smoke:m8       # M8 双向同步端到端:受管浏览器载真实站点连全量桥,六条验收(缺 Chrome/dist 自动 [SKIP])
@@ -151,12 +153,14 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 **导入域(imports)** — 网页端「导入」页签的文件上传入口:
 
-| 工具                  | 功能                                                                                                                                                                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `import_scanner_json` | 导入扫描器 JSON(HSR-Scanner / Reliquary Archiver / Yas):按遗器 hash 匹配库存,reliquary 已验证件覆盖同 hash 件的副词条;`merge=union`(默认)按 hash 并集保留现有库存、`replace` 为上游原生整库替换;支持 dryRun / existingCharactersOnly |
-| `import_hoyolab`      | 导入 HoYoLAB 战绩 JSON:合并语义与 import_scanner_json 完全一致;导入角色等级与光锥等级规范化为 80(与网页端一致)                                                                                                                       |
+| 工具                  | 功能                                                                                                                                                                                                                                                                                                                             |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `import_scanner_json` | 导入扫描器 JSON(HSR-Scanner / Reliquary Archiver / Yas):按遗器 hash 匹配库存,reliquary 已验证件覆盖同 hash 件的副词条;Reliquary Archiver 来源下,id 相同而 hash 不同的库存件由导入件覆盖(同一件遗器强化前的旧状态);`merge=union`(默认)按 hash 并集保留现有库存、`replace` 为上游原生整库替换;支持 dryRun / existingCharactersOnly |
+| `import_hoyolab`      | 导入 HoYoLAB 战绩 JSON:合并语义与 import_scanner_json 完全一致;导入角色等级与光锥等级规范化为 80(与网页端一致)                                                                                                                                                                                                                   |
 
-用法要点:`path`(文件)与 `inline`(内联 JSON 对象或字符串)二选一;**需先 `load_save`**(未载入存档时导入直接报错,与 `reset_all` 口径一致)。`merge` 默认 `union`(按 hash 并集保留现有库存,合成清单意外小于现有库存时拒绝落盘);`replace` 是上游原生整库替换,慎用。连同导入角色时,并集里没被本次文件覆盖的旧遗器不会把角色槽位改回去:导入件占住的部位以导入件为准,文件没给新件的部位仍穿原来的遗器;`includeCharacters=false` 不改任何穿戴。`dryRun=true` 只统计不写入,建议先跑一次看 `added/updated/skipped` 预估。`existingCharactersOnly=true` 只导入库存已有角色(对应网页端「仅导入现有角色」勾选),遗器不受影响。导入件已验证(reliquary)时同 hash 库存件的副词条被覆盖并置 verified;未验证(kelz/yas/hoyolab)同 hash 件仅更新佩戴者/顺序,无实质变化记 `skipped`。
+用法要点:`path`(文件)与 `inline`(内联 JSON 对象或字符串)二选一;**需先 `load_save`**(未载入存档时导入直接报错,与 `reset_all` 口径一致)。`merge` 默认 `union`(按 hash 并集保留现有库存,合成清单意外小于待合并库存、或被替换的旧记录找不到同 id 继任记录时拒绝落盘);`replace` 是上游原生整库替换,慎用。连同导入角色时,并集里没被本次文件覆盖的旧遗器不会把角色槽位改回去:导入件占住的部位以导入件为准,文件没给新件的部位仍穿原来的遗器;`includeCharacters=false` 不改任何穿戴。`dryRun=true` 只统计不写入,建议先跑一次看 `added/updated/skipped` 预估。`existingCharactersOnly=true` 只导入库存已有角色(对应网页端「仅导入现有角色」勾选),遗器不受影响。导入件已验证(reliquary)时同 hash 库存件的副词条被覆盖并置 verified;未验证(kelz/yas/hoyolab)同 hash 件仅更新佩戴者/顺序,无实质变化记 `skipped`。
+
+**同 id 替换**(仅 `merge=union`,仅 Reliquary Archiver 来源——`import_scanner_json` 读到 `source=reliquary_archiver` 的文件,以及 `scanner` 的 InitialScan):Reliquary Archiver 的遗器 id(`_uid`)取自游戏数据包,强化/重掷前后不变,而 hash 会变(例如 +0 三条副词条 → +15 四条副词条)。库存件与某件导入件 id 相同、hash 不同,且部位/套装/稀有度/主词条一致、等级不高于导入件时,它就是那件遗器的旧状态——由导入件覆盖,不与它并存(与网页整库替换对这件遗器的结果一致)。角色装备与已存配装按 id 引用,自动指向新状态;佩戴者规则与 hash 命中件相同:连同导入角色且导入件带佩戴者时以导入件为准,否则沿用旧记录的佩戴者。统计口径:`added`+`updated`+`skipped`=导入件数,同 id 替换记 `updated`(不再记 `added`);`replacedById`=因同 id 被覆盖而移出的旧记录数;`removed`=库存净减少件数。库存里同一 id 已有多条记录(修复前的并集导入留下的)时,下一次带该 id 的 Reliquary 导入会把它们收敛成一条:留下与导入件同 hash 的那条,旧记录的佩戴者在它没有佩戴者时转给它,此时 `removed`>0。**不参与的来源**:HSR-Scanner 的 `_uid` 是每次扫描按位置编的号(`relic_1`、`relic_2`…,见其 README),Yas 的 id 未确认稳定,HoYoLAB 导入件的 id 每次重新生成——这些来源下 id 相同不代表同一件遗器,不做同 id 替换(`replacedById` 恒为 0);`merge=replace` 是上游原生路径,也不做。
 
 **展示柜域(showcase)** — 网页端 Showcase(展示)页签:
 
@@ -257,9 +261,9 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 **扫描器域(scanner)** — 网页端「实时导入」的 ws 客户端对应物(MCP 主动外连真实扫描器):
 
-| 工具      | 功能                                                                                                                                                                                                                                                                                                               |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `scanner` | `action=connect(url?) / disconnect / status / events`:连接 Reliquary Archiver 等扫描器的 WebSocket;事件帧按网页 scannerStore 同一条链应用(InitialScan 走 union 合并、UpdateRelics 仅 5★ 落库、DeleteRelics 清引用、UpdateGachaFunds 写跃迁底稿;GachaResult 按网站行为忽略仅记录);事件日志环形缓冲可查,畸形帧不断连 |
+| 工具      | 功能                                                                                                                                                                                                                                                                                                                                                                 |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scanner` | `action=connect(url?) / disconnect / status / events`:连接 Reliquary Archiver 等扫描器的 WebSocket;事件帧按网页 scannerStore 同一条链应用(InitialScan 走 union 合并——库存中同 `_uid` 而 hash 不同的旧记录由扫描件覆盖、UpdateRelics 仅 5★ 落库、DeleteRelics 清引用、UpdateGachaFunds 写跃迁底稿;GachaResult 按网站行为忽略仅记录);事件日志环形缓冲可查,畸形帧不断连 |
 
 **角色评分域(scoring 扩展)** — 展示卡模拟评分引擎的完整接入:
 
@@ -373,7 +377,7 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 6. **字母评级 `'?'` 的合法情形**(不是 bug):`score_relics` 的当前分评级在 ① 非 5★ 遗器、② 加权分为 0(该角色权重下无有效词条)、③ Body/Feet/PlanarSphere/LinkRope 主词条不在该角色评分候选内 时返回 `'?'`(低于最低档 F 亦然);`dps_score` 的评级在未满 6 件装备或无光锥时返回 `'?'`。
 7. **`SEQUENTIAL_BENCHMARKS` 进程内置位**:首次调用 `dps_score` 会把该全局标志置 true 并保持到进程结束——本服务内所有最优模拟搜索都应在主线程内联执行(浏览器 worker 池未接线),这是有意的;但意味着该进程内其他依赖该标志的代码路径也会切换到串行。
 8. **评分数值为 Float32 打包精度,不做四舍五入**:优化行与评分里的伤害/百分比来自引擎的 Float32Array 打包(与网页端网格显示一致),跨工具复算可能有 1e-7 量级相对误差(见 spike S5c 实测 1.4e-8)。
-9. **上游 `persistenceService.mergeRelics` 本身是整库替换语义**(继承自上游):导入工具在其之上实现 hash 并集合并——`merge=union`(默认)先合成完整并集清单再走整库写入,并集清单意外小于现有库存时拒绝落盘(反擦写);`merge=replace` 保留上游原生语义,未被导入件覆盖的旧遗器会被丢弃(见方案 §2 勘误 #5)。并集清单把未覆盖的旧遗器接在导入件后面,而上游会按清单顺序用遗器的佩戴者回写角色槽位。连同导入角色时,接回的旧遗器去掉佩戴者再交给上游,避免部分导入(战绩导出、裁剪过的扫描)里旧件把刚穿上的新件盖掉;文件没给新件的部位仍穿原来的遗器。不导入角色时不改穿戴。
+9. **上游 `persistenceService.mergeRelics` 本身是整库替换语义**(继承自上游):导入工具在其之上实现 hash 并集合并——`merge=union`(默认)先合成完整并集清单再走整库写入,并集清单意外小于待合并库存、或被替换的旧记录找不到同 id 继任记录时拒绝落盘(反擦写);`merge=replace` 保留上游原生语义,未被导入件覆盖的旧遗器会被丢弃(见方案 §2 勘误 #5)。并集清单把未覆盖的旧遗器接在导入件后面,而上游会按清单顺序用遗器的佩戴者回写角色槽位。连同导入角色时,接回的旧遗器去掉佩戴者再交给上游,避免部分导入(战绩导出、裁剪过的扫描)里旧件把刚穿上的新件盖掉;文件没给新件的部位仍穿原来的遗器。不导入角色时不改穿戴。Reliquary Archiver 来源下「覆盖」还按 id 认定:同 id 不同 hash 的库存件是同一件遗器的旧状态。上游 `mergeRelics` 只按 hash 配对,所以并集模式在调用它之前先把导入件的新状态折入遗器 store(旧记录换成导入件、沿用其佩戴者,并按导入顺序对齐各 hash 桶),让上游按普通的 hash 命中处理;只把旧记录从清单里拿掉是不够的——它仍在上游的 hash 桶里,接回清单的 hash 孪生件会配到它并继承它的 id。HSR-Scanner 的 `_uid` 按扫描位置编号,两次导出里相同的 `_uid` 通常是两件不同的遗器:上游对这种 id 相撞不做处理(未验证件命中 hash 时保留库存 id,新件又带着同一个位置编号落库),库存会出现重复 id——这是继承自上游的行为,本工具未改变。
 10. **同步桥的退出钩子已接线 `closeBridge`**(2026-10 复核修复批次):关停流程(SIGINT/SIGTERM/EOF)会关闭 ws 监听并对在线网页端客户端发干净的关闭帧;退出前显式调 `sync_bridge_stop` 仍可用于即时停止(不必等进程退出)。
 11. **`analyze_build` 不支持从 optimize 结果行引用配装**:M1 的 `fromCache` 机制不在此工具上(`equipment.ts` 的 `resolveCachedBuild` 未导出)。agent 需用 `optimize`/`get_results` 行内 `builds` 字段的遗器 id 自行组装 `newRelicIds`。
 12. **`benchmark_runs` 的取消只在预设之间生效**:上游 orchestrator 内部无取消信号,已开始的预设会跑完(单个预设内联约 0.3–2s),取消后返回已完成部分。
@@ -410,7 +414,7 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 
 - ~~`closeBridge` 未接进 `index.ts` 的退出钩子~~(已由 2026-10 复核修复批次接线,见已知限制 #10)。
 - `fetch_showcase` 的**成功路径**冒烟未覆盖(真实外网拉取→cacheId→`import_showcase` 走缓存的链路);错误路径 7 分支全覆盖(离线 stub),导入缓存路径经内联 json 间接验证。
-- 导入 union 防擦写守卫的 `throw` 分支从工具输入数学上不可达(每个导入件最多消耗一个 hash 桶条目,并集清单恒 ≥ 现有库存),冒烟以「严格子集 union 导入保库存」断言实际防护效果;守卫分支本身需注入式单测(如模拟桶配对 bug)覆盖。
+- 导入 union 防擦写守卫的 `throw` 分支从工具输入数学上不可达(每个导入件最多消耗一个 hash 桶条目,并集清单恒 ≥ 待合并库存;待合并库存只比现有库存少被同 id 替换掉的旧记录,且每条都有同 id 的继任记录),冒烟以「严格子集 union 导入保库存」与「库存已有重复 id 时恰好少一件」断言实际防护效果;守卫分支本身需注入式单测(如模拟桶配对 bug)覆盖。
 - 同步桥未做真实网页端浏览器端到端联调:帧形状/反向映射/count-step 编码经静态对拍与 ws 冒烟校验,真实浏览器回环留待联调阶段。
 - reliquary(verified)导入件同 hash 覆盖副词条/置真/id 改链的 `mergeRelics` verified 分支未在冒烟中单独覆盖(任务断言清单未列)。
 

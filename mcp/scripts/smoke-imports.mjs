@@ -8,7 +8,11 @@
 //     dryRun (no store write, no disk write), strict-subset union anti-wipe,
 //     partial union import equipment (an imported piece wins its slot; a slot
 //     the file does not replace keeps the old piece), replace-mode shrink
-//     (intentional upstream semantics), parse errors
+//     (intentional upstream semantics), same-id supersession for stable-id
+//     sources (a Reliquary Archiver relic re-imported after an in-game upgrade
+//     keeps one record under its id: wearer + saved-build references, hash
+//     twins, pre-existing duplicate ids; HSR-Scanner's positional ids never
+//     supersede), parse errors
 //     (i18n-localized version mismatch, wrong-tool shape, bad source, args).
 //   import_hoyolab — minimal fixture walk-through (union add + character
 //     creation + equipment) and a same-hash skip via an owner-matched relic.
@@ -276,6 +280,39 @@ if (ownedHead == null) throw new Error('no owned Head in sample save')
 // stored roll grid — same part/set/main, different substat values ⇒ new hash.
 const novelSubstats = { 0: headRelic.substats[0].value + 10 }
 const novelScannerRelic = scannerRelicFromStore(headRelic, '900', novelSubstats)
+
+// Same-id supersession fixtures: one physical relic (a Reliquary Archiver
+// _uid, read from the game's packets) before and after an in-game upgrade —
+// the level and substats change, so the hash changes, while the id stays.
+const SUBS_PLUS0 = [{ key: 'ATK', value: 19 }, { key: 'CRIT Rate_', value: 2.9 }, { key: 'CRIT DMG_', value: 5.8 }]
+const SUBS_PLUS15 = [{ key: 'ATK', value: 19 }, { key: 'CRIT Rate_', value: 8.7 }, { key: 'CRIT DMG_', value: 17.4 }, { key: 'SPD', value: 2 }]
+const SUBS_PLUS15_REROLLED = [{ key: 'ATK', value: 19 }, { key: 'CRIT Rate_', value: 5.8 }, { key: 'CRIT DMG_', value: 23.2 }, { key: 'SPD', value: 2 }]
+const SUBS_PLUS15_REROLLED_AGAIN = [{ key: 'ATK', value: 19 }, { key: 'CRIT Rate_', value: 11.6 }, { key: 'CRIT DMG_', value: 11.6 }, { key: 'SPD', value: 2 }]
+const SUBS_UNRELATED = [{ key: 'HP_', value: 3.8 }, { key: 'DEF', value: 21 }, { key: 'Effect RES_', value: 4.3 }]
+function uidRelic(uid, level, substats, { location = '', slot = 'Head' } = {}) {
+  return {
+    set_id: setIdByName[headRelic.set],
+    name: 'smoke same-id relic',
+    slot,
+    rarity: 5,
+    level,
+    mainstat: slot === 'Hands' ? 'ATK' : 'HP',
+    substats,
+    location,
+    lock: false,
+    discard: false,
+    _uid: uid,
+  }
+}
+/** Reliquary Archiver export: verified relics (substats carry roll info) with stable ids. */
+function archiverJson(relics, characters = []) {
+  return {
+    ...scannerJson(relics.map((relic) => ({ ...relic, substats: relic.substats.map((substat) => ({ ...substat, count: 1, step: 0 })) })), characters),
+    source: 'reliquary_archiver',
+    build: 'v0.8.0',
+  }
+}
+const archiverCharacter = (id) => ({ id, name: 'smoke character', path: 'The Harmony', level: 1, ascension: 0, eidolon: 0, ability_version: 0 })
 
 const CHAR_LIGHT_CONES = [
   { id: '20000', name: 'smoke lc', level: 1, ascension: 0, superimposition: 1, location: '1005', lock: false, discard: false, _uid: 'lc-1005' },
@@ -612,6 +649,371 @@ try {
       && afterRelicsOnly.equippedSlots?.Head?.equippedId === beforeRelicsOnly.equippedSlots?.Head?.equippedId
       && unwornImport?.equippedBy == null,
     `touched=${relicsOnlyImport.charactersTouched} head=${afterRelicsOnly.equippedSlots?.Head?.equippedId} importBy=${unwornImport?.equippedBy}`,
+  )
+
+  // 7b. same-id supersession — a Reliquary Archiver relic keeps its id across
+  // an in-game upgrade while its hash changes. The re-import must replace the
+  // stale record, not sit next to it: two records under one id make
+  // relicsById resolve to the stale one and the next relic write drops the
+  // fresh one.
+  async function inventory() {
+    const { snapshot } = await callTool(client, 'export_save', { structured: true })
+    const counts = new Map()
+    for (const relic of snapshot.relics) counts.set(relic.id, (counts.get(relic.id) ?? 0) + 1)
+    return {
+      total: snapshot.relics.length,
+      duplicateIds: [...counts].filter(([, n]) => n > 1).map(([id]) => id),
+      records: (id) => snapshot.relics.filter((relic) => relic.id === id),
+      character: (id) => snapshot.characters.find((character) => character.id === id),
+    }
+  }
+  const describeRecords = (records) =>
+    JSON.stringify(records.map((r) => ({ enhance: r.enhance, substats: r.substats.length, equippedBy: r.equippedBy ?? null })))
+  const sameIdStats = (r) =>
+    `added=${r.added}, updated=${r.updated}, skipped=${r.skipped}, removed=${r.removed}, replacedById=${r.replacedById}, ${r.totalBefore} → ${r.totalAfter}`
+  const buildHead = (inv) => inv.character('1105')?.builds?.find((build) => build.name === 'smoke-same-id')?.equipped?.Head
+
+  await callTool(client, 'load_save', { path: freshSavePath() })
+  const beforeUpgrade = await callTool(client, 'import_scanner_json', { inline: archiverJson([uidRelic('777001', 0, SUBS_PLUS0)]) })
+  check(
+    'same-id: the +0 relic is a plain verified add (162 → 163, no warnings)',
+    beforeUpgrade.source === 'reliquary_archiver' && beforeUpgrade.added === 1 && beforeUpgrade.replacedById === 0 && beforeUpgrade.totalAfter === 163
+      && beforeUpgrade.warnings.length === 0,
+    `source=${beforeUpgrade.source}, ${sameIdStats(beforeUpgrade)}, warnings=${JSON.stringify(beforeUpgrade.warnings)}`,
+  )
+  const upgradeFixture = archiverJson([uidRelic('777001', 15, SUBS_PLUS15)])
+  const upgradeDry = await callTool(client, 'import_scanner_json', { inline: upgradeFixture, dryRun: true })
+  check(
+    'same-id dryRun: the upgraded relic is predicted as 1 updated / 0 added, inventory stays 163',
+    upgradeDry.added === 0 && upgradeDry.updated === 1 && upgradeDry.skipped === 0 && upgradeDry.replacedById === 1
+      && upgradeDry.removed === 0 && upgradeDry.totalBefore === 163 && upgradeDry.totalAfter === 163,
+    sameIdStats(upgradeDry),
+  )
+  const afterUpgradeDry = await inventory()
+  check(
+    'same-id dryRun leaves the +0 record untouched',
+    afterUpgradeDry.total === 163 && afterUpgradeDry.records('777001').length === 1 && afterUpgradeDry.records('777001')[0].enhance === 0,
+    `total=${afterUpgradeDry.total}, ${describeRecords(afterUpgradeDry.records('777001'))}`,
+  )
+  const upgraded = await callTool(client, 'import_scanner_json', { inline: upgradeFixture })
+  check(
+    'SAME-ID CORE: re-importing the upgraded relic reports 1 updated / 0 added and keeps 163 (never 164)',
+    upgraded.merge === 'union' && upgraded.added === 0 && upgraded.updated === 1 && upgraded.skipped === 0 && upgraded.replacedById === 1
+      && upgraded.removed === 0 && upgraded.totalBefore === 163 && upgraded.totalAfter === 163,
+    sameIdStats(upgraded),
+  )
+  const afterUpgrade = await inventory()
+  check(
+    'same-id: no relic id appears twice after the re-import',
+    afterUpgrade.duplicateIds.length === 0,
+    `duplicate ids: ${afterUpgrade.duplicateIds.join(',') || 'none'}`,
+  )
+  check(
+    'same-id: the surviving record is the +15 four-substat one',
+    afterUpgrade.total === 163 && afterUpgrade.records('777001').length === 1 && afterUpgrade.records('777001')[0].enhance === 15
+      && afterUpgrade.records('777001')[0].substats.length === 4 && afterUpgrade.records('777001')[0].verified === true,
+    `total=${afterUpgrade.total}, ${describeRecords(afterUpgrade.records('777001'))}`,
+  )
+
+  // The union result for that id must be what upstream's own full replace
+  // (merge=replace = the raw web path, untouched by this rule) leaves behind
+  // for the same two imports.
+  await callTool(client, 'load_save', { path: freshSavePath() })
+  await callTool(client, 'import_scanner_json', { inline: archiverJson([uidRelic('777001', 0, SUBS_PLUS0)]) })
+  const upgradedByReplace = await callTool(client, 'import_scanner_json', { inline: upgradeFixture, merge: 'replace' })
+  const afterReplaceUpgrade = await inventory()
+  check(
+    'same-id under replace: the raw upstream path is unchanged (hash-only stats, no supersession, inventory resets to the import)',
+    upgradedByReplace.added === 1 && upgradedByReplace.updated === 0 && upgradedByReplace.replacedById === 0 && upgradedByReplace.totalAfter === 1,
+    sameIdStats(upgradedByReplace),
+  )
+  check(
+    'same-id: the union record is field-for-field the record upstream replace produces',
+    afterReplaceUpgrade.records('777001').length === 1
+      && JSON.stringify(afterReplaceUpgrade.records('777001')[0]) === JSON.stringify(afterUpgrade.records('777001')[0]),
+    `replace=${describeRecords(afterReplaceUpgrade.records('777001'))}, union=${describeRecords(afterUpgrade.records('777001'))}`,
+  )
+
+  // 7c. wearer + saved-build references across a same-id replacement follow
+  // the hash-match rule: the import's wearer wins only when characters are
+  // imported AND the file names one; otherwise the optimizer's own equipment
+  // survives. 1105 and 1202 have no Head in the sample save.
+  await callTool(client, 'load_save', { path: freshSavePath() })
+  await callTool(client, 'import_scanner_json', { inline: archiverJson([uidRelic('777002', 0, SUBS_PLUS0)]) })
+  await callTool(client, 'equip_build', { characterId: '1105', relicIds: ['777002'] })
+  await callTool(client, 'save_build', { characterId: '1105', name: 'smoke-same-id' })
+  const wornUpgrade = await callTool(client, 'import_scanner_json', {
+    inline: archiverJson([uidRelic('777002', 15, SUBS_PLUS15)]),
+    includeCharacters: false,
+  })
+  const afterWornUpgrade = await inventory()
+  check(
+    'same-id relics-only: the worn relic is replaced in place (1 updated, 163, no duplicate id)',
+    wornUpgrade.updated === 1 && wornUpgrade.added === 0 && wornUpgrade.totalAfter === 163 && afterWornUpgrade.duplicateIds.length === 0
+      && afterWornUpgrade.records('777002').length === 1 && afterWornUpgrade.records('777002')[0].enhance === 15,
+    `${sameIdStats(wornUpgrade)}; ${describeRecords(afterWornUpgrade.records('777002'))}`,
+  )
+  check(
+    'same-id relics-only: the wearer keeps the relic (equippedBy + character slot both intact)',
+    afterWornUpgrade.records('777002')[0]?.equippedBy === '1105' && afterWornUpgrade.character('1105')?.equipped?.Head === '777002',
+    `equippedBy=${afterWornUpgrade.records('777002')[0]?.equippedBy}, 1105.Head=${afterWornUpgrade.character('1105')?.equipped?.Head}`,
+  )
+  check(
+    'same-id relics-only: the saved build still references the relic id',
+    buildHead(afterWornUpgrade) === '777002',
+    `build Head=${buildHead(afterWornUpgrade)}`,
+  )
+  const unequippedInGame = await callTool(client, 'import_scanner_json', {
+    inline: archiverJson([uidRelic('777002', 15, SUBS_PLUS15_REROLLED)], [archiverCharacter('1105')]),
+  })
+  const afterUnequippedInGame = await inventory()
+  check(
+    'same-id with characters, file names no wearer: replaced, the optimizer wearer stays (hash-match rule)',
+    unequippedInGame.updated === 1 && unequippedInGame.charactersTouched === 1 && afterUnequippedInGame.duplicateIds.length === 0
+      && afterUnequippedInGame.records('777002').length === 1 && afterUnequippedInGame.records('777002')[0].equippedBy === '1105'
+      && afterUnequippedInGame.character('1105')?.equipped?.Head === '777002',
+    `${sameIdStats(unequippedInGame)}; ${describeRecords(afterUnequippedInGame.records('777002'))}, 1105.Head=${
+      afterUnequippedInGame.character('1105')?.equipped?.Head
+    }`,
+  )
+  const movedUpgrade = await callTool(client, 'import_scanner_json', {
+    inline: archiverJson([uidRelic('777002', 15, SUBS_PLUS15_REROLLED_AGAIN, { location: '1202' })], [archiverCharacter('1202')]),
+  })
+  const afterMoved = await inventory()
+  check(
+    'same-id with characters: replaced again (1 updated, 163, no duplicate id)',
+    movedUpgrade.updated === 1 && movedUpgrade.added === 0 && movedUpgrade.totalAfter === 163 && afterMoved.duplicateIds.length === 0
+      && afterMoved.records('777002').length === 1,
+    `${sameIdStats(movedUpgrade)}; ${describeRecords(afterMoved.records('777002'))}`,
+  )
+  check(
+    'same-id with characters: the wearer named by the file takes the relic and the old slot is released',
+    afterMoved.records('777002')[0]?.equippedBy === '1202' && afterMoved.character('1202')?.equipped?.Head === '777002'
+      && afterMoved.character('1105')?.equipped?.Head == null,
+    `equippedBy=${afterMoved.records('777002')[0]?.equippedBy}, 1202.Head=${afterMoved.character('1202')?.equipped?.Head}, 1105.Head=${
+      afterMoved.character('1105')?.equipped?.Head
+    }`,
+  )
+  check('same-id with characters: the saved build still references the relic id', buildHead(afterMoved) === '777002', `build Head=${buildHead(afterMoved)}`)
+
+  // 7d. hash twins. mergeRelics pairs by hash only, so (a) a re-attached twin
+  // (777102) must not consume the stale 777101 record and take over its id,
+  // and (b) an upgraded relic (777103) that now hashes like another stored
+  // relic (777104) must not swallow that relic.
+  await callTool(client, 'load_save', { path: freshSavePath() })
+  const twins = await callTool(client, 'import_scanner_json', {
+    inline: archiverJson([uidRelic('777101', 0, SUBS_PLUS0), uidRelic('777102', 0, SUBS_PLUS0)]),
+  })
+  const twinUpgrade = await callTool(client, 'import_scanner_json', { inline: archiverJson([uidRelic('777101', 15, SUBS_PLUS15)]) })
+  const afterTwinUpgrade = await inventory()
+  check(
+    'same-id with a hash twin of the stale record: 1 updated, inventory stays 164',
+    twins.added === 2 && twinUpgrade.updated === 1 && twinUpgrade.added === 0 && twinUpgrade.replacedById === 1 && twinUpgrade.totalAfter === 164,
+    sameIdStats(twinUpgrade),
+  )
+  check(
+    'same-id with a hash twin of the stale record: the upgraded relic and its untouched twin each keep their own id',
+    afterTwinUpgrade.duplicateIds.length === 0 && afterTwinUpgrade.records('777101').length === 1 && afterTwinUpgrade.records('777101')[0].enhance === 15
+      && afterTwinUpgrade.records('777102').length === 1 && afterTwinUpgrade.records('777102')[0].enhance === 0,
+    `duplicate ids: ${afterTwinUpgrade.duplicateIds.join(',') || 'none'}; 777101=${describeRecords(afterTwinUpgrade.records('777101'))}, 777102=${
+      describeRecords(afterTwinUpgrade.records('777102'))
+    }`,
+  )
+  await callTool(client, 'load_save', { path: freshSavePath() })
+  await callTool(client, 'import_scanner_json', {
+    inline: archiverJson([uidRelic('777103', 0, SUBS_PLUS0), uidRelic('777104', 15, SUBS_PLUS15)]),
+  })
+  await callTool(client, 'equip_build', { characterId: '1105', relicIds: ['777103'] })
+  await callTool(client, 'save_build', { characterId: '1105', name: 'smoke-same-id' })
+  const twinOfNewState = await callTool(client, 'import_scanner_json', {
+    inline: archiverJson([uidRelic('777103', 15, SUBS_PLUS15)]),
+    includeCharacters: false,
+  })
+  const afterTwinOfNewState = await inventory()
+  check(
+    'same-id upgraded into the hash of another stored relic: 1 updated, nothing removed (164 → 164)',
+    twinOfNewState.updated === 1 && twinOfNewState.added === 0 && twinOfNewState.removed === 0 && twinOfNewState.replacedById === 1
+      && twinOfNewState.totalAfter === 164,
+    sameIdStats(twinOfNewState),
+  )
+  check(
+    'same-id upgraded into the hash of another stored relic: both ids survive once, wearer and saved build stay on the upgraded one',
+    afterTwinOfNewState.duplicateIds.length === 0 && afterTwinOfNewState.records('777103').length === 1
+      && afterTwinOfNewState.records('777103')[0].enhance === 15 && afterTwinOfNewState.records('777103')[0].equippedBy === '1105'
+      && afterTwinOfNewState.records('777104').length === 1 && afterTwinOfNewState.records('777104')[0].equippedBy == null
+      && afterTwinOfNewState.character('1105')?.equipped?.Head === '777103' && buildHead(afterTwinOfNewState) === '777103',
+    `777103=${describeRecords(afterTwinOfNewState.records('777103'))}, 777104=${describeRecords(afterTwinOfNewState.records('777104'))}, 1105.Head=${
+      afterTwinOfNewState.character('1105')?.equipped?.Head
+    }, build Head=${buildHead(afterTwinOfNewState)}`,
+  )
+
+  // 7d2. The twin is stored first, and the full file lists it before the relic
+  // being upgraded. Hash FIFO must still give each import its own id: a folded
+  // stand-in at the front of the bucket would be consumed by the twin, and the
+  // verified id rewrite would swap wearers and saved builds.
+  const buildHeadNamed = (inv, characterId, name) => inv.character(characterId)?.builds?.find((build) => build.name === name)?.equipped?.Head
+  await callTool(client, 'load_save', { path: freshSavePath() })
+  await callTool(client, 'import_scanner_json', {
+    inline: archiverJson([uidRelic('777105', 15, SUBS_PLUS15), uidRelic('777106', 0, SUBS_PLUS0)]),
+  })
+  await callTool(client, 'equip_build', { characterId: '1202', relicIds: ['777105'] })
+  await callTool(client, 'save_build', { characterId: '1202', name: 'smoke-same-id-twin' })
+  await callTool(client, 'equip_build', { characterId: '1105', relicIds: ['777106'] })
+  await callTool(client, 'save_build', { characterId: '1105', name: 'smoke-same-id' })
+  const aheadInFile = await callTool(client, 'import_scanner_json', {
+    inline: archiverJson([uidRelic('777105', 15, SUBS_PLUS15), uidRelic('777106', 15, SUBS_PLUS15)]),
+    includeCharacters: false,
+  })
+  const afterAheadInFile = await inventory()
+  check(
+    'same-id reimport with the hash twin listed first: both ids, wearers and saved builds stay put',
+    aheadInFile.updated === 1 && aheadInFile.added === 0 && aheadInFile.skipped === 1 && aheadInFile.replacedById === 1 && aheadInFile.removed === 0
+      && aheadInFile.totalAfter === 164 && afterAheadInFile.duplicateIds.length === 0
+      && afterAheadInFile.records('777106').length === 1 && afterAheadInFile.records('777106')[0].enhance === 15
+      && afterAheadInFile.records('777106')[0].equippedBy === '1105'
+      && afterAheadInFile.records('777105').length === 1 && afterAheadInFile.records('777105')[0].enhance === 15
+      && afterAheadInFile.records('777105')[0].equippedBy === '1202'
+      && afterAheadInFile.character('1105')?.equipped?.Head === '777106'
+      && afterAheadInFile.character('1202')?.equipped?.Head === '777105'
+      && buildHead(afterAheadInFile) === '777106'
+      && buildHeadNamed(afterAheadInFile, '1202', 'smoke-same-id-twin') === '777105',
+    `${sameIdStats(aheadInFile)}; 777105=${describeRecords(afterAheadInFile.records('777105'))}, 777106=${
+      describeRecords(afterAheadInFile.records('777106'))
+    }, 1105.Head=${afterAheadInFile.character('1105')?.equipped?.Head}, 1202.Head=${afterAheadInFile.character('1202')?.equipped?.Head}, builds=${
+      buildHead(afterAheadInFile)
+    }/${buildHeadNamed(afterAheadInFile, '1202', 'smoke-same-id-twin')}`,
+  )
+
+  // The new-hash record already exists and sits behind its twin, with a stale
+  // same-id duplicate after it. Re-importing only that id must consume the
+  // same-id record, not the earlier twin (current != null, so nothing is
+  // moved to the front of the bucket).
+  const behindSeedPath = freshSavePath()
+  await callTool(client, 'load_save', { path: behindSeedPath })
+  await callTool(client, 'import_scanner_json', {
+    inline: archiverJson([uidRelic('777107', 15, SUBS_PLUS15), uidRelic('777108', 15, SUBS_PLUS15)]),
+  })
+  await callTool(client, 'equip_build', { characterId: '1202', relicIds: ['777107'] })
+  await callTool(client, 'equip_build', { characterId: '1105', relicIds: ['777108'] })
+  await callTool(client, 'save_build', { characterId: '1105', name: 'smoke-same-id' })
+  await sleep(1800)
+  const behindSave = JSON.parse(readFileSync(behindSeedPath, 'utf8'))
+  const currentRecord = behindSave.relics.find((relic) => relic.id === '777108')
+  behindSave.relics.push({
+    ...currentRecord,
+    enhance: 0,
+    main: { ...currentRecord.main, value: 112.896 },
+    substats: currentRecord.substats.slice(0, 3).map((substat) => ({ ...substat, value: substat.stat === 'ATK' ? 16 : substat.value })),
+    equippedBy: undefined,
+  })
+  const behindPath = fixtureFile('save-twin-before-same-id.json', behindSave)
+  await callTool(client, 'load_save', { path: behindPath })
+  const behindTwin = await callTool(client, 'import_scanner_json', {
+    inline: archiverJson([uidRelic('777108', 15, SUBS_PLUS15)]),
+    includeCharacters: false,
+  })
+  const afterBehindTwin = await inventory()
+  check(
+    'same-id record behind its hash twin: the import keeps both ids and does not steal the twin',
+    behindTwin.added === 0 && behindTwin.replacedById === 1 && behindTwin.removed === 1 && behindTwin.totalBefore === 165 && behindTwin.totalAfter === 164
+      && afterBehindTwin.duplicateIds.length === 0
+      && afterBehindTwin.records('777108').length === 1 && afterBehindTwin.records('777108')[0].enhance === 15
+      && afterBehindTwin.records('777108')[0].equippedBy === '1105'
+      && afterBehindTwin.records('777107').length === 1 && afterBehindTwin.records('777107')[0].enhance === 15
+      && afterBehindTwin.records('777107')[0].equippedBy === '1202'
+      && afterBehindTwin.character('1105')?.equipped?.Head === '777108'
+      && afterBehindTwin.character('1202')?.equipped?.Head === '777107'
+      && buildHead(afterBehindTwin) === '777108',
+    `${sameIdStats(behindTwin)}; 777107=${describeRecords(afterBehindTwin.records('777107'))}, 777108=${
+      describeRecords(afterBehindTwin.records('777108'))
+    }, 1105.Head=${afterBehindTwin.character('1105')?.equipped?.Head}, 1202.Head=${afterBehindTwin.character('1202')?.equipped?.Head}, build Head=${
+      buildHead(afterBehindTwin)
+    }`,
+  )
+
+  // 7e. an inventory that already holds two records under one id (what the
+  // pre-fix union left behind): the next import carrying that id hash-matches
+  // the fresh record and supersedes the stale one, so the inventory shrinks by
+  // one — the anti-wipe guard must allow exactly that. The stale record is
+  // the one relicsById resolved to, so its wearer moves to the survivor.
+  const dupSeedPath = freshSavePath()
+  await callTool(client, 'load_save', { path: dupSeedPath })
+  await callTool(client, 'import_scanner_json', { inline: archiverJson([uidRelic('777201', 15, SUBS_PLUS15)]) })
+  await sleep(1800) // markDirty → 1s debounced flush
+  const dupSave = JSON.parse(readFileSync(dupSeedPath, 'utf8'))
+  const freshRecord = dupSave.relics.find((relic) => relic.id === '777201')
+  dupSave.relics.push({
+    ...freshRecord,
+    enhance: 0,
+    main: { ...freshRecord.main, value: 112.896 },
+    substats: freshRecord.substats.slice(0, 3).map((substat) => ({ ...substat, value: substat.stat === 'ATK' ? 16 : substat.value })),
+    equippedBy: '1105',
+  })
+  const dupSavePath = fixtureFile('save-duplicate-id.json', dupSave)
+  await callTool(client, 'load_save', { path: dupSavePath })
+  const seededDup = await inventory()
+  check(
+    'pre-existing duplicate id fixture: 164 records, id 777201 twice (+15 first, +0 last and worn by 1105)',
+    seededDup.total === 164 && seededDup.duplicateIds.join(',') === '777201' && seededDup.records('777201').map((r) => r.enhance).join(',') === '15,0'
+      && seededDup.records('777201')[1].equippedBy === '1105' && seededDup.character('1105')?.equipped?.Head === '777201',
+    `total=${seededDup.total}, duplicate ids: ${seededDup.duplicateIds.join(',') || 'none'}, ${describeRecords(seededDup.records('777201'))}, 1105.Head=${
+      seededDup.character('1105')?.equipped?.Head
+    }`,
+  )
+  const collapse = await callTool(client, 'import_scanner_json', {
+    inline: archiverJson([uidRelic('777201', 15, SUBS_PLUS15)]),
+    includeCharacters: false,
+  })
+  const afterCollapse = await inventory()
+  check(
+    'pre-existing duplicate id: the hash-matching import supersedes the stale record (replacedById=1, removed=1, 164 → 163)',
+    collapse.added === 0 && collapse.updated + collapse.skipped === 1 && collapse.replacedById === 1 && collapse.removed === 1
+      && collapse.totalBefore === 164 && collapse.totalAfter === 163,
+    sameIdStats(collapse),
+  )
+  check(
+    'pre-existing duplicate id: one +15 record left, still worn by 1105, every other relic kept',
+    afterCollapse.total === 163 && afterCollapse.duplicateIds.length === 0 && afterCollapse.records('777201').length === 1
+      && afterCollapse.records('777201')[0].enhance === 15 && afterCollapse.records('777201')[0].equippedBy === '1105'
+      && afterCollapse.character('1105')?.equipped?.Head === '777201',
+    `total=${afterCollapse.total}, ${describeRecords(afterCollapse.records('777201'))}, 1105.Head=${afterCollapse.character('1105')?.equipped?.Head}`,
+  )
+
+  // 7f. where an equal id proves nothing, nothing may be superseded:
+  // HSR-Scanner numbers relics by scan position (`relic_1`, `relic_2`, …), so
+  // the same _uid in two exports is usually two different relics; and even a
+  // stable id cannot make a Hands piece the earlier state of a Head.
+  await callTool(client, 'load_save', { path: freshSavePath() })
+  await callTool(client, 'import_scanner_json', { inline: scannerJson([uidRelic('relic_1', 15, SUBS_PLUS15)]) })
+  await callTool(client, 'equip_build', { characterId: '1105', relicIds: ['relic_1'] })
+  const positionalClash = await callTool(client, 'import_scanner_json', {
+    inline: scannerJson([uidRelic('relic_1', 15, SUBS_UNRELATED)]),
+    includeCharacters: false,
+  })
+  const afterPositionalClash = await inventory()
+  check(
+    'HSR-Scanner positional id clash: the import is a plain add, no record is superseded',
+    positionalClash.source === 'HSR-Scanner' && positionalClash.added === 1 && positionalClash.updated === 0 && positionalClash.replacedById === 0
+      && positionalClash.removed === 0 && positionalClash.totalAfter === 164,
+    sameIdStats(positionalClash),
+  )
+  check(
+    'HSR-Scanner positional id clash: the relic already stored under that id is still there, still worn',
+    afterPositionalClash.total === 164
+      && afterPositionalClash.records('relic_1').some((r) => r.substats.some((substat) => substat.stat === 'CRIT DMG') && r.equippedBy === '1105'),
+    `total=${afterPositionalClash.total}, relic_1=${describeRecords(afterPositionalClash.records('relic_1'))}`,
+  )
+  await callTool(client, 'load_save', { path: freshSavePath() })
+  await callTool(client, 'import_scanner_json', { inline: archiverJson([uidRelic('777301', 0, SUBS_PLUS0)]) })
+  const otherPiece = await callTool(client, 'import_scanner_json', {
+    inline: archiverJson([uidRelic('777301', 15, SUBS_PLUS15, { slot: 'Hands' })]),
+  })
+  const afterOtherPiece = await inventory()
+  check(
+    'stable id but a different piece (Head vs Hands): not an earlier state, nothing superseded',
+    otherPiece.added === 1 && otherPiece.replacedById === 0 && otherPiece.totalAfter === 164
+      && afterOtherPiece.records('777301').map((r) => r.part).sort().join(',') === 'Hands,Head',
+    `${sameIdStats(otherPiece)}; parts=${afterOtherPiece.records('777301').map((r) => r.part).join(',')}`,
   )
 
   // 8. parse/argument error paths (Chinese where the web app is Chinese)

@@ -16,7 +16,8 @@
 //     by relic hash, consume one bucket entry per matching imported relic, and
 //     re-attach every uncovered existing relic to the write list, so the
 //     upstream replace path receives the true union. A guard rejects the write
-//     when the synthesized list is somehow smaller than the inventory.
+//     when the synthesized list falls short of the inventory by more than the
+//     superseded records (see below).
 //     When the import also carries characters, those re-attached copies clear
 //     equippedBy. mergeRelics asserts character.equipped[part] for every relic
 //     that still has a wearer, in list order, and uncovered relics come last —
@@ -34,6 +35,31 @@
 // only equippedBy/ageIndex may change; character equipment and saved-build
 // relic id references are re-linked. Import-layer stats (added/updated/skipped)
 // replay exactly those rules, so they report what the persisted merge did.
+//
+// Same-id supersession (union, stable-id sources only): Reliquary Archiver
+// reads relic ids from the game's own packets, so an id survives an in-game
+// upgrade while the hash does not (+0 three substats → +15 four substats). An
+// existing relic carrying an imported relic's id but another hash is then the
+// stale state of that same relic: it is superseded, not re-attached — what the
+// web's full replace does to it. Without this the inventory ends up with two
+// records under one id, relicsById (last write wins) resolves to the stale
+// one, and the next upsertRelic / deleteRelic rebuilds the list from
+// relicsById and drops the fresh record.
+// It is done by folding the imported state into the inventory BEFORE the
+// upstream call (the stale record becomes the imported relic, keeping its
+// wearer), so mergeRelics — which pairs by hash only, FIFO — meets an ordinary
+// hash match and applies its ordinary wearer rule. Merely leaving the stale
+// record off the write list is not enough: it would still sit in upstream's
+// hash buckets, where a re-attached hash twin consumes it and inherits its id.
+// Folded entries are not parked at the front of the bucket. Within each hash
+// the store order is aligned to the import order, and an import claims the
+// same-id record ahead of any other candidate. Otherwise a twin listed earlier
+// in the file (or sitting earlier in the bucket) takes the folded record,
+// verified id rewrite swaps the two ids, and equipment plus saved builds follow.
+// HSR-Scanner ids are NOT stable (it assigns `relic_1`, `relic_2`, … by scan
+// position, per its README), Yas ids are not known to be, and HoYoLAB ids
+// are fresh uuids — for those sources an equal id proves nothing and nothing
+// is folded.
 //
 // M6-A: planAndRunImport is exported for the live scanner domain (domains/
 // scanner.ts) — a scanner InitialScan merges through this same machine (union
@@ -65,7 +91,10 @@ import type {
 import { hashRelic } from 'lib/relics/relicUtils'
 import * as persistenceService from 'lib/services/persistenceService'
 import { getCharacterById } from 'lib/stores/character/characterStore'
-import { getRelics } from 'lib/stores/relic/relicStore'
+import {
+  getRelics,
+  useRelicStore,
+} from 'lib/stores/relic/relicStore'
 import { isVersionOutdated } from 'lib/utils/miscUtils'
 import type { Form } from 'types/form'
 import type { Relic } from 'types/relic'
@@ -122,6 +151,8 @@ function looksLikeHoyolabExport(json: unknown): boolean {
 
 type ParsedImport = {
   source: string,
+  /** Relic ids identify the same in-game relic across exports (see file header). */
+  stableRelicIds: boolean,
   relics: Relic[],
   characters: Form[],
   metadata: Record<string, unknown>,
@@ -175,6 +206,7 @@ function parseScannerJson(json: unknown, source: ScannerAlias | 'auto'): ParsedI
 
   return {
     source: parser.config.sourceString,
+    stableRelicIds: parser.config.sourceString === ReliquaryArchiverConfig.sourceString,
     relics: parsed.relics,
     characters: parsed.characters,
     metadata: {
@@ -217,6 +249,7 @@ function parseHoyolabJson(json: unknown): ParsedImport {
 
   return {
     source: 'hoyolab',
+    stableRelicIds: false,
     relics: out.relics as unknown as Relic[],
     characters: out.characters as unknown as Form[],
     metadata: {
@@ -311,20 +344,174 @@ export type ImportOutcome = {
   updated: number,
   skipped: number,
   removed: number,
+  replacedById: number,
   totalBefore: number,
   totalAfter: number,
   charactersTouched: number,
 }
 
-export function planAndRunImport(relics: Relic[], characters: Form[], merge: MergeMode, dryRun: boolean): ImportOutcome {
+// A relic never changes part, set, rarity or main stat, and its level never
+// drops — an existing record failing this is not an earlier state of the
+// import, whatever its id says (another account's save, a hand-edited file).
+function couldBeEarlierStateOf(existing: Relic, incoming: Relic): boolean {
+  return existing.part === incoming.part
+    && existing.set === incoming.set
+    && existing.grade === incoming.grade
+    && existing.main.stat === incoming.main.stat
+    && existing.enhance <= incoming.enhance
+}
+
+type FoldedInventory = {
+  /** What mergeRelics must see as the current inventory. */
+  inventory: Relic[],
+  /** Inventory entries that are an imported relic's state standing in for its stale record. */
+  folded: Set<Relic>,
+  /** Existing records replaced or dropped because an imported relic carries their id. */
+  superseded: Relic[],
+}
+
+/**
+ * Same-id supersession for stable-id sources (see file header). Per imported
+ * relic, the existing records of its id that could be earlier states of it:
+ *   - one already hashes like the import → it stays, the others are stale
+ *     duplicates and go (an inventory the pre-fix union left behind);
+ *   - none does → the one relicsById resolves to (the last) becomes the
+ *     imported state, the others go.
+ * The surviving entry keeps the wearer the stale records held, so upstream's
+ * hash-match branch decides equipment exactly as for an unchanged relic.
+ * Which inventory entry an import consumes is decided later, by
+ * alignInventoryToImportOrder — a folded entry must not jump the hash bucket.
+ */
+function foldSupersededRecords(existingRelics: Relic[], relics: Relic[]): FoldedInventory {
+  const incomingIds = new Set(relics.map((relic) => relic.id))
+  const existingById = new Map<string, Relic[]>()
+  for (const relic of existingRelics) {
+    if (!incomingIds.has(relic.id)) continue
+    const sameId = existingById.get(relic.id)
+    if (sameId) sameId.push(relic)
+    else existingById.set(relic.id, [relic])
+  }
+
+  const dropped = new Set<Relic>()
+  const rewearing = new Map<Relic, Relic>()
+  const superseded: Relic[] = []
+  const foldedEntries: Relic[] = []
+  for (const incoming of relics) {
+    const sameId = existingById.get(incoming.id)?.filter((relic) => couldBeEarlierStateOf(relic, incoming))
+    existingById.delete(incoming.id)
+    if (sameId == null || sameId.length === 0) continue
+    const hash = hashRelic(incoming)
+    const current = sameId.find((relic) => hashRelic(relic) === hash)
+    const stale = sameId.filter((relic) => relic !== current)
+    if (stale.length === 0) continue
+
+    for (const relic of stale) dropped.add(relic)
+    superseded.push(...stale)
+    const wearer = stale.findLast((relic) => relic.equippedBy != null)?.equippedBy
+    if (current == null) {
+      foldedEntries.push({ ...incoming, equippedBy: wearer })
+    } else if (current.equippedBy == null && wearer != null) {
+      rewearing.set(current, { ...current, equippedBy: wearer })
+    }
+  }
+
+  if (superseded.length === 0) return { inventory: existingRelics, folded: new Set(), superseded }
+  const kept = existingRelics.filter((relic) => !dropped.has(relic)).map((relic) => rewearing.get(relic) ?? relic)
+  // Folded entries stay with the other records of their hash. Putting them
+  // first would let an earlier import of a hash twin consume them.
+  return { inventory: [...kept, ...foldedEntries], folded: new Set(foldedEntries), superseded }
+}
+
+/**
+ * mergeRelics pairs each hash FIFO: the nth import of a hash consumes the nth
+ * store entry of that hash. Prefer the entry that already carries the import's
+ * id (the folded stand-in, or the record that already hashes like the import),
+ * and leave everything else in its original order. Only the order inside a
+ * hash changes; other relics keep their slots.
+ */
+function alignInventoryToImportOrder(inventory: Relic[], imports: Relic[]): Relic[] {
+  const byHash = new Map<string, Relic[]>()
+  for (const relic of inventory) {
+    const hash = hashRelic(relic)
+    const list = byHash.get(hash)
+    if (list) list.push(relic)
+    else byHash.set(hash, [relic])
+  }
+
+  const claimed = new Set<Relic>()
+  const orderedByHash = new Map<string, Relic[]>()
+  const claim = (hash: string, relic: Relic) => {
+    claimed.add(relic)
+    const ordered = orderedByHash.get(hash)
+    if (ordered) ordered.push(relic)
+    else orderedByHash.set(hash, [relic])
+  }
+  for (const incoming of imports) {
+    const hash = hashRelic(incoming)
+    const candidates = byHash.get(hash)
+    if (candidates == null) continue
+    const sameId = candidates.find((relic) => !claimed.has(relic) && relic.id === incoming.id)
+    const partner = sameId ?? candidates.find((relic) => !claimed.has(relic))
+    if (partner == null) continue
+    claim(hash, partner)
+  }
+  for (const [hash, candidates] of byHash) {
+    for (const relic of candidates) {
+      if (!claimed.has(relic)) claim(hash, relic)
+    }
+  }
+
+  const cursor = new Map<string, number>()
+  return inventory.map((relic) => {
+    const hash = hashRelic(relic)
+    const ordered = orderedByHash.get(hash)!
+    const index = cursor.get(hash) ?? 0
+    cursor.set(hash, index + 1)
+    return ordered[index]!
+  })
+}
+
+function sameRelicSequence(left: Relic[], right: Relic[]): boolean {
+  if (left.length !== right.length) return false
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) return false
+  }
+  return true
+}
+
+/**
+ * stableRelicIds: the import's relic ids identify the same in-game relic
+ * across exports (Reliquary Archiver files and live frames — which are also
+ * always `verified`, so a hash match takes over the imported id).
+ */
+export function planAndRunImport(
+  relics: Relic[],
+  characters: Form[],
+  merge: MergeMode,
+  dryRun: boolean,
+  stableRelicIds = false,
+): ImportOutcome {
   const existingRelics = getRelics()
   const totalBefore = existingRelics.length
   const charactersImported = characters.length > 0
 
-  // Bucket the current inventory by relic hash (array per hash: identical
-  // relics collide legitimately and are consumed one import at a time).
+  // replace is the raw upstream path and stays untouched; union folds the
+  // imported state of same-id relics into the inventory first, then lines each
+  // hash up with the import so a twin cannot take the folded record's id.
+  const foldedInventory = merge === 'union' && stableRelicIds
+    ? foldSupersededRecords(existingRelics, relics)
+    : { inventory: existingRelics, folded: new Set<Relic>(), superseded: [] as Relic[] }
+  const aligned = merge === 'union' && stableRelicIds
+    ? alignInventoryToImportOrder(foldedInventory.inventory, relics)
+    : foldedInventory.inventory
+  const inventory = sameRelicSequence(aligned, foldedInventory.inventory) ? foldedInventory.inventory : aligned
+  const { folded, superseded } = foldedInventory
+  const replacedById = superseded.length
+
+  // Bucket the inventory by relic hash (array per hash: identical relics
+  // collide legitimately and are consumed one import at a time).
   const buckets = new Map<string, Relic[]>()
-  for (const relic of existingRelics) {
+  for (const relic of inventory) {
     const hash = hashRelic(relic)
     const bucket = buckets.get(hash)
     if (bucket) bucket.push(relic)
@@ -340,7 +527,8 @@ export function planAndRunImport(relics: Relic[], characters: Form[], merge: Mer
     const found = bucket?.shift()
     if (bucket != null && bucket.length === 0) buckets.delete(hash)
     if (found == null) added++
-    else if (importWouldChange(incoming, found, charactersImported)) updated++
+    // a folded entry is a relic whose stored state this import replaces
+    else if (folded.has(found) || importWouldChange(incoming, found, charactersImported)) updated++
     else skipped++
   }
 
@@ -357,25 +545,63 @@ export function planAndRunImport(relics: Relic[], characters: Form[], merge: Mer
   const uncoveredForWrite = charactersImported ? uncovered.map(withoutEquipClaim) : uncovered
   const writeList = merge === 'union' ? [...relics, ...uncoveredForWrite] : relics
 
-  // Anti-wipe guard at the import layer: a union list can never shrink the
-  // inventory, so a smaller synthesized list means the wrapper logic broke —
-  // refuse to hand it to the replacing write path (flushSave guards again).
-  if (merge === 'union' && writeList.length < totalBefore) {
-    throw new Error(
-      `union 合并防擦写检查失败:合成清单 ${writeList.length} 件小于现有库存 ${totalBefore} 件,已拒绝落盘。这不应发生,请把导入文件与该错误一起反馈`,
-    )
+  // Anti-wipe guard at the import layer: a union list can never be shorter
+  // than the inventory it is merged into, and that inventory can only be
+  // shorter than the store by superseded records whose id is still in it.
+  // Anything else means the wrapper logic broke — refuse to hand it to the
+  // replacing write path (flushSave guards again).
+  if (merge === 'union') {
+    const inventoryIds = new Set(inventory.map((relic) => relic.id))
+    const orphaned = superseded.filter((relic) => !inventoryIds.has(relic.id)).length
+    if (writeList.length < inventory.length || inventory.length + replacedById < totalBefore || orphaned > 0) {
+      throw new Error(
+        `union 合并防擦写检查失败:合成清单 ${writeList.length} 件、待合并库存 ${inventory.length} 件、同 id 替换 ${replacedById} 件、现有库存 ${totalBefore} 件,`
+          + `其中 ${orphaned} 件被替换的旧记录找不到同 id 的继任记录,已拒绝落盘。这不应发生,请把导入文件与该错误一起反馈`,
+      )
+    }
   }
 
   if (dryRun) {
     // mergeRelics keeps the old inventory when the import carries no relics
     const totalAfter = relics.length === 0 ? totalBefore : writeList.length
-    return { added, updated, skipped, removed: Math.max(0, totalBefore - totalAfter), totalBefore, totalAfter, charactersTouched: characters.length }
+    return {
+      added,
+      updated,
+      skipped,
+      removed: Math.max(0, totalBefore - totalAfter),
+      replacedById,
+      totalBefore,
+      totalAfter,
+      charactersTouched: characters.length,
+    }
   }
 
-  persistenceService.mergeRelics(writeList, characters)
+  if (inventory === existingRelics) {
+    persistenceService.mergeRelics(writeList, characters)
+  } else {
+    // mergeRelics reads the inventory from the store: put the folded one there
+    // first, and take it back out if the merge throws.
+    const { relics: relicsBefore, relicsById: relicsByIdBefore } = useRelicStore.getState()
+    useRelicStore.getState().setRelics(inventory)
+    try {
+      persistenceService.mergeRelics(writeList, characters)
+    } catch (e) {
+      useRelicStore.setState({ relics: relicsBefore, relicsById: relicsByIdBefore })
+      throw e
+    }
+  }
   runtimeContext.markDirty()
   const totalAfter = getRelics().length
-  return { added, updated, skipped, removed: Math.max(0, totalBefore - totalAfter), totalBefore, totalAfter, charactersTouched: characters.length }
+  return {
+    added,
+    updated,
+    skipped,
+    removed: Math.max(0, totalBefore - totalAfter),
+    replacedById,
+    totalBefore,
+    totalAfter,
+    charactersTouched: characters.length,
+  }
 }
 
 // ─── shared tool body ──────────────────────────────────────────
@@ -396,11 +622,12 @@ async function runImportTool(
   let characters = relicsOnly ? [] : normalizeImportedCharacters(parsed.characters)
   if (existingCharactersOnly && !relicsOnly) characters = filterExistingCharacters(characters)
 
-  const outcome = planAndRunImport(parsed.relics, characters, merge, dryRun)
+  const outcome = planAndRunImport(parsed.relics, characters, merge, dryRun, parsed.stableRelicIds)
 
   const summary = `${dryRun ? '[dryRun] ' : ''}${merge === 'union' ? '并集合并' : '替换合并'}(${parsed.source})`
     + (relicsOnly ? '[仅遗器]' : '')
     + `:新增 ${outcome.added}、更新 ${outcome.updated}、跳过 ${outcome.skipped}、移除 ${outcome.removed} 件遗器,`
+    + (outcome.replacedById > 0 ? `同 id 替换旧记录 ${outcome.replacedById} 件,` : '')
     + `库存 ${outcome.totalBefore} → ${outcome.totalAfter} 件,角色 ${outcome.charactersTouched} 个`
     + (dryRun ? '(未落盘)' : '')
     + (parsed.warnings.length ? `;${parsed.warnings.length} 条警告` : '')
@@ -416,6 +643,7 @@ async function runImportTool(
       updated: outcome.updated,
       skipped: outcome.skipped,
       removed: outcome.removed,
+      replacedById: outcome.replacedById,
       totalBefore: outcome.totalBefore,
       totalAfter: outcome.totalAfter,
       charactersTouched: outcome.charactersTouched,
@@ -439,6 +667,7 @@ const importOutcomeShape = {
   updated: z.number().int(),
   skipped: z.number().int(),
   removed: z.number().int(),
+  replacedById: z.number().int(),
   totalBefore: z.number().int(),
   totalAfter: z.number().int(),
   charactersTouched: z.number().int(),
@@ -451,9 +680,14 @@ export function registerImportTools(server: McpServer): void {
     title: '导入扫描器 JSON',
     description: '导入扫描器导出的 JSON(HSR-Scanner / Reliquary Archiver / Yas)——对应网页端「导入」标签页的扫描器文件上传入口与确认页「导入角色与遗器」按钮。'
       + '按遗器 hash(部位/套装/稀有度/等级/主词条/副词条归一值)与现有库存匹配:导入件已验证(reliquary)时覆盖同 hash 库存件的副词条并置 verified,否则仅更新佩戴者/顺序;未命中 hash 的作为新遗器加入,并同步角色装备与已存配装的遗器引用。'
-      + 'merge=union(默认):保留库存中未被本次导入覆盖的遗器(合成完整并集清单后走上游整库写入;并集清单意外小于现有库存时拒绝落盘)。'
+      + '同 id 替换(仅 merge=union 且来源为 Reliquary Archiver——它的 _uid 取自游戏数据包,跨导出稳定;HSR-Scanner 的 _uid 按扫描位置编号、Yas 的 id 未确认稳定,均不参与):'
+      + '库存件与某件导入件 id 相同但 hash 不同,且部位/套装/稀有度/主词条一致、等级不高于导入件时,它是同一件遗器强化/重掷前的旧状态——由导入件覆盖,不与它并存'
+      + '(与网页整库替换对这件遗器的结果一致);角色装备与已存配装按 id 引用,自动指向新状态;佩戴者规则与 hash 命中件相同:连同导入角色且导入件带佩戴者时以导入件为准,否则沿用旧记录的佩戴者。'
+      + '统计口径:added/updated/skipped 三者之和=导入件数——added=未命中库存的新遗器,updated=命中 hash 且有实质变化或同 id 替换,skipped=命中且无变化;'
+      + 'replacedById=因同 id 被导入件覆盖而移出的旧记录数(库存里同一 id 已有多条记录时会一并收敛,此时 removed>0);removed=库存净减少件数。'
+      + 'merge=union(默认):保留库存中未被本次导入覆盖的遗器(合成完整并集清单后走上游整库写入;并集清单小于待合并库存、或被替换的旧记录找不到同 id 继任记录时拒绝落盘)。'
       + '连同导入角色时,未覆盖的旧遗器不再用库存里的佩戴者回写槽位:导入件占用的部位以导入件为准,文件没给新件的部位仍穿原来的遗器;不导入角色时不改任何穿戴。'
-      + 'merge=replace:与网页端原生行为完全一致——库存重置为导入件,未被覆盖的旧遗器会被丢弃(仅角色无遗器的导入除外)。'
+      + 'merge=replace:与网页端原生行为完全一致——库存重置为导入件,未被覆盖的旧遗器会被丢弃(仅角色无遗器的导入除外);不做同 id 替换(replacedById 恒为 0)。'
       + 'dryRun=true 只解析并统计,不写入。existingCharactersOnly=true 仅导入库存中已存在的角色(遗器不受影响)。'
       + 'includeCharacters=false 对应网页确认页「导入遗器」按钮:只导入遗器,不新增也不修改角色(默认 true=「导入角色与遗器」,与既有行为一致)。'
       + 'source=auto(默认)按 JSON 的 source 字段判别格式,也接受 hoyolab 形状并提示改用 import_hoyolab。',
@@ -464,13 +698,14 @@ export function registerImportTools(server: McpServer): void {
       path: z.string().optional().describe('扫描器 JSON 文件路径(HSRScanData.json / archiver_output.json / hsr.json)'),
       inline: z.unknown().optional().describe('内联扫描器 JSON(对象或 JSON 字符串,与 path 二选一)'),
       merge: z.enum(['union', 'replace']).default('union').describe(
-        '合并模式:union=按 hash 并集保留现有库存(连同导入角色时,未覆盖的旧遗器不回写槽位,导入件优先);replace=整库替换为导入件',
+        '合并模式:union=按 hash 并集保留现有库存(Reliquary Archiver 来源下同 id 的旧记录由导入件覆盖;连同导入角色时,未覆盖的旧遗器不回写槽位,导入件优先);replace=整库替换为导入件',
       ),
       existingCharactersOnly: z.boolean().optional().describe(
         '只导入库存中已存在的角色(与网页端「仅导入现有角色」勾选一致),遗器不受影响;仅在 includeCharacters=true 时有意义',
       ),
       includeCharacters: z.boolean().optional().describe(
-        '是否连同导入角色(默认 true=网页「导入角色与遗器」);false=只导入遗器(网页确认页「导入遗器」按钮):角色不新增不修改,hash 命中件的佩戴者也保持不变',
+        '是否连同导入角色(默认 true=网页「导入角色与遗器」);false=只导入遗器(网页确认页「导入遗器」按钮):角色不新增不修改,hash 命中件的佩戴者也保持不变'
+          + '(同 id 替换件同样沿用旧记录的佩戴者)',
       ),
       dryRun: z.boolean().optional().describe('只解析与统计,不落盘'),
     },
@@ -492,6 +727,7 @@ export function registerImportTools(server: McpServer): void {
       + '遗器按 hash 与现有库存匹配,合并/替换/dryRun/existingCharactersOnly 语义与 import_scanner_json 完全一致:'
       + 'union(默认)按 hash 并集保留现有库存(并集清单意外小于现有库存时拒绝落盘;连同导入角色时未覆盖的旧遗器不回写槽位,导入件优先,文件没给新件的部位仍穿原来的遗器);replace 整库替换,未被导入件覆盖的旧遗器会被丢弃;'
       + 'hoyolab 导入件未验证,同 hash 库存件只更新佩戴者/顺序,不覆盖副词条。导入角色的等级与光锥等级一律规范化为 80(与网页端一致)。'
+      + '统计字段(added/updated/skipped/removed/replacedById)口径同 import_scanner_json;hoyolab 导入件的 id 每次重新生成,不做同 id 替换(replacedById 恒为 0)。'
       + 'includeCharacters=false 对应网页确认页「导入遗器」按钮:只导入遗器,不新增也不修改角色(默认 true,与既有行为一致)。',
     inputSchema: {
       path: z.string().optional().describe('Hoyolab 战绩导出 JSON 文件路径'),
