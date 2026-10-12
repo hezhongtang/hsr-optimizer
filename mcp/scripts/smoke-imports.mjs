@@ -663,6 +663,7 @@ try {
     return {
       total: snapshot.relics.length,
       duplicateIds: [...counts].filter(([, n]) => n > 1).map(([id]) => id),
+      relics: snapshot.relics,
       records: (id) => snapshot.relics.filter((relic) => relic.id === id),
       character: (id) => snapshot.characters.find((character) => character.id === id),
     }
@@ -672,6 +673,10 @@ try {
   const sameIdStats = (r) =>
     `added=${r.added}, updated=${r.updated}, skipped=${r.skipped}, removed=${r.removed}, replacedById=${r.replacedById}, ${r.totalBefore} → ${r.totalAfter}`
   const buildHead = (inv) => inv.character('1105')?.builds?.find((build) => build.name === 'smoke-same-id')?.equipped?.Head
+  const hasEffectRes = (relic) => relic.substats.some((substat) => substat.stat === 'Effect RES')
+  const idsOf = (inv) => new Set(inv.relics.map((relic) => relic.id))
+  // Sample saves already contain Effect RES. Identify relics this import added by id, not by substat.
+  const arrivedSince = (beforeIds, inv) => inv.relics.filter((relic) => !beforeIds.has(relic.id))
 
   await callTool(client, 'load_save', { path: freshSavePath() })
   const beforeUpgrade = await callTool(client, 'import_scanner_json', { inline: archiverJson([uidRelic('777001', 0, SUBS_PLUS0)]) })
@@ -986,11 +991,14 @@ try {
   await callTool(client, 'load_save', { path: freshSavePath() })
   await callTool(client, 'import_scanner_json', { inline: scannerJson([uidRelic('relic_1', 15, SUBS_PLUS15)]) })
   await callTool(client, 'equip_build', { characterId: '1105', relicIds: ['relic_1'] })
+  await callTool(client, 'save_build', { characterId: '1105', name: 'smoke-same-id' })
+  const beforePositionalIds = idsOf(await inventory())
   const positionalClash = await callTool(client, 'import_scanner_json', {
     inline: scannerJson([uidRelic('relic_1', 15, SUBS_UNRELATED)]),
     includeCharacters: false,
   })
   const afterPositionalClash = await inventory()
+  const renamedClash = arrivedSince(beforePositionalIds, afterPositionalClash)
   check(
     'HSR-Scanner positional id clash: the import is a plain add, no record is superseded',
     positionalClash.source === 'HSR-Scanner' && positionalClash.added === 1 && positionalClash.updated === 0 && positionalClash.replacedById === 0
@@ -998,10 +1006,180 @@ try {
     sameIdStats(positionalClash),
   )
   check(
-    'HSR-Scanner positional id clash: the relic already stored under that id is still there, still worn',
+    'HSR-Scanner positional id clash: old relic_1 stays worn, the new relic is renamed, no duplicate id',
     afterPositionalClash.total === 164
-      && afterPositionalClash.records('relic_1').some((r) => r.substats.some((substat) => substat.stat === 'CRIT DMG') && r.equippedBy === '1105'),
-    `total=${afterPositionalClash.total}, relic_1=${describeRecords(afterPositionalClash.records('relic_1'))}`,
+      && afterPositionalClash.duplicateIds.length === 0
+      && afterPositionalClash.records('relic_1').length === 1
+      && afterPositionalClash.records('relic_1')[0].substats.some((substat) => substat.stat === 'CRIT DMG')
+      && afterPositionalClash.records('relic_1')[0].equippedBy === '1105'
+      && buildHead(afterPositionalClash) === 'relic_1'
+      && renamedClash.length === 1
+      && renamedClash[0].id !== 'relic_1'
+      && renamedClash[0].id.length > 0
+      && hasEffectRes(renamedClash[0]),
+    `total=${afterPositionalClash.total}, duplicate=${afterPositionalClash.duplicateIds.join(',') || 'none'}, relic_1=${
+      describeRecords(afterPositionalClash.records('relic_1'))
+    }, new=${renamedClash.map((relic) => relic.id).join(',')}, build=${buildHead(afterPositionalClash)}`,
+  )
+
+  // A later full scan inserts a relic at the front, so every positional _uid
+  // shifts. The pieces that hash-match keep the ids they were stored under;
+  // the new piece must not take relic_1 as well.
+  await callTool(client, 'load_save', { path: freshSavePath() })
+  await callTool(client, 'import_scanner_json', {
+    inline: scannerJson([
+      uidRelic('relic_1', 15, SUBS_PLUS15),
+      uidRelic('relic_2', 15, SUBS_PLUS15_REROLLED, { slot: 'Hands' }),
+    ]),
+  })
+  await callTool(client, 'equip_build', { characterId: '1105', relicIds: ['relic_1'] })
+  await callTool(client, 'save_build', { characterId: '1105', name: 'smoke-same-id' })
+  const beforeShiftIds = idsOf(await inventory())
+  const shifted = await callTool(client, 'import_scanner_json', {
+    inline: scannerJson([
+      uidRelic('relic_1', 15, SUBS_UNRELATED),
+      uidRelic('relic_2', 15, SUBS_PLUS15),
+      uidRelic('relic_3', 15, SUBS_PLUS15_REROLLED, { slot: 'Hands' }),
+    ]),
+    includeCharacters: false,
+  })
+  const afterShift = await inventory()
+  const shiftedNew = arrivedSince(beforeShiftIds, afterShift)
+  check(
+    'HSR-Scanner shifted rescan: 165 relics, A stays relic_1 and worn, no duplicate id',
+    shifted.added === 1 && shifted.updated + shifted.skipped === 2 && shifted.replacedById === 0 && shifted.totalAfter === 165
+      && afterShift.duplicateIds.length === 0
+      && afterShift.records('relic_1').length === 1
+      && afterShift.records('relic_1')[0].equippedBy === '1105'
+      && afterShift.records('relic_1')[0].part === 'Head'
+      && afterShift.records('relic_2').length === 1
+      && afterShift.records('relic_2')[0].part === 'Hands'
+      && buildHead(afterShift) === 'relic_1'
+      && shiftedNew.length === 1
+      && !['relic_1', 'relic_2', 'relic_3'].includes(shiftedNew[0].id)
+      && hasEffectRes(shiftedNew[0]),
+    `${sameIdStats(shifted)}; new=${shiftedNew.map((relic) => relic.id).join(',')}, build=${buildHead(afterShift)}`,
+  )
+  const shiftedReplace = await callTool(client, 'import_scanner_json', {
+    inline: scannerJson([
+      uidRelic('relic_1', 15, SUBS_UNRELATED),
+      uidRelic('relic_2', 15, SUBS_PLUS15),
+      uidRelic('relic_3', 15, SUBS_PLUS15_REROLLED, { slot: 'Hands' }),
+    ]),
+    merge: 'replace',
+    includeCharacters: false,
+  })
+  const afterShiftReplace = await inventory()
+  const replacedNew = afterShiftReplace.relics.filter((relic) => relic.substats.some((substat) => substat.stat === 'Effect RES'))
+  check(
+    'HSR-Scanner shifted rescan under replace: 3 relics, A keeps relic_1, the new piece is renamed',
+    shiftedReplace.replacedById === 0 && shiftedReplace.totalAfter === 3
+      && afterShiftReplace.total === 3
+      && afterShiftReplace.duplicateIds.length === 0
+      && afterShiftReplace.records('relic_1').length === 1
+      && afterShiftReplace.records('relic_1')[0].substats.some((substat) => substat.stat === 'CRIT DMG')
+      && afterShiftReplace.records('relic_2').length === 1
+      && replacedNew.length === 1
+      && !['relic_1', 'relic_2', 'relic_3'].includes(replacedNew[0].id),
+    `${sameIdStats(shiftedReplace)}; ids=${afterShiftReplace.relics.map((relic) => relic.id).join(',')}`,
+  )
+
+  // The case above re-imports a piece that union already renamed. This one
+  // starts from positional ids, so replace itself has to rename the clash.
+  await callTool(client, 'load_save', { path: freshSavePath() })
+  await callTool(client, 'import_scanner_json', {
+    inline: scannerJson([
+      uidRelic('relic_1', 15, SUBS_PLUS15),
+      uidRelic('relic_2', 15, SUBS_PLUS15_REROLLED, { slot: 'Hands' }),
+    ]),
+  })
+  await callTool(client, 'equip_build', { characterId: '1105', relicIds: ['relic_1'] })
+  await callTool(client, 'save_build', { characterId: '1105', name: 'smoke-same-id' })
+  const beforeReplaceClashIds = idsOf(await inventory())
+  const replaceClash = await callTool(client, 'import_scanner_json', {
+    inline: scannerJson([
+      uidRelic('relic_1', 15, SUBS_UNRELATED),
+      uidRelic('relic_2', 15, SUBS_PLUS15),
+      uidRelic('relic_3', 15, SUBS_PLUS15_REROLLED, { slot: 'Hands' }),
+    ]),
+    merge: 'replace',
+    includeCharacters: false,
+  })
+  const afterReplaceClash = await inventory()
+  const replaceClashNew = arrivedSince(beforeReplaceClashIds, afterReplaceClash)
+  check(
+    'HSR-Scanner shifted replace from positional ids: A keeps relic_1 and stays worn, the new piece is renamed',
+    replaceClash.replacedById === 0 && replaceClash.totalAfter === 3
+      && afterReplaceClash.total === 3
+      && afterReplaceClash.duplicateIds.length === 0
+      && afterReplaceClash.records('relic_1').length === 1
+      && afterReplaceClash.records('relic_1')[0].part === 'Head'
+      && afterReplaceClash.records('relic_1')[0].equippedBy === '1105'
+      && afterReplaceClash.records('relic_1')[0].substats.some((substat) => substat.stat === 'CRIT DMG')
+      && afterReplaceClash.records('relic_2').length === 1
+      && afterReplaceClash.records('relic_2')[0].part === 'Hands'
+      && buildHead(afterReplaceClash) === 'relic_1'
+      && replaceClashNew.length === 1
+      && !['relic_1', 'relic_2', 'relic_3'].includes(replaceClashNew[0].id)
+      && hasEffectRes(replaceClashNew[0]),
+    `${sameIdStats(replaceClash)}; new=${replaceClashNew.map((relic) => relic.id).join(',')}, build=${buildHead(afterReplaceClash)}`,
+  )
+
+  // Two new relics in one file share a positional id. The first keeps it.
+  await callTool(client, 'load_save', { path: freshSavePath() })
+  const beforeSharedIds = idsOf(await inventory())
+  const sharedUid = await callTool(client, 'import_scanner_json', {
+    inline: scannerJson([
+      uidRelic('relic_9', 15, SUBS_PLUS15),
+      uidRelic('relic_9', 15, SUBS_UNRELATED, { slot: 'Hands' }),
+    ]),
+  })
+  const afterSharedUid = await inventory()
+  const sharedAdded = arrivedSince(beforeSharedIds, afterSharedUid)
+  const sharedRenamed = sharedAdded.filter((relic) => relic.id !== 'relic_9')
+  check(
+    'HSR-Scanner file with two relic_9s: both land, only one keeps that id',
+    sharedUid.added === 2 && sharedUid.totalAfter === 164
+      && afterSharedUid.duplicateIds.length === 0
+      && afterSharedUid.records('relic_9').length === 1
+      && sharedAdded.length === 2
+      && sharedRenamed.length === 1
+      && sharedRenamed[0].id.length > 0
+      && hasEffectRes(sharedRenamed[0]),
+    `${sameIdStats(sharedUid)}; relic_9=${afterSharedUid.records('relic_9').length}, other=${sharedRenamed.map((relic) => relic.id).join(',')}`,
+  )
+
+  // Yas writes `_id` (a fresh nanoid) and not `_uid`. The upstream parser
+  // reads `_uid`, so these relics parse with no id and must not share one.
+  await callTool(client, 'load_save', { path: freshSavePath() })
+  const beforeYasIds = idsOf(await inventory())
+  const dropUid = (relic) => {
+    const copy = { ...relic }
+    delete copy._uid
+    return copy
+  }
+  const yasMissingUid = await callTool(client, 'import_scanner_json', {
+    inline: {
+      ...scannerJson([
+        dropUid(uidRelic('ignored', 15, SUBS_PLUS15)),
+        dropUid(uidRelic('ignored', 15, SUBS_UNRELATED, { slot: 'Hands' })),
+      ]),
+      source: 'yas-scanner',
+      build: 'v0.1.21',
+      version: 3,
+    },
+  })
+  const afterYas = await inventory()
+  const yasAdded = afterYas.relics.filter((relic) => !beforeYasIds.has(relic.id))
+  check(
+    'Yas relics without _uid: both are stored, under two distinct ids',
+    yasMissingUid.source === 'yas-scanner' && yasMissingUid.added === 2 && yasMissingUid.replacedById === 0
+      && yasMissingUid.totalAfter === 164
+      && afterYas.duplicateIds.length === 0
+      && yasAdded.length === 2
+      && new Set(yasAdded.map((relic) => relic.id)).size === 2
+      && yasAdded.every((relic) => typeof relic.id === 'string' && relic.id.length > 0),
+    `${sameIdStats(yasMissingUid)}; added ids=${yasAdded.map((relic) => relic.id).join(',')}`,
   )
   await callTool(client, 'load_save', { path: freshSavePath() })
   await callTool(client, 'import_scanner_json', { inline: archiverJson([uidRelic('777301', 0, SUBS_PLUS0)]) })

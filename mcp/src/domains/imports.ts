@@ -57,9 +57,30 @@
 // in the file (or sitting earlier in the bucket) takes the folded record,
 // verified id rewrite swaps the two ids, and equipment plus saved builds follow.
 // HSR-Scanner ids are NOT stable (it assigns `relic_1`, `relic_2`, … by scan
-// position, per its README), Yas ids are not known to be, and HoYoLAB ids
-// are fresh uuids — for those sources an equal id proves nothing and nothing
-// is folded.
+// position, per its README), Yas does not emit `_uid` (see below), and
+// HoYoLAB ids are fresh uuids — for those sources an equal id proves nothing
+// and nothing is folded.
+//
+// Unstable-id collisions (stableRelicIds=false, both union and replace):
+// mergeRelics keeps the inventory id on an unverified hash match and stores
+// an unmatched import under its own id. A new piece can therefore land on an
+// id another surviving record still holds. relicsById keeps the last write,
+// and the next upsertRelic / deleteRelic rebuilds the list from it and drops
+// the other relic. Before the write, an unmatched import whose id is missing
+// or already taken is copied onto a fresh uuid. Taken ids are the ones this
+// write still keeps: an unverified match keeps the inventory id, a verified
+// match takes the import id, union keeps every uncovered id, and earlier
+// unmatched imports keep theirs. replace does not keep uncovered relics, so
+// their ids are free; a clash with a hash-matched survivor is still renamed.
+// That is the one divergence from the web's replace path, which would store
+// the duplicate and then lose a relic. Hash pairing ignores id, so the
+// added/updated/skipped counts do not move.
+// Yas (wormtql/yas, yas-starrail/src/export/relic/hsr.rs on main) writes
+// `_id: nanoid!()` at serialize time and `set` (English set name), not
+// `_uid` / `set_id`. The upstream parser only reads `_uid` and skips an
+// unknown `set_id`, so a current Yas file contributes no relics. A relic
+// that does parse without `_uid` gets `id: undefined`; every such relic
+// would share that one id, and the rename above separates them.
 //
 // M6-A: planAndRunImport is exported for the live scanner domain (domains/
 // scanner.ts) — a scanner InitialScan merges through this same machine (union
@@ -95,7 +116,10 @@ import {
   getRelics,
   useRelicStore,
 } from 'lib/stores/relic/relicStore'
-import { isVersionOutdated } from 'lib/utils/miscUtils'
+import {
+  isVersionOutdated,
+  uuid,
+} from 'lib/utils/miscUtils'
 import type { Form } from 'types/form'
 import type { Relic } from 'types/relic'
 import { z } from 'zod'
@@ -479,6 +503,49 @@ function sameRelicSequence(left: Relic[], right: Relic[]): boolean {
   return true
 }
 
+type HashPairing = {
+  incoming: Relic,
+  found: Relic | null,
+}
+
+function hasUsableId(id: string | undefined): id is string {
+  return id != null && id !== ''
+}
+
+/** Id mergeRelics will store for a hash match. Unverified keeps the inventory id. */
+function storedIdAfterMatch(incoming: Relic, found: Relic): string | undefined {
+  return incoming.verified ? incoming.id : found.id
+}
+
+/**
+ * See the file header. Hash-matched imports are returned unchanged: their id
+ * is not what an unverified match stores. Only unmatched imports are renamed,
+ * and only when their id is missing or already claimed by a record this write
+ * keeps.
+ */
+function assignUniqueUnstableIds(pairings: HashPairing[], uncovered: Relic[]): Relic[] {
+  const occupied = new Set<string>()
+  const claim = (id: string | undefined) => {
+    if (hasUsableId(id)) occupied.add(id)
+  }
+  for (const { incoming, found } of pairings) {
+    if (found != null) claim(storedIdAfterMatch(incoming, found))
+  }
+  for (const relic of uncovered) claim(relic.id)
+
+  return pairings.map(({ incoming, found }) => {
+    if (found != null) return incoming
+    if (hasUsableId(incoming.id) && !occupied.has(incoming.id)) {
+      occupied.add(incoming.id)
+      return incoming
+    }
+    let fresh = uuid()
+    while (occupied.has(fresh)) fresh = uuid()
+    occupied.add(fresh)
+    return { ...incoming, id: fresh }
+  })
+}
+
 /**
  * stableRelicIds: the import's relic ids identify the same in-game relic
  * across exports (Reliquary Archiver files and live frames — which are also
@@ -495,9 +562,10 @@ export function planAndRunImport(
   const totalBefore = existingRelics.length
   const charactersImported = characters.length > 0
 
-  // replace is the raw upstream path and stays untouched; union folds the
-  // imported state of same-id relics into the inventory first, then lines each
-  // hash up with the import so a twin cannot take the folded record's id.
+  // Stable ids only: union folds same-id relics into the inventory first,
+  // then lines each hash up with the import so a twin cannot take the folded
+  // record's id. replace does not fold. Unstable ids are renamed below, in
+  // both modes — that does not change which relics survive a replace.
   const foldedInventory = merge === 'union' && stableRelicIds
     ? foldSupersededRecords(existingRelics, relics)
     : { inventory: existingRelics, folded: new Set<Relic>(), superseded: [] as Relic[] }
@@ -518,14 +586,16 @@ export function planAndRunImport(
     else buckets.set(hash, [relic])
   }
 
+  const pairings: HashPairing[] = []
   let added = 0
   let updated = 0
   let skipped = 0
   for (const incoming of relics) {
     const hash = hashRelic(incoming)
     const bucket = buckets.get(hash)
-    const found = bucket?.shift()
+    const found = bucket?.shift() ?? null
     if (bucket != null && bucket.length === 0) buckets.delete(hash)
+    pairings.push({ incoming, found })
     if (found == null) added++
     // a folded entry is a relic whose stored state this import replaces
     else if (folded.has(found) || importWouldChange(incoming, found, charactersImported)) updated++
@@ -542,8 +612,10 @@ export function planAndRunImport(
   // See withoutEquipClaim. Order stays [...import, ...uncovered]: moving the
   // uncovered relics forward would change which store record each hash bucket
   // shift() returns, and the added/updated/skipped counts replay that pairing.
+  // Renames happen after the counts, on copies, and do not change list length.
+  const relicsForWrite = stableRelicIds ? relics : assignUniqueUnstableIds(pairings, uncovered)
   const uncoveredForWrite = charactersImported ? uncovered.map(withoutEquipClaim) : uncovered
-  const writeList = merge === 'union' ? [...relics, ...uncoveredForWrite] : relics
+  const writeList = merge === 'union' ? [...relicsForWrite, ...uncoveredForWrite] : relicsForWrite
 
   // Anti-wipe guard at the import layer: a union list can never be shorter
   // than the inventory it is merged into, and that inventory can only be
@@ -680,14 +752,17 @@ export function registerImportTools(server: McpServer): void {
     title: '导入扫描器 JSON',
     description: '导入扫描器导出的 JSON(HSR-Scanner / Reliquary Archiver / Yas)——对应网页端「导入」标签页的扫描器文件上传入口与确认页「导入角色与遗器」按钮。'
       + '按遗器 hash(部位/套装/稀有度/等级/主词条/副词条归一值)与现有库存匹配:导入件已验证(reliquary)时覆盖同 hash 库存件的副词条并置 verified,否则仅更新佩戴者/顺序;未命中 hash 的作为新遗器加入,并同步角色装备与已存配装的遗器引用。'
-      + '同 id 替换(仅 merge=union 且来源为 Reliquary Archiver——它的 _uid 取自游戏数据包,跨导出稳定;HSR-Scanner 的 _uid 按扫描位置编号、Yas 的 id 未确认稳定,均不参与):'
+      + '同 id 替换(仅 merge=union 且来源为 Reliquary Archiver——它的 _uid 取自游戏数据包,跨导出稳定;HSR-Scanner 的 _uid 按扫描位置编号、Yas 导出的是每次重新生成的 _id 且解析器只读 _uid,均不参与):'
       + '库存件与某件导入件 id 相同但 hash 不同,且部位/套装/稀有度/主词条一致、等级不高于导入件时,它是同一件遗器强化/重掷前的旧状态——由导入件覆盖,不与它并存'
       + '(与网页整库替换对这件遗器的结果一致);角色装备与已存配装按 id 引用,自动指向新状态;佩戴者规则与 hash 命中件相同:连同导入角色且导入件带佩戴者时以导入件为准,否则沿用旧记录的佩戴者。'
       + '统计口径:added/updated/skipped 三者之和=导入件数——added=未命中库存的新遗器,updated=命中 hash 且有实质变化或同 id 替换,skipped=命中且无变化;'
       + 'replacedById=因同 id 被导入件覆盖而移出的旧记录数(库存里同一 id 已有多条记录时会一并收敛,此时 removed>0);removed=库存净减少件数。'
       + 'merge=union(默认):保留库存中未被本次导入覆盖的遗器(合成完整并集清单后走上游整库写入;并集清单小于待合并库存、或被替换的旧记录找不到同 id 继任记录时拒绝落盘)。'
       + '连同导入角色时,未覆盖的旧遗器不再用库存里的佩戴者回写槽位:导入件占用的部位以导入件为准,文件没给新件的部位仍穿原来的遗器;不导入角色时不改任何穿戴。'
-      + 'merge=replace:与网页端原生行为完全一致——库存重置为导入件,未被覆盖的旧遗器会被丢弃(仅角色无遗器的导入除外);不做同 id 替换(replacedById 恒为 0)。'
+      + '不稳定 id 不做同 id 替换。未命中 hash、且自带 id 会与落库后仍在的另一条记录重复(或解析后没有 id)时,改赋一个新的 uuid;hash 配对与 added/updated/skipped 不变。'
+      + 'merge=union 与 merge=replace 都改号。'
+      + 'merge=replace:库存集合与网页端原生行为一致——重置为导入件,未被覆盖的旧遗器会被丢弃(仅角色无遗器的导入除外),不做同 id 替换(replacedById 恒为 0);'
+      + '与网页的唯一差别是不稳定 id 的相撞件会改号,避免 relicsById 丢掉其中一件。'
       + 'dryRun=true 只解析并统计,不写入。existingCharactersOnly=true 仅导入库存中已存在的角色(遗器不受影响)。'
       + 'includeCharacters=false 对应网页确认页「导入遗器」按钮:只导入遗器,不新增也不修改角色(默认 true=「导入角色与遗器」,与既有行为一致)。'
       + 'source=auto(默认)按 JSON 的 source 字段判别格式,也接受 hoyolab 形状并提示改用 import_hoyolab。',
