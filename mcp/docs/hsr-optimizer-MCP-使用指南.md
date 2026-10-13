@@ -59,7 +59,7 @@ npm --prefix mcp run build   # 构建 MCP server → mcp/dist/
 
 ## 4. 能力总览
 
-**61 个工具 / 11 个资源**(矩阵权威状态见 `mcp/coverage/summary.md`,网站基线 175/175 已接入):
+**64 个工具 / 11 个资源**(矩阵权威状态见 `mcp/coverage/summary.md`,网站基线 175/175 已接入):
 
 | 域     | 工具                                                                                | 一句话                                                                        |
 | ------ | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
@@ -75,6 +75,8 @@ npm --prefix mcp run build   # 构建 MCP server → mcp/dist/
 | 状态   | get_state / update_state / get_job / cancel_job                                     | 八段状态域读写、任务查询与取消                                                |
 | 浏览器 | get_runtime_capabilities / render / deliver_artifact / debug_utility / set_portrait | 受管浏览器生命周期、五类渲染目标、产物交付、WebGPU 检验/图片中心、自定义肖像  |
 | 条件   | describe_conditionals                                                               | 条件面板元数据                                                                |
+| 审计   | team_audit / plan_diff                                                              | 单队一键审计(当前/库存最优/换装清单/待强化/刷取目标)、审计是否过期            |
+| 修复   | dedupe_relics                                                                       | 合并 id 重复的遗器记录(载入时只报告,合并须显式调用)                           |
 
 资源:`game://metadata/characters|lightcones|sets|scoring`(+详情模板)、`game://changelog`、`site://pages|links|home|help/{topic}`。
 
@@ -87,6 +89,10 @@ npm --prefix mcp run build   # 构建 MCP server → mcp/dist/
 `get_state(section=scanner)` 看配置 → `scanner(action=connect, url=…)` → `scanner(action=events)` 轮询事件 → `get_state(section=relicsTab)` 的 recentRelics 看最近入库 → `update_state(section=scanner, patch={ingest:true})` 开导入(已连接时自动重放)。
 
 **旅程 C —— 跃迁规划**:`warp_plan(jades=…, targets=[{characterId, targetEidolonLevel}], applyPlannerMode=true)` 复刻网页 simple 目标转换,再 `warp_plan(save=true)` 存底稿。
+
+**旅程 E —— 配队方案的日常刷新(不需要 agent)**:把队伍名单写成计划文件(每队一个 key、核心角色、队友),`npm run plan-refresh -- --plan <plan.json>`。脚本用 `plan_diff` 找出过期的队,只对它们重跑 `team_audit`,把结果存到计划旁的 `<计划名>.audits/` 并重写 `report.md`;刷完遗器、换完装或导入新扫描后跑一次即可。`--dry-run` 只看哪些队过期。agent 只在「队伍该不该换人」时需要介入:改计划文件里的名单,再跑同一条命令。
+
+**旅程 F —— 存档提示有重复遗器 id**:`load_save` / `save_status` 的 `duplicateRelicIds.count > 0` 时,先 `dedupe_relics(dryRun=true)` 看合并计划(保留哪条、谁继续穿、谁的槽位会清空;对照 `kept` / `dropped` 的副词条确认确实是同一件),确认后 `dedupe_relics()`。不处理的话,下一次任何遗器写入都会让上游按数组顺序折叠,留下的可能是旧记录。
 
 **旅程 D —— 榜单研究**:`leaderboard(view=board)` 找条目 → `leaderboard(view=entry, buildId=…)` 读配装 → `leaderboard(view=score, buildId=…)` 本地复算(与榜单记录值对比) → `render(target=character_card, source=leaderboard, buildId=…)` 渲染榜单风格卡。
 

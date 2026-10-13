@@ -254,7 +254,7 @@
       "conditions": "officialOnly 为 true 时侧边栏显示指向含剧透站点的链接，否则显示指向无剧透站点的链接（当前常量为 false）。",
       "runtime": "node",
       "state": { "owner": "无", "lifecycle": "none" },
-      "mcp": { "status": "implemented", "resources": ["site://links"] },
+      "mcp": { "status": "verified", "resources": ["site://links"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -262,7 +262,11 @@
           "site://links 列出的链接与侧边栏、顶栏、入门抽屉、更新弹窗里的 href 逐条一致",
           "site://help/optimizer 返回仓库内 docs/guides 对应指南的正文"
         ],
-        "tests": ["mcp/scripts/smoke-browser.mjs"]}
+        "tests": ["mcp/scripts/smoke-browser.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/global.json#global.links.external cases 1-2 PASS 2026-10-13 (5e65fb94)"
+        ]
+      }
     },
     {
       "id": "global.changelog.whatsNew",
@@ -280,7 +284,7 @@
       "runtime": "node",
       "state": { "owner": "useGlobalStore.version", "lifecycle": "persisted", "saveKey": "version" },
       "sideEffects": ["关闭时 setVersion(CURRENT_OPTIMIZER_VERSION) 并 SaveState.delayedSave()"],
-      "mcp": { "status": "implemented", "resources": ["game://changelog"], "gaps": "仅剩固有差异:MCP 每次落盘经 SaveState.save() 把 version 写成当前版本(saveState.ts:84),用户回网页不再弹更新窗——属上游序列化固有行为;更新内容/当前版本/存档版本比较均可读。" },
+      "mcp": { "status": "verified", "tools": ["get_state"], "resources": ["game://changelog"], "gaps": "仅剩固有差异:MCP 每次落盘经 SaveState.save() 把 version 写成当前版本(saveState.ts:84),用户回网页不再弹更新窗——属上游序列化固有行为;更新内容/当前版本/存档版本比较均可读。" },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -288,7 +292,10 @@
           "载入旧版本存档后 get_state 报告存档版本、当前版本和是否过期，与 isVersionOutdated 一致",
           "game://changelog 第一条带日期的条目与弹窗内容一致"
         ],
-        "tests": ["mcp/scripts/smoke-conditionals.mjs", "mcp/scripts/smoke-archive.mjs"]
+        "tests": ["mcp/scripts/smoke-conditionals.mjs", "mcp/scripts/smoke-archive.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/global.json#global.changelog.whatsNew cases 1-2 PASS 2026-10-13 (5e65fb94)"
+        ]
       }
     },
     {

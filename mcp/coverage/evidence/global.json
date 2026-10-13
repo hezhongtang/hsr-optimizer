@@ -1,7 +1,7 @@
 {
   "area": "global",
-  "generatedAt": "2026-10-08T15:56:52.404Z",
-  "gitCommit": "8ac1d045",
+  "generatedAt": "2026-10-13T08:42:31.276Z",
+  "gitCommit": "5e65fb94",
   "cases": [
     {
       "feature": "global.state.bootLoad",
@@ -36,7 +36,7 @@
       "desc": "集合被清空时自动写回被拦截并在 save_status.blockedWrite",
       "method": "inprocess-parity",
       "result": "PASS",
-      "detail": "集合被清空(reset_all)后自动写回被拦截:磁盘存档保持 162 件遗器 / 8 角色: 磁盘 162 遗器 / 8 角色 | 拦截在 save_status.blockedWrite 中报告(且 dirty 保持 true): dirty=true,blockedWrite={\"at\":1791474994934,\"reason\":\"防擦写护栏拦截:拒绝用空的遗器+角色集合覆写仍持有数据的存档文件 C:\\\\Users\\\\he_al\\\\AppData\\\\Local\\\\Temp\\\\hsr-mcp-verify-global-MM8bu6\\\\wipe-guard/sample.json(刻意",
+      "detail": "集合被清空(reset_all)后自动写回被拦截:磁盘存档保持 162 件遗器 / 8 角色: 磁盘 162 遗器 / 8 角色 | 拦截在 save_status.blockedWrite 中报告(且 dirty 保持 true): dirty=true,blockedWrite={\"at\":1791880938254,\"reason\":\"防擦写护栏拦截:拒绝用空的遗器+角色集合覆写仍持有数据的存档文件 /var/folders/w1/jfpmdcf57v11yv3z_dzyh9pw0000gn/T/hsr-mcp-verify-global-d8BTOE/wipe-guard/sample",
       "script": "mcp/scripts/verify-global.mjs"
     },
     {
@@ -117,7 +117,7 @@
       "desc": "load_save(sample=true) 之后导出的存档与网页点击「试一试」",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "load_save(sample=true) 载入内置示例(162 遗器 / 8 角色,sample echo,无路径): 162/8 | 网页「试一试」后的存档与 load_save(sample=true) 导出逐键一致: 15 个顶层键逐键相等 | 试一经确认框执行并整体替换(162/8 全量示例): 162/8 | 服务器工作目录在仓库外(便携安装形态)时 sample=true 同样可用(示例存档内嵌于构建产物): cwd=C:\\Users\\he_al\\AppData\\Local\\Temp\\hsr-mcp-verify-global-MM8bu6\\outside-repo,162/8",
+      "detail": "load_save(sample=true) 载入内置示例(162 遗器 / 8 角色,sample echo,无路径): 162/8 | 网页「试一试」后的存档与 load_save(sample=true) 导出逐键一致: 15 个顶层键逐键相等 | 试一经确认框执行并整体替换(162/8 全量示例): 162/8 | 服务器工作目录在仓库外(便携安装形态)时 sample=true 同样可用(示例存档内嵌于构建产物): cwd=/var/folders/w1/jfpmdcf57v11yv3z_dzyh9pw0000gn/T/hsr-mcp-verify-global-d8BTOE/out",
       "script": "mcp/scripts/verify-global.mjs"
     },
     {
@@ -125,8 +125,8 @@
       "case": 1,
       "desc": "site://links 列出的链接与侧边栏、顶栏、入门抽屉、更新弹窗里的 hr",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "site://links 收录侧边栏、顶栏、更新弹窗的全部外链: 4 条全部收录 | 入门抽屉的外链同样逐条一致(四处 UI ⊆ site://links): 入门抽屉「查看完整指南」等链接未收录进 site://links:https://github.com/fribbels/hsr-optimizer/blob/main/docs/guides/en/optimizer.md——资源组仅覆盖首页社区卡/侧边栏链接组/页眉(resources.ts SITE_LINK_GROUPS),指南类链接只经 site://help/{topic} 部分提供",
+      "result": "PASS",
+      "detail": "site://links 收录侧边栏、顶栏、更新弹窗的全部外链: 4 条全部收录 | 入门抽屉的外链同样逐条一致(四处 UI ⊆ site://links): 入门抽屉抓到 1 条外链,含指南链接=true;逐条一致",
       "script": "mcp/scripts/verify-global.mjs"
     },
     {
@@ -134,8 +134,8 @@
       "case": 2,
       "desc": "site://help/optimizer 返回仓库内 docs/guides ",
       "method": "inprocess-parity",
-      "result": "FAIL",
-      "detail": "site://help/optimizer 返回仓库内 docs/guides 对应指南的正文: 资源读取报错:MCP error -32603: 未知的帮助主题:optimizer。可用主题:reliquary / kelz / scorer / hoyolab / live-import——已注册帮助主题仅 reliquary/kelz/scorer/hoyolab/live-import(resources.ts SITE_HELP_TOPICS,导入页帮助区),无 optimizer 主题;docs/guides/en/optimizer.md 只被入门抽屉引用 | 旁证:site:/",
+      "result": "PASS",
+      "detail": "site://help/optimizer 返回仓库内 docs/guides 对应指南的正文: body 5286 字符,指南文件 5286 字符,url=https://github.com/fribbels/hsr-optimizer/blob/main/docs/guides/en/optimizer.md",
       "script": "mcp/scripts/verify-global.mjs"
     },
     {
@@ -143,8 +143,8 @@
       "case": 1,
       "desc": "载入旧版本存档后 get_state 报告存档版本、当前版本和是否过期，与 is",
       "method": "inprocess-parity",
-      "result": "FAIL",
-      "detail": "载入旧版本存档:load_save 直读存档 version 字段(v0.0.1): version=\"v0.0.1\" | get_state 报告存档版本、当前版本和是否过期(与 isVersionOutdated 一致): get_state(revision/session) 无任何版本/过期字段——当前版本仅 site://home.optimizerVersion 与导出快照 version(恒为 CURRENT_OPTIMIZER_VERSION)可读,「是否过期」未透出;与用例描述不符 | 可读版本面交叉核对:导出快照 version = site://home.optimize",
+      "result": "PASS",
+      "detail": "载入旧版本存档:load_save 直读存档 version 字段(v0.0.1): version=\"v0.0.1\" | get_state 报告存档版本、当前版本和是否过期(与 isVersionOutdated 一致): saveVersion=v0.0.1,currentVersion=v4.6.5,versionOutdated=true | 当前版本写出的存档不算过期: saveVersion=v4.6.5,versionOutdated=false | 可读版本面交叉核对:导出快照 version = site://home.optimizerVersion(saveState.",
       "script": "mcp/scripts/verify-global.mjs"
     },
     {

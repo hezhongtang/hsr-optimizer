@@ -1,7 +1,7 @@
 {
   "area": "calculators",
-  "generatedAt": "2026-10-08T20:30:52.925Z",
-  "gitCommit": "8ac1d045",
+  "generatedAt": "2026-10-13T08:42:31.418Z",
+  "gitCommit": "5e65fb94",
   "cases": [
     {
       "feature": "calculators.panel.switch",
@@ -17,8 +17,8 @@
       "case": 1,
       "desc": "site://pages 在计算器页下列出两个子面板，hash 分别是 #aha 与 #ehr，并指明对应的工具是 ca",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "site://pages 顶层键=[count,basePath,aliasHashes,note,pages];CALCULATORS.hash=#aha,note含#aha/#ehr:true;资源全文指明 calc_aha/calc_ehr:false(实测未提及工具名 — 清单描述超出资源实际内容)",
+      "result": "PASS",
+      "detail": "site://pages 顶层键=[count,basePath,aliasHashes,note,pages];CALCULATORS.hash=#aha,note含#aha/#ehr:true;资源全文指明 calc_aha/calc_ehr:true",
       "script": "mcp/scripts/verify-calculators.mjs"
     },
     {

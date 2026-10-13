@@ -44,12 +44,16 @@
       "conditions": "「更新日志」卡片是站内跳转（普通点击走 navigateTo，按住 Ctrl/Meta/Shift 时走浏览器默认行为），其余三张社区卡片和贡献者图片是外链。",
       "runtime": "node",
       "state": { "owner": "无", "lifecycle": "none" },
-      "mcp": { "status": "implemented", "resources": ["site://home", "site://links"] },
+      "mcp": { "status": "verified", "resources": ["site://home", "site://links"] },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
         "cases": ["site://home 返回的六张功能卡片标题与要点、四张社区卡片的标题和链接与首页当前语言下的内容一致"],
-        "tests": ["mcp/scripts/smoke-browser.mjs"]}
+        "tests": ["mcp/scripts/smoke-browser.mjs"],
+        "evidence": [
+          "mcp/coverage/evidence/home.json#home.content.read cases 1-1 PASS 2026-10-13 (5e65fb94)"
+        ]
+      }
     }
   ]
 }

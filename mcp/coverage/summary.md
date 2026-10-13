@@ -8,8 +8,8 @@
 
 | 域 | 功能条目 | missing | partial | implemented | verified | 机制项 |
 | --- | --- | --- | --- | --- | --- | --- |
-| global | 17 | 1 | 1 | 8 | 7 | 4 |
-| home | 2 | 0 | 0 | 1 | 1 | 0 |
+| global | 17 | 1 | 1 | 6 | 9 | 4 |
+| home | 2 | 0 | 0 | 0 | 2 | 0 |
 | changelog | 1 | 0 | 0 | 0 | 1 | 0 |
 | import | 14 | 0 | 0 | 3 | 11 | 0 |
 | characters | 22 | 0 | 0 | 0 | 22 | 0 |
@@ -20,14 +20,14 @@
 | showcase | 5 | 0 | 0 | 5 | 0 | 1 |
 | warp | 5 | 0 | 0 | 0 | 5 | 0 |
 | benchmarks | 7 | 0 | 0 | 1 | 6 | 0 |
-| calculators | 7 | 0 | 0 | 1 | 6 | 0 |
+| calculators | 7 | 0 | 0 | 0 | 7 | 0 |
 | leaderboard | 7 | 0 | 0 | 0 | 7 | 0 |
 | webgpu | 1 | 0 | 0 | 1 | 0 | 0 |
 | metadata | 9 | 0 | 0 | 3 | 6 | 2 |
 | shared | 2 | 0 | 0 | 0 | 2 | 3 |
-| **合计** | 191 | 4 | 1 | 33 | 153 | 21 |
+| **合计** | 191 | 4 | 1 | 29 | 157 | 21 |
 
-网站基线条目 175 个：implemented 175 · partial 0 · missing 0 · verified 153。
+网站基线条目 175 个：implemented 175 · partial 0 · missing 0 · verified 157。
 
 ## 增强项（独立报告，不计入覆盖分母）
 

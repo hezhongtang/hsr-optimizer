@@ -23,7 +23,7 @@ npm start              # stdio 启动(供 MCP client 拉起)
 npm run smoke          # 基础闭环:listTools → load_save → list_relics → optimize → 取消路径 → export/reset
 npm run smoke:query    # 查询域:list_characters/get_character/get_form/default_form/permutations/list_relics
 npm run smoke:archive  # 存档回归:载入失败保留未落盘修改、完整恢复会话、换档时缺省字段恢复默认
-npm run smoke:duplicate-relics # 重复遗器 id 报告:load_save/save_status 的 duplicateRelicIds、启动恢复的 stderr 警告、只检测不去重
+npm run smoke:duplicate-relics # 重复遗器 id:load_save/save_status 的 duplicateRelicIds、启动恢复的 stderr 警告、载入不去重;dedupe_relics 按需合并
 npm run smoke:revision # M4 变更协调器:revision 读不变/写递增、载入失败回滚修订号与脏标记
 npm run smoke:state    # M4 状态域:get_state/update_state 五分支读写、baseRevision 冲突、未知键拒绝
 npm run smoke:jobs     # M4 任务域:optimize/benchmark_runs 任务生命周期、进度查询、cancel_job 路由
@@ -32,6 +32,7 @@ npm run smoke:optimizer-generation # 优化时换档:拒绝旧结果与跨档缓
 npm run smoke:form-overrides # 表单覆盖回归:get_form 内部字段与显示表单字段均正确生效
 npm run smoke:relic-pool # 遗器候选池分层:relicPool 的计数/门槛/同池(估算、校验、诊断、CPU 与 GPU 搜索)
 npm run verify:team-audit # 队伍审计域:team_audit 与手工调用底层工具逐项对拍、只读性、plan_diff 过期判断
+npm run smoke:plan-refresh # 方案数字刷新:plan-refresh 只重审过期的队、--dry-run/--only/--ignore-engine、失败不动旧记录、报告随计划与记录重写、存档只读
 npm run smoke:form      # M5 表单域:update_form 全参数面(切换自动保存/预设/连招同步/假想配装)
 npm run smoke:relics    # M5 遗器 CRUD:编辑器保存语义/装备转移/预览不落盘/删除清引用
 npm run smoke:teams     # M5 队伍域:manage_team 五动作/基准快照/traces 级联/自动排序/评分队伍联动
@@ -56,7 +57,7 @@ npm run smoke:imports  # 导入 + 展示柜:union 并集语义(1+162→163)、dr
 npm run smoke:misc     # 计算器(warp_plan/calc_aha/calc_ehr 对拍上游公式)/ teams(list/save 往返与
                         # 快照保留规则)/ 同步桥(ws 帧逐字段校验、回灌上游解析器、变更驱动重推)
 npm run smoke:m8       # M8 双向同步端到端:受管浏览器载真实站点连全量桥,六条验收(缺 Chrome/dist 自动 [SKIP])
-npm run smoke:all      # 依次跑全部三十一份(浏览器套件在缺 Chrome/dist 的环境自动 [SKIP];视觉回归对基线 PNG 容差比对)
+npm run smoke:all      # 依次跑全部三十五份(浏览器套件在缺 Chrome/dist 的环境自动 [SKIP];视觉回归对基线 PNG 容差比对)
 npm run check:packaged # M9 仓库外完整安装验收:组装便携树 → 空目录启动 → i18n/媒体渲染/GPU/重启恢复断言
 ```
 
@@ -85,18 +86,18 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | `HSR_MCP_ARTIFACTS_DIR` | `$TMPDIR/hsr-mcp-artifacts`       | render/图片导出产物的落盘目录(运行期用户数据,不进仓库)                                                                                                                                                                 |
 | `HSR_MCP_NO_BOOT_LOAD`  | 未设(=启用)                       | 设为 `1` 关闭进程启动时从 `HSR_MCP_STATE_FILE` 的 `state` 键自动恢复上次存档(默认开启,镜像网页「打开即载入」;恢复走 SaveState.load(false,false) 同链,会恢复扫描器地址——与手动 load_save 的安全语义不同,属网页启动语义) |
 
-## 工具清单(63 个,按域)
+## 工具清单(64 个,按域)
 
 ### M1 基础域(26 个)
 
 **存档域(archive)** — 网页端存档生命周期:
 
-| 工具          | 功能                                                                                                                |
-| ------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `load_save`   | 载入存档文件/内联 JSON(完整迁移链),替换当前状态;返回 `duplicateRelicIds`(重复出现的遗器 id,只检测不去重)            |
-| `export_save` | 当前状态序列化写回磁盘(网页「导出存档」,带护栏,见下);`structured=true` 返回无写入的结构化快照(与写盘输出逐字段对拍) |
-| `save_status` | 当前存档概况:来源、数量、dirty、revision/generation、最近优化缓存、`duplicateRelicIds`                              |
-| `reset_all`   | 清空恢复默认(仅内存,写回被擦写保护拦截)                                                                             |
+| 工具          | 功能                                                                                                                          |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `load_save`   | 载入存档文件/内联 JSON(完整迁移链),替换当前状态;返回 `duplicateRelicIds`(重复出现的遗器 id,载入不去重,合并用 `dedupe_relics`) |
+| `export_save` | 当前状态序列化写回磁盘(网页「导出存档」,带护栏,见下);`structured=true` 返回无写入的结构化快照(与写盘输出逐字段对拍)           |
+| `save_status` | 当前存档概况:来源、数量、dirty、revision/generation、最近优化缓存、`duplicateRelicIds`                                        |
+| `reset_all`   | 清空恢复默认(仅内存,写回被擦写保护拦截)                                                                                       |
 
 `load_save` 替换全部存档状态:新档没有提供的会话与设置字段恢复为默认值。载入失败时恢复调用前的内存状态,包括防抖窗口内尚未落盘的修改,原存档路径与待写回状态保持不变。
 
@@ -227,10 +228,10 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 **状态域(state)** — 全站覆盖计划 M4 的设置/会话/标记/扫描器配置读写:
 
-| 工具           | 功能                                                                                                                                                                                                                                                                       |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get_state`    | 按 section 读取:`revision`(修订号/世代/dirty/blockedWrite)、`settings`(六项设置当前值+定义,默认值派生自上游)、`session`(持久化 savedSession+易取的临时态)、`flags`(seenFeatures+未读派生)、`scanner`(六字段+customUrl 派生)、`showcase`(按角色的展示卡偏好,含槽位评分类型) |
-| `update_state` | 按 section 写入(未知键拒绝、枚举校验);可选 `baseRevision` 乐观并发检查(不匹配报冲突,消息含双方修订号);整体走 withChange 事务,失败回滚                                                                                                                                      |
+| 工具           | 功能                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_state`    | 按 section 读取:`revision`(修订号/世代/dirty/blockedWrite,以及 `saveVersion` / `currentVersion` / `versionOutdated`——网页「有新版本」提示的同一判定)、`settings`(六项设置当前值+定义,默认值派生自上游)、`session`(持久化 savedSession+易取的临时态)、`flags`(seenFeatures+未读派生)、`scanner`(六字段+customUrl 派生)、`showcase`(按角色的展示卡偏好,含槽位评分类型) |
+| `update_state` | 按 section 写入(未知键拒绝、枚举校验);可选 `baseRevision` 乐观并发检查(不匹配报冲突,消息含双方修订号);整体走 withChange 事务,失败回滚                                                                                                                                                                                                                                |
 
 **任务域(jobs)** — 长任务统一注册表(optimize/benchmark_runs 已接入,评分与后续任务逐里程碑接入):
 
@@ -239,7 +240,7 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | `get_job`    | 无参列出全部任务(id/类型/状态/时间);带 jobId 返回详情(进度、可否取消、摘要引用——optimize 的 jobId 即返回的 cacheId) |
 | `cancel_job` | 取消运行中的任务(复用既有取消路径,optimize 保留部分结果);已结束任务返回其终态而非报错                               |
 
-### M5 角色、遗器、表单与队伍域(4 个)
+### M5 角色、遗器、表单与队伍域(5 个)
 
 **遗器 CRUD 域(relics)** — 网页端遗器编辑器与库存删除:
 
@@ -247,6 +248,7 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `upsert_relic`  | 新建/编辑遗器,走编辑器同一条保存链(部位/主词条/套装联动重置、副词条校验、规范化、主词条数值重算);`equippedBy` 传角色装备(null=卸下、不传保持,跨角色转移遵守全局 Replace/Swap);`previewUpgrade`/`previewSubstats` 预览不落盘;`dryRun` 全校验+装备变更演练;可选 `baseRevision` |
 | `delete_relics` | 按 id 批量删除(已装备件同步清理 character.equipped 引用);任一 id 不存在则整体拒绝、零删除;删光库存时按网页端解除空存档写回限制                                                                                                                                               |
+| `dedupe_relics` | 增强项:把 id 重复的遗器记录合并成一条(见「已知限制」第 19 条)。只合并对得上同一件遗器不同时期的记录(含强化次数守恒),保留强化等级最高的那条;对不上的 id 原样保留并列入 `skipped`;穿戴归属与被清空的槽位逐项返回;`dryRun=true` 只预览,预览里带各条记录的副词条供核对           |
 
 **表单域(form)** — 网页端 Optimizer 页签的持久化表单写路径:
 
@@ -337,6 +339,8 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 命令行外壳 `npm run team-audit -- --character <id> [--teammates a,b,c] [--out file]`(参数见 `scripts/team-audit.mjs` 头部注释):在存档的临时副本上启动服务端、调一次 `team_audit`、输出结构化结果,真实存档只读不写。
 
+**方案数字刷新 `npm run plan-refresh -- --plan <plan.json>`**(路线图第 ③ 步的 Mode A,全程没有 LLM 参与):计划文件列出若干队伍(每队一个 `key`、被审计的核心 `characterId`、`teammates`,可带 `defaults` / 每队 `audit` 两级 `team_audit` 参数)。脚本在存档的临时副本上启动一次服务端,把各队上次留下的审计交给 `plan_diff`,只对需要的队重跑 `team_audit`——没有审计记录的(`new`)、计划里这一队的配置变了的(`planChanged`)、`plan_diff` 判为过期的;其余沿用。每队的完整审计结果存成 `<计划名>.audits/<key>.json`(连同请求参数与上一次的关键数字),并整份重写 `report.md`:总览表(当前 COMBO / 库存最优 / 不占用他人遗器 / 评分,括号里是与上一次审计的差值)加每队的换装清单、值得强化的 +0 遗器、刷取目标与提示。报告里的每个数字都是某份已存审计结果的字段。`--dry-run` 只报告哪些队过期;`--only a,b` 只看指定的队;`--all` 全部重审;`--ignore-engine` 不因引擎版本变化重审(本仓库每个新提交都算一次引擎变化)。没有队需要重审的运行不动 `report.md`,除非报告已经和计划或记录对不上(改了标题或顺序、删了队、上次运行中断在写报告之前、上次失败的队这次不再失败、`--only` 范围外的队在计划里改了配置)。退出码 0 = 都是最新(`--dry-run` 恒为 0,过期的队看摘要里的 `outcome: "pending"`),2 = 有审计没完成(保留旧记录),1 = 运行本身失败。参数与计划文件格式见 `scripts/plan-refresh.mjs` 头部注释。
+
 ### game:// 与 site:// 资源(11 项)
 
 只读元数据面,与工具同进程注册(`src/resources.ts`);列表资源只带摘要,单实体详情走 URI 模板(模板不占 resources/list,经 templates/list 发现):
@@ -353,12 +357,12 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 site:// 站点面(M7):URL 逐条核对自上游源码,不凭记忆:
 
-| URI                   | 内容                                                                                             |
-| --------------------- | ------------------------------------------------------------------------------------------------ |
-| `site://pages`        | 13 个页面清单:AppPages 枚举、hash(PageToHash)、zh 标题、render(page=…) 参数值域、可交接 URL 形态 |
-| `site://links`        | 站点外链:首页社区卡、侧边栏组、页眉、Enka 署名、贡献者等真实 URL                                 |
-| `site://home`         | 首页能力清单:优化器版本、游戏数据版本(直接 import 上游常量)、站点能力入口摘要                    |
-| `site://help/{topic}` | 导入帮助主题(模板资源):reliquary / kelz / hoyolab / live-import / scorer 的真实链接与说明        |
+| URI                   | 内容                                                                                                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `site://pages`        | 13 个页面清单:AppPages 枚举、hash(PageToHash)、zh 标题、render(page=…) 参数值域、可交接 URL 形态                                                                          |
+| `site://links`        | 站点外链:首页社区卡、侧边栏组、页眉、Enka 署名、贡献者等真实 URL                                                                                                          |
+| `site://home`         | 首页能力清单:优化器版本、游戏数据版本(直接 import 上游常量)、站点能力入口摘要、六张功能卡片 `featureCards`(标题/说明/要点,取自 hometab 文案)                              |
+| `site://help/{topic}` | 帮助主题(模板资源):reliquary / kelz / hoyolab / live-import / scorer 的真实链接与说明;`optimizer` 为入门抽屉的优化器指南,`body` 即仓库 `docs/guides/en/optimizer.md` 原文 |
 
 「行→配装」不另设 resource:optimize/get_results 已随行返回 builds 字段(每行 6 槽遗器 id),再设一个 resource 只会复制同一份缓存。
 
@@ -403,7 +407,7 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 16. **浏览器工具的平台条件**(M7,如实登记):`deliver_artifact(copy)` 写入的是受管无头浏览器的剪贴板(桌面 Chrome 通常即系统剪贴板,服务器环境可能无接收方);`share` 依赖 Web Share 平台分支,无头环境预期不可用并如实返回原因——不宣称任意 MCP 客户端都支持系统分享。`debug_utility(action=webgpu_tests)` 全量真跑约 2–4 分钟(250 条);GPU 可用性取决于设备(软适配器会在探测里标明)。CDP 剪贴板授权经实测**反而**会让 headless 拒写(Chrome 154),故不授权——详见 browserManager 源码注释。
 17. **`render(target=portrait, animation=true)` 的 L2D 帧是就绪后截取的当帧**:spine 画布 `preserveDrawingBuffer:false`,snapdom 无法捕获,用 CDP 截屏(与上游截图链对静态图的替换策略一致);spine 渲染循环在页面失焦时暂停,无头下偶发静止帧属平台现状。
 18. **eidolon 术语统一为「星魂」**:工具文案中的 eidolon 规范写作「星魂」(2026-10 复核批次已清理 showcase/simulation/equipment 等全部旧写法「魂影」,现 `mcp/src` 内零残留)。入参字段名(`characterEidolon`/`eidolon`)与取值不变。
-19. **存档里重复出现的遗器 id 只报告、不去重**:存档的 `relics` 数组可能让同一个 id 出现两次(同一件遗器的两条记录,强化等级不同)。上游载入链(`persistenceService.loadSaveData` → `relicStore.setRelics`)不去重,网页端与 MCP 走的是同一条链,表现一致:①两条记录都留在 `relics` 数组里,各自通过表单遗器过滤(强化等级、品级、排除项)后都是 `optimize`/`permutations` 的候选——旧记录的强化等级低于表单的强化下限时被过滤挡掉,下限放到 0 时两条都进排列;②`relicsById` 后写覆盖,按 id 取明细的路径(`get_character` 的穿戴槽位、配装明细、评分缓存)只命中数组里靠后的那一条——靠后的若是旧记录,角色身上 +15 的遗器会被报成 +0,穿戴基线数值偏低;③两条记录各带不同穿戴者时,两个角色的同一部位会指向同一个 id;④**装备、编辑、删除任何一件遗器都会让上游 store 用 `relicsById` 重建数组**,没被索引命中的那条记录就此丢失,随后的写回把结果落盘——丢的是哪一条只看数组顺序,不看强化等级;删除的若正是重复 id 本身,该 id 的记录全部删除。`load_save` 与 `save_status` 的 `duplicateRelicIds`(`count` 总数 / `ids` / `entries[].records[]`:数组下标、部位、套装、强化等级、穿戴者、`resolvedById` / `truncated`;`ids` 与 `entries` 最多列 50 个)把这种情况报出来,文字摘要同时带 ⚠ 提示;启动自动恢复在 stderr 打一行 `bootLoad: WARNING`。没有重复时 `count` 为 0、两个列表为空、`truncated` 为 false。MCP 不替用户决定保留哪一条:要修复,先在存档文件里删掉不要的记录再 `load_save`。
+19. **存档里重复出现的遗器 id:载入时只报告,合并须显式调用 `dedupe_relics`**:存档的 `relics` 数组可能让同一个 id 出现两次(同一件遗器的两条记录,强化等级不同)。上游载入链(`persistenceService.loadSaveData` → `relicStore.setRelics`)不去重,网页端与 MCP 走的是同一条链,表现一致:①两条记录都留在 `relics` 数组里,各自通过表单遗器过滤(强化等级、品级、排除项)后都是 `optimize`/`permutations` 的候选——旧记录的强化等级低于表单的强化下限时被过滤挡掉,下限放到 0 时两条都进排列;②`relicsById` 后写覆盖,按 id 取明细的路径(`get_character` 的穿戴槽位、配装明细、评分缓存)只命中数组里靠后的那一条——靠后的若是旧记录,角色身上 +15 的遗器会被报成 +0,穿戴基线数值偏低;③两条记录各带不同穿戴者时,两个角色的同一部位会指向同一个 id;④**装备、编辑、删除任何一件遗器都会让上游 store 用 `relicsById` 重建数组**,没被索引命中的那条记录就此丢失,随后的写回把结果落盘——丢的是哪一条只看数组顺序,不看强化等级;删除的若正是重复 id 本身,该 id 的记录全部删除。`load_save` 与 `save_status` 的 `duplicateRelicIds`(`count` 总数 / `ids` / `entries[].records[]`:数组下标、部位、套装、强化等级、穿戴者、`resolvedById` / `truncated`;`ids` 与 `entries` 最多列 50 个)把这种情况报出来,文字摘要同时带 ⚠ 提示;启动自动恢复在 stderr 打一行 `bootLoad: WARNING`。没有重复时 `count` 为 0、两个列表为空、`truncated` 为 false。载入与启动恢复都不自动合并(保留哪一条会改变用户数据)。要修复,调用 `dedupe_relics`(先 `dryRun=true` 看计划):它只合并对得上「同一件遗器的不同时期」的记录——部位、套装、星级、主词条相同,等级低的那条的副词条在等级高的那条里都有、数值不更大,且两个等级之间的强化次数付得起新增与变大的副词条(5 星遗器还要求两条记录反解出的强化次数恰好对上、每个副词条的增量落在它多出的强化次数能给出的范围内)——保留强化等级最高的那条;这是必要条件而不是证明(扫描器按位置编号的旧存档里,两件不同的遗器撞号后仍可能对得上),所以预览的 `merged[].kept` / `dropped[]` 带着各条记录的副词条,供正式执行前核对;这与上游的折叠不同,上游只看数组顺序,而实测存档(16 个重复 id)里靠后的全是陈旧记录,任由上游折叠等于把 16 件 +15 遗器退回 +0~+12。记录之间对不上的 id(两件不同的遗器撞了号)原样保留、列入 `skipped`。穿戴:保留的记录现在被谁穿着就还是谁;它没人穿、被合并掉的记录有人穿时由那个角色继续穿;两个角色的槽位同时指向这个 id 时只留一个,另一个槽位清空并列入 `unequipped`。合并后按常规写回存档。
 
 ## P3 登记(已知但暂不修)
 
@@ -424,7 +428,7 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 - `fetch_showcase` / `import_showcase`(enka/mihomo 档案)✅
 - teams 数据面(`save_team`/`list_teams`)✅
 - stats 归约器(`ComputedStatsContainer → JSON`,随 simulate_build/stat_simulate 返回)✅;套装效果描述面(`game://metadata/sets`)✅;「行→配装」按方案有意折叠进 optimize/get_results 的行内 builds 字段,不另设 resource
-- 全部工具的 outputSchema 声明(§9 D7)✅(63 个工具全覆盖;11 个 `game://`+`site://` 资源不适用——SDK 的资源配置无 outputSchema 参数,见方案 §10 D12)
+- 全部工具的 outputSchema 声明(§9 D7)✅(64 个工具全覆盖;11 个 `game://`+`site://` 资源不适用——SDK 的资源配置无 outputSchema 参数,见方案 §10 D12)
 - 追加交付:同步桥 `sync_bridge_start/status/stop/push`(MCP→网页端单向推送,变更驱动自动重推)与 6 项 `game://` 元数据资源
 
 留尾巴(未做成/未覆盖,如实登记):
