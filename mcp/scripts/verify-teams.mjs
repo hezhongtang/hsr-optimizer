@@ -42,13 +42,14 @@ import {
   getDefaultEnvironment,
   StdioClientTransport,
 } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { evidenceCommit } from './evidence.mjs'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
 const repoSampleSavePath = resolve(mcpDir, '../src/data/sample-save.json')
 const evidencePath = resolve(mcpDir, 'coverage/evidence/teams.json')
 
-const GIT_COMMIT = '8ac1d045'
+const GIT_COMMIT = evidenceCommit(import.meta.url)
 const GENERATED_AT = new Date().toISOString()
 
 // roster ids (sample save): 1212b1 Jingliu(E1) 1005 Kafka(E0) 1102 Seele(E0)

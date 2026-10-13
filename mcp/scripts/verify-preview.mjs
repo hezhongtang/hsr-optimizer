@@ -17,7 +17,6 @@
 //
 // Usage: node scripts/verify-preview.mjs [serverEntry]   (default dist/index.js)
 
-import { spawnSync } from 'node:child_process'
 import {
   copyFileSync,
   existsSync,
@@ -34,6 +33,7 @@ import {
 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { inflateSync } from 'node:zlib'
+import { evidenceCommit } from './evidence.mjs'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
@@ -100,10 +100,7 @@ if (chromePath == null || siteDist == null) {
 }
 
 // git commit for the evidence header
-const gitCommit = (() => {
-  const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: resolve(mcpDir, '..'), encoding: 'utf8' })
-  return r.status === 0 ? r.stdout.trim() : 'unknown'
-})()
+const gitCommit = evidenceCommit(import.meta.url)
 
 // ── temp workspace + derived seeds ───────────────────────────────────────────
 const tempDir = mkdtempSync(`${tmpdir()}/hsr-mcp-verify-preview-`)
@@ -397,7 +394,7 @@ const BUFF_SUMMARY_ROWS = `() => {
   for (const row of document.querySelectorAll('div')) {
     if (row.children.length < 2) continue
     const text = (row.innerText || '').replace(/\\s+/g, ' ').trim()
-    const m = text.match(/^(-?[\d.,]+)\s*%?\s*∑\s*(.+?)(?:\s+ALL\b.*x\d+)?$/)
+    const m = text.match(/^(-?[\\d.,]+)\\s*%?\\s*∑\\s*(.+?)(?:\\s+ALL\\b.*x\\d+)?$/)
     if (m) rows.push({ value: m[1], label: m[2] })
   }
   const seen = new Set()
@@ -748,7 +745,7 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
         diffs.push(`${row.label}: MCP 无汇总`)
         continue
       }
-      const isPercent = PERCENT_STATS.has(key) || /_DMG_BOOST$/.test(key)
+      const isPercent = PERCENT_STATS.has(key) || key.endsWith('_DMG_BOOST')
       const expected = isPercent ? sums[key] * 100 : sums[key]
       if (Math.abs(value - expected) <= 0.5) matched++
       else diffs.push(`${row.label}: web=${value} mcp=${expected.toFixed(1)}`)
@@ -1854,7 +1851,7 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
     })
     const mcpSnap = await snapshot()
     const mcpNatasha = mcpSnap.characters?.find((c) => c.id === HEALER)
-    const mcpRelic = (mcpSnap.relics ?? []).find((r) => r.id === added.relic?.id ?? added.relicId)
+    const mcpRelic = (mcpSnap.relics ?? []).find((r) => r.id === (added.relic?.id ?? added.relicId))
     const relicComparable = (r) =>
       r && { set: r.set, part: r.part, grade: r.grade, enhance: r.enhance, equippedBy: r.equippedBy, main: r.main, substats: r.substats }
     const relicEqual = canon(relicComparable(webNewRelic)) === canon(relicComparable(mcpRelic))

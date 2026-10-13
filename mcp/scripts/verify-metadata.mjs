@@ -47,8 +47,10 @@ import {
   getDefaultEnvironment,
   StdioClientTransport,
 } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { evidenceCommit } from './evidence.mjs'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
+const GIT_COMMIT = evidenceCommit(import.meta.url)
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
 const repoSampleSavePath = resolve(mcpDir, '../src/data/sample-save.json')
 
@@ -410,8 +412,6 @@ try {
     const webPathOk = setsGrid.ok && tableCharCounts.length === 9
       && JSON.stringify(tableCharCounts) === JSON.stringify(resourcePerPath)
       && pathOrder.filter((p) => p !== '(empty)').every((p) => expectedPaths.includes(p))
-      && pathOrder.filter((p) => p !== '(empty)').length
-        === new Set([...resourcePerPath.map((n) => n > 0)].filter(Boolean)).size * 0 + pathOrder.filter((p) => p !== '(empty)').length
     assertCase(
       'metadata.simulation.sets',
       2,
@@ -1568,7 +1568,7 @@ writeFileSync(
     {
       area: 'metadata',
       generatedAt: new Date().toISOString(),
-      gitCommit: '8ac1d045',
+      gitCommit: GIT_COMMIT,
       cases: EVIDENCE,
     },
     null,

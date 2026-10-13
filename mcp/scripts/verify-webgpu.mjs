@@ -46,8 +46,10 @@ import {
   getDefaultEnvironment,
   StdioClientTransport,
 } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { evidenceCommit } from './evidence.mjs'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
+const GIT_COMMIT = evidenceCommit(import.meta.url)
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
 const repoSampleSavePath = resolve(mcpDir, '../src/data/sample-save.json')
 
@@ -439,7 +441,7 @@ writeFileSync(
     {
       area: 'webgpu',
       generatedAt: new Date().toISOString(),
-      gitCommit: '8ac1d045',
+      gitCommit: GIT_COMMIT,
       cases: EVIDENCE,
     },
     null,

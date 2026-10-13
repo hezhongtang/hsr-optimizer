@@ -21,7 +21,6 @@
 //
 // Usage: node scripts/verify-showcase.mjs [serverEntry]   (default dist/index.js)
 
-import { spawnSync } from 'node:child_process'
 import {
   copyFileSync,
   existsSync,
@@ -36,6 +35,7 @@ import {
   resolve,
 } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { evidenceCommit } from './evidence.mjs'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
@@ -92,10 +92,7 @@ if (findChrome() == null || findSiteDist() == null) {
   console.log('[SKIP] showcase 验收需要受管浏览器环境(Chrome 与站点 dist/)')
   process.exit(0)
 }
-const gitCommit = (() => {
-  const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: resolve(mcpDir, '..'), encoding: 'utf8' })
-  return r.status === 0 ? r.stdout.trim() : 'unknown'
-})()
+const gitCommit = evidenceCommit(import.meta.url)
 
 // ── temp workspace ───────────────────────────────────────────────────────────
 const tempDir = mkdtempSync(`${tmpdir()}/hsr-mcp-verify-showcase-`)
@@ -586,7 +583,7 @@ if (liveUid == null) {
       // the web honors a persisted sidebarOpen=false on a fresh load
       const seed2 = `${tempDir}/sidebar-closed.json`
       const j = JSON.parse(readFileSync(baseSavePath, 'utf8'))
-      j.savedSession = { ...(j.savedSession ?? {}), showcaseTab: { ...(j.savedSession?.showcaseTab ?? {}), sidebarOpen: false } }
+      j.savedSession = { ...j.savedSession, showcaseTab: { ...j.savedSession?.showcaseTab, sidebarOpen: false } }
       writeFileSync(seed2, JSON.stringify(j))
       const closed = await runSeedTask('verify-showcase(sidebar-closed)', seed2, async (page2) => {
         await pollUntil('UID 输入框聚焦(收起态)', async () => ({ ok: await page2.evaluate(UID_INPUT) }), 15_000)

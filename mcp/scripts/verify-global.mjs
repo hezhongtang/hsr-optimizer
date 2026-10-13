@@ -23,9 +23,6 @@
 //   --keep  keep the temp workspace when cases fail (default: always cleaned)
 
 import {
-  spawnSync,
-} from 'node:child_process'
-import {
   copyFileSync,
   mkdirSync,
   mkdtempSync,
@@ -45,6 +42,7 @@ import {
   getDefaultEnvironment,
   StdioClientTransport,
 } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { evidenceCommit } from './evidence.mjs'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const repoRoot = resolve(mcpDir, '..')
@@ -59,10 +57,7 @@ const evidencePath = resolve(mcpDir, 'coverage/evidence/global.json')
 const keepOnFailure = process.argv.includes('--keep')
 const tempRoot = mkdtempSync(`${tmpdir()}/hsr-mcp-verify-global-`)
 
-let gitCommit = '8ac1d045'
-try {
-  gitCommit = String(spawnSync('git', ['-C', repoRoot, 'rev-parse', '--short=8', 'HEAD'], { encoding: 'utf8' }).stdout).trim().slice(0, 8) || gitCommit
-} catch { /* keep the pinned commit */ }
+const gitCommit = evidenceCommit(import.meta.url)
 
 // ── case registry (desc pulled from the feature inventory at runtime) ────────
 
@@ -1231,7 +1226,7 @@ async function main() {
       const rendered = await callTool(mcp, 'render', { target: 'page', page: '#leaderboard' }, { timeout: 240_000 })
       c.check(
         'MCP 按页打开(render page=#leaderboard):URL hash 与网页点击侧边栏的结果一致,页面容器就绪后截图',
-        rendered.page === '#leaderboard' && /\/hsr-optimizer\/leaderboard$/.test(rendered.url ?? '') && rendered.width > 0 && rendered.height > 0,
+        rendered.page === '#leaderboard' && (rendered.url ?? '').endsWith('/hsr-optimizer/leaderboard') && rendered.width > 0 && rendered.height > 0,
         `url=${rendered.url},${rendered.width}x${rendered.height}`,
       )
     }

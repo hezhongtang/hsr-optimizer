@@ -36,12 +36,13 @@ import {
   getDefaultEnvironment,
   StdioClientTransport,
 } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { evidenceCommit } from './evidence.mjs'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
 const repoSampleSavePath = resolve(mcpDir, '../src/data/sample-save.json')
 const evidencePath = resolve(mcpDir, 'coverage/evidence/characters.json')
-const GIT_COMMIT = '8ac1d045'
+const GIT_COMMIT = evidenceCommit(import.meta.url)
 
 // ── temp workspace ───────────────────────────────────────────────────────────
 const tempDir = mkdtempSync(`${tmpdir()}/hsr-verify-characters-`)
@@ -2094,7 +2095,7 @@ try {
     const zhStats = {}
     {
       const lines = readFileSync(resolve(mcpDir, '../public/locales/zh_CN/common.yaml'), 'utf8').split(/\r?\n/)
-      const inStats = lines.findIndex((l) => /^Stats:/.test(l))
+      const inStats = lines.findIndex((l) => l.startsWith('Stats:'))
       for (let i = inStats + 1; i < lines.length; i++) {
         if (/^[A-Za-z]/.test(lines[i])) break // next top-level key
         const m = lines[i].match(/^  "?([^":]+)"?:\s*(.+)$/)

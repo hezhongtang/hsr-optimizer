@@ -41,8 +41,10 @@ import {
   getDefaultEnvironment,
   StdioClientTransport,
 } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { evidenceCommit } from './evidence.mjs'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
+const GIT_COMMIT = evidenceCommit(import.meta.url)
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
 const repoSampleSavePath = resolve(mcpDir, '../src/data/sample-save.json')
 
@@ -332,8 +334,8 @@ copyFileSync(repoSampleSavePath, sampleSavePath)
 // (persistenceService maps savedSession.showcaseTab -> useShowcaseTabStore.savedSession)
 const seededSave = JSON.parse(readFileSync(sampleSavePath, 'utf8'))
 seededSave.savedSession = {
-  ...(seededSave.savedSession ?? {}),
-  showcaseTab: { ...(seededSave.savedSession?.showcaseTab ?? {}), scorerId: UID },
+  ...seededSave.savedSession,
+  showcaseTab: { ...seededSave.savedSession?.showcaseTab, scorerId: UID },
 }
 writeFileSync(sampleSavePath, JSON.stringify(seededSave))
 const seed = readFileSync(sampleSavePath, 'utf8')
@@ -930,7 +932,7 @@ try {
     const bannerScope = (label) =>
       (label || '').includes('全部队伍') || (label || '') === 'All teams'
         ? 'all'
-        : (label || '').includes('队伍内') || /^Team/.test(label || '')
+        : (label || '').includes('队伍内') || (label || '').startsWith('Team')
         ? 'team'
         : null
     const mcpSetCountTotal = Object.values(mcpEntryTop.setCounts ?? {}).reduce((a, b) => a + b, 0)
@@ -1188,7 +1190,7 @@ writeFileSync(
     {
       area: 'leaderboard',
       generatedAt: new Date().toISOString(),
-      gitCommit: '8ac1d045',
+      gitCommit: GIT_COMMIT,
       cases: EVIDENCE,
     },
     null,

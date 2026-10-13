@@ -47,13 +47,14 @@ import {
   WebSocket,
   WebSocketServer,
 } from 'ws'
+import { evidenceCommit } from './evidence.mjs'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
 const repoSampleSavePath = resolve(mcpDir, '../src/data/sample-save.json')
 const repoGameDataPath = resolve(mcpDir, '../src/data/game_data.json')
 const evidencePath = resolve(mcpDir, 'coverage/evidence/relics.json')
-const GIT_COMMIT = '8ac1d045'
+const GIT_COMMIT = evidenceCommit(import.meta.url)
 
 // ── SKIP guard (mirror browserManager's discovery) ──────────────────────────
 function findChrome() {

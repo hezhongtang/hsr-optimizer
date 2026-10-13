@@ -27,7 +27,6 @@
 // Usage: node scripts/verify-calculators.mjs [serverEntry]
 //   serverEntry defaults to ./dist/index.js (resolved against mcp/).
 
-import { spawnSync } from 'node:child_process'
 import {
   copyFileSync,
   existsSync,
@@ -48,15 +47,14 @@ import {
   getDefaultEnvironment,
   StdioClientTransport,
 } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { evidenceCommit } from './evidence.mjs'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
 const repoSampleSavePath = resolve(mcpDir, '../src/data/sample-save.json')
 const evidencePath = resolve(mcpDir, 'coverage/evidence/calculators.json')
 
-// The commit the verified build was made from; the literal is only a fallback outside a git checkout.
-const GIT_COMMIT = String(spawnSync('git', ['-C', mcpDir, 'rev-parse', '--short=8', 'HEAD'], { encoding: 'utf8' }).stdout ?? '').trim().slice(0, 8)
-  || '8ac1d045'
+const GIT_COMMIT = evidenceCommit(import.meta.url)
 const GENERATED_AT = new Date().toISOString()
 
 // ── SKIP guard (mirrors smoke-browser.mjs) ───────────────────────────────────

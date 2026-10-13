@@ -38,13 +38,14 @@ import {
   getDefaultEnvironment,
   StdioClientTransport,
 } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { evidenceCommit } from './evidence.mjs'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const serverEntry = resolve(mcpDir, 'dist/index.js')
 const parityRefEntry = resolve(mcpDir, 'dist/parityRef.js')
 const repoSampleSavePath = resolve(mcpDir, '../src/data/sample-save.json')
 
-const GIT_COMMIT = '8ac1d045'
+const GIT_COMMIT = evidenceCommit(import.meta.url)
 const TARGET = '1212b1' // Jingliu (b1): first roster slot, 6 equipped relics
 const OTHER = '1101' // Bronya — roster slot 7
 const DONOR = '1102' // Qingque — 6 equipped relics
@@ -760,7 +761,7 @@ const FN_SCRAPE_PINNED = `() => {
 
 const FN_PAGER_TEXT = `() => {
   const panel = document.querySelector('.ag-paging-row-summary-panel') || document.querySelector('.ag-paging-panel')
-  return panel ? (panel.textContent || '').replace(/\s+/g, ' ').trim() : null
+  return panel ? (panel.textContent || '').replace(/\\s+/g, ' ').trim() : null
 }`
 
 /** Poll the results grid until `minRows` rows carry a non-empty COMBO cell,
@@ -4864,6 +4865,9 @@ async function writeEvidence() {
     const prior = JSON.parse(readFileSync(evidencePath, 'utf8'))
     if (prior?.gitCommit === GIT_COMMIT && Array.isArray(prior.cases)) {
       for (const c of prior.cases) merged.set(`${c.feature}#${c.case}`, c)
+    } else if (Array.isArray(prior?.cases)) {
+      // Records from another commit describe another build: never mix them in.
+      console.log(`evidence: dropping ${prior.cases.length} prior record(s) stamped ${prior.gitCommit} (this run is ${GIT_COMMIT})`)
     }
   } catch { /* no prior evidence */ }
   for (const [, entries] of results) {
