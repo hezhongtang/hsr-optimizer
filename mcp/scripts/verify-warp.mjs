@@ -344,9 +344,10 @@ async function bootPage(page, hash, seed, settleMs = 2500) {
 }
 
 // The page's scanner socket belongs to the Import tab, which opens it on mount.
-// The site mounts background tabs on a timer and can skip one (Tabs.tsx reads
-// queue[i] after i++), so whether Import is mounted at #warp differs by machine.
-// Visit it, then return to the Warp tab whose sync hook consumes the events.
+// The site mounts background tabs on a timer with Import last, and site builds
+// from before the Tabs.tsx stagger fix could skip it altogether, depending on
+// the machine. Visit it so that connecting hinges on neither, then return to
+// the Warp tab whose sync hook consumes the events.
 async function connectPageScanner(page, clientCount) {
   await page.evaluate(`() => { location.hash = '#import' }`)
   const deadline = Date.now() + 30_000
