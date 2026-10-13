@@ -58,7 +58,7 @@
           "mcp/scripts/smoke-imports.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/home.json#home.search.uid cases 1-1 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/home.json#home.search.uid cases 1-1 PASS 2026-10-13 (f3634fb1, browser-parity)"
         ]
       }
     },
@@ -104,7 +104,7 @@
           "mcp/scripts/smoke-browser.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/home.json#home.content.read cases 1-1 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/home.json#home.content.read cases 1-1 PASS 2026-10-13 (f3634fb1, browser-parity)"
         ]
       }
     }

@@ -1,7 +1,7 @@
 {
   "area": "showcase",
-  "generatedAt": "2026-10-13T12:58:06.975Z",
-  "gitCommit": "0539a185",
+  "generatedAt": "2026-10-13T14:25:17.115Z",
+  "gitCommit": "f3634fb1",
   "cases": [
     {
       "feature": "showcase.profile.fetch",

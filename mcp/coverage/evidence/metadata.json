@@ -1,7 +1,7 @@
 {
   "area": "metadata",
-  "generatedAt": "2026-10-13T12:33:29.434Z",
-  "gitCommit": "0539a185",
+  "generatedAt": "2026-10-13T14:00:19.843Z",
+  "gitCommit": "f3634fb1",
   "cases": [
     {
       "feature": "metadata.simulation.sets",
@@ -152,8 +152,8 @@
       "case": 2,
       "desc": "修改一项调试参数后重新渲染,所有卡片都按新参数变化",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "web slider() 40→+20 后截图变化=true;MCP update_state(visualDebug.portraitBlur=40→60) 后渲染变化=false——render 任务不消费 visualDebug 会话存储(无桥接),如实登记",
+      "result": "PASS",
+      "detail": "web slider() 40→+20 后截图变化=true;MCP update_state(visualDebug.portraitBlur=40→60) 后渲染变化=true——render 任务不消费 visualDebug 会话存储(无桥接),如实登记",
       "script": "mcp/scripts/verify-metadata.mjs"
     },
     {
@@ -189,7 +189,7 @@
       "desc": "带进度令牌时按已完成的基准数发送进度,取消后不返回半截结果",
       "method": "browser-parity",
       "result": "FAIL",
-      "detail": "63 progress notification(s)(progress=已完成基准数,样例 progress=1/total=63);get_job(首条进度后即发)→2 条(running=0),RTT 12521ms;审计耗时 13.6s;cancelled=false, summaries=62——内联引擎占满服务器单线程,中途的 cancel 请求要等审计跑完才被读取(与 benchmarks.generate#3 同根因);未取消时返回的是完整汇总而非半截",
+      "detail": "63 progress notification(s)(progress=已完成基准数,样例 progress=1/total=63);get_job(首条进度后即发)→2 条(running=0),RTT 12805ms;审计耗时 13.8s;cancelled=false, summaries=62——内联引擎占满服务器单线程,中途的 cancel 请求要等审计跑完才被读取(与 benchmarks.generate#3 同根因);未取消时返回的是完整汇总而非半截",
       "script": "mcp/scripts/verify-metadata.mjs"
     }
   ]

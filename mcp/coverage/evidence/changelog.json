@@ -1,7 +1,7 @@
 {
   "area": "changelog",
-  "generatedAt": "2026-10-13T12:59:00.968Z",
-  "gitCommit": "0539a185",
+  "generatedAt": "2026-10-13T14:26:11.242Z",
+  "gitCommit": "f3634fb1",
   "cases": [
     {
       "feature": "changelog.entries.read",

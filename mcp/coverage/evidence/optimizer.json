@@ -1,7 +1,7 @@
 {
   "area": "optimizer",
-  "generatedAt": "2026-10-13T12:47:53.331Z",
-  "gitCommit": "0539a185",
+  "generatedAt": "2026-10-13T15:14:41.132Z",
+  "gitCommit": "f3634fb1",
   "cases": [
     {
       "feature": "optimizer.character.switch",
@@ -486,7 +486,7 @@
       "desc": "带 progressToken 调用时能收到至少一条进度通知,含已搜索数、总数、",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "4 progress notifications (searched/total/rate in message)",
+      "detail": "6 progress notifications (searched/total/rate in message)",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -495,7 +495,7 @@
       "desc": "结束后 summary 里的已搜索数、有效排列数与耗时齐全",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "summary complete (searched=462,672, valid=462,672, 863ms); web Searched equal",
+      "detail": "summary complete (searched=462,672, valid=462,672, 1949ms); web Searched equal",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -692,8 +692,8 @@
       "case": 1,
       "desc": "同一份模拟定义得到的 COMBO、各技能伤害与属性,与网页端保存同一模拟后点「模",
       "method": "browser-parity",
-      "result": "PASS",
-      "detail": "sim row COMBO web=286,521 ≈ stat_simulate 286,521.339",
+      "result": "FAIL",
+      "detail": "harness error: Simulate builds button not found",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -701,8 +701,8 @@
       "case": 2,
       "desc": "直接运行表单里已保存的全部模拟时,返回的行数与顺序与网页端结果表格一致",
       "method": "browser-parity",
-      "result": "PASS",
-      "detail": "2 saved sims run in the same order with matching values",
+      "result": "FAIL",
+      "detail": "harness error: Simulate builds button not found",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {

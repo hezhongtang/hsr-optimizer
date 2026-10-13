@@ -119,7 +119,7 @@
           "mcp/scripts/smoke-calculators.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/warp.json#warp.resources.set cases 1-3 PASS 2026-10-13 (ea47fdb6, browser-parity)"
+          "mcp/coverage/evidence/warp.json#warp.resources.set cases 1-3 PASS 2026-10-13 (f3634fb1, browser-parity)"
         ]
       }
     },
@@ -184,7 +184,7 @@
           "mcp/scripts/smoke-calculators.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/warp.json#warp.plan.simple cases 1-2 PASS 2026-10-13 (ea47fdb6, browser-parity)"
+          "mcp/coverage/evidence/warp.json#warp.plan.simple cases 1-2 PASS 2026-10-13 (f3634fb1, browser-parity)"
         ]
       }
     },
@@ -317,7 +317,7 @@
           "mcp/scripts/smoke-calculators.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/warp.json#warp.plan.targets cases 1-4 PASS 2026-10-13 (ea47fdb6, browser-parity)"
+          "mcp/coverage/evidence/warp.json#warp.plan.targets cases 1-4 PASS 2026-10-13 (f3634fb1, browser-parity)"
         ]
       }
     },
@@ -375,7 +375,7 @@
           "mcp/scripts/smoke-misc.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/warp.json#warp.results.read cases 1-3 PASS 2026-10-13 (ea47fdb6, browser-parity)"
+          "mcp/coverage/evidence/warp.json#warp.results.read cases 1-3 PASS 2026-10-13 (f3634fb1, browser-parity)"
         ]
       }
     },
@@ -430,7 +430,7 @@
           "mcp/scripts/smoke-scanner.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/warp.json#warp.scanner.sync cases 1-2 PASS 2026-10-13 (ea47fdb6, browser-parity)"
+          "mcp/coverage/evidence/warp.json#warp.scanner.sync cases 1-2 PASS 2026-10-13 (f3634fb1, browser-parity)"
         ]
       }
     }

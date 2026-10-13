@@ -1,7 +1,7 @@
 {
   "area": "leaderboard",
-  "generatedAt": "2026-10-13T12:31:29.972Z",
-  "gitCommit": "0539a185",
+  "generatedAt": "2026-10-13T13:58:19.137Z",
+  "gitCommit": "f3634fb1",
   "cases": [
     {
       "feature": "leaderboard.characters.list",
@@ -153,7 +153,7 @@
       "desc": "动态文件不可用时返回空列表并说明原因",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "fx2(404 timeline)→ available=false, reason=\"动态文件不可用:排行榜数据拉取失败:HTTP 404 Not Found(http://127.0.0.1:63864/\", events=0",
+      "detail": "fx2(404 timeline)→ available=false, reason=\"动态文件不可用:排行榜数据拉取失败:HTTP 404 Not Found(http://127.0.0.1:56632/\", events=0",
       "script": "mcp/scripts/verify-leaderboard.mjs"
     },
     {
@@ -198,7 +198,7 @@
       "desc": "下载失败时返回明确的错误,而不是空榜单",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "404 fixture → \"tool leaderboard isError: 排行榜数据拉取失败:HTTP 404 Not Found(http://127.0.0.1:63864/missing/lead\"(网页端行为按清单 conditions:下载失败列表为空、页面不报错)",
+      "detail": "404 fixture → \"tool leaderboard isError: 排行榜数据拉取失败:HTTP 404 Not Found(http://127.0.0.1:56632/missing/lead\"(网页端行为按清单 conditions:下载失败列表为空、页面不报错)",
       "script": "mcp/scripts/verify-leaderboard.mjs"
     }
   ]
