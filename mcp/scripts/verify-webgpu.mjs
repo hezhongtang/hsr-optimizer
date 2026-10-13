@@ -28,11 +28,11 @@
 import {
   copyFileSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
-  mkdirSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import {
@@ -59,7 +59,15 @@ function check(name, ok, detail = '') {
   return ok
 }
 function record(feature, index, desc, method, result, detail) {
-  EVIDENCE.push({ feature, case: index, desc: desc.slice(0, 40), method, result, detail: String(detail).slice(0, 300), script: 'mcp/scripts/verify-webgpu.mjs' })
+  EVIDENCE.push({
+    feature,
+    case: index,
+    desc: desc.slice(0, 40),
+    method,
+    result,
+    detail: String(detail).slice(0, 300),
+    script: 'mcp/scripts/verify-webgpu.mjs',
+  })
   console.log(`[${result}] ${feature}#${index} — ${detail}`)
   if (result === 'FAIL') failures++
 }
@@ -96,7 +104,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 /** Detach-resilient evaluate: the app may fully reload while normalizing the
  * /webgpu path to #webgpu — retry the evaluate on a detached-frame error. */
 async function resilientEvaluate(page, fn, args, attempts = 5) {
-  for (let i = 0; ; i++) {
+  for (let i = 0;; i++) {
     try {
       return await page.evaluate(fn, args)
     } catch (e) {
@@ -219,13 +227,24 @@ try {
     probe?.available === true,
     JSON.stringify(probe),
   )
-  record('webgpu.tests.run', 0, '(环境)受管浏览器 GPU 探测', 'browser-parity', probe?.available === true ? 'PASS' : 'UNPROVEN',
-    `available=${probe?.available} softwareAdapter=${probe?.softwareAdapter} vendor=${probe?.vendor} architecture=${probe?.architecture} maxBufferMB=${probe?.maxBufferMB}`)
+  record(
+    'webgpu.tests.run',
+    0,
+    '(环境)受管浏览器 GPU 探测',
+    'browser-parity',
+    probe?.available === true ? 'PASS' : 'UNPROVEN',
+    `available=${probe?.available} softwareAdapter=${probe?.softwareAdapter} vendor=${probe?.vendor} architecture=${probe?.architecture} maxBufferMB=${probe?.maxBufferMB}`,
+  )
 
   // ── baseline computation BEFORE the tool run (isolation, case 4) ─────────
   const benchBefore = await callTool(client, 'benchmark_runs', {
     characterId: '1212b1',
-    presets: [{ relicSet1: 'Scholar Lost in Erudition', relicSet2: 'Scholar Lost in Erudition', ornamentSet: 'Bone Collection\'s Serene Demesne', spdThreshold: 133.334 }],
+    presets: [{
+      relicSet1: 'Scholar Lost in Erudition',
+      relicSet2: 'Scholar Lost in Erudition',
+      ornamentSet: 'Bone Collection\'s Serene Demesne',
+      spdThreshold: 133.334,
+    }],
     errRope: true,
     candidateLimit: 1,
     includePerfection: true,
@@ -261,7 +280,11 @@ try {
   })
   const webTests = webRun.statuses.tests
   const webSample = webRun.sampleRows
-  console.log(`        web side: ${webTests.length} tests, passed ${webTests.filter((t) => t.status === 'passed').length}, failed ${webTests.filter((t) => t.status === 'failed').length}, incomplete ${webTests.filter((t) => t.status === 'incomplete').length}; sample rows for ${webSample.filter((s) => s.rows.length > 0).length}/6 items`)
+  console.log(
+    `        web side: ${webTests.length} tests, passed ${webTests.filter((t) => t.status === 'passed').length}, failed ${
+      webTests.filter((t) => t.status === 'failed').length
+    }, incomplete ${webTests.filter((t) => t.status === 'incomplete').length}; sample rows for ${webSample.filter((s) => s.rows.length > 0).length}/6 items`,
+  )
 
   // rows for the sample (needed by case 2)
   const webSampleRows = new Map(webSample.map((s) => [s.name, s.rows]))
@@ -283,10 +306,16 @@ try {
   }
   const countOk = toolRun.total === webTests.length
   const statusOk = statusMismatch.length === 0 && toolRun.tests.length === webTests.length
-  record('webgpu.tests.run', 1,
+  record(
+    'webgpu.tests.run',
+    1,
     '在受管浏览器里执行后返回的用例数、每个用例是否通过与网页端手动点按钮跑完后一致',
-    'browser-parity', countOk && statusOk ? 'PASS' : 'FAIL',
-    `web ${webTests.length} 例 vs tool ${toolRun.total} 例;逐用例状态比对${statusOk ? '全部一致' : ':' + statusMismatch.slice(0, 3).join(' ; ')};两侧各自独立跑完整套件(真实 GPU ${probe?.vendor}/${probe?.architecture})`)
+    'browser-parity',
+    countOk && statusOk ? 'PASS' : 'FAIL',
+    `web ${webTests.length} 例 vs tool ${toolRun.total} 例;逐用例状态比对${
+      statusOk ? '全部一致' : ':' + statusMismatch.slice(0, 3).join(' ; ')
+    };两侧各自独立跑完整套件(真实 GPU ${probe?.vendor}/${probe?.architecture})`,
+  )
 
   // ── case 2: failure payload fields ───────────────────────────────────────
   const failedTests = toolRun.tests.filter((t) => t.status === 'failed')
@@ -329,32 +358,50 @@ try {
       }
     }
   }
-  record('webgpu.tests.run', 2,
+  record(
+    'webgpu.tests.run',
+    2,
     '有失败项时返回具体的属性名、CPU 值、GPU 值、差值和允许精度',
-    'browser-parity', failureShapeOk && rowsParity ? 'PASS' : 'FAIL',
+    'browser-parity',
+    failureShapeOk && rowsParity ? 'PASS' : 'FAIL',
     failedTests.length > 0
       ? `实测 ${failedTests.length} 条失败用例,逐行携带 stat/cpu/gpu/delta/precision/pass;${shapeProblems.slice(0, 2).join(';') || '字段齐备'}`
-      : `本机全量通过(0 失败)——逐属性行结构在全部用例上验证(stat/cpu/gpu/delta 文本非空 + precision 数值 + pass 布尔);两侧逐行比对${rowsParity ? '一致' : ':' + rowProblems.slice(0, 2).join(';')}`)
+      : `本机全量通过(0 失败)——逐属性行结构在全部用例上验证(stat/cpu/gpu/delta 文本非空 + precision 数值 + pass 布尔);两侧逐行比对${
+        rowsParity ? '一致' : ':' + rowProblems.slice(0, 2).join(';')
+      }`,
+  )
 
   // ── case 3: unsupported-browser branch ───────────────────────────────────
   // This machine's managed browser HAS WebGPU (see the probe above) and the
   // manager's launch flags are not tool-controllable, so the
   // available=false branch cannot be exercised without code changes.
-  record('webgpu.tests.run', 3,
+  record(
+    'webgpu.tests.run',
+    3,
     '浏览器不支持 WebGPU 时返回明确的不可用原因,而不是零个用例',
-    'browser-parity', 'UNPROVEN',
-    '本机受管浏览器探测到真实适配器(available=true),工具面无法以无 WebGPU 方式启动受管浏览器(launchArgs 不经工具暴露)——该分支在当前环境不可触发,如实记 UNPROVEN')
+    'browser-parity',
+    'UNPROVEN',
+    '本机受管浏览器探测到真实适配器(available=true),工具面无法以无 WebGPU 方式启动受管浏览器(launchArgs 不经工具暴露)——该分支在当前环境不可触发,如实记 UNPROVEN',
+  )
 
   // ── case 4: isolation of the WEBGPU_DEBUG side effect ────────────────────
   const freshFlag = await browserManager.runTask({ label: 'verify-webgpu(fresh-page)', timeoutMs: 120_000 }, async (page) => {
     await page.goto('#main', { timeoutMs: 60_000 })
     await sleep(2000)
     await page.waitForSelector('#root > *', { timeoutMs: 60_000 })
-    return resilientEvaluate(page, `() => ({ flag: typeof globalThis.WEBGPU_DEBUG === 'boolean' ? globalThis.WEBGPU_DEBUG : null, undefined: typeof globalThis.WEBGPU_DEBUG })`)
+    return resilientEvaluate(
+      page,
+      `() => ({ flag: typeof globalThis.WEBGPU_DEBUG === 'boolean' ? globalThis.WEBGPU_DEBUG : null, undefined: typeof globalThis.WEBGPU_DEBUG })`,
+    )
   })
   const benchAfter = await callTool(client, 'benchmark_runs', {
     characterId: '1212b1',
-    presets: [{ relicSet1: 'Scholar Lost in Erudition', relicSet2: 'Scholar Lost in Erudition', ornamentSet: 'Bone Collection\'s Serene Demesne', spdThreshold: 133.334 }],
+    presets: [{
+      relicSet1: 'Scholar Lost in Erudition',
+      relicSet2: 'Scholar Lost in Erudition',
+      ornamentSet: 'Bone Collection\'s Serene Demesne',
+      spdThreshold: 133.334,
+    }],
     errRope: true,
     candidateLimit: 1,
     includePerfection: true,
@@ -363,10 +410,16 @@ try {
   const b2 = benchAfter.presets[0]
   const engineStable = b1.benchmarkScore === b2.benchmarkScore && b1.perfectionScore === b2.perfectionScore
     && JSON.stringify(b1.topCandidates) === JSON.stringify(b2.topCandidates)
-  record('webgpu.tests.run', 4,
+  record(
+    'webgpu.tests.run',
+    4,
     '测试在独立页面里运行,跑完后其他计算不受调试开关影响',
-    'browser-parity', freshFlag.flag === false && engineStable ? 'PASS' : 'FAIL',
-    `工具跑完后的新任务页面 WEBGPU_DEBUG=${String(freshFlag.flag)}(fresh 文档重置);服务器引擎 benchmark_runs 前后逐字段一致=${engineStable}(100% ${b1.benchmarkScore}→${b2.benchmarkScore}, 200% ${b1.perfectionScore}→${b2.perfectionScore})`)
+    'browser-parity',
+    freshFlag.flag === false && engineStable ? 'PASS' : 'FAIL',
+    `工具跑完后的新任务页面 WEBGPU_DEBUG=${
+      String(freshFlag.flag)
+    }(fresh 文档重置);服务器引擎 benchmark_runs 前后逐字段一致=${engineStable}(100% ${b1.benchmarkScore}→${b2.benchmarkScore}, 200% ${b1.perfectionScore}→${b2.perfectionScore})`,
+  )
 } catch (e) {
   failures++
   console.error('verify-webgpu crashed:', e)
@@ -380,12 +433,19 @@ try {
 
 const evidenceDir = resolve(mcpDir, 'coverage/evidence')
 mkdirSync(evidenceDir, { recursive: true })
-writeFileSync(resolve(evidenceDir, 'webgpu.json'), JSON.stringify({
-  area: 'webgpu',
-  generatedAt: new Date().toISOString(),
-  gitCommit: '8ac1d045',
-  cases: EVIDENCE,
-}, null, 2))
+writeFileSync(
+  resolve(evidenceDir, 'webgpu.json'),
+  JSON.stringify(
+    {
+      area: 'webgpu',
+      generatedAt: new Date().toISOString(),
+      gitCommit: '8ac1d045',
+      cases: EVIDENCE,
+    },
+    null,
+    2,
+  ),
+)
 console.log(`\nevidence: ${EVIDENCE.length} entries → mcp/coverage/evidence/webgpu.json`)
 console.log(failures === 0 ? '\nverify-webgpu: ALL CASES PASSED' : `\nverify-webgpu: ${failures} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)

@@ -34,8 +34,8 @@ import {
   dirname,
   join,
   relative,
-  sep,
   resolve,
+  sep,
 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'

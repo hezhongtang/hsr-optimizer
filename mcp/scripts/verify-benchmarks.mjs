@@ -22,11 +22,11 @@
 import {
   copyFileSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
-  mkdirSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import {
@@ -55,7 +55,15 @@ function check(name, ok, detail = '') {
   return ok
 }
 function record(feature, index, desc, method, result, detail) {
-  EVIDENCE.push({ feature, case: index, desc: desc.slice(0, 40), method, result, detail: String(detail).slice(0, 300), script: 'mcp/scripts/verify-benchmarks.mjs' })
+  EVIDENCE.push({
+    feature,
+    case: index,
+    desc: desc.slice(0, 40),
+    method,
+    result,
+    detail: String(detail).slice(0, 300),
+    script: 'mcp/scripts/verify-benchmarks.mjs',
+  })
   console.log(`[${result}] ${feature}#${index} — ${detail}`)
   if (result === 'FAIL') failures++
 }
@@ -106,12 +114,26 @@ const relTol = (a, b, tol = 1e-3) => Math.abs(a - b) <= tol * Math.max(Math.abs(
 /** MCP candidate mains use upstream stat keys (Stats.HP_P='HP%'); the web table
  *  renders readable labels ('HP %', 'Ice DMG'). Translate web text → keys. */
 const WEB_STAT_TO_KEY = {
-  'HP %': 'HP%', HP: 'HP', 'ATK %': 'ATK%', ATK: 'ATK', 'DEF %': 'DEF%', DEF: 'DEF',
-  SPD: 'SPD', 'CRIT Rate': 'CRIT Rate', 'CRIT DMG': 'CRIT DMG', 'Effect Hit Rate': 'Effect HIT',
-  'Effect RES': 'Effect RES', 'Break Effect': 'Break Effect',
-  'Energy Regen': 'Energy Regeneration Rate', 'Healing Boost': 'Outgoing Healing Boost',
-  'Ice DMG': 'Ice DMG Boost', 'Fire DMG': 'Fire DMG Boost', 'Lightning DMG': 'Lightning DMG Boost',
-  'Wind DMG': 'Wind DMG Boost', 'Quantum DMG': 'Quantum DMG Boost', 'Imaginary DMG': 'Imaginary DMG Boost',
+  'HP %': 'HP%',
+  'HP': 'HP',
+  'ATK %': 'ATK%',
+  'ATK': 'ATK',
+  'DEF %': 'DEF%',
+  'DEF': 'DEF',
+  'SPD': 'SPD',
+  'CRIT Rate': 'CRIT Rate',
+  'CRIT DMG': 'CRIT DMG',
+  'Effect Hit Rate': 'Effect HIT',
+  'Effect RES': 'Effect RES',
+  'Break Effect': 'Break Effect',
+  'Energy Regen': 'Energy Regeneration Rate',
+  'Healing Boost': 'Outgoing Healing Boost',
+  'Ice DMG': 'Ice DMG Boost',
+  'Fire DMG': 'Fire DMG Boost',
+  'Lightning DMG': 'Lightning DMG Boost',
+  'Wind DMG': 'Wind DMG Boost',
+  'Quantum DMG': 'Quantum DMG Boost',
+  'Imaginary DMG': 'Imaginary DMG Boost',
 }
 const READABLE_STATS = WEB_STAT_TO_KEY
 
@@ -166,7 +188,10 @@ const CLICK_FIRST_MODAL_CARD = `() => {
 /** Close any open modal/drawer (trusted Escape) — prevents state leaks between phases. */
 async function closeOverlays(p) {
   for (let i = 0; i < 4; i++) {
-    const open = await p.evaluate(`() => [...document.querySelectorAll('[role="dialog"], [class*="Modal-content"], [class*="Drawer-content"]')].some((e) => e.offsetParent !== null)`, [])
+    const open = await p.evaluate(
+      `() => [...document.querySelectorAll('[role="dialog"], [class*="Modal-content"], [class*="Drawer-content"]')].some((e) => e.offsetParent !== null)`,
+      [],
+    )
     if (!open) return
     await p.press('Escape')
     await sleep(500)
@@ -278,7 +303,8 @@ const CLICK_TAB = `(fragment) => {
   return { ok: true }
 }`
 
-const NOTIFICATION_TEXT = `() => [...document.querySelectorAll('[class*="Notification"], [data-notification]')].map((n) => (n.textContent || '').trim()).filter((t) => t.length > 0)`
+const NOTIFICATION_TEXT =
+  `() => [...document.querySelectorAll('[class*="Notification"], [data-notification]')].map((n) => (n.textContent || '').trim()).filter((t) => t.length > 0)`
 
 const GENERATE_DONE = `() => {
   const visible = (el) => el.offsetParent !== null
@@ -373,31 +399,63 @@ try {
       const form = await p.evaluate(READ_BENCHMARK_FORM)
       const seg7 = form.segs.find((s) => s.labels.length === 7)
       const seg5 = form.segs.find((s) => s.labels.length === 5)
-      record('benchmarks.configure.character', 1,
+      record(
+        'benchmarks.configure.character',
+        1,
         '对存档里的角色不传覆盖项时,实际使用的星魂、光锥、叠影与网页端选中该角色后自动带出的一致',
         'browser-parity',
         mcpMain.form.characterEidolon === Number(seg7?.checkedValue)
           && mcpMain.form.lightConeSuperimposition === Number(seg5?.checkedValue)
-          && mcpMain.form.lightCone === '23014' ? 'PASS' : 'FAIL',
-        `MCP echo e${mcpMain.form.characterEidolon}/s${mcpMain.form.lightConeSuperimposition}/lc ${mcpMain.form.lightCone} vs web e${seg7?.checkedValue}/s${seg5?.checkedValue}`)
+          && mcpMain.form.lightCone === '23014'
+          ? 'PASS'
+          : 'FAIL',
+        `MCP echo e${mcpMain.form.characterEidolon}/s${mcpMain.form.lightConeSuperimposition}/lc ${mcpMain.form.lightCone} vs web e${seg7?.checkedValue}/s${seg5?.checkedValue}`,
+      )
       const webTeam = form.teammates.map((t) => t.avatarId)
-      record('benchmarks.configure.teammates', 1,
+      record(
+        'benchmarks.configure.teammates',
+        1,
         '不传 teammates 时使用的队友与网页端选中该角色后三张卡片显示的一致',
         'browser-parity',
         JSON.stringify(webTeam) === JSON.stringify(mcpMain.form.teammates) ? 'PASS' : 'FAIL',
-        `MCP ${JSON.stringify(mcpMain.form.teammates)} vs web 卡片头像 ${JSON.stringify(webTeam)}`)
+        `MCP ${JSON.stringify(mcpMain.form.teammates)} vs web 卡片头像 ${JSON.stringify(webTeam)}`,
+      )
       const segs2 = form.segs.filter((s) => s.labels.length === 2)
-      record('benchmarks.configure.settings', 2,
+      record(
+        'benchmarks.configure.settings',
+        2,
         '副 C 开关缺省时取角色评分配置的默认值,与网页端选中角色后的开关状态一致',
         'browser-parity',
         segs2.length >= 2 && mcpMain.form.subDps === (segs2[1].checkedValue === 'true') ? 'PASS' : 'FAIL',
-        `MCP subDps=${mcpMain.form.subDps}(元数据 deprioritizeBuffs=${!!sim.deprioritizeBuffs}) vs web SubDPS 段控件 ${segs2[1]?.checkedValue}`)
+        `MCP subDps=${mcpMain.form.subDps}(元数据 deprioritizeBuffs=${!!sim.deprioritizeBuffs}) vs web SubDPS 段控件 ${segs2[1]?.checkedValue}`,
+      )
       const setsOk = form.setButtonTexts.includes(relic1) && form.setButtonTexts.includes(relic2) && form.setButtonTexts.includes(ornament)
       check('web: 自动选择的基准套装与元数据推荐一致(套装面证据)', setsOk, JSON.stringify(form.setButtonTexts.filter((t) => t.length > 12).slice(-5)))
     } catch (e) {
-      record('benchmarks.configure.character', 1, '对存档里的角色不传覆盖项时,实际使用的星魂、光锥、叠影与网页端选中该角色后自动带出的一致', 'browser-parity', 'FAIL', `Phase A: ${String(e).slice(0, 120)}`)
-      record('benchmarks.configure.teammates', 1, '不传 teammates 时使用的队友与网页端选中该角色后三张卡片显示的一致', 'browser-parity', 'FAIL', 'Phase A crashed')
-      record('benchmarks.configure.settings', 2, '副 C 开关缺省时取角色评分配置的默认值,与网页端选中角色后的开关状态一致', 'browser-parity', 'FAIL', 'Phase A crashed')
+      record(
+        'benchmarks.configure.character',
+        1,
+        '对存档里的角色不传覆盖项时,实际使用的星魂、光锥、叠影与网页端选中该角色后自动带出的一致',
+        'browser-parity',
+        'FAIL',
+        `Phase A: ${String(e).slice(0, 120)}`,
+      )
+      record(
+        'benchmarks.configure.teammates',
+        1,
+        '不传 teammates 时使用的队友与网页端选中该角色后三张卡片显示的一致',
+        'browser-parity',
+        'FAIL',
+        'Phase A crashed',
+      )
+      record(
+        'benchmarks.configure.settings',
+        2,
+        '副 C 开关缺省时取角色评分配置的默认值,与网页端选中角色后的开关状态一致',
+        'browser-parity',
+        'FAIL',
+        'Phase A crashed',
+      )
     }
 
     // ── Phase B: SPD + ERR + generate ─────────────────────────────────────
@@ -413,10 +471,13 @@ try {
       const errFocus = await p.evaluate(FOCUS_SEG_RADIO, [0, 'true', 2])
       if (errFocus.ok) await p.press(' ')
       await sleep(500)
-      const errOk = await p.evaluate(`() => {
+      const errOk = await p.evaluate(
+        `() => {
         const segs = [...document.querySelectorAll('[class*="SegmentedControl-root"]')].filter((el) => el.offsetParent !== null).filter((el) => el.querySelectorAll('input[type="radio"]').length === 2)
         return segs.length > 0 && segs[0].querySelector('input[type="radio"]:checked')?.value === 'true'
-      }`, [])
+      }`,
+        [],
+      )
       check('web: ERR rope switched on (trusted Space)', errOk, String(errOk))
 
       const genFocus = await p.evaluate(FOCUS_BY_TEXT, ['Generate benchmarks', '#BENCHMARKS'])
@@ -425,7 +486,10 @@ try {
       let toastAtGenerate = ''
       for (let i = 0; i < 90; i++) {
         const st = await p.evaluate(GENERATE_DONE)
-        if (st.rows > 0) { done = true; break }
+        if (st.rows > 0) {
+          done = true
+          break
+        }
         if (i === 4) {
           toastAtGenerate = (await p.evaluate(NOTIFICATION_TEXT, [])).slice(0, 1).join('|').slice(0, 90)
         }
@@ -469,25 +533,55 @@ try {
     const r100 = webGenerateWorks ? fmtRows(rows100, top100) : null
     const r200 = webGenerateWorks ? fmtRows(rows200, top200) : null
 
-    record('benchmarks.generate', 1,
+    record(
+      'benchmarks.generate',
+      1,
       '同一角色、队友、速度与套装下,100% 基准 COMBO 与 200% 完美 COMBO 与网页端结果表首行一致',
       'browser-parity',
-      webGenerateWorks && relTol(parseComboK(rows100[0]?.combo ?? '0'), mainPreset.benchmarkScore) && relTol(parseComboK(rows200[0]?.combo ?? '0'), mainPreset.perfectionScore) ? 'PASS' : (webGenerateWorks ? 'FAIL' : 'UNPROVEN'),
+      webGenerateWorks && relTol(parseComboK(rows100[0]?.combo ?? '0'), mainPreset.benchmarkScore)
+        && relTol(parseComboK(rows200[0]?.combo ?? '0'), mainPreset.perfectionScore)
+        ? 'PASS'
+        : (webGenerateWorks ? 'FAIL' : 'UNPROVEN'),
       webGenerateWorks
-        ? `100% 首行 ${rows100[0]?.combo} vs MCP benchmarkScore ${mainPreset.benchmarkScore};200% 首行 ${rows200[0]?.combo} vs ${mainPreset.perfectionScore}(GPU vs CPU 引擎,rel tol 1e-3)`
-        : WEB_HANG_REASON)
-    record('benchmarks.results.read', 1, '100% 页签的全部行(主词条组合、COMBO、差距百分比)与返回的候选列表逐行一致', 'browser-parity',
+        ? `100% 首行 ${rows100[0]?.combo} vs MCP benchmarkScore ${mainPreset.benchmarkScore};200% 首行 ${
+          rows200[0]?.combo
+        } vs ${mainPreset.perfectionScore}(GPU vs CPU 引擎,rel tol 1e-3)`
+        : WEB_HANG_REASON,
+    )
+    record(
+      'benchmarks.results.read',
+      1,
+      '100% 页签的全部行(主词条组合、COMBO、差距百分比)与返回的候选列表逐行一致',
+      'browser-parity',
       r100 ? (r100.ok ? 'PASS' : 'FAIL') : 'UNPROVEN',
-      r100 ? r100.detail : WEB_HANG_REASON)
-    record('benchmarks.results.read', 2, '200% 页签的全部行同样一致', 'browser-parity',
+      r100 ? r100.detail : WEB_HANG_REASON,
+    )
+    record(
+      'benchmarks.results.read',
+      2,
+      '200% 页签的全部行同样一致',
+      'browser-parity',
       r200 ? (r200.ok ? 'PASS' : 'FAIL') : 'UNPROVEN',
-      r200 ? r200.detail : WEB_HANG_REASON)
-    record('benchmarks.configure.settings', 1, '速度阈值 133.334、开启充能绳时的基准 COMBO 与网页端同样设置下的结果一致', 'browser-parity',
+      r200 ? r200.detail : WEB_HANG_REASON,
+    )
+    record(
+      'benchmarks.configure.settings',
+      1,
+      '速度阈值 133.334、开启充能绳时的基准 COMBO 与网页端同样设置下的结果一致',
+      'browser-parity',
       webGenerateWorks ? (relTol(parseComboK(rows100[0]?.combo ?? '0'), mainPreset.benchmarkScore) ? 'PASS' : 'FAIL') : 'UNPROVEN',
-      webGenerateWorks ? `web ${rows100[0]?.combo} vs MCP ${mainPreset.benchmarkScore}` : WEB_HANG_REASON)
-    record('benchmarks.configure.sets', 1, '不改套装条件时,基准 COMBO 与网页端选同一套装后的结果一致', 'browser-parity',
+      webGenerateWorks ? `web ${rows100[0]?.combo} vs MCP ${mainPreset.benchmarkScore}` : WEB_HANG_REASON,
+    )
+    record(
+      'benchmarks.configure.sets',
+      1,
+      '不改套装条件时,基准 COMBO 与网页端选同一套装后的结果一致',
+      'browser-parity',
       webGenerateWorks ? (relTol(parseComboK(rows100[0]?.combo ?? '0'), mainPreset.benchmarkScore) ? 'PASS' : 'FAIL') : 'UNPROVEN',
-      webGenerateWorks ? `默认条件+元数据推荐套装;web ${rows100[0]?.combo} vs MCP ${mainPreset.benchmarkScore}` : WEB_HANG_REASON + ';套装自动选择本身已在 Phase A 浏览器取证')
+      webGenerateWorks
+        ? `默认条件+元数据推荐套装;web ${rows100[0]?.combo} vs MCP ${mainPreset.benchmarkScore}`
+        : WEB_HANG_REASON + ';套装自动选择本身已在 Phase A 浏览器取证',
+    )
 
     // expanded row (results c3)
     if (webGenerateWorks) {
@@ -509,11 +603,25 @@ try {
         const hasSections = ['Basic Stats', 'Combat Stats', 'Substat Rolls', 'Ability Breakdown'].every((h) => (expanded.text || '').includes(h))
         const spdWeb = Number(((expanded.text || '').match(/SPD\D*(\d+(?:\.\d+)?)/) || [])[1] ?? 0)
         const spdMcp = det?.basicStats?.SPD ?? 0
-        record('benchmarks.results.read', 3, '任取一行,返回的面板属性、战斗属性、副词条词条数和各技能伤害与网页端展开该行后显示的一致', 'browser-parity',
+        record(
+          'benchmarks.results.read',
+          3,
+          '任取一行,返回的面板属性、战斗属性、副词条词条数和各技能伤害与网页端展开该行后显示的一致',
+          'browser-parity',
           expanded.ok && hasSections && relTol(spdWeb, spdMcp, 5e-3) && det?.actionDamage != null ? 'PASS' : 'FAIL',
-          `展开区四段齐全=${hasSections};SPD web ${spdWeb} vs MCP ${spdMcp};MCP actionDamage 技能数=${det?.actionDamage ? Object.keys(det.actionDamage).length : 0}`)
+          `展开区四段齐全=${hasSections};SPD web ${spdWeb} vs MCP ${spdMcp};MCP actionDamage 技能数=${
+            det?.actionDamage ? Object.keys(det.actionDamage).length : 0
+          }`,
+        )
       } catch (e) {
-        record('benchmarks.results.read', 3, '任取一行,返回的面板属性、战斗属性、副词条词条数和各技能伤害与网页端展开该行后显示的一致', 'browser-parity', 'FAIL', String(e).slice(0, 120))
+        record(
+          'benchmarks.results.read',
+          3,
+          '任取一行,返回的面板属性、战斗属性、副词条词条数和各技能伤害与网页端展开该行后显示的一致',
+          'browser-parity',
+          'FAIL',
+          String(e).slice(0, 120),
+        )
       }
     } else {
       unproven('benchmarks.results.read', 3, '任取一行,返回的面板属性、战斗属性、副词条词条数和各技能伤害与网页端展开该行后显示的一致', WEB_HANG_REASON)
@@ -535,7 +643,8 @@ try {
         return { ok: false, reason: 'no set combobox button ' + currentText }
       }
       await sleep(900)
-      const typed = await p.evaluate(`(text) => {
+      const typed = await p.evaluate(
+        `(text) => {
         const dd = [...document.querySelectorAll('[class*="Combobox-dropdown"], [role="listbox"]')].find((el) => el.offsetParent !== null)
         if (!dd) return { ok: false, reason: 'no dropdown after click' }
         const input = dd.querySelector('input')
@@ -545,7 +654,9 @@ try {
         setter.call(input, text)
         input.dispatchEvent(new Event('input', { bubbles: true }))
         return { ok: true }
-      }`, [pickText])
+      }`,
+        [pickText],
+      )
       if (!typed.ok) return typed
       await sleep(700)
       try {
@@ -560,10 +671,14 @@ try {
       }
       return { ok: true }
     }
-    const spdValue = async () => p.evaluate(`() => {
+    const spdValue = async () =>
+      p.evaluate(
+        `() => {
       const inputs = [...document.querySelectorAll('#BENCHMARKS input')].filter((i) => i.offsetParent !== null && !i.readOnly && i.type !== 'radio')
       return inputs.length ? inputs[0].value : ''
-    }`, [])
+    }`,
+        [],
+      )
     const ensureSpd = async () => {
       const value = await spdValue()
       if (value === '133.334') return true
@@ -592,7 +707,11 @@ try {
             await sleep(1000)
           }
           const after = await p.evaluate(GENERATE_DONE)
-          check(`web: accumulate generate "${label}"`, sawLoading && (after.rows > beforeRows || after.rows >= 25), `rows ${beforeRows}→${after.rows} (sawLoading=${sawLoading})`)
+          check(
+            `web: accumulate generate "${label}"`,
+            sawLoading && (after.rows > beforeRows || after.rows >= 25),
+            `rows ${beforeRows}→${after.rows} (sawLoading=${sawLoading})`,
+          )
         }
         const sw1 = await switchCombobox(ornament, ornament2)
         check('web: switch ornament → ornament2', sw1.ok, JSON.stringify(sw1).slice(0, 120))
@@ -640,11 +759,23 @@ try {
             accDiffs.push(`${preset.preset.relicSet1}×${preset.preset.ornamentSet}: web ${found ?? '缺'} vs ${preset.benchmarkScore}`)
           }
         }
-        record('benchmarks.generate', 2, '一次给出两组遗器套装乘两个饰品套装的四个预设,各自的 COMBO 与网页端分两次生成后表里的四组结果一致', 'browser-parity',
+        record(
+          'benchmarks.generate',
+          2,
+          '一次给出两组遗器套装乘两个饰品套装的四个预设,各自的 COMBO 与网页端分两次生成后表里的四组结果一致',
+          'browser-parity',
           accOk ? 'PASS' : 'FAIL',
-          `2×2 组合按套装图标配对;${accDiffs.slice(0, 2).join(';') || '四组全一致(rel tol 1e-3)'}`)
+          `2×2 组合按套装图标配对;${accDiffs.slice(0, 2).join(';') || '四组全一致(rel tol 1e-3)'}`,
+        )
       } catch (e) {
-        record('benchmarks.generate', 2, '一次给出两组遗器套装乘两个饰品套装的四个预设,各自的 COMBO 与网页端分两次生成后表里的四组结果一致', 'browser-parity', 'FAIL', String(e).slice(0, 120))
+        record(
+          'benchmarks.generate',
+          2,
+          '一次给出两组遗器套装乘两个饰品套装的四个预设,各自的 COMBO 与网页端分两次生成后表里的四组结果一致',
+          'browser-parity',
+          'FAIL',
+          String(e).slice(0, 120),
+        )
       }
     } else {
       unproven('benchmarks.generate', 2, '一次给出两组遗器套装乘两个饰品套装的四个预设,各自的 COMBO 与网页端分两次生成后表里的四组结果一致', WEB_HANG_REASON)
@@ -661,7 +792,8 @@ try {
         const drawerFocus = await p.evaluate(FOCUS_BY_TEXT, ['Conditional set effects', '#BENCHMARKS'])
         if (drawerFocus.ok) await p.press('Enter')
         await sleep(1400)
-        const toggled = await p.evaluate(`(setName) => {
+        const toggled = await p.evaluate(
+          `(setName) => {
           // keepMounted drawers: pick the VISIBLE one (the optimizer's closed
           // drawer matches the same selector and has no content)
           const drawer = [...document.querySelectorAll('.mantine-Drawer-content, [class*="Drawer-content"]')].find((el) => el.offsetParent !== null)
@@ -677,7 +809,9 @@ try {
             row = row.parentElement
           }
           return { ok: false, reason: 'no switch in row' }
-        }`, ['Scholar Lost in Erudition'])
+        }`,
+          ['Scholar Lost in Erudition'],
+        )
         if (toggled.ok) await p.press(' ')
         await sleep(500)
         await p.press('Escape')
@@ -710,14 +844,33 @@ try {
             includePerfection: false,
             setConditionals: { 'Scholar Lost in Erudition': conditionalValue },
           }, { timeout: 300_000 })
-          record('benchmarks.configure.sets', 2, '把某个套装条件改成非默认档位后,基准 COMBO 与网页端在抽屉里做同样改动后的结果一致', 'browser-parity',
+          record(
+            'benchmarks.configure.sets',
+            2,
+            '把某个套装条件改成非默认档位后,基准 COMBO 与网页端在抽屉里做同样改动后的结果一致',
+            'browser-parity',
             relTol(parseComboK(condRows[0]?.combo ?? '0'), mcpCond.presets[0].benchmarkScore) ? 'PASS' : 'FAIL',
-            `Scholar Lost in Erudition=${conditionalValue}: web ${condRows[0]?.combo} vs MCP ${mcpCond.presets[0].benchmarkScore}`)
+            `Scholar Lost in Erudition=${conditionalValue}: web ${condRows[0]?.combo} vs MCP ${mcpCond.presets[0].benchmarkScore}`,
+          )
         } else {
-          record('benchmarks.configure.sets', 2, '把某个套装条件改成非默认档位后,基准 COMBO 与网页端在抽屉里做同样改动后的结果一致', 'browser-parity', 'FAIL', JSON.stringify(toggled).slice(0, 200))
+          record(
+            'benchmarks.configure.sets',
+            2,
+            '把某个套装条件改成非默认档位后,基准 COMBO 与网页端在抽屉里做同样改动后的结果一致',
+            'browser-parity',
+            'FAIL',
+            JSON.stringify(toggled).slice(0, 200),
+          )
         }
       } catch (e) {
-        record('benchmarks.configure.sets', 2, '把某个套装条件改成非默认档位后,基准 COMBO 与网页端在抽屉里做同样改动后的结果一致', 'browser-parity', 'FAIL', String(e).slice(0, 120))
+        record(
+          'benchmarks.configure.sets',
+          2,
+          '把某个套装条件改成非默认档位后,基准 COMBO 与网页端在抽屉里做同样改动后的结果一致',
+          'browser-parity',
+          'FAIL',
+          String(e).slice(0, 120),
+        )
       }
     } else {
       unproven('benchmarks.configure.sets', 2, '把某个套装条件改成非默认档位后,基准 COMBO 与网页端在抽屉里做同样改动后的结果一致', WEB_HANG_REASON)
@@ -739,12 +892,25 @@ try {
       }, { timeout: 300_000 })
       const onlyOwn = mcpClear.presets.length === 1 && mcpClear.presets[0].preset.relicSet1 === relicB
         && (mcpClear.ranking ?? []).length === 1
-      record('benchmarks.clear', 1,
+      record(
+        'benchmarks.clear',
+        1,
         'benchmark_runs 每次调用只计算本次给出的预设,结果里不含之前调用的预设,等同于网页端清空后重新生成',
-        'browser-parity', webCleared && onlyOwn ? 'PASS' : 'FAIL',
-        `web Clear 后结果表清空(rows=${afterClear.rows});MCP 新调用仅含本次 1 个预设(presets=${mcpClear.presets.length}, ranking=${(mcpClear.ranking ?? []).length})`)
+        'browser-parity',
+        webCleared && onlyOwn ? 'PASS' : 'FAIL',
+        `web Clear 后结果表清空(rows=${afterClear.rows});MCP 新调用仅含本次 1 个预设(presets=${mcpClear.presets.length}, ranking=${
+          (mcpClear.ranking ?? []).length
+        })`,
+      )
     } catch (e) {
-      record('benchmarks.clear', 1, 'benchmark_runs 每次调用只计算本次给出的预设,结果里不含之前调用的预设,等同于网页端清空后重新生成', 'browser-parity', 'FAIL', String(e).slice(0, 120))
+      record(
+        'benchmarks.clear',
+        1,
+        'benchmark_runs 每次调用只计算本次给出的预设,结果里不含之前调用的预设,等同于网页端清空后重新生成',
+        'browser-parity',
+        'FAIL',
+        String(e).slice(0, 120),
+      )
     }
 
     // ── Phase F: un-owned character + explicit light cone (character c2) ────
@@ -778,10 +944,13 @@ try {
         await sleep(600)
         await closeOverlays(p)
         const pickedLcId = await p.evaluate(READ_SELECTED_LC, [])
-        const formSnapshotF = await p.evaluate(`() => ({
+        const formSnapshotF = await p.evaluate(
+          `() => ({
           char: [...document.querySelectorAll('#BENCHMARKS input[readonly]')].filter((i) => i.offsetParent !== null).map((i) => i.value),
           spd: [...document.querySelectorAll('#BENCHMARKS input')].filter((i) => i.offsetParent !== null && !i.readOnly && i.type !== 'radio').map((i) => i.value),
-        })`, [])
+        })`,
+          [],
+        )
         console.log('        [diag F] form after picks:', JSON.stringify(formSnapshotF), 'lcId=', pickedLcId)
         await ensureSpd()
         await p.evaluate(FOCUS_BY_TEXT, ['Generate benchmarks', '#BENCHMARKS']).then((f) => f.ok && p.press('Enter'))
@@ -791,7 +960,10 @@ try {
         for (let i = 0; i < 75; i++) {
           const st = await p.evaluate(GENERATE_DONE)
           if (st.loading) sawLoadingF = true
-          if (st.rows > 0) { acheronDone = true; break }
+          if (st.rows > 0) {
+            acheronDone = true
+            break
+          }
           if (i === 4) toastF = (await p.evaluate(NOTIFICATION_TEXT, [])).slice(0, 1).join('|').slice(0, 80)
           await sleep(1000)
         }
@@ -816,15 +988,36 @@ try {
           candidateLimit: 1,
           includePerfection: false,
         }, { timeout: 300_000 })
-        record('benchmarks.configure.character', 2, '对不在存档里的角色显式给出光锥后可以生成基准,结果与网页端一致', 'browser-parity',
+        record(
+          'benchmarks.configure.character',
+          2,
+          '对不在存档里的角色显式给出光锥后可以生成基准,结果与网页端一致',
+          'browser-parity',
           acheronDone && relTol(parseComboK(acheronRows[0]?.combo ?? '0'), mcpAcheron.presets[0].benchmarkScore)
-            && mcpAcheron.form.characterEidolon === 0 && mcpAcheron.form.lightConeSuperimposition === 1 ? 'PASS' : 'FAIL',
-          `Acheron lc=${mcpAcheron.form.lightCone} e0/s1;web ${acheronRows[0]?.combo} vs MCP ${mcpAcheron.presets[0].benchmarkScore}${acheronDone ? '' : `(未完成:sawLoading=${sawLoadingF},toast="${toastF}")`}`)
+            && mcpAcheron.form.characterEidolon === 0 && mcpAcheron.form.lightConeSuperimposition === 1
+            ? 'PASS'
+            : 'FAIL',
+          `Acheron lc=${mcpAcheron.form.lightCone} e0/s1;web ${acheronRows[0]?.combo} vs MCP ${mcpAcheron.presets[0].benchmarkScore}${
+            acheronDone ? '' : `(未完成:sawLoading=${sawLoadingF},toast="${toastF}")`
+          }`,
+        )
       } catch (e) {
-        record('benchmarks.configure.character', 2, '对不在存档里的角色显式给出光锥后可以生成基准,结果与网页端一致', 'browser-parity', 'FAIL', String(e).slice(0, 120))
+        record(
+          'benchmarks.configure.character',
+          2,
+          '对不在存档里的角色显式给出光锥后可以生成基准,结果与网页端一致',
+          'browser-parity',
+          'FAIL',
+          String(e).slice(0, 120),
+        )
       }
     } else {
-      unproven('benchmarks.configure.character', 2, '对不在存档里的角色显式给出光锥后可以生成基准,结果与网页端一致', WEB_HANG_REASON + ';未入库角色光锥必填的报错链已由 MCP 校验覆盖')
+      unproven(
+        'benchmarks.configure.character',
+        2,
+        '对不在存档里的角色显式给出光锥后可以生成基准,结果与网页端一致',
+        WEB_HANG_REASON + ';未入库角色光锥必填的报错链已由 MCP 校验覆盖',
+      )
     }
 
     // ── Phase G: unsupported character toast (character c3) ─────────────────
@@ -840,13 +1033,26 @@ try {
       await sleep(2000)
       await closeOverlays(p)
       const toasts = await p.evaluate(NOTIFICATION_TEXT)
-      const charAfterG = await p.evaluate(`() => [...document.querySelectorAll('#BENCHMARKS input[readonly]')].filter((i) => i.offsetParent !== null).map((i) => i.value)`, [])
+      const charAfterG = await p.evaluate(
+        `() => [...document.querySelectorAll('#BENCHMARKS input[readonly]')].filter((i) => i.offsetParent !== null).map((i) => i.value)`,
+        [],
+      )
       const webUnsupported = toasts.some((t) => t.includes('not supported'))
-      const mcpUnsupported = await toolError(client, 'benchmark_runs', { characterId: '1009', presets: [{ relicSet1: relic1, relicSet2: relic2, spdThreshold: 0 }] })
-      record('benchmarks.configure.character', 3, '对没有模拟评分配置的角色报错,原因与网页端的提示对应', 'browser-parity',
+      const mcpUnsupported = await toolError(client, 'benchmark_runs', {
+        characterId: '1009',
+        presets: [{ relicSet1: relic1, relicSet2: relic2, spdThreshold: 0 }],
+      })
+      record(
+        'benchmarks.configure.character',
+        3,
+        '对没有模拟评分配置的角色报错,原因与网页端的提示对应',
+        'browser-parity',
         webUnsupported && mcpUnsupported != null && mcpUnsupported.includes('没有战斗基准评分元数据') ? 'PASS' : 'FAIL',
-        `web toast "${(toasts.find((t) => t.includes('not supported')) || '无').slice(0, 60)}";MCP "${(mcpUnsupported || '').slice(0, 80)}"${webUnsupported ? '' : `(选角后表单=${JSON.stringify(charAfterG)},全部通知=${JSON.stringify(toasts.slice(0, 2))})`}`)
-      } catch (e) {
+        `web toast "${(toasts.find((t) => t.includes('not supported')) || '无').slice(0, 60)}";MCP "${(mcpUnsupported || '').slice(0, 80)}"${
+          webUnsupported ? '' : `(选角后表单=${JSON.stringify(charAfterG)},全部通知=${JSON.stringify(toasts.slice(0, 2))})`
+        }`,
+      )
+    } catch (e) {
       record('benchmarks.configure.character', 3, '对没有模拟评分配置的角色报错,原因与网页端的提示对应', 'browser-parity', 'FAIL', String(e).slice(0, 120))
     }
 
@@ -862,17 +1068,21 @@ try {
         await sleep(1500)
         await closeOverlays(p)
         // open the THIRD teammate card's modal (React onClick responds to el.click())
-        const thirdCard = await p.evaluate(`() => {
+        const thirdCard = await p.evaluate(
+          `() => {
           const visible = (el) => el.offsetParent !== null
           const cards = [...document.querySelectorAll('#BENCHMARKS [class*="teammateCard"]')].filter(visible)
           if (cards.length < 3) return { ok: false, reason: 'only ' + cards.length + ' cards' }
           cards[2].click()
           return { ok: true }
-        }`, [])
+        }`,
+          [],
+        )
         await sleep(1100)
         // The teammate editor embeds a CharacterSelect trigger — open the
         // NESTED card-grid modal by clicking it (outer modal = teammate editor)
-        const openSelect = await p.evaluate(`() => {
+        const openSelect = await p.evaluate(
+          `() => {
           const visible = (el) => el.offsetParent !== null
           const modal = [...document.querySelectorAll('[role="dialog"], [class*="Modal-content"]')].filter(visible).pop()
           if (!modal) return { ok: false, reason: 'no teammate modal' }
@@ -880,11 +1090,14 @@ try {
           if (!input) return { ok: false, reason: 'no character select trigger', ph: [...modal.querySelectorAll('input')].map((i) => i.placeholder || '') }
           input.click()
           return { ok: true }
-        }`, [])
+        }`,
+          [],
+        )
         await sleep(1000)
         // type into the TOPMOST modal (the card grid, autofocused search),
         // Enter picks the first filtered card
-        const typedH = await p.evaluate(`(text) => {
+        const typedH = await p.evaluate(
+          `(text) => {
           const visible = (el) => el.offsetParent !== null
           const modal = [...document.querySelectorAll('[role="dialog"], [class*="Modal-content"]')].filter(visible).pop()
           if (!modal) return { ok: false, reason: 'no grid modal' }
@@ -895,7 +1108,9 @@ try {
           setter.call(input, text)
           input.dispatchEvent(new Event('input', { bubbles: true }))
           return { ok: true }
-        }`, ['Huohuo'])
+        }`,
+          ['Huohuo'],
+        )
         await sleep(900)
         // Huohuo (1217) IS in the sample save — the modal auto-fills its saved
         // light cone; un-saved characters keep the LC field empty and the Save
@@ -910,24 +1125,30 @@ try {
           pickedH = { ok: true, via: 'enter' }
         }
         await sleep(900)
-        const teammateFieldAfter = await p.evaluate(`() => {
+        const teammateFieldAfter = await p.evaluate(
+          `() => {
           const visible = (el) => el.offsetParent !== null
           const modal = [...document.querySelectorAll('[role="dialog"], [class*="Modal-content"]')].filter((e) => visible(e)).pop()
           if (!modal) return { open: false }
           return { open: true, inputs: [...modal.querySelectorAll('input[readonly]')].filter((i) => visible(i)).map((i) => i.value) }
-        }`, [])
+        }`,
+          [],
+        )
         console.log('        [diag H] teammate modal:', JSON.stringify({ thirdCard, openSelect, typedH, pickedH, teammateFieldAfter }))
         await sleep(400)
         // the teammate modal's confirm button is labeled Save (tCommon) —
         // scope to the open dialog so unrelated buttons can't match
-        const saveFocus = await p.evaluate(`() => {
+        const saveFocus = await p.evaluate(
+          `() => {
           const modal = [...document.querySelectorAll('[role="dialog"], [class*="Modal-content"]')].filter((e) => e.offsetParent !== null).pop()
           if (!modal) return { ok: false, reason: 'no modal' }
           const btn = [...modal.querySelectorAll('button')].find((b) => b.offsetParent !== null && (b.textContent || '').trim() === 'Save')
           if (!btn) return { ok: false, reason: 'no Save button', texts: [...modal.querySelectorAll('button')].map((b) => (b.textContent || '').trim()).filter(Boolean).slice(0, 6) }
           btn.focus()
           return { ok: true }
-        }`, [])
+        }`,
+          [],
+        )
         if (saveFocus.ok) await p.press('Enter')
         else console.log('        [diag H] save button:', JSON.stringify(saveFocus))
         await sleep(1300)
@@ -961,16 +1182,38 @@ try {
               { characterId: replacement, lightCone: lcOfReplacement },
             ],
           }, { timeout: 300_000 })
-          record('benchmarks.configure.teammates', 2, '替换一名队友并给它指定队伍套装后,基准 COMBO 与网页端做同样设置后的结果一致', 'browser-parity',
+          record(
+            'benchmarks.configure.teammates',
+            2,
+            '替换一名队友并给它指定队伍套装后,基准 COMBO 与网页端做同样设置后的结果一致',
+            'browser-parity',
             relTol(parseComboK(tmRows[0]?.combo ?? '0'), mcpTm.presets[0].benchmarkScore)
-              && JSON.stringify(mcpTm.form.teammates) === JSON.stringify([defaultTeammates[0], defaultTeammates[1], replacement]) ? 'PASS' : 'FAIL',
-            `队友3 → ${replacement}(lc ${lcOfReplacement});web ${tmRows[0]?.combo} vs MCP ${mcpTm.presets[0].benchmarkScore};网页弹窗未设置队伍套装,teamRelicSet 路径未比对`)
+              && JSON.stringify(mcpTm.form.teammates) === JSON.stringify([defaultTeammates[0], defaultTeammates[1], replacement])
+              ? 'PASS'
+              : 'FAIL',
+            `队友3 → ${replacement}(lc ${lcOfReplacement});web ${tmRows[0]?.combo} vs MCP ${
+              mcpTm.presets[0].benchmarkScore
+            };网页弹窗未设置队伍套装,teamRelicSet 路径未比对`,
+          )
         } else {
-          record('benchmarks.configure.teammates', 2, '替换一名队友并给它指定队伍套装后,基准 COMBO 与网页端做同样设置后的结果一致', 'browser-parity', 'FAIL',
-            `web 队友卡替换未生效: ${JSON.stringify(teamAfter.map((t) => t.avatarId))}`)
+          record(
+            'benchmarks.configure.teammates',
+            2,
+            '替换一名队友并给它指定队伍套装后,基准 COMBO 与网页端做同样设置后的结果一致',
+            'browser-parity',
+            'FAIL',
+            `web 队友卡替换未生效: ${JSON.stringify(teamAfter.map((t) => t.avatarId))}`,
+          )
         }
       } catch (e) {
-        record('benchmarks.configure.teammates', 2, '替换一名队友并给它指定队伍套装后,基准 COMBO 与网页端做同样设置后的结果一致', 'browser-parity', 'FAIL', String(e).slice(0, 120))
+        record(
+          'benchmarks.configure.teammates',
+          2,
+          '替换一名队友并给它指定队伍套装后,基准 COMBO 与网页端做同样设置后的结果一致',
+          'browser-parity',
+          'FAIL',
+          String(e).slice(0, 120),
+        )
       }
     } else {
       unproven('benchmarks.configure.teammates', 2, '替换一名队友并给它指定队伍套装后,基准 COMBO 与网页端做同样设置后的结果一致', WEB_HANG_REASON)
@@ -1045,11 +1288,18 @@ try {
   const batchMs = Date.now() - batchStartAt
   const cancelOk = progressEvents.length >= 1 && cancelledRun?.error == null
     && cancelledRun.cancelled === true && kept.length >= 1 && kept.length < 12
-  record('benchmarks.generate', 3, '带进度令牌时逐预设收到进度通知,取消后返回已完成的部分', 'browser-parity',
+  record(
+    'benchmarks.generate',
+    3,
+    '带进度令牌时逐预设收到进度通知,取消后返回已完成的部分',
+    'browser-parity',
     cancelOk ? 'PASS' : 'FAIL',
     `${progressEvents.length} 条进度通知(逐预设✓);${cancelDiag || 'cancel 未及发出'};批耗时 ${Math.round(batchMs / 100) / 10}s`
-      + `;结果 cancelled=${cancelledRun?.cancelled},保留 ${kept.length}/12 个预设(状态 ${statuses || '无'}${cancelledRun?.error ? ';error=' + cancelledRun.error.slice(0, 60) : ''})`
-      + (cancelOk ? '' : `——get_job RTT≈剩余批时长(内联引擎占满单线程,中途的取消请求要等整批算完才被读取;服务器取消检查点存在但 stdio 面无法触达)`))
+      + `;结果 cancelled=${cancelledRun?.cancelled},保留 ${kept.length}/12 个预设(状态 ${statuses || '无'}${
+        cancelledRun?.error ? ';error=' + cancelledRun.error.slice(0, 60) : ''
+      })`
+      + (cancelOk ? '' : `——get_job RTT≈剩余批时长(内联引擎占满单线程,中途的取消请求要等整批算完才被读取;服务器取消检查点存在但 stdio 面无法触达)`),
+  )
 } catch (e) {
   failures++
   console.error('verify-benchmarks crashed:', e)
@@ -1063,12 +1313,19 @@ try {
 
 const evidenceDir = resolve(mcpDir, 'coverage/evidence')
 mkdirSync(evidenceDir, { recursive: true })
-writeFileSync(resolve(evidenceDir, 'benchmarks.json'), JSON.stringify({
-  area: 'benchmarks',
-  generatedAt: new Date().toISOString(),
-  gitCommit: '8ac1d045',
-  cases: EVIDENCE,
-}, null, 2))
+writeFileSync(
+  resolve(evidenceDir, 'benchmarks.json'),
+  JSON.stringify(
+    {
+      area: 'benchmarks',
+      generatedAt: new Date().toISOString(),
+      gitCommit: '8ac1d045',
+      cases: EVIDENCE,
+    },
+    null,
+    2,
+  ),
+)
 console.log(`\nevidence: ${EVIDENCE.length} cases → mcp/coverage/evidence/benchmarks.json`)
 console.log(failures === 0 ? '\nverify-benchmarks: ALL CASES PASSED' : `\nverify-benchmarks: ${failures} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)

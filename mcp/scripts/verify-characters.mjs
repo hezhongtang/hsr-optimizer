@@ -59,9 +59,10 @@ copyFileSync(repoSampleSavePath, seedAPath)
 // equipped = the six relics on 1205. inject-preview: 3 teammates, LC 23013 e2,
 // equipped = 1212b1's own current six (LC/eidolon differ from current state).
 const sample = JSON.parse(readFileSync(repoSampleSavePath, 'utf8'))
-const relicsBy = (owner) => Object.fromEntries(
-  sample.relics.filter((r) => r.equippedBy === owner).map((r) => [r.part, r.id]),
-)
+const relicsBy = (owner) =>
+  Object.fromEntries(
+    sample.relics.filter((r) => r.equippedBy === owner).map((r) => [r.part, r.id]),
+  )
 const tm = (id, lc) => ({
   characterId: id,
   characterEidolon: 0,
@@ -307,7 +308,9 @@ registerHooks({
       return nextResolve(specifier, context)
     } catch (error) {
       if (specifier.startsWith('.') && context.parentURL != null && context.parentURL.endsWith('.ts')) {
-        try { return nextResolve(`${specifier}.ts`, context) } catch { /* fall through */ }
+        try {
+          return nextResolve(`${specifier}.ts`, context)
+        } catch { /* fall through */ }
       }
       throw error
     }
@@ -377,7 +380,10 @@ async function typeIntoPlaceholder(page, placeholder, text) {
   if (!focused.ok) throw new Error(`输入框未找到(${placeholder}):${focused.reason}`)
   await page.type(text)
   await sleep(300)
-  return page.evaluate(`(p) => [...document.querySelectorAll('input')].filter((e) => e.offsetParent !== null).find((e) => e.getAttribute('placeholder') === p)?.value ?? null`, [placeholder])
+  return page.evaluate(
+    `(p) => [...document.querySelectorAll('input')].filter((e) => e.offsetParent !== null).find((e) => e.getAttribute('placeholder') === p)?.value ?? null`,
+    [placeholder],
+  )
 }
 const P_FOCUS_INPUT_BY_LABEL = `(labelText) => {
   const labels = [...document.querySelectorAll('label')].filter((e) => e.offsetParent !== null && (e.textContent || '').trim() === labelText)
@@ -506,7 +512,7 @@ async function safeEvaluate(page, fn, args) {
  * race. A zh marker is verified post-boot; if the app still came up English
  * (flaky locale read), the locale round-trip runs once more. */
 async function bootZh(page, hash, waitFor) {
-  for (let attempt = 0; ; attempt++) {
+  for (let attempt = 0;; attempt++) {
     await page.goto('', { timeoutMs: 90_000 })
     await page.waitForSelector('#root > *', { timeoutMs: 90_000 })
     await safeEvaluate(page, P_SET_LOCALE)
@@ -541,7 +547,9 @@ async function openCharacterMenu(page, focusRowId) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       if (focusRowId != null) {
-        await page.evaluate(`(id) => { const row = document.querySelector('[data-character-id="' + id + '"]'); if (row) row.click(); return !!row }`, [focusRowId])
+        await page.evaluate(`(id) => { const row = document.querySelector('[data-character-id="' + id + '"]'); if (row) row.click(); return !!row }`, [
+          focusRowId,
+        ])
         await sleep(400)
       }
       await pollUntil(
@@ -549,7 +557,9 @@ async function openCharacterMenu(page, focusRowId) {
         async () => {
           const r = await page.evaluate(P_MENU.open, ['角色菜单'])
           if (r.ok) return r
-          const buttons = await page.evaluate(`() => [...document.querySelectorAll('button')].filter((e) => e.offsetParent !== null).map((e) => (e.textContent || '').trim()).slice(0, 30)`)
+          const buttons = await page.evaluate(
+            `() => [...document.querySelectorAll('button')].filter((e) => e.offsetParent !== null).map((e) => (e.textContent || '').trim()).slice(0, 30)`,
+          )
           return { ok: false, detail: 'buttons: ' + JSON.stringify(buttons) }
         },
         15_000,
@@ -597,7 +607,9 @@ async function confirmDialog(page, text = '确') {
   await pollUntil(`确认框按钮(${text})`, async () => {
     const r = await page.evaluate(P_CLICK_ANY_DIALOG, [text])
     if (r.ok) return r
-    const dbg = await page.evaluate(`() => [...document.querySelectorAll('[role="dialog"]')].map((d) => ({ vis: d.offsetParent !== null, text: (d.innerText || '').slice(0, 40), btns: [...d.querySelectorAll('button')].map((b) => (b.textContent || '').trim().slice(0, 6)).slice(0, 5) }))`)
+    const dbg = await page.evaluate(
+      `() => [...document.querySelectorAll('[role="dialog"]')].map((d) => ({ vis: d.offsetParent !== null, text: (d.innerText || '').slice(0, 40), btns: [...d.querySelectorAll('button')].map((b) => (b.textContent || '').trim().slice(0, 6)).slice(0, 5) }))`,
+    )
     return { ok: false, detail: JSON.stringify(dbg).slice(0, 200) }
   }, 10_000)
   await sleep(500)
@@ -674,19 +686,34 @@ try {
 
     const ids = (rows) => rows.map((r) => r.id)
     const mcpIds = listAll.characters.map((c) => c.characterId ?? c.id)
-    record('characters.list.read', 1, 'list_characters 的顺序、rank 与网页角色网格一致', JSON.stringify(ids(web.rows)) === JSON.stringify(mcpIds),
-      `web ${ids(web.rows).join(',')} vs mcp ${mcpIds.join(',')}`)
+    record(
+      'characters.list.read',
+      1,
+      'list_characters 的顺序、rank 与网页角色网格一致',
+      JSON.stringify(ids(web.rows)) === JSON.stringify(mcpIds),
+      `web ${ids(web.rows).join(',')} vs mcp ${mcpIds.join(',')}`,
+    )
 
     const byNameMcp = await callTool(client, 'list_characters', { name: '流' })
-    record('characters.list.read', 1, '按命途、属性筛选的结果集与网页筛选条一致', ids(web.byName).join(',') === byNameMcp.characters.map((c) => c.characterId ?? c.id).join(',') && web.byName.length === 1,
-      `name=流 web [${ids(web.byName)}] vs mcp [${byNameMcp.characters.map((c) => c.characterId ?? c.id)}]`)
+    record(
+      'characters.list.read',
+      1,
+      '按命途、属性筛选的结果集与网页筛选条一致',
+      ids(web.byName).join(',') === byNameMcp.characters.map((c) => c.characterId ?? c.id).join(',') && web.byName.length === 1,
+      `name=流 web [${ids(web.byName)}] vs mcp [${byNameMcp.characters.map((c) => c.characterId ?? c.id)}]`,
+    )
 
     const threeMcp = await callTool(client, 'list_characters', { path: ['Destruction', 'Harmony'], element: ['Ice'] })
     const threeOk = ids(web.threeAxis).join(',') === threeMcp.characters.map((c) => c.characterId ?? c.id).join(',')
     const kafkaMcp = await callTool(client, 'list_characters', { name: '卡芙卡', path: ['Nihility', 'Destruction'], element: ['Lightning'] })
     const kafkaOk = ids(web.kafkaAxis).join(',') === kafkaMcp.characters.map((c) => c.characterId ?? c.id).join(',')
-    record('characters.list.read', 1, '补齐多选与 name 参数后与网页三轴筛选逐一对拍', threeOk && kafkaOk,
-      `三轴 web [${ids(web.threeAxis)}] vs mcp [${threeMcp.characters.map((c) => c.characterId ?? c.id)}];卡芙卡轴 ${kafkaOk ? '一致' : '不一致'}`)
+    record(
+      'characters.list.read',
+      1,
+      '补齐多选与 name 参数后与网页三轴筛选逐一对拍',
+      threeOk && kafkaOk,
+      `三轴 web [${ids(web.threeAxis)}] vs mcp [${threeMcp.characters.map((c) => c.characterId ?? c.id)}];卡芙卡轴 ${kafkaOk ? '一致' : '不一致'}`,
+    )
   })
 
   // ══ F2 characters.detail.read ════════════════════════════════════════════
@@ -730,9 +757,15 @@ try {
       Object.entries(jw?.weights ?? {}).filter(([k]) => k in (detail.scoringMetadata?.stats ?? {})),
     )
     const scoreOk = firstDiff(effectiveNine, jw?.weights) == null
-    record('characters.detail.read', 1, 'get_character 返回的六槽遗器、已存表单、配装列表与评分元数据与网页选中该角色后看到的一致',
+    record(
+      'characters.detail.read',
+      1,
+      'get_character 返回的六槽遗器、已存表单、配装列表与评分元数据与网页选中该角色后看到的一致',
       eqOk && formOk && buildsOk && scoreOk,
-      `equipped ${eqOk ? '一致' : firstDiff(webEquipped, mcpEquipped)};form ${formOk ? '一致' : firstDiff(webForm, detail.savedForm)};builds ${buildsOk ? '一致' : firstDiff(webBuilds, mcpBuilds)};评分默认 ${scoreOk ? '一致' : '漂移'}`)
+      `equipped ${eqOk ? '一致' : firstDiff(webEquipped, mcpEquipped)};form ${formOk ? '一致' : firstDiff(webForm, detail.savedForm)};builds ${
+        buildsOk ? '一致' : firstDiff(webBuilds, mcpBuilds)
+      };评分默认 ${scoreOk ? '一致' : '漂移'}`,
+    )
   })
 
   // ══ F3 characters.openInOptimizer ════════════════════════════════════════
@@ -743,7 +776,9 @@ try {
       // the optimizer hydrates the boot focus character's working form — wait
       // until the character select shows a name so the away-switch saves it
       await pollUntil('优化器角色已载入', async () => ({
-        ok: await page.evaluate(`() => { const i = [...document.querySelectorAll('input')].find((e) => e.offsetParent !== null && e.readOnly); return i != null && i.value.length > 0 }`),
+        ok: await page.evaluate(
+          `() => { const i = [...document.querySelectorAll('input')].find((e) => e.offsetParent !== null && e.readOnly); return i != null && i.value.length > 0 }`,
+        ),
       }), 30_000)
       await sleep(500)
       await page.evaluate(`() => { location.hash = '#characters'; return true }`)
@@ -766,8 +801,13 @@ try {
     const webForm1212 = charIn(webState, '1212b1')?.form
     const mcpForm1212 = charIn(mcpState, '1212b1')?.form
     const ok = webId === '1005' && mcpId === '1005' && firstDiff(webForm1212, mcpForm1212) == null
-    record('characters.openInOptimizer', 1, '与 optimizer.character.switch 同一用例:切换后存档里的 optimizerCharacterId 与离开角色的表单都与网页一致', ok,
-      `optimizerCharacterId web=${webId} mcp=${mcpId};离开角色(1212b1)表单 ${firstDiff(webForm1212, mcpForm1212) ?? '一致'}`)
+    record(
+      'characters.openInOptimizer',
+      1,
+      '与 optimizer.character.switch 同一用例:切换后存档里的 optimizerCharacterId 与离开角色的表单都与网页一致',
+      ok,
+      `optimizerCharacterId web=${webId} mcp=${mcpId};离开角色(1212b1)表单 ${firstDiff(webForm1212, mcpForm1212) ?? '一致'}`,
+    )
   })
 
   // ══ F4 rank.move / F5 sortByEffectiveSubstats / F6 upsert / F7 delete / F8 unequip / F9 switchRelics ══
@@ -798,19 +838,37 @@ try {
       await menuClick(page, '添加新角色')
       await pollUntil('角色选择弹窗', async () => ({ ok: (await page.evaluate(P_MODAL_OPEN)) === true }), 10_000)
       // the modal's own CharacterSelect input: first readOnly empty input inside dialog
-      await page.evaluate(`() => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const i = [...d.querySelectorAll('input')].find((x) => x.readOnly); i.click(); return true }`)
-      await pollUntil('选择角色弹窗打开', async () => ({ ok: (await page.evaluate(`() => document.querySelectorAll('[data-id]').length > 0`)) === true }), 10_000)
+      await page.evaluate(
+        `() => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const i = [...d.querySelectorAll('input')].find((x) => x.readOnly); i.click(); return true }`,
+      )
+      await pollUntil(
+        '选择角色弹窗打开',
+        async () => ({ ok: (await page.evaluate(`() => document.querySelectorAll('[data-id]').length > 0`)) === true }),
+        10_000,
+      )
       await page.type('克拉拉')
       await sleep(500)
       await page.press('Enter')
       await pollUntil('回到编辑弹窗', async () => ({
-        ok: await page.evaluate(`() => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); return !!d && [...d.querySelectorAll('input')].some((x) => (x.value || '').includes('克拉拉')) }`),
+        ok: await page.evaluate(
+          `() => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); return !!d && [...d.querySelectorAll('input')].some((x) => (x.value || '').includes('克拉拉')) }`,
+        ),
       }), 10_000)
       // pick the light cone via the modal's LC select (first card = signature)
-      await page.evaluate(`() => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const inputs = [...d.querySelectorAll('input')]; const lc = inputs.find((x) => x.readOnly && inputs.indexOf(x) > 0); lc.click(); return true }`)
-      await pollUntil('光锥选择弹窗打开', async () => ({ ok: (await page.evaluate(`() => [...document.querySelectorAll('[data-id]')].filter((e) => e.offsetParent !== null).length > 0`)) === true }), 10_000)
+      await page.evaluate(
+        `() => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const inputs = [...d.querySelectorAll('input')]; const lc = inputs.find((x) => x.readOnly && inputs.indexOf(x) > 0); lc.click(); return true }`,
+      )
+      await pollUntil(
+        '光锥选择弹窗打开',
+        async () => ({
+          ok: (await page.evaluate(`() => [...document.querySelectorAll('[data-id]')].filter((e) => e.offsetParent !== null).length > 0`)) === true,
+        }),
+        10_000,
+      )
       await sleep(600)
-      snapshots.pickedLcId = await page.evaluate(`() => { const card = [...document.querySelectorAll('[data-id]')].filter((e) => e.offsetParent !== null)[0]; if (!card) return null; card.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); return card.getAttribute('data-id') }`)
+      snapshots.pickedLcId = await page.evaluate(
+        `() => { const card = [...document.querySelectorAll('[data-id]')].filter((e) => e.offsetParent !== null)[0]; if (!card) return null; card.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); return card.getAttribute('data-id') }`,
+      )
       await sleep(800)
       await page.evaluate(P_CLICK_TEXT, ['保存', true, '[role="dialog"]'])
       await sleep(1200)
@@ -819,7 +877,10 @@ try {
       // F6b: edit 1107 → eidolon 3
       await page.evaluate(`(id) => { const row = document.querySelector('[data-character-id="' + id + '"]'); row.click(); return true }`, ['1107'])
       await sleep(300)
-      await page.evaluate(`(id) => { const row = document.querySelector('[data-character-id="' + id + '"]'); const btn = [...row.querySelectorAll('button[aria-label]')].find((b) => (b.getAttribute('aria-label') || '').startsWith('更改角色')); btn.click(); return !!btn }`, ['1107'])
+      await page.evaluate(
+        `(id) => { const row = document.querySelector('[data-character-id="' + id + '"]'); const btn = [...row.querySelectorAll('button[aria-label]')].find((b) => (b.getAttribute('aria-label') || '').startsWith('更改角色')); btn.click(); return !!btn }`,
+        ['1107'],
+      )
       await pollUntil('编辑弹窗打开', async () => ({ ok: (await page.evaluate(P_MODAL_OPEN)) === true }), 10_000)
       await sleep(600)
       await page.evaluate(P_CLICK_TEXT, ['3魂', true, '[role="dialog"]'])
@@ -831,7 +892,15 @@ try {
       // F7: delete 1005
       snapshots.deleted = null
       try {
-        await clickThenConfirm(page, () => page.evaluate(`(id) => { const row = document.querySelector('[data-character-id="' + id + '"]'); const btn = [...row.querySelectorAll('button[aria-label]')].find((b) => (b.getAttribute('aria-label') || '').startsWith('删除角色')); btn.click(); return !!btn }`, ['1005']), '确认')
+        await clickThenConfirm(
+          page,
+          () =>
+            page.evaluate(
+              `(id) => { const row = document.querySelector('[data-character-id="' + id + '"]'); const btn = [...row.querySelectorAll('button[aria-label]')].find((b) => (b.getAttribute('aria-label') || '').startsWith('删除角色')); btn.click(); return !!btn }`,
+              ['1005'],
+            ),
+          '确认',
+        )
         await sleep(1000)
         snapshots.deleted = await harvest(page)
       } catch (e) {
@@ -856,7 +925,15 @@ try {
       try {
         await openCharacterMenu(page, '1101')
         await menuClick(page, '和另一角色切换遗器')
-        await pollUntil('交换弹窗打开(搜索角色组合框)', async () => ({ ok: await page.evaluate(`() => { const dialogs = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null); const d = dialogs[dialogs.length - 1]; return !!d && [...d.querySelectorAll('button')].some((b) => (b.textContent || '').includes('搜索角色')) }`) }), 10_000)
+        await pollUntil(
+          '交换弹窗打开(搜索角色组合框)',
+          async () => ({
+            ok: await page.evaluate(
+              `() => { const dialogs = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null); const d = dialogs[dialogs.length - 1]; return !!d && [...d.querySelectorAll('button')].some((b) => (b.textContent || '').includes('搜索角色')) }`,
+            ),
+          }),
+          10_000,
+        )
         // open the combobox (target is a BUTTON showing the placeholder)
         await page.evaluate(P_CLICK_TEXT, ['搜索角色', false, '[role="dialog"]'])
         await sleep(700)
@@ -878,20 +955,29 @@ try {
     // MCP mirror, step by step, comparing after each action
     await callTool(client, 'set_character_rank', { characterId: '1101', index: 0 })
     let mcpState = await mcpExport()
-    record('characters.rank.move', 1, '把同一角色移到同一位置后,两边导出存档的 characters 顺序一致;index=0 与「移到顶部」等价',
+    record(
+      'characters.rank.move',
+      1,
+      '把同一角色移到同一位置后,两边导出存档的 characters 顺序一致;index=0 与「移到顶部」等价',
       orderOf(web.move1).join(',') === orderOf(mcpState).join(','),
-      `move 1101→0: web ${orderOf(web.move1).join(',')} vs mcp ${orderOf(mcpState).join(',')}`)
+      `move 1101→0: web ${orderOf(web.move1).join(',')} vs mcp ${orderOf(mcpState).join(',')}`,
+    )
     await callTool(client, 'set_character_rank', { characterId: '1202', index: 0 })
     mcpState = await mcpExport()
     const move2Ok = orderOf(web.move2).join(',') === orderOf(mcpState).join(',')
-    record('characters.rank.move', 1, '第二次移动(1202→0)后顺序仍一致', move2Ok,
-      `web ${orderOf(web.move2).join(',')} vs mcp ${orderOf(mcpState).join(',')}`)
+    record('characters.rank.move', 1, '第二次移动(1202→0)后顺序仍一致', move2Ok, `web ${orderOf(web.move2).join(',')} vs mcp ${orderOf(mcpState).join(',')}`)
 
     const sortRes = await callTool(client, 'set_character_rank', { sortBy: 'effectiveSubstats' })
     mcpState = await mcpExport()
-    record('characters.rank.sortByEffectiveSubstats', 1, '同一存档排序后,两边导出存档的 characters 顺序一致(含得分相同时的稳定顺序)',
+    record(
+      'characters.rank.sortByEffectiveSubstats',
+      1,
+      '同一存档排序后,两边导出存档的 characters 顺序一致(含得分相同时的稳定顺序)',
       orderOf(web.sorted).join(',') === orderOf(mcpState).join(','),
-      `web ${orderOf(web.sorted).join(',')} vs mcp ${orderOf(mcpState).join(',')};mcp scores=${JSON.stringify((sortRes.characters ?? []).map((c) => c.effectiveSubstats)).slice(0, 160)}`)
+      `web ${orderOf(web.sorted).join(',')} vs mcp ${orderOf(mcpState).join(',')};mcp scores=${
+        JSON.stringify((sortRes.characters ?? []).map((c) => c.effectiveSubstats)).slice(0, 160)
+      }`,
+    )
 
     const pickedLc = web.upsertNew ? (web.pickedLcId ?? '20000') : '20000'
     const upsertRes = await callTool(client, 'upsert_character', { characterId: '1107', lightCone: pickedLc, characterEidolon: 0, lightConeSuperimposition: 1 })
@@ -905,15 +991,25 @@ try {
       && firstDiff(webNew?.form, mcpNew?.form) == null
       && Object.keys(equippedOf(web.upsertNew, '1107')).length === 0
       && Object.keys(equippedOf(mcpState, '1107')).length === 0
-    record('characters.upsert', 1, '新建角色后两边存档里的该角色(默认表单、空装备、插入位置)一致', newOk,
-      `insert web@${webIdx} mcp@${mcpIdx} (NewCharacterDefaultRank=First);form ${firstDiff(webNew?.form, mcpNew?.form) ?? '一致'};equipped 两边均空`)
+    record(
+      'characters.upsert',
+      1,
+      '新建角色后两边存档里的该角色(默认表单、空装备、插入位置)一致',
+      newOk,
+      `insert web@${webIdx} mcp@${mcpIdx} (NewCharacterDefaultRank=First);form ${firstDiff(webNew?.form, mcpNew?.form) ?? '一致'};equipped 两边均空`,
+    )
 
     await callTool(client, 'upsert_character', { characterId: '1107', characterEidolon: 3 })
     mcpState = await mcpExport()
     const editOk = charIn(web.upsertEdit, '1107')?.form?.characterEidolon === 3
       && firstDiff(charIn(web.upsertEdit, '1107')?.form, charIn(mcpState, '1107')?.form) == null
-    record('characters.upsert', 2, '修改已有角色的光锥、叠影、星魂后两边存档一致,其余表单字段不变', editOk,
-      `e3 表单 ${firstDiff(charIn(web.upsertEdit, '1107')?.form, charIn(mcpState, '1107')?.form) ?? '一致'}`)
+    record(
+      'characters.upsert',
+      2,
+      '修改已有角色的光锥、叠影、星魂后两边存档一致,其余表单字段不变',
+      editOk,
+      `e3 表单 ${firstDiff(charIn(web.upsertEdit, '1107')?.form, charIn(mcpState, '1107')?.form) ?? '一致'}`,
+    )
 
     await callTool(client, 'delete_character', { characterId: '1005' })
     mcpState = await mcpExport()
@@ -921,10 +1017,17 @@ try {
       && orderOf(web.deleted).join(',') === orderOf(mcpState).join(',')
       && firstDiff(ownersOf(web.deleted), ownersOf(mcpState)) == null
     const webOrphans = (web.deleted?.relics ?? []).filter((r) => sample.relics.find((x) => x.id === r.id)?.equippedBy === '1005')
-    record('characters.delete', 1, '删除后两边存档的角色列表一致,原佩戴遗器的 equippedBy 均为空', delOk,
+    record(
+      'characters.delete',
+      1,
+      '删除后两边存档的角色列表一致,原佩戴遗器的 equippedBy 均为空',
+      delOk,
       web.deleted == null
         ? `网页步骤失败:${web.deleteError ?? '未知'}`
-        : `roster ${orderOf(web.deleted).join(',') === orderOf(mcpState).join(',') ? '一致' : '不一致'};${webOrphans.length} 件原 1005 遗器 equippedBy=${[...new Set(webOrphans.map((r) => r.equippedBy ?? '无'))].join('/')}`)
+        : `roster ${orderOf(web.deleted).join(',') === orderOf(mcpState).join(',') ? '一致' : '不一致'};${webOrphans.length} 件原 1005 遗器 equippedBy=${
+          [...new Set(webOrphans.map((r) => r.equippedBy ?? '无'))].join('/')
+        }`,
+    )
 
     await callTool(client, 'unequip_character', { characterId: '1205' })
     mcpState = await mcpExport()
@@ -932,10 +1035,15 @@ try {
       && Object.keys(equippedOf(web.unequipped, '1205')).length === 0
       && Object.keys(equippedOf(mcpState, '1205')).length === 0
       && firstDiff(ownersOf(web.unequipped), ownersOf(mcpState)) == null
-    record('characters.unequip', 1, '卸下后两边存档里该角色的 equipped 为空,六件遗器的 equippedBy 为空', uneqOk,
+    record(
+      'characters.unequip',
+      1,
+      '卸下后两边存档里该角色的 equipped 为空,六件遗器的 equippedBy 为空',
+      uneqOk,
       web.unequipped == null
         ? `网页步骤失败:${web.unequipError ?? '未知'}`
-        : `1205 equipped web=${JSON.stringify(equippedOf(web.unequipped, '1205'))} mcp=${JSON.stringify(equippedOf(mcpState, '1205'))}`)
+        : `1205 equipped web=${JSON.stringify(equippedOf(web.unequipped, '1205'))} mcp=${JSON.stringify(equippedOf(mcpState, '1205'))}`,
+    )
 
     await callTool(client, 'switch_relics', { characterIdA: '1101', characterIdB: '1102' })
     mcpState = await mcpExport()
@@ -943,10 +1051,17 @@ try {
       && firstDiff(equippedOf(web.switched, '1101'), equippedOf(mcpState, '1101')) == null
       && firstDiff(equippedOf(web.switched, '1102'), equippedOf(mcpState, '1102')) == null
       && firstDiff(ownersOf(web.switched), ownersOf(mcpState)) == null
-    record('characters.switchRelics', 1, '交换后两边存档里两名角色的 equipped 与相关遗器的 equippedBy 一致', swOk,
+    record(
+      'characters.switchRelics',
+      1,
+      '交换后两边存档里两名角色的 equipped 与相关遗器的 equippedBy 一致',
+      swOk,
       web.switched == null
         ? `网页步骤失败:${web.switchError ?? '未知'}(其余步骤已对拍)`
-        : `1101 ${firstDiff(equippedOf(web.switched, '1101'), equippedOf(mcpState, '1101')) ?? '一致'};1102 ${firstDiff(equippedOf(web.switched, '1102'), equippedOf(mcpState, '1102')) ?? '一致'};归属表 ${firstDiff(ownersOf(web.switched), ownersOf(mcpState)) ?? '一致'}`)
+        : `1101 ${firstDiff(equippedOf(web.switched, '1101'), equippedOf(mcpState, '1101')) ?? '一致'};1102 ${
+          firstDiff(equippedOf(web.switched, '1102'), equippedOf(mcpState, '1102')) ?? '一致'
+        };归属表 ${firstDiff(ownersOf(web.switched), ownersOf(mcpState)) ?? '一致'}`,
+    )
   })
 
   // ══ F10-F17 builds (seed B) ═════════════════════════════════════════════
@@ -958,43 +1073,45 @@ try {
       await sleep(1500)
 
       await pageStep(shots, 'shots.afterCharSave', async () => {
-      // F10 case1: character-source save on 1212b1
-      await openCharacterMenu(page, '1212b1')
-      await menuClick(page, '保存当前配装')
-      await pollUntil('保存配装弹窗', async () => ({ ok: (await page.evaluate(P_MODAL_OPEN)) === true }), 10_000)
-      await typeIntoLabelled(page, '配装名称', 'web-char-build')
-      await sleep(300)
-      await page.evaluate(P_CLICK_TEXT, ['保存', true, '[role="dialog"]'])
-      await sleep(1200)
-      shots.afterCharSave = await harvest(page)
-
+        // F10 case1: character-source save on 1212b1
+        await openCharacterMenu(page, '1212b1')
+        await menuClick(page, '保存当前配装')
+        await pollUntil('保存配装弹窗', async () => ({ ok: (await page.evaluate(P_MODAL_OPEN)) === true }), 10_000)
+        await typeIntoLabelled(page, '配装名称', 'web-char-build')
+        await sleep(300)
+        await page.evaluate(P_CLICK_TEXT, ['保存', true, '[role="dialog"]'])
+        await sleep(1200)
+        shots.afterCharSave = await harvest(page)
       })
       await pageStep(shots, 'shots.afterOverwrite', async () => {
-      // F10 case3: duplicate name → 保存 disabled; overwrite path via 覆盖 + confirm
-      await openCharacterMenu(page, '1212b1')
-      await menuClick(page, '保存当前配装')
-      await pollUntil('保存配装弹窗2', async () => ({ ok: (await page.evaluate(P_MODAL_OPEN)) === true }), 10_000)
-      await typeIntoLabelled(page, '配装名称', 'web-char-build')
-      await sleep(400)
-      shots.dupSaveDisabled = await page.evaluate(`() => {
+        // F10 case3: duplicate name → 保存 disabled; overwrite path via 覆盖 + confirm
+        await openCharacterMenu(page, '1212b1')
+        await menuClick(page, '保存当前配装')
+        await pollUntil('保存配装弹窗2', async () => ({ ok: (await page.evaluate(P_MODAL_OPEN)) === true }), 10_000)
+        await typeIntoLabelled(page, '配装名称', 'web-char-build')
+        await sleep(400)
+        shots.dupSaveDisabled = await page.evaluate(`() => {
         const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop()
         const btns = [...d.querySelectorAll('button')].filter((b) => b.offsetParent !== null)
         const save = btns.find((b) => (b.textContent || '').trim() === '保存')
         const overwrite = btns.find((b) => (b.textContent || '').trim() === '覆盖')
         return { saveDisabled: save ? save.disabled : null, overwriteDisabled: overwrite ? overwrite.disabled : null }
       }`)
-      await page.evaluate(P_CLICK_TEXT, ['覆盖', true, '[role="dialog"]'])
-      await sleep(400)
-      await page.evaluate(P_CLICK_ANY_DIALOG, ['确认'])
-      await sleep(1200)
-      shots.afterOverwrite = await harvest(page)
-
+        await page.evaluate(P_CLICK_TEXT, ['覆盖', true, '[role="dialog"]'])
+        await sleep(400)
+        await page.evaluate(P_CLICK_ANY_DIALOG, ['确认'])
+        await sleep(1200)
+        shots.afterOverwrite = await harvest(page)
       })
       await pageStep(shots, 'shots.buildListDom', async () => {
         // F11: builds list DOM order (name leaves of the build cards, in DOM order)
         await openCharacterMenu(page, '1212b1')
         await menuClick(page, '查看已保存配装')
-        await pollUntil('配装弹窗(buildPreview)', async () => ({ ok: (await page.evaluate(`() => !!document.querySelector('#buildPreview')`)) === true }), 15_000)
+        await pollUntil(
+          '配装弹窗(buildPreview)',
+          async () => ({ ok: (await page.evaluate(`() => !!document.querySelector('#buildPreview')`)) === true }),
+          15_000,
+        )
         await sleep(800)
         shots.buildListDom = await page.evaluate(`() => {
           const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop()
@@ -1002,7 +1119,6 @@ try {
           const names = [...d.querySelectorAll('*')].filter((e) => e.childElementCount === 0 && whitelist.includes((e.textContent || '').trim()))
           return names.map((e) => (e.textContent || '').trim())
         }`)
-
       })
       await pageStep(shots, 'shots.previewCard', async () => {
         // F12: the modal auto-selected inject-preview (builds[0], LC/eidolon
@@ -1033,23 +1149,24 @@ try {
           if (shots.previewCard && shots.previewCard.scoreLine) break
           await sleep(2000)
         }
-
       })
       await pageStep(shots, 'shots.afterLoadSaved', async () => {
-      // F14: load inject-main into the optimizer
-      await page.evaluate(`(name) => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const btns = [...d.querySelectorAll('button')].filter((b) => b.offsetParent !== null); const card = [...d.querySelectorAll('*')].filter((e) => e.childElementCount === 0 && (e.textContent || '').trim() === name)[0]; if (!card) return false; let cardRoot = card.closest('div'); while (cardRoot && cardRoot.parentElement) { const equip = [...cardRoot.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === '加载至优化器'); if (equip) { equip.click(); return true } cardRoot = cardRoot.parentElement } return false }`, ['inject-main'])
-      await sleep(1500)
-      shots.afterLoad = await harvest(page)
-      // save the working form back: same-document hash nav + dblclick 1005
-      // (switchToCharacter persists 1212b1's in-memory working form)
-      await page.evaluate(`() => { location.hash = '#characters'; return location.hash }`)
-      await sleep(1200)
-      await page.waitForSelector('[data-character-id]', { timeoutMs: 30_000, visible: true })
-      await sleep(600)
-      await page.evaluate(P_DBLCLICK_ROW, ['1005'])
-      await sleep(2500)
-      shots.afterLoadSaved = await harvest(page)
-
+        // F14: load inject-main into the optimizer
+        await page.evaluate(
+          `(name) => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const btns = [...d.querySelectorAll('button')].filter((b) => b.offsetParent !== null); const card = [...d.querySelectorAll('*')].filter((e) => e.childElementCount === 0 && (e.textContent || '').trim() === name)[0]; if (!card) return false; let cardRoot = card.closest('div'); while (cardRoot && cardRoot.parentElement) { const equip = [...cardRoot.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === '加载至优化器'); if (equip) { equip.click(); return true } cardRoot = cardRoot.parentElement } return false }`,
+          ['inject-main'],
+        )
+        await sleep(1500)
+        shots.afterLoad = await harvest(page)
+        // save the working form back: same-document hash nav + dblclick 1005
+        // (switchToCharacter persists 1212b1's in-memory working form)
+        await page.evaluate(`() => { location.hash = '#characters'; return location.hash }`)
+        await sleep(1200)
+        await page.waitForSelector('[data-character-id]', { timeoutMs: 30_000, visible: true })
+        await sleep(600)
+        await page.evaluate(P_DBLCLICK_ROW, ['1005'])
+        await sleep(2500)
+        shots.afterLoadSaved = await harvest(page)
       })
       await pageStep(shots, 'shots.afterEquipMain', async () => {
         // F13 case1 (Replace default): equip inject-main (relics worn by 1102, full team)
@@ -1062,60 +1179,91 @@ try {
         await openCharacterMenu(page, '1212b1')
         await menuClick(page, '查看已保存配装')
         await pollUntil('配装弹窗2', async () => ({ ok: (await page.evaluate(`() => !!document.querySelector('#buildPreview')`)) === true }), 15_000)
-        await clickThenConfirm(page, () => page.evaluate(`(name) => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const card = [...d.querySelectorAll('*')].filter((e) => e.childElementCount === 0 && (e.textContent || '').trim() === name)[0]; let root = card; for (let i = 0; i < 8 && root; i++) { const equip = [...root.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === '装备'); if (equip) { equip.click(); return true } root = root.parentElement } return false }`, ['inject-main']))
+        await clickThenConfirm(
+          page,
+          () =>
+            page.evaluate(
+              `(name) => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const card = [...d.querySelectorAll('*')].filter((e) => e.childElementCount === 0 && (e.textContent || '').trim() === name)[0]; let root = card; for (let i = 0; i < 8 && root; i++) { const equip = [...root.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === '装备'); if (equip) { equip.click(); return true } root = root.parentElement } return false }`,
+              ['inject-main'],
+            ),
+        )
         await sleep(1800)
         shots.afterEquipMain = await harvest(page)
-
       })
       await pageStep(shots, 'shots.afterEquipShort', async () => {
         // F13 case2: equip inject-short (1 teammate) → scoring override unchanged
         await openCharacterMenu(page, '1212b1')
         await menuClick(page, '查看已保存配装')
         await pollUntil('配装弹窗3', async () => ({ ok: (await page.evaluate(`() => !!document.querySelector('#buildPreview')`)) === true }), 15_000)
-        await clickThenConfirm(page, () => page.evaluate(`(name) => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const card = [...d.querySelectorAll('*')].filter((e) => e.childElementCount === 0 && (e.textContent || '').trim() === name)[0]; let root = card; for (let i = 0; i < 8 && root; i++) { const equip = [...root.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === '装备'); if (equip) { equip.click(); return true } root = root.parentElement } return false }`, ['inject-short']))
+        await clickThenConfirm(
+          page,
+          () =>
+            page.evaluate(
+              `(name) => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const card = [...d.querySelectorAll('*')].filter((e) => e.childElementCount === 0 && (e.textContent || '').trim() === name)[0]; let root = card; for (let i = 0; i < 8 && root; i++) { const equip = [...root.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === '装备'); if (equip) { equip.click(); return true } root = root.parentElement } return false }`,
+              ['inject-short'],
+            ),
+        )
         await sleep(1800)
         shots.afterEquipShort = await harvest(page)
-
       })
       await pageStep(shots, 'shots.afterEquipSwap', async () => {
-      // F13 case3: Swap behavior — settings drawer → RelicEquippingBehavior=Swap.
-      // The select's display and its dropdown options are NOT <button>s, so
-      // P_CLICK_TEXT cannot hit them — click ANY visible element by exact text.
-      const settingsClick = await page.evaluate(P_CLICK_TEXT, ['设置', true])
-      await pollUntil('设置抽屉', async () => ({ ok: await page.evaluate(`() => [...document.querySelectorAll('*')].some((e) => e.offsetParent !== null && (e.textContent || '').includes('装备其他角色'))`) === true }), 15_000)
-      if (!settingsClick.ok) throw new Error('设置按钮点击失败: ' + settingsClick.reason)
-      // Mantine Select shows its value inside a readonly <input value=…>, and
-      // its options render in a portal — target the input by VALUE, then click
-      // the option element by exact text (retry while the dropdown opens).
-      const selectOpen = await page.evaluate(`(value) => {
+        // F13 case3: Swap behavior — settings drawer → RelicEquippingBehavior=Swap.
+        // The select's display and its dropdown options are NOT <button>s, so
+        // P_CLICK_TEXT cannot hit them — click ANY visible element by exact text.
+        const settingsClick = await page.evaluate(P_CLICK_TEXT, ['设置', true])
+        await pollUntil(
+          '设置抽屉',
+          async () => ({
+            ok: await page.evaluate(
+              `() => [...document.querySelectorAll('*')].some((e) => e.offsetParent !== null && (e.textContent || '').includes('装备其他角色'))`,
+            ) === true,
+          }),
+          15_000,
+        )
+        if (!settingsClick.ok) throw new Error('设置按钮点击失败: ' + settingsClick.reason)
+        // Mantine Select shows its value inside a readonly <input value=…>, and
+        // its options render in a portal — target the input by VALUE, then click
+        // the option element by exact text (retry while the dropdown opens).
+        const selectOpen = await page.evaluate(
+          `(value) => {
         const inputs = [...document.querySelectorAll('input')].filter((e) => e.offsetParent !== null)
         const hit = inputs.find((e) => (e.value || '') === value) || inputs.find((e) => (e.value || '').includes('替换遗器'))
         if (!hit) return { ok: false, reason: 'no select input (values: ' + inputs.slice(0, 8).map((e) => e.value || '').join('|').slice(0, 120) + ')' }
         hit.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))
         hit.click()
         return { ok: true }
-      }`, ['默认：替换遗器而不交换'])
-      await sleep(900)
-      let swapOption = { ok: false }
-      for (let i = 0; i < 6 && !swapOption.ok; i++) {
-        swapOption = await page.evaluate(P_CLICK_EL, ['与该遗器装备者交换遗器'])
-        if (!swapOption.ok) await sleep(400)
-      }
-      shots.swapSettingClicks = { selectOpen, swapOption }
-      await sleep(600)
-      // the drawer's select display must now show the Swap option label
-      const swapShown = await page.evaluate(`() => [...document.querySelectorAll('*')].some((e) => e.offsetParent !== null && (e.textContent || '').includes('与该遗器装备者交换遗器'))`)
-      shots.swapShown = swapShown
-      await page.press('Escape')
-      await sleep(600)
-      await openCharacterMenu(page, '1212b1')
-      await menuClick(page, '查看已保存配装')
-      await pollUntil('配装弹窗4', async () => ({ ok: (await page.evaluate(`() => !!document.querySelector('#buildPreview')`)) === true }), 15_000)
-      await clickThenConfirm(page, () => page.evaluate(`(name) => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const card = [...d.querySelectorAll('*')].filter((e) => e.childElementCount === 0 && (e.textContent || '').trim() === name)[0]; let root = card; for (let i = 0; i < 8 && root; i++) { const equip = [...root.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === '装备'); if (equip) { equip.click(); return true } root = root.parentElement } return false }`, ['inject-steal']))
-      await sleep(1800)
-      shots.afterEquipSwap = await harvest(page)
-      shots.swapSetting = shots.afterEquipSwap.settings?.RelicEquippingBehavior
-
+      }`,
+          ['默认：替换遗器而不交换'],
+        )
+        await sleep(900)
+        let swapOption = { ok: false }
+        for (let i = 0; i < 6 && !swapOption.ok; i++) {
+          swapOption = await page.evaluate(P_CLICK_EL, ['与该遗器装备者交换遗器'])
+          if (!swapOption.ok) await sleep(400)
+        }
+        shots.swapSettingClicks = { selectOpen, swapOption }
+        await sleep(600)
+        // the drawer's select display must now show the Swap option label
+        const swapShown = await page.evaluate(
+          `() => [...document.querySelectorAll('*')].some((e) => e.offsetParent !== null && (e.textContent || '').includes('与该遗器装备者交换遗器'))`,
+        )
+        shots.swapShown = swapShown
+        await page.press('Escape')
+        await sleep(600)
+        await openCharacterMenu(page, '1212b1')
+        await menuClick(page, '查看已保存配装')
+        await pollUntil('配装弹窗4', async () => ({ ok: (await page.evaluate(`() => !!document.querySelector('#buildPreview')`)) === true }), 15_000)
+        await clickThenConfirm(
+          page,
+          () =>
+            page.evaluate(
+              `(name) => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const card = [...d.querySelectorAll('*')].filter((e) => e.childElementCount === 0 && (e.textContent || '').trim() === name)[0]; let root = card; for (let i = 0; i < 8 && root; i++) { const equip = [...root.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === '装备'); if (equip) { equip.click(); return true } root = root.parentElement } return false }`,
+              ['inject-steal'],
+            ),
+        )
+        await sleep(1800)
+        shots.afterEquipSwap = await harvest(page)
+        shots.swapSetting = shots.afterEquipSwap.settings?.RelicEquippingBehavior
       })
       await pageStep(shots, 'shots.pngHead', async () => {
         // F17: screenshot of inject-preview via the app camera button (the same
@@ -1138,27 +1286,32 @@ try {
             previewText: (document.querySelector('#buildPreview')?.innerText || '').slice(0, 120),
           }
         }`)
-        let png = null
-        try {
-          png = await page.captureAppExport({ via: 'camera', scopeSelector: '[role="dialog"]:has(#buildPreview)', timeoutMs: 60_000 })
-        } catch {
-          png = await page.captureAppExport({ via: 'download', scopeSelector: '[role="dialog"]:has(#buildPreview)', timeoutMs: 60_000 })
+          let png = null
+          try {
+            png = await page.captureAppExport({ via: 'camera', scopeSelector: '[role="dialog"]:has(#buildPreview)', timeoutMs: 60_000 })
+          } catch {
+            png = await page.captureAppExport({ via: 'download', scopeSelector: '[role="dialog"]:has(#buildPreview)', timeoutMs: 60_000 })
+          }
+          shots.pngHead = Array.from(png.slice(0, 33)).map((b) => b.toString(16).padStart(2, '0')).join('')
+        } catch (e) {
+          shots.pngError = String(e?.message ?? e).slice(0, 160)
         }
-        shots.pngHead = Array.from(png.slice(0, 33)).map((b) => b.toString(16).padStart(2, '0')).join('')
-      } catch (e) {
-        shots.pngError = String(e?.message ?? e).slice(0, 160)
-      }
-
       })
       await pageStep(shots, 'shots.afterDelete', async () => {
         // F15: delete inject-short
         await openCharacterMenu(page, '1212b1')
         await menuClick(page, '查看已保存配装')
         await pollUntil('配装弹窗6', async () => ({ ok: (await page.evaluate(`() => !!document.querySelector('#buildPreview')`)) === true }), 15_000)
-        await clickThenConfirm(page, () => page.evaluate(`(name) => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const card = [...d.querySelectorAll('*')].filter((e) => e.childElementCount === 0 && (e.textContent || '').trim() === name)[0]; let root = card; for (let i = 0; i < 8 && root; i++) { const del = [...root.querySelectorAll('button')].filter((b) => b.offsetParent !== null && (b.textContent || '').trim() === '' ).find((b) => b.querySelector('svg')); if (del) { del.click(); return true } root = root.parentElement } return false }`, ['inject-short']))
+        await clickThenConfirm(
+          page,
+          () =>
+            page.evaluate(
+              `(name) => { const d = [...document.querySelectorAll('[role="dialog"]')].filter((e) => e.offsetParent !== null).pop(); const card = [...d.querySelectorAll('*')].filter((e) => e.childElementCount === 0 && (e.textContent || '').trim() === name)[0]; let root = card; for (let i = 0; i < 8 && root; i++) { const del = [...root.querySelectorAll('button')].filter((b) => b.offsetParent !== null && (b.textContent || '').trim() === '' ).find((b) => b.querySelector('svg')); if (del) { del.click(); return true } root = root.parentElement } return false }`,
+              ['inject-short'],
+            ),
+        )
         await sleep(1200)
         shots.afterDelete = await harvest(page)
-
       })
       await pageStep(shots, 'shots.afterClear', async () => {
         // F16: clear all builds
@@ -1168,7 +1321,6 @@ try {
         await clickThenConfirm(page, () => page.evaluate(P_CLICK_TEXT, ['删除全部', true, '[role="dialog"]']))
         await sleep(1500)
         shots.afterClear = await harvest(page)
-
       })
       return shots
     })
@@ -1180,9 +1332,15 @@ try {
     const webCharBuild = buildSummaries(web.afterCharSave, '1212b1').find((b) => b.name === 'web-char-build')
     const mcpCharBuild = buildSummaries(mcpState, '1212b1').find((b) => b.name === 'mcp-char-build')
     const strip = (b) => b && { ...b, name: undefined }
-    record('characters.builds.save', 1, '角色页来源:保存后两边存档里的该配装(遗器、光锥、星魂、队伍、评分配置类型)一致',
+    record(
+      'characters.builds.save',
+      1,
+      '角色页来源:保存后两边存档里的该配装(遗器、光锥、星魂、队伍、评分配置类型)一致',
       firstDiff(strip(webCharBuild), strip(mcpCharBuild)) == null,
-      `web ${JSON.stringify(strip(webCharBuild))?.slice(0, 140)} vs mcp ${JSON.stringify(strip(mcpCharBuild))?.slice(0, 140)} 差异:${firstDiff(strip(webCharBuild), strip(mcpCharBuild)) ?? '无'}`)
+      `web ${JSON.stringify(strip(webCharBuild))?.slice(0, 140)} vs mcp ${JSON.stringify(strip(mcpCharBuild))?.slice(0, 140)} 差异:${
+        firstDiff(strip(webCharBuild), strip(mcpCharBuild)) ?? '无'
+      }`,
+    )
 
     const listRes = await callTool(client, 'list_builds', { characterId: '1212b1' })
     const webListState = web.afterCharSave
@@ -1201,16 +1359,30 @@ try {
     })
     const listOk = JSON.stringify(domNamesMapped) === JSON.stringify(webNamesMapped)
       && JSON.stringify(mcpList) === JSON.stringify(webListTool)
-    record('characters.builds.list', 1, 'list_builds 返回的配装名、顺序、来源、遗器 id 与弹窗列表一致', listOk,
-      `弹窗 DOM [${domNamesMapped.join(',')}] vs 存档序 [${webNamesMapped.join(',')}];工具 [${mcpList.map((b) => b.n)}] 内容一致=${JSON.stringify(mcpList) === JSON.stringify(webListTool)}`)
+    record(
+      'characters.builds.list',
+      1,
+      'list_builds 返回的配装名、顺序、来源、遗器 id 与弹窗列表一致',
+      listOk,
+      `弹窗 DOM [${domNamesMapped.join(',')}] vs 存档序 [${webNamesMapped.join(',')}];工具 [${mcpList.map((b) => b.n)}] 内容一致=${
+        JSON.stringify(mcpList) === JSON.stringify(webListTool)
+      }`,
+    )
 
     const dupErr = await toolError(client, 'save_build', { characterId: '1212b1', name: 'mcp-char-build' })
     const overRes = await callTool(client, 'save_build', { characterId: '1212b1', name: 'mcp-char-build', overwrite: true })
     const ghostRes = await callTool(client, 'save_build', { characterId: '1212b1', name: 'mcp-ghost', overwrite: true })
     mcpState = await mcpExport()
-    record('characters.builds.save', 3, '重名不带 overwrite 报错,带 overwrite 覆盖;名称不存在时带 overwrite 会静默新建并返回 overwrote=false',
-      dupErr != null && /存在|exists|already/i.test(String(dupErr)) && overRes.saved != null && ghostRes.overwrote === false && buildSummaries(mcpState, '1212b1').some((b) => b.name === 'mcp-ghost'),
-      `重名报错:${String(dupErr).slice(0, 60)};overwrite 成功;不存在名+overwrite → overwrote=${ghostRes.overwrote}(网页「覆盖」按钮此时禁用:${JSON.stringify(web.dupSaveDisabled)})`)
+    record(
+      'characters.builds.save',
+      3,
+      '重名不带 overwrite 报错,带 overwrite 覆盖;名称不存在时带 overwrite 会静默新建并返回 overwrote=false',
+      dupErr != null && /存在|exists|already/i.test(String(dupErr)) && overRes.saved != null && ghostRes.overwrote === false
+        && buildSummaries(mcpState, '1212b1').some((b) => b.name === 'mcp-ghost'),
+      `重名报错:${String(dupErr).slice(0, 60)};overwrite 成功;不存在名+overwrite → overwrote=${ghostRes.overwrote}(网页「覆盖」按钮此时禁用:${
+        JSON.stringify(web.dupSaveDisabled)
+      })`,
+    )
 
     // F12 preview: the auto-selected card (inject-preview) vs score_character(source=build).
     // Web score line "17.0% · ?" is truncate10ths(max(0,percent*100)) — mirror
@@ -1236,8 +1408,17 @@ try {
     }
     const statsOk = statChecks.length >= 8 && statChecks.every((c) => c.ok)
     const firstBad = statChecks.find((c) => !c.ok)
-    record('characters.builds.preview', 1, '对一个光锥、星魂与当前角色不同的已存配装,返回的属性与评分和弹窗里这张展示卡上的数值一致', scoreOk && statsOk,
-      `网页卡评分行「${webScoreText}」(头部 ${JSON.stringify(previewCard?.header ?? [])}) vs score_character ${mcpPct.toFixed(1)}% ${buildScore.grade};属性 ${statChecks.length} 项逐项比${statsOk ? '一致' : `首个差异 ${firstBad ? firstBad.key + ' ' + firstBad.web + '/' + firstBad.mcp : '(项数不足)'}`}`)
+    record(
+      'characters.builds.preview',
+      1,
+      '对一个光锥、星魂与当前角色不同的已存配装,返回的属性与评分和弹窗里这张展示卡上的数值一致',
+      scoreOk && statsOk,
+      `网页卡评分行「${webScoreText}」(头部 ${JSON.stringify(previewCard?.header ?? [])}) vs score_character ${
+        mcpPct.toFixed(1)
+      }% ${buildScore.grade};属性 ${statChecks.length} 项逐项比${
+        statsOk ? '一致' : `首个差异 ${firstBad ? firstBad.key + ' ' + firstBad.web + '/' + firstBad.mcp : '(项数不足)'}`
+      }`,
+    )
 
     // F14: update_form fromBuild vs web loaded form. The web flow is
     // Load(→working form in memory) → dblclick 1005 (switch away persists the
@@ -1251,8 +1432,13 @@ try {
     const mcpLoadedForm = charIn(mcpLoadState, '1212b1')?.form
     const loadIdWeb = web.afterLoad?.savedSession?.global?.optimizerCharacterId
     const loadOk = web.afterLoadSaved != null && loadIdWeb === '1212b1' && firstDiff(webLoadedForm, mcpLoadedForm) == null
-    record('characters.builds.loadInOptimizer', 1, '载入同一配装后,get_form 返回的工作表单与网页优化器表单逐字段一致,optimizerCharacterId 指向该角色', loadOk,
-      `optimizerCharacterId web=${loadIdWeb} mcp=${loadIdMcp};存档表单 ${firstDiff(webLoadedForm, mcpLoadedForm) ?? '一致'}`)
+    record(
+      'characters.builds.loadInOptimizer',
+      1,
+      '载入同一配装后,get_form 返回的工作表单与网页优化器表单逐字段一致,optimizerCharacterId 指向该角色',
+      loadOk,
+      `optimizerCharacterId web=${loadIdWeb} mcp=${loadIdMcp};存档表单 ${firstDiff(webLoadedForm, mcpLoadedForm) ?? '一致'}`,
+    )
 
     // F13 case1: equip inject-main (Replace)
     await callTool(client, 'equip_saved_build', { characterId: '1212b1', buildName: 'inject-main', applyScoringTeam: true })
@@ -1260,23 +1446,42 @@ try {
     const eq1Ok = web.afterEquipMain != null && firstDiff(equippedOf(web.afterEquipMain, '1212b1'), equippedOf(mcpState, '1212b1')) == null
       && firstDiff(ownersOf(web.afterEquipMain), ownersOf(mcpState)) == null
       && firstDiff(
-        web.afterEquipMain?.scoringMetadataOverrides?.['1212b1']?.simulation?.teammates?.map((t) => [t.characterId, t.lightCone]) ?? null,
-        mcpState.scoringMetadataOverrides?.['1212b1']?.simulation?.teammates?.map((t) => [t.characterId, t.lightCone]) ?? null,
-      ) == null
-    record('characters.builds.equip', 1, '装备带 3 名队友的配装后,两边存档的 equipped 与 scoringMetadataOverrides[角色].simulation.teammates 一致', eq1Ok,
+          web.afterEquipMain?.scoringMetadataOverrides?.['1212b1']?.simulation?.teammates?.map((t) => [t.characterId, t.lightCone]) ?? null,
+          mcpState.scoringMetadataOverrides?.['1212b1']?.simulation?.teammates?.map((t) => [t.characterId, t.lightCone]) ?? null,
+        ) == null
+    record(
+      'characters.builds.equip',
+      1,
+      '装备带 3 名队友的配装后,两边存档的 equipped 与 scoringMetadataOverrides[角色].simulation.teammates 一致',
+      eq1Ok,
       web.afterEquipMain == null
         ? `网页步骤失败:${web.errors?.['shots.afterEquipMain'] ?? '未知'}`
-        : `equipped ${firstDiff(equippedOf(web.afterEquipMain, '1212b1'), equippedOf(mcpState, '1212b1')) ?? '一致'};归属 ${firstDiff(ownersOf(web.afterEquipMain), ownersOf(mcpState)) ?? '一致'};评分队 ${firstDiff(web.afterEquipMain.scoringMetadataOverrides?.['1212b1']?.simulation?.teammates?.map((t) => [t.characterId, t.lightCone]) ?? null, mcpState.scoringMetadataOverrides?.['1212b1']?.simulation?.teammates?.map((t) => [t.characterId, t.lightCone]) ?? null) ?? '一致'}`)
+        : `equipped ${firstDiff(equippedOf(web.afterEquipMain, '1212b1'), equippedOf(mcpState, '1212b1')) ?? '一致'};归属 ${
+          firstDiff(ownersOf(web.afterEquipMain), ownersOf(mcpState)) ?? '一致'
+        };评分队 ${
+          firstDiff(
+            web.afterEquipMain.scoringMetadataOverrides?.['1212b1']?.simulation?.teammates?.map((t) => [t.characterId, t.lightCone]) ?? null,
+            mcpState.scoringMetadataOverrides?.['1212b1']?.simulation?.teammates?.map((t) => [t.characterId, t.lightCone]) ?? null,
+          ) ?? '一致'
+        }`,
+    )
 
     const webOverrideBeforeShort = web.afterEquipShort?.scoringMetadataOverrides?.['1212b1']?.simulation?.teammates ?? null
     await callTool(client, 'equip_saved_build', { characterId: '1212b1', buildName: 'inject-short', applyScoringTeam: true })
     mcpState = await mcpExport()
     const eq2Ok = web.afterEquipShort != null && firstDiff(equippedOf(web.afterEquipShort, '1212b1'), equippedOf(mcpState, '1212b1')) == null
       && firstDiff(web.afterEquipShort?.scoringMetadataOverrides?.['1212b1'] ?? null, mcpState.scoringMetadataOverrides?.['1212b1'] ?? null) == null
-    record('characters.builds.equip', 2, '队友不足 3 人的配装不改评分覆盖', eq2Ok,
+    record(
+      'characters.builds.equip',
+      2,
+      '队友不足 3 人的配装不改评分覆盖',
+      eq2Ok,
       web.afterEquipShort == null
         ? `网页步骤失败:${web.errors?.['shots.afterEquipShort'] ?? '未知'}`
-        : `短队装备后评分覆盖 web=${JSON.stringify(webOverrideBeforeShort)?.slice(0, 80)} mcp=${JSON.stringify(mcpState.scoringMetadataOverrides?.['1212b1']?.simulation?.teammates ?? null)?.slice(0, 80)}`)
+        : `短队装备后评分覆盖 web=${JSON.stringify(webOverrideBeforeShort)?.slice(0, 80)} mcp=${
+          JSON.stringify(mcpState.scoringMetadataOverrides?.['1212b1']?.simulation?.teammates ?? null)?.slice(0, 80)
+        }`,
+    )
 
     await callTool(client, 'update_state', { section: 'settings', patch: { RelicEquippingBehavior: 'Swap' } })
     await callTool(client, 'equip_saved_build', { characterId: '1212b1', buildName: 'inject-steal' })
@@ -1284,10 +1489,19 @@ try {
     const eq3Ok = web.afterEquipSwap != null && web.swapSetting === 'Swap' && mcpState.settings?.RelicEquippingBehavior === 'Swap'
       && firstDiff(ownersOf(web.afterEquipSwap), ownersOf(mcpState)) == null
       && firstDiff(equippedOf(web.afterEquipSwap, '1202'), equippedOf(mcpState, '1202')) == null
-    record('characters.builds.equip', 3, '配装遗器被他人佩戴时,Replace 与 Swap 两种设置下的归属变化与网页一致', eq3Ok,
+    record(
+      'characters.builds.equip',
+      3,
+      '配装遗器被他人佩戴时,Replace 与 Swap 两种设置下的归属变化与网页一致',
+      eq3Ok,
       web.afterEquipSwap == null
         ? `网页步骤失败:${web.errors?.['shots.afterEquipSwap'] ?? '未知'}`
-        : `设置 web=${web.swapSetting} mcp=${mcpState.settings?.RelicEquippingBehavior}(点击 ${JSON.stringify(web.swapSettingClicks)} 显示=${web.swapShown});Swap 后 1202 获得 ${Object.keys(equippedOf(web.afterEquipSwap, '1202')).length} 件;归属 ${firstDiff(ownersOf(web.afterEquipSwap), ownersOf(mcpState)) ?? '一致'}`)
+        : `设置 web=${web.swapSetting} mcp=${mcpState.settings?.RelicEquippingBehavior}(点击 ${
+          JSON.stringify(web.swapSettingClicks)
+        } 显示=${web.swapShown});Swap 后 1202 获得 ${Object.keys(equippedOf(web.afterEquipSwap, '1202')).length} 件;归属 ${
+          firstDiff(ownersOf(web.afterEquipSwap), ownersOf(mcpState)) ?? '一致'
+        }`,
+    )
 
     // F17 screenshot: render tool vs the web capture (camera button, the same
     // export chain the render tool clicks). The web PNG's first 33 bytes are
@@ -1297,11 +1511,17 @@ try {
     const renderRes = await callTool(client, 'render', { target: 'saved_build', characterId: '1212b1', buildId: 'inject-preview' }, { timeout: 240_000 })
     const renderHead = Array.from(readFileSync(renderRes.file).slice(0, 33)).map((b) => b.toString(16).padStart(2, '0')).join('')
     const webHead = web.pngHead
-    record('characters.builds.screenshot', 1, '渲染出的图片尺寸、文字与数值和网页下载的配装截图一致,背景透明处理相同',
+    record(
+      'characters.builds.screenshot',
+      1,
+      '渲染出的图片尺寸、文字与数值和网页下载的配装截图一致,背景透明处理相同',
       webHead != null && webHead.startsWith('89504e47') && renderHead.startsWith('89504e47') && webHead === renderHead && renderRes.via.startsWith('app-'),
       webHead == null
-        ? `网页捕获失败:${web.pngError ?? '未知'};弹窗态=${JSON.stringify(web.modalState ?? {}).slice(0, 200)};render 侧 ${renderRes.width}x${renderRes.height} via=${renderRes.via}`
-        : `PNG 头逐字节一致=${webHead === renderHead};render ${renderRes.width}x${renderRes.height} ${renderRes.bytes}B via=${renderRes.via}`)
+        ? `网页捕获失败:${web.pngError ?? '未知'};弹窗态=${
+          JSON.stringify(web.modalState ?? {}).slice(0, 200)
+        };render 侧 ${renderRes.width}x${renderRes.height} via=${renderRes.via}`
+        : `PNG 头逐字节一致=${webHead === renderHead};render ${renderRes.width}x${renderRes.height} ${renderRes.bytes}B via=${renderRes.via}`,
+    )
 
     // F15 delete / F16 clear — mirror the SAME build the web deleted
     // (inject-short); mcp-ghost (MCP-only artifact of the overwrite case) is
@@ -1314,20 +1534,29 @@ try {
     const delOk = web.afterDelete != null
       && firstDiff(webDeletedNames, mcpDeletedNames) == null
       && !webDeletedNames.includes('inject-short') && !mcpDeletedNames.includes('inject-short')
-    record('characters.builds.delete', 1, '删除后两边存档里该角色的 builds 一致', delOk,
+    record(
+      'characters.builds.delete',
+      1,
+      '删除后两边存档里该角色的 builds 一致',
+      delOk,
       web.afterDelete == null
         ? `网页步骤失败:${web.errors?.['shots.afterDelete'] ?? '未知'}`
-        : `web [${webDeletedNames.join(',')}] vs mcp [${mcpDeletedNames.join(',')}]`)
+        : `web [${webDeletedNames.join(',')}] vs mcp [${mcpDeletedNames.join(',')}]`,
+    )
 
     await callTool(client, 'delete_build', { characterId: '1212b1', all: true })
     mcpState = await mcpExport()
-    record('characters.builds.clear', 1, '清空后两边存档里该角色的 builds 都是空数组',
+    record(
+      'characters.builds.clear',
+      1,
+      '清空后两边存档里该角色的 builds 都是空数组',
       web.afterClear != null
         && (charIn(web.afterClear, '1212b1')?.builds ?? []).length === 0
         && (charIn(mcpState, '1212b1')?.builds ?? []).length === 0,
       web.afterClear == null
         ? `网页步骤失败:${web.errors?.['shots.afterClear'] ?? '未知'}`
-        : `web ${(charIn(web.afterClear, '1212b1')?.builds ?? []).length} 个;mcp ${(charIn(mcpState, '1212b1')?.builds ?? []).length} 个`)
+        : `web ${(charIn(web.afterClear, '1212b1')?.builds ?? []).length} 个;mcp ${(charIn(mcpState, '1212b1')?.builds ?? []).length} 个`,
+    )
   })
 
   // ══ F10 case2: optimizer-source save + F20 traces case3 web optimizer run ══
@@ -1347,11 +1576,19 @@ try {
       // Start optimization (limit left at default; 1212b1 on sample ≈ 462k perms)
       await page.evaluate(P_CLICK_TEXT, ['启动优化器', true])
       // wait for results: a data row (>= 6 cells) renders in the grid
-      await pollUntil('优化结果行出现', async () => ({
-        ok: await page.evaluate(`() => [...document.querySelectorAll('[role="row"]')].some((r) => r.querySelectorAll('[role="gridcell"], .ag-cell').length > 5)`),
-      }), 300_000, 500)
+      await pollUntil(
+        '优化结果行出现',
+        async () => ({
+          ok: await page.evaluate(
+            `() => [...document.querySelectorAll('[role="row"]')].some((r) => r.querySelectorAll('[role="gridcell"], .ag-cell').length > 5)`,
+          ),
+        }),
+        300_000,
+        500,
+      )
       await sleep(1500)
-      const scrapeRows = () => page.evaluate(`() => {
+      const scrapeRows = () =>
+        page.evaluate(`() => {
         const rows = [...document.querySelectorAll('[role="row"]')].filter((r) => r.querySelectorAll('[role="gridcell"], .ag-cell').length > 5)
         return rows.slice(0, 4).map((row) => {
           const out = {}
@@ -1362,9 +1599,16 @@ try {
           return out
         })
       }`)
-      await pollUntil('优化结果行出现(≥2 行)', async () => ({
-        ok: await page.evaluate(`() => [...document.querySelectorAll('[role="row"]')].filter((r) => r.querySelectorAll('[role="gridcell"], .ag-cell').length > 5).length >= 2`),
-      }), 300_000, 500)
+      await pollUntil(
+        '优化结果行出现(≥2 行)',
+        async () => ({
+          ok: await page.evaluate(
+            `() => [...document.querySelectorAll('[role="row"]')].filter((r) => r.querySelectorAll('[role="gridcell"], .ag-cell').length > 5).length >= 2`,
+          ),
+        }),
+        300_000,
+        500,
+      )
       const firstRows = await scrapeRows()
       // select the first RESULT row (the grid's row 0 is the equipped baseline)
       // — AG Grid selection needs a full mouse sequence on the row's first cell
@@ -1406,14 +1650,25 @@ try {
     const matchIdx = mcpRun.rows.findIndex((r) => rowKey(r) === webEquipKey)
     let mcpBuild = null
     if (matchIdx >= 0) {
-      await callTool(client, 'save_build', { characterId: '1212b1', name: 'mcp-opt-build', fromCache: { cacheId: mcpRun.summary.cacheId, rowId: mcpRun.rows[matchIdx].id } })
+      await callTool(client, 'save_build', {
+        characterId: '1212b1',
+        name: 'mcp-opt-build',
+        fromCache: { cacheId: mcpRun.summary.cacheId, rowId: mcpRun.rows[matchIdx].id },
+      })
       const mcpState = await mcpExport()
       mcpBuild = buildSummaries(mcpState, '1212b1').find((b) => b.name === 'mcp-opt-build')
     }
     const strip = (b) => b && { ...b, name: undefined }
     const optOk = webBuild != null && mcpBuild != null && firstDiff(strip(webBuild), strip(mcpBuild)) == null && webBuild.lightConeSuperimposition === 5
-    record('characters.builds.save', 2, '优化器来源:保存的表单快照是该次运行实际使用的表单', optOk,
-      `web s=${webBuild?.lightConeSuperimposition};选中行在 MCP 结果第 ${matchIdx} 行;${mcpBuild == null ? '未找到对应行' : `差异 ${firstDiff(strip(webBuild), strip(mcpBuild)) ?? '无'}`};网页网格前两行=${JSON.stringify((web.firstRows ?? []).slice(0, 2)).slice(0, 200)}`)
+    record(
+      'characters.builds.save',
+      2,
+      '优化器来源:保存的表单快照是该次运行实际使用的表单',
+      optOk,
+      `web s=${webBuild?.lightConeSuperimposition};选中行在 MCP 结果第 ${matchIdx} 行;${
+        mcpBuild == null ? '未找到对应行' : `差异 ${firstDiff(strip(webBuild), strip(mcpBuild)) ?? '无'}`
+      };网页网格前两行=${JSON.stringify((web.firstRows ?? []).slice(0, 2)).slice(0, 200)}`,
+    )
   })
 
   // ══ F18/F19 scoring weights + resetAll ═══════════════════════════════════
@@ -1428,76 +1683,113 @@ try {
       await sleep(1500)
 
       await pageStep(shots, 'shots.weights', async () => {
-      // weights: ATK → 1
-      await openCharacterMenu(page, '1212b1')
-      await menuClick(page, '评分算法')
-      await pollUntil('评分弹窗(属性权重)', async () => ({ ok: (await page.evaluate(`() => [...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && (e.textContent || '').trim() === '属性权重')`)) === true }), 10_000)
-      await sleep(800)
-      typed = await typeNumberBeside(page, '攻击力', '1')
-      await sleep(600)
-      await page.evaluate(P_CLICK_TEXT, ['保存更改', true, '[role="dialog"]'])
-      await sleep(1500)
-      shots.weights = await harvest(page)
-      if (shots.weights?.scoringMetadataOverrides?.['1212b1'] == null) {
-        await sleep(2000)
+        // weights: ATK → 1
+        await openCharacterMenu(page, '1212b1')
+        await menuClick(page, '评分算法')
+        await pollUntil(
+          '评分弹窗(属性权重)',
+          async () => ({
+            ok: (await page.evaluate(
+              `() => [...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && (e.textContent || '').trim() === '属性权重')`,
+            )) === true,
+          }),
+          10_000,
+        )
+        await sleep(800)
+        typed = await typeNumberBeside(page, '攻击力', '1')
+        await sleep(600)
+        await page.evaluate(P_CLICK_TEXT, ['保存更改', true, '[role="dialog"]'])
+        await sleep(1500)
         shots.weights = await harvest(page)
-      }
-
+        if (shots.weights?.scoringMetadataOverrides?.['1212b1'] == null) {
+          await sleep(2000)
+          shots.weights = await harvest(page)
+        }
       })
       await pageStep(shots, 'shots.parts', async () => {
-      // parts: Body multi-select — remove the 暴击伤害 pill (placeholder 躯干)
-      await openCharacterMenu(page, '1212b1')
-      await menuClick(page, '评分算法')
-      await pollUntil('评分弹窗2', async () => ({ ok: (await page.evaluate(`() => [...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && (e.textContent || '').trim() === '属性权重')`)) === true }), 10_000)
-      await sleep(800)
-      const pill = await page.evaluate(P_PILL_REMOVE, ['暴击伤害'])
-      await sleep(600)
-      await page.evaluate(P_CLICK_TEXT, ['保存更改', true, '[role="dialog"]'])
-      await sleep(1500)
-      shots.parts = await harvest(page)
-      if (shots.parts?.scoringMetadataOverrides?.['1212b1']?.parts == null) {
-        await sleep(2000)
+        // parts: Body multi-select — remove the 暴击伤害 pill (placeholder 躯干)
+        await openCharacterMenu(page, '1212b1')
+        await menuClick(page, '评分算法')
+        await pollUntil(
+          '评分弹窗2',
+          async () => ({
+            ok: (await page.evaluate(
+              `() => [...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && (e.textContent || '').trim() === '属性权重')`,
+            )) === true,
+          }),
+          10_000,
+        )
+        await sleep(800)
+        const pill = await page.evaluate(P_PILL_REMOVE, ['暴击伤害'])
+        await sleep(600)
+        await page.evaluate(P_CLICK_TEXT, ['保存更改', true, '[role="dialog"]'])
+        await sleep(1500)
         shots.parts = await harvest(page)
-      }
-
+        if (shots.parts?.scoringMetadataOverrides?.['1212b1']?.parts == null) {
+          await sleep(2000)
+          shots.parts = await harvest(page)
+        }
       })
       await pageStep(shots, 'shots.reset', async () => {
-      // reset to default
-      await openCharacterMenu(page, '1212b1')
-      await menuClick(page, '评分算法')
-      await pollUntil('评分弹窗3', async () => ({ ok: (await page.evaluate(`() => [...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && (e.textContent || '').trim() === '属性权重')`)) === true }), 10_000)
-      await sleep(600)
-      await page.evaluate(P_CLICK_TEXT, ['重置为默认', true, '[role="dialog"]'])
-      await sleep(1200)
-      shots.reset = await harvest(page)
-
+        // reset to default
+        await openCharacterMenu(page, '1212b1')
+        await menuClick(page, '评分算法')
+        await pollUntil(
+          '评分弹窗3',
+          async () => ({
+            ok: (await page.evaluate(
+              `() => [...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && (e.textContent || '').trim() === '属性权重')`,
+            )) === true,
+          }),
+          10_000,
+        )
+        await sleep(600)
+        await page.evaluate(P_CLICK_TEXT, ['重置为默认', true, '[role="dialog"]'])
+        await sleep(1200)
+        shots.reset = await harvest(page)
       })
       await pageStep(shots, 'shots.afterResetAll', async () => {
-      // resetAll: put an override back, then 重置所有角色 → confirm 是
-      await openCharacterMenu(page, '1212b1')
-      await menuClick(page, '评分算法')
-      await pollUntil('评分弹窗4', async () => ({ ok: (await page.evaluate(`() => [...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && (e.textContent || '').trim() === '属性权重')`)) === true }), 10_000)
-      await sleep(800)
-      await typeNumberBeside(page, '击破特攻', '1')
-      await sleep(300)
-      await page.evaluate(P_CLICK_TEXT, ['保存更改', true, '[role="dialog"]'])
-      await sleep(1500)
-      shots.beforeResetAll = await harvest(page)
-      await openCharacterMenu(page, '1212b1')
-      await menuClick(page, '评分算法')
-      await pollUntil('评分弹窗5', async () => ({ ok: (await page.evaluate(`() => [...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && (e.textContent || '').trim() === '属性权重')`)) === true }), 10_000)
-      await sleep(600)
+        // resetAll: put an override back, then 重置所有角色 → confirm 是
+        await openCharacterMenu(page, '1212b1')
+        await menuClick(page, '评分算法')
+        await pollUntil(
+          '评分弹窗4',
+          async () => ({
+            ok: (await page.evaluate(
+              `() => [...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && (e.textContent || '').trim() === '属性权重')`,
+            )) === true,
+          }),
+          10_000,
+        )
+        await sleep(800)
+        await typeNumberBeside(page, '击破特攻', '1')
+        await sleep(300)
+        await page.evaluate(P_CLICK_TEXT, ['保存更改', true, '[role="dialog"]'])
+        await sleep(1500)
+        shots.beforeResetAll = await harvest(page)
+        await openCharacterMenu(page, '1212b1')
+        await menuClick(page, '评分算法')
+        await pollUntil(
+          '评分弹窗5',
+          async () => ({
+            ok: (await page.evaluate(
+              `() => [...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && (e.textContent || '').trim() === '属性权重')`,
+            )) === true,
+          }),
+          10_000,
+        )
+        await sleep(600)
         await clickThenConfirm(page, () => page.evaluate(P_CLICK_TEXT, ['重置所有角色', true, '[role="dialog"]']), '是')
-      // the reset debounces its save for 5s; harvest with a long window
-      let after = null
-      for (let i = 0; i < 12 && after == null; i++) {
-        after = await page.harvestSaveState()
-        if (after == null) {
-          shots.resetAllDbg = await page.evaluate(`() => ({ len: (localStorage.getItem('state') || '').length, ready: document.readyState })`)
-          await sleep(1000)
+        // the reset debounces its save for 5s; harvest with a long window
+        let after = null
+        for (let i = 0; i < 12 && after == null; i++) {
+          after = await page.harvestSaveState()
+          if (after == null) {
+            shots.resetAllDbg = await page.evaluate(`() => ({ len: (localStorage.getItem('state') || '').length, ready: document.readyState })`)
+            await sleep(1000)
+          }
         }
-      }
-      shots.afterResetAll = after
+        shots.afterResetAll = after
       })
       return { shots, typed }
     })
@@ -1508,11 +1800,16 @@ try {
     let mcpState = await mcpExport()
     const webStats = web.shots.weights?.scoringMetadataOverrides?.['1212b1']?.stats ?? null
     const mcpStats = mcpState.scoringMetadataOverrides?.['1212b1']?.stats ?? null
-    record('characters.scoring.weights', 1, '只把 ATK 权重改为 1 后,两边存档的 scoringMetadataOverrides 里 ATK 与 ATK% 都是 1',
-      web.shots.weights != null && webStats?.ATK === 1 && webStats?.['ATK%'] === 1 && mcpStats?.ATK === 1 && mcpStats?.['ATK%'] === 1 && firstDiff(webStats, mcpStats) == null,
+    record(
+      'characters.scoring.weights',
+      1,
+      '只把 ATK 权重改为 1 后,两边存档的 scoringMetadataOverrides 里 ATK 与 ATK% 都是 1',
+      web.shots.weights != null && webStats?.ATK === 1 && webStats?.['ATK%'] === 1 && mcpStats?.ATK === 1 && mcpStats?.['ATK%'] === 1
+        && firstDiff(webStats, mcpStats) == null,
       web.shots.weights == null
         ? `网页步骤失败:${JSON.stringify(web.errors ?? {}).slice(0, 160)}`
-        : `web stats=${JSON.stringify(webStats)};mcp stats=${JSON.stringify(mcpStats)}(默认 ATK=${atkDefault})`)
+        : `web stats=${JSON.stringify(webStats)};mcp stats=${JSON.stringify(mcpStats)}(默认 ATK=${atkDefault})`,
+    )
 
     // mirror the web action: REMOVE 暴击伤害 (CRIT DMG) from the Body candidates
     // (the web pill removal acts on the effective list; default minus CRIT DMG)
@@ -1522,18 +1819,29 @@ try {
     const webParts = web.shots.parts?.scoringMetadataOverrides?.['1212b1']?.parts ?? null
     const mcpParts = mcpState.scoringMetadataOverrides?.['1212b1']?.parts ?? null
     const partsOk = web.shots.parts != null && firstDiff(webParts, mcpParts) == null
-    record('characters.scoring.weights', 2, '修改部位主词条候选后两边存档一致,与默认值相同的项被剪掉', partsOk,
+    record(
+      'characters.scoring.weights',
+      2,
+      '修改部位主词条候选后两边存档一致,与默认值相同的项被剪掉',
+      partsOk,
       web.shots.parts == null
         ? `网页步骤失败:${JSON.stringify(web.errors ?? {}).slice(0, 160)}`
-        : `web parts=${JSON.stringify(webParts)};mcp parts=${JSON.stringify(mcpParts)}`)
+        : `web parts=${JSON.stringify(webParts)};mcp parts=${JSON.stringify(mcpParts)}`,
+    )
 
     await callTool(client, 'set_scoring_override', { characterId: '1212b1', reset: true })
     mcpState = await mcpExport()
-    const resetOk = web.shots.reset != null && web.shots.reset.scoringMetadataOverrides?.['1212b1'] == null && mcpState.scoringMetadataOverrides?.['1212b1'] == null
-    record('characters.scoring.weights', 3, '恢复默认后该角色在 scoringMetadataOverrides 里没有任何条目', resetOk,
+    const resetOk = web.shots.reset != null && web.shots.reset.scoringMetadataOverrides?.['1212b1'] == null
+      && mcpState.scoringMetadataOverrides?.['1212b1'] == null
+    record(
+      'characters.scoring.weights',
+      3,
+      '恢复默认后该角色在 scoringMetadataOverrides 里没有任何条目',
+      resetOk,
       web.shots.reset == null
         ? `网页步骤失败:${JSON.stringify(web.errors ?? {}).slice(0, 160)}`
-        : `web ${JSON.stringify(web.shots.reset.scoringMetadataOverrides ?? {})};mcp ${JSON.stringify(mcpState.scoringMetadataOverrides ?? {})}`)
+        : `web ${JSON.stringify(web.shots.reset.scoringMetadataOverrides ?? {})};mcp ${JSON.stringify(mcpState.scoringMetadataOverrides ?? {})}`,
+    )
 
     await callTool(client, 'set_scoring_override', { characterId: '1212b1', weights: { 'Break Effect': 1 } })
     const resetAll = await callTool(client, 'set_scoring_override', { resetAll: true })
@@ -1541,10 +1849,17 @@ try {
     const resetAllOk = web.shots.afterResetAll != null && Object.keys(web.shots.afterResetAll.scoringMetadataOverrides ?? {}).length === 0
       && Object.keys(mcpState.scoringMetadataOverrides ?? {}).length === 0
       && Object.keys(web.shots.beforeResetAll?.scoringMetadataOverrides ?? {}).length >= 1
-    record('characters.scoring.resetAll', 1, '重置后两边存档的 scoringMetadataOverrides 都是空对象', resetAllOk,
+    record(
+      'characters.scoring.resetAll',
+      1,
+      '重置后两边存档的 scoringMetadataOverrides 都是空对象',
+      resetAllOk,
       web.shots.afterResetAll == null
         ? `网页步骤失败:${JSON.stringify(web.errors ?? {}).slice(0, 160)};localStorage 探针=${JSON.stringify(web.shots.resetAllDbg ?? null)}`
-        : `前置覆盖 web=${Object.keys(web.shots.beforeResetAll?.scoringMetadataOverrides ?? {})};重置后 web=${Object.keys(web.shots.afterResetAll.scoringMetadataOverrides ?? {})} mcp=${Object.keys(mcpState.scoringMetadataOverrides ?? {})}(cleared=${resetAll.clearedCharacters})`)
+        : `前置覆盖 web=${Object.keys(web.shots.beforeResetAll?.scoringMetadataOverrides ?? {})};重置后 web=${
+          Object.keys(web.shots.afterResetAll.scoringMetadataOverrides ?? {})
+        } mcp=${Object.keys(mcpState.scoringMetadataOverrides ?? {})}(cleared=${resetAll.clearedCharacters})`,
+    )
   })
 
   // ══ F20 traces ═══════════════════════════════════════════════════════════
@@ -1567,7 +1882,12 @@ try {
       const stack = [parentNode.id]
       while (stack.length) {
         const cur = byId.get(stack.pop())
-        for (const n of flat) if (n.pre === cur.id) { out.push(n.id); stack.push(n.id) }
+        for (const n of flat) {
+          if (n.pre === cur.id) {
+            out.push(n.id)
+            stack.push(n.id)
+          }
+        }
       }
       return out
     })()
@@ -1581,7 +1901,9 @@ try {
       // open the traces drawer for the focused optimizer character
       await page.evaluate(P_CLICK_TEXT, ['自定义属性行迹', true])
       await pollUntil('行迹抽屉打开', async () => ({
-        ok: await page.evaluate(`() => [...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && (e.textContent || '').includes('已激活的属性行迹'))`),
+        ok: await page.evaluate(
+          `() => [...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && (e.textContent || '').includes('已激活的属性行迹'))`,
+        ),
       }), 15_000)
       await sleep(1000)
       // drawer rows in DOM order == DFS pre-order of the tree (all expanded)
@@ -1592,10 +1914,15 @@ try {
         if (!bodies.length) return 0
         return [...bodies[bodies.length - 1].querySelectorAll('input[type="checkbox"]')].filter((e) => e.offsetParent !== null).length
       }`
-      const rowCount = await page.evaluate(`() => { const bodies = [...document.querySelectorAll('.mantine-Drawer-body')].filter((e) => e.offsetParent !== null); return bodies.length ? bodies[bodies.length - 1].querySelectorAll('input[type="checkbox"]').length : 0 }`)
+      const rowCount = await page.evaluate(
+        `() => { const bodies = [...document.querySelectorAll('.mantine-Drawer-body')].filter((e) => e.offsetParent !== null); return bodies.length ? bodies[bodies.length - 1].querySelectorAll('input[type="checkbox"]').length : 0 }`,
+      )
       shots.rowCount = rowCount
       // uncheck the chosen parent node: row index = DFS index of parentNode
-      await page.evaluate(`(idx) => { const bodies = [...document.querySelectorAll('.mantine-Drawer-body')].filter((e) => e.offsetParent !== null); const boxes = [...bodies[bodies.length - 1].querySelectorAll('input[type="checkbox"]')].filter((e) => e.offsetParent !== null); if (!boxes[idx]) return false; boxes[idx].click(); return true }`, [flat.findIndex((n) => n.id === parentNode.id)])
+      await page.evaluate(
+        `(idx) => { const bodies = [...document.querySelectorAll('.mantine-Drawer-body')].filter((e) => e.offsetParent !== null); const boxes = [...bodies[bodies.length - 1].querySelectorAll('input[type="checkbox"]')].filter((e) => e.offsetParent !== null); if (!boxes[idx]) return false; boxes[idx].click(); return true }`,
+        [flat.findIndex((n) => n.id === parentNode.id)],
+      )
       await sleep(400)
       await page.evaluate(P_CLICK_TEXT, ['保存更改', true])
       await sleep(1600)
@@ -1608,7 +1935,10 @@ try {
       }), 15_000)
       await sleep(800)
       const deepIdx = flat.findIndex((n) => n.id === deepLeaf.id)
-      await page.evaluate(`(idx) => { const bodies = [...document.querySelectorAll('.mantine-Drawer-body')].filter((e) => e.offsetParent !== null); const boxes = [...bodies[bodies.length - 1].querySelectorAll('input[type="checkbox"]')].filter((e) => e.offsetParent !== null); if (!boxes[idx]) return false; boxes[idx].click(); return true }`, [deepIdx])
+      await page.evaluate(
+        `(idx) => { const bodies = [...document.querySelectorAll('.mantine-Drawer-body')].filter((e) => e.offsetParent !== null); const boxes = [...bodies[bodies.length - 1].querySelectorAll('input[type="checkbox"]')].filter((e) => e.offsetParent !== null); if (!boxes[idx]) return false; boxes[idx].click(); return true }`,
+        [deepIdx],
+      )
       await sleep(400)
       await page.evaluate(P_CLICK_TEXT, ['保存更改', true])
       await sleep(1600)
@@ -1635,9 +1965,16 @@ try {
 
       // optimizer run with traces deactivated (afterReenable state) → first row stats
       await page.evaluate(P_CLICK_TEXT, ['启动优化器', true])
-      await pollUntil('优化结果行出现(traces)', async () => ({
-        ok: await page.evaluate(`() => [...document.querySelectorAll('[role="row"]')].filter((r) => r.querySelectorAll('[role="gridcell"], .ag-cell').length > 5).length >= 2`),
-      }), 300_000, 500)
+      await pollUntil(
+        '优化结果行出现(traces)',
+        async () => ({
+          ok: await page.evaluate(
+            `() => [...document.querySelectorAll('[role="row"]')].filter((r) => r.querySelectorAll('[role="gridcell"], .ag-cell').length > 5).length >= 2`,
+          ),
+        }),
+        300_000,
+        500,
+      )
       await sleep(1500)
       shots.rowsHead = await page.evaluate(`() => {
         const rows = [...document.querySelectorAll('[role="row"]')].filter((r) => r.querySelectorAll('[role="gridcell"], .ag-cell').length > 5)
@@ -1660,8 +1997,13 @@ try {
     const expectedOff = [parentNode.id, ...descendants].sort()
     const c1Ok = JSON.stringify([...webOff].sort()) === JSON.stringify(expectedOff)
       && JSON.stringify([...(mcpState.scoringMetadataOverrides?.['1212b1']?.traces?.deactivated ?? [])].sort()) === JSON.stringify(expectedOff)
-    record('characters.traces.update', 1, '关闭一个有后代的节点后,deactivated 包含它和全部后代,与网页取消勾选同一节点的结果一致', c1Ok,
-      `web ${webOff.length} 项 vs 期望 ${expectedOff.length} 项(${parentNode.id}+${descendants.length} 后代);mcp expanded=${t1.traces?.deactivated?.length} 项`)
+    record(
+      'characters.traces.update',
+      1,
+      '关闭一个有后代的节点后,deactivated 包含它和全部后代,与网页取消勾选同一节点的结果一致',
+      c1Ok,
+      `web ${webOff.length} 项 vs 期望 ${expectedOff.length} 项(${parentNode.id}+${descendants.length} 后代);mcp expanded=${t1.traces?.deactivated?.length} 项`,
+    )
 
     // the web operation is "re-check a deep node" (enables it + ancestors) —
     // the tool's deactivated input is the FINAL off-list, so mirror the same
@@ -1685,8 +2027,13 @@ try {
     const mcpOff2 = mcpState.scoringMetadataOverrides?.['1212b1']?.traces?.deactivated ?? []
     const c2Ok = JSON.stringify([...webOff2].sort()) === JSON.stringify([...mcpOff2].sort())
       && !webOff2.includes(deepLeaf.id)
-    record('characters.traces.update', 2, '重新启用一个深层节点后,它的全部前置节点一并启用', c2Ok,
-      `deep=${deepLeaf.id};web 剩余 ${webOff2.length} 项 mcp ${mcpOff2.length} 项;前置启用=${!webOff2.includes(deepLeaf.id)}`)
+    record(
+      'characters.traces.update',
+      2,
+      '重新启用一个深层节点后,它的全部前置节点一并启用',
+      c2Ok,
+      `deep=${deepLeaf.id};web 剩余 ${webOff2.length} 项 mcp ${mcpOff2.length} 项;前置启用=${!webOff2.includes(deepLeaf.id)}`,
+    )
 
     // case3: simulate_build stats vs the web optimizer row0 (same engine, same
     // form, same deactivated traces → deterministic identical rows)
@@ -1711,16 +2058,37 @@ try {
     let matchLabel = ''
     for (const webRow of web.rowsHead ?? []) {
       const direct = rowMatches(webRow, mcpRun.rows[0])
-      if (direct) { match = direct; matchLabel = 'top'; break }
+      if (direct) {
+        match = direct
+        matchLabel = 'top'
+        break
+      }
       const equipped = rowMatches(webRow, mcpRun.equippedRow)
-      if (equipped) { match = equipped; matchLabel = 'equippedRow'; break }
+      if (equipped) {
+        match = equipped
+        matchLabel = 'equippedRow'
+        break
+      }
       const anyIdx = mcpRun.rows.slice(0, 256).findIndex((r) => rowMatches(webRow, r))
-      if (anyIdx >= 0) { match = rowMatches(webRow, mcpRun.rows[anyIdx]); matchLabel = `row[${anyIdx}]`; break }
+      if (anyIdx >= 0) {
+        match = rowMatches(webRow, mcpRun.rows[anyIdx])
+        matchLabel = `row[${anyIdx}]`
+        break
+      }
     }
     const cellsOk = match != null
     const simKeys = Object.keys(simStats)
-    record('characters.traces.update', 3, '关闭行迹后 simulate_build 的基础属性与网页优化器里同一角色的数值一致', cellsOk,
-      `网页结果行匹配 MCP ${matchLabel || '无'}${match ? `(${match.map((pp) => `${pp.k} ${pp.web}/${pp.mcp.toFixed(4)}`).join(' ')})` : `(网页前 ${(web.rowsHead ?? []).length} 行均不匹配,首行=${JSON.stringify((web.rowsHead ?? [])[0] ?? {}).slice(0, 120)})`};simulate_build stats 键=${simKeys.slice(0, 10).join(',')}`)
+    record(
+      'characters.traces.update',
+      3,
+      '关闭行迹后 simulate_build 的基础属性与网页优化器里同一角色的数值一致',
+      cellsOk,
+      `网页结果行匹配 MCP ${matchLabel || '无'}${
+        match
+          ? `(${match.map((pp) => `${pp.k} ${pp.web}/${pp.mcp.toFixed(4)}`).join(' ')})`
+          : `(网页前 ${(web.rowsHead ?? []).length} 行均不匹配,首行=${JSON.stringify((web.rowsHead ?? [])[0] ?? {}).slice(0, 120)})`
+      };simulate_build stats 键=${simKeys.slice(0, 10).join(',')}`,
+    )
 
     // case4: drawer tree labels vs resource traceTree (DFS order + value formatting)
     const zhStats = {}
@@ -1738,9 +2106,19 @@ try {
     const webLabels = (web.labels ?? []).map((l) => l.split(String.fromCharCode(10))[0].trim())
     const labelMatches = expectedLabels.length === webLabels.length
       && expectedLabels.every((l, i) => webLabels[i] === l)
-    record('characters.traces.update', 4, '角色详情资源返回的行迹树节点、前置关系和数值与网页抽屉里显示的树一致',
+    record(
+      'characters.traces.update',
+      4,
+      '角色详情资源返回的行迹树节点、前置关系和数值与网页抽屉里显示的树一致',
       labelMatches && web.rowCount === flat.length,
-      `节点数 web=${web.rowCount} 资源=${flat.length};标签逐行 ${labelMatches ? '一致' : `首个差异 idx ${expectedLabels.findIndex((l, i) => webLabels[i] !== l)}: 期望「${expectedLabels[expectedLabels.findIndex((l, i) => webLabels[i] !== l)]}」实际「${webLabels[expectedLabels.findIndex((l, i) => webLabels[i] !== l)]}」`}`)
+      `节点数 web=${web.rowCount} 资源=${flat.length};标签逐行 ${
+        labelMatches
+          ? '一致'
+          : `首个差异 idx ${expectedLabels.findIndex((l, i) => webLabels[i] !== l)}: 期望「${
+            expectedLabels[expectedLabels.findIndex((l, i) => webLabels[i] !== l)]
+          }」实际「${webLabels[expectedLabels.findIndex((l, i) => webLabels[i] !== l)]}」`
+      }`,
+    )
   })
 
   // ══ F21 panel.switch + F22 grid.density ═════════════════════════════════
@@ -1794,20 +2172,28 @@ try {
       return shots
     })
 
-    record('characters.panel.switch', 1, 'site://pages 把 #characters 与 #teams 列为角色页的两个面板;浏览器运行环境可直接打开其中任一面板',
+    record(
+      'characters.panel.switch',
+      1,
+      'site://pages 把 #characters 与 #teams 列为角色页的两个面板;浏览器运行环境可直接打开其中任一面板',
       charPage?.hash === '#characters' && typeof teamsAlias === 'string' && teamsAlias.length > 0
         && web.charactersPanel.charVisible === true && web.teamsPanel.teamsVisible === true
         && web.teamsPanel.hash === '#teams' && web.teamsHash.teamsVisible === true,
-      `site://pages CHARACTERS.hash=${charPage?.hash} alias['#teams']=${teamsAlias};#characters 面板可见=${web.charactersPanel.charVisible};tab 切换→hash=${web.teamsPanel.hash} 面板可见=${web.teamsPanel.teamsVisible};直接打开 #teams 可见=${web.teamsHash.teamsVisible}`)
+      `site://pages CHARACTERS.hash=${charPage?.hash} alias['#teams']=${teamsAlias};#characters 面板可见=${web.charactersPanel.charVisible};tab 切换→hash=${web.teamsPanel.hash} 面板可见=${web.teamsPanel.teamsVisible};直接打开 #teams 可见=${web.teamsHash.teamsVisible}`,
+    )
 
     await callTool(client, 'load_save', { path: seedAPath })
     await callTool(client, 'update_state', { section: 'session', patch: { characterGridDensity: 'compact' } })
     const mcpState = await mcpExport()
     const webDensity = web.density.savedSession?.global?.characterGridDensity
     const invalid = await toolError(client, 'update_state', { section: 'session', patch: { characterGridDensity: 'bogus' } })
-    record('characters.grid.density', 1, '写入 compact 后导出的存档与网页切到紧凑后的存档在该键上一致;非法取值被拒绝',
+    record(
+      'characters.grid.density',
+      1,
+      '写入 compact 后导出的存档与网页切到紧凑后的存档在该键上一致;非法取值被拒绝',
       webDensity === 'compact' && mcpState.savedSession?.global?.characterGridDensity === 'compact' && invalid != null,
-      `web=${webDensity} mcp=${mcpState.savedSession?.global?.characterGridDensity};非法值报错=${invalid != null ? String(invalid).slice(0, 60) : '未拒绝'}`)
+      `web=${webDensity} mcp=${mcpState.savedSession?.global?.characterGridDensity};非法值报错=${invalid != null ? String(invalid).slice(0, 60) : '未拒绝'}`,
+    )
   })
 
   // ══ evidence output ═══════════════════════════════════════════════════════
@@ -1833,7 +2219,9 @@ try {
     writeFileSync(evidencePath, `${JSON.stringify({ area: 'characters', generatedAt: new Date().toISOString(), gitCommit: GIT_COMMIT, cases }, null, 2)}\n`)
   }
 } finally {
-  try { await browserManager.close() } catch { /* already down */ }
+  try {
+    await browserManager.close()
+  } catch { /* already down */ }
   await client.close()
   rmSync(tempDir, { recursive: true, force: true })
 }

@@ -43,7 +43,10 @@ import {
   getDefaultEnvironment,
   StdioClientTransport,
 } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { WebSocket, WebSocketServer } from 'ws'
+import {
+  WebSocket,
+  WebSocketServer,
+} from 'ws'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
@@ -60,8 +63,8 @@ function findChrome() {
   const candidates = process.platform === 'win32'
     ? ['C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe']
     : process.platform === 'darwin'
-      ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium']
-      : ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser', '/usr/bin/chromium']
+    ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium']
+    : ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser', '/usr/bin/chromium']
   return candidates.find((p) => existsSync(p)) ?? null
 }
 function findSiteDist() {
@@ -415,7 +418,11 @@ try {
     let first = ''
     for (const entry of scored.relics) {
       const ref = refMap.get(entry.id)
-      if (ref == null) { mismatches++; first = `${entry.id} missing from page ref`; continue }
+      if (ref == null) {
+        mismatches++
+        first = `${entry.id} missing from page ref`
+        continue
+      }
       const checks = [
         nearly(entry.current?.percentScore ?? NaN, ref.percentScore),
         entry.current?.rating === ref.rating,
@@ -428,14 +435,23 @@ try {
       ]
       if (!checks.every(Boolean)) {
         mismatches++
-        if (!first) first = `${entry.id}: mcp=${JSON.stringify({ c: entry.current?.percentScore, b: entry.potential?.bestPct, a: entry.potential?.averagePct, rr: entry.reroll?.rerollAvgPct })} vs page=${JSON.stringify({ c: ref.percentScore, b: ref.bestPct, a: ref.averagePct, rr: ref.rerollAvgPct })}`
+        if (!first) {
+          first = `${entry.id}: mcp=${
+            JSON.stringify({ c: entry.current?.percentScore, b: entry.potential?.bestPct, a: entry.potential?.averagePct, rr: entry.reroll?.rerollAvgPct })
+          } vs page=${JSON.stringify({ c: ref.percentScore, b: ref.bestPct, a: ref.averagePct, rr: ref.rerollAvgPct })}`
+        }
       }
     }
-    recordCase('relics.grid.read', 1,
+    recordCase(
+      'relics.grid.read',
+      1,
       '同一角色下逐件返回的当前分、平均潜力、最高潜力、重掷期望与表格对应列一致',
       'browser-parity',
       scored.total === 162 && refScores.length === 162 && mismatches === 0,
-      mismatches === 0 ? `162 relics × {currentPct, rating, avg/best/worst potential, reroll, blockedReroll} all match the page RelicScorer references` : `${mismatches} mismatched — ${first}`)
+      mismatches === 0
+        ? `162 relics × {currentPct, rating, avg/best/worst potential, reroll, blockedReroll} all match the page RelicScorer references`
+        : `${mismatches} mismatched — ${first}`,
+    )
   }
 
   // F1 c2 — 全部角色 bestPct
@@ -448,14 +464,22 @@ try {
       const ref = refMap.get(entry.id)
       if (ref == null || !nearly(entry.rangePotential?.bestPct ?? NaN, ref.bestPct) || !nearly(entry.rangePotential?.averagePct ?? NaN, ref.averagePct)) {
         mismatches++
-        if (!first) first = `${entry.id}: mcp best=${entry.rangePotential?.bestPct} avg=${entry.rangePotential?.averagePct} vs page best=${ref?.bestPct} avg=${ref?.averagePct}`
+        if (!first) {
+          first =
+            `${entry.id}: mcp best=${entry.rangePotential?.bestPct} avg=${entry.rangePotential?.averagePct} vs page best=${ref?.bestPct} avg=${ref?.averagePct}`
+        }
       }
     }
-    recordCase('relics.grid.read', 2,
+    recordCase(
+      'relics.grid.read',
+      2,
       '「全部角色」范围的最高潜力与表格里 potentialAllAll.bestPct 列一致',
       'browser-parity',
       all.total === 162 && mismatches === 0,
-      mismatches === 0 ? '162 relics × {bestPct, averagePct} match the page-side per-metric max over all characters (scoreRelicsBatch formula)' : `${mismatches} mismatched — ${first}`)
+      mismatches === 0
+        ? '162 relics × {bestPct, averagePct} match the page-side per-metric max over all characters (scoreRelicsBatch formula)'
+        : `${mismatches} mismatched — ${first}`,
+    )
   }
 
   // F1 c3 — sort by max potential desc, top 20. The UI leg sorts the
@@ -482,7 +506,9 @@ try {
       for (let i = 0; i < 3; i++) {
         await page.click('[data-vsort="1"]', { timeoutMs: 10_000 })
         await new Promise((r) => setTimeout(r, 900))
-        const aria = await page.evaluate(`async () => document.querySelector('[data-vsort="1"]')?.closest('.ag-header-cell')?.getAttribute('aria-sort') ?? null`)
+        const aria = await page.evaluate(
+          `async () => document.querySelector('[data-vsort="1"]')?.closest('.ag-header-cell')?.getAttribute('aria-sort') ?? null`,
+        )
         if (aria === 'descending') break
       }
       await new Promise((r) => setTimeout(r, 1200))
@@ -511,11 +537,16 @@ try {
     const refSorted = [...refRanges].sort((a, b) => b.bestPct - a.bestPct).map((r) => r.id).slice(0, 20)
     const sameAsRef = JSON.stringify(mcpIds) === JSON.stringify(refSorted)
     const overlap = mcpIds.filter((id) => webSorted.includes(id)).length
-    recordCase('relics.grid.read', 3,
+    recordCase(
+      'relics.grid.read',
+      3,
       '按最高潜力降序返回的前 20 件与表格按该列排序后的前 20 行一致',
       'browser-parity',
       sameAsRef && webSorted.length > 0 && overlap >= 18,
-      `custom-max top20 (mcp values desc) ≡ page-RelicScorer per-metric-max top20 (${sameAsRef}); UI top20 overlap ${overlap}/20 (tie-cluster ordering at equal pct differs only in-batch, noted)${diagText}${overlap < 18 ? `; web head=${JSON.stringify(webSorted.slice(0, 5))} ref head=${JSON.stringify(refSorted.slice(0, 5))}` : ''}`)
+      `custom-max top20 (mcp values desc) ≡ page-RelicScorer per-metric-max top20 (${sameAsRef}); UI top20 overlap ${overlap}/20 (tie-cluster ordering at equal pct differs only in-batch, noted)${diagText}${
+        overlap < 18 ? `; web head=${JSON.stringify(webSorted.slice(0, 5))} ref head=${JSON.stringify(refSorted.slice(0, 5))}` : ''
+      }`,
+    )
   }
 
   // F2 relics.grid.filter — pills UI
@@ -543,15 +574,23 @@ try {
       return { rows, footer, pickErrors }
     })
     const mcp = await callTool(client, 'list_relics', {
-      part: ['Head', 'Hands'], enhance: [12], subStat: ['CRIT Rate', 'CRIT DMG'], limit: 500,
+      part: ['Head', 'Hands'],
+      enhance: [12],
+      subStat: ['CRIT Rate', 'CRIT DMG'],
+      limit: 500,
     })
     const webRows = Array.isArray(web?.rows) ? web.rows : []
     const same = webRows.length > 0 && webRows.length === mcp.relics.length && mcp.relics.every((r) => webRows.includes(r.id)) && webRows.length === mcp.total
-    recordCase('relics.grid.filter', 1,
+    recordCase(
+      'relics.grid.filter',
+      1,
       '部位选头部和手部、强化选 12、副词条选暴击率和暴击伤害时,返回的遗器集合与表格筛选后的行一致',
       'browser-parity',
       same && web?.footer === mcp.total,
-      `web rows=${webRows.length} (footer ${web?.footer}) ≡ list_relics total=${mcp.total}${web?.pickErrors?.length ? `; pick errors: ${web.pickErrors.join(' | ')}` : ''}${web?.__error ? `; task error: ${String(web.__error).slice(0, 120)}` : ''}`)
+      `web rows=${webRows.length} (footer ${web?.footer}) ≡ list_relics total=${mcp.total}${
+        web?.pickErrors?.length ? `; pick errors: ${web.pickErrors.join(' | ')}` : ''
+      }${web?.__error ? `; task error: ${String(web.__error).slice(0, 120)}` : ''}`,
+    )
   }
   {
     const web = await runWebTask({ label: 'filter-c2', seed: saveSeed() }, async (page) => {
@@ -569,16 +608,25 @@ try {
     const mcp = await callTool(client, 'list_relics', { initialRolls: [4], limit: 500 })
     const allHave4 = mcp.relics.every((r) => r.initialRolls === 4)
     const same = web.rows.length === mcp.total && mcp.relics.every((r) => web.rows.includes(r.id))
-    recordCase('relics.grid.filter', 2,
+    recordCase(
+      'relics.grid.filter',
+      2,
       '初始词条数选 4 时两边结果一致,未记录初始词条数的遗器不在其中',
       'browser-parity',
       same && allHave4 && web.footer === mcp.total,
-      `web rows=${web.rows.length} (footer ${web.footer}) ≡ list_relics total=${mcp.total}; every result has initialRolls===4 (unrecorded default 3 excluded)`)
+      `web rows=${web.rows.length} (footer ${web.footer}) ≡ list_relics total=${mcp.total}; every result has initialRolls===4 (unrecorded default 3 excluded)`,
+    )
   }
 
   // F3 relics.grid.valueColumns — every exposed score field against page refs
   {
-    const scored = await callTool(client, 'score_relics', { characterId: FOCUS, scope: 'custom', excludeCharacters: ['1107'], limit: 500, includeEstTbp: false })
+    const scored = await callTool(client, 'score_relics', {
+      characterId: FOCUS,
+      scope: 'custom',
+      excludeCharacters: ['1107'],
+      limit: 500,
+      includeEstTbp: false,
+    })
     const customRef = await runWebTask({ label: 'valuecol-ref', seed: saveSeed() }, async (page) => {
       await page.goto('', { timeoutMs: 90_000 })
       await page.waitForSelector('#root > *', { timeoutMs: 90_000 })
@@ -591,13 +639,16 @@ try {
       const ref = refMap.get(entry.id)
       if (ref == null || !nearly(entry.rangePotential?.bestPct ?? NaN, ref.bestPct)) mismatches++
     }
-    recordCase('relics.grid.valueColumns', 1,
+    recordCase(
+      'relics.grid.valueColumns',
+      1,
       '要求返回 17 个评分列里的任意一列时,数值与表格勾选该列后显示的一致',
       'browser-parity',
       scored.total === 162 && mismatches === 0,
       mismatches === 0
         ? 'selected-char columns covered by grid.read#1; custom-scope bestPct matches page-side custom max here — diff/Δ columns are arithmetic over these same values (scoreRelicsBatch:131-152)'
-        : `${mismatches} custom-scope mismatches`)
+        : `${mismatches} custom-scope mismatches`,
+    )
   }
 
   // F4 relics.focusCharacter.set
@@ -628,11 +679,16 @@ try {
     })
     const zeroed = (webEmpty?.cols ?? 0) > 0 && (webEmpty?.bad ?? []).length === 0
     const withOk = withChar.relics.every((r) => r.current != null)
-    recordCase('relics.focusCharacter.set', 1,
+    recordCase(
+      'relics.focusCharacter.set',
+      1,
       'score_relics 传 characterId 得到的逐件分数,与遗器页选中同一角色后表格里的当前分一致;不传时两边都没有分数',
       'browser-parity',
       withOk && noCharClean && zeroed,
-      `with characterId: current/rating/potential per relic (= grid.read#1 page refs, withOk=${withOk}); without: MCP omits all score fields (noCharClean=${noCharClean}), page Selected-Char columns all 0%/empty (${webEmpty?.cols} cols, non-zero values: ${JSON.stringify(webEmpty?.bad ?? ['n/a'])})`)
+      `with characterId: current/rating/potential per relic (= grid.read#1 page refs, withOk=${withOk}); without: MCP omits all score fields (noCharClean=${noCharClean}), page Selected-Char columns all 0%/empty (${webEmpty?.cols} cols, non-zero values: ${
+        JSON.stringify(webEmpty?.bad ?? ['n/a'])
+      })`,
+    )
   }
 
   // F5 relics.potential.excludeCharacters
@@ -673,7 +729,8 @@ try {
         throw new Error('exclude modal did not render cards')
       }`)
       void opened
-      const picked = await page.evaluate(`async (ids) => {
+      const picked = await page.evaluate(
+        `async (ids) => {
         const picked = []
         for (const id of ids) {
           const card = document.querySelector('.mantine-Modal-root [data-id="' + id + '"]')
@@ -684,7 +741,9 @@ try {
           }
         }
         return picked
-      }`, [['1107', '1305']])
+      }`,
+        [['1107', '1305']],
+      )
       const closed = await page.evaluate(`async () => {
         const seq = (el) => {
           el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
@@ -710,11 +769,16 @@ try {
     const webExcluded = webSave?.save?.excludedRelicPotentialCharacters
     const mcpExcludedOk = JSON.stringify(mcpSave.excludedRelicPotentialCharacters) === JSON.stringify(excluded)
     const webExcludedOk = JSON.stringify(webExcluded ?? []) === JSON.stringify(excluded)
-    recordCase('relics.potential.excludeCharacters', 1,
+    recordCase(
+      'relics.potential.excludeCharacters',
+      1,
       '排除两名角色后两边存档的 excludedRelicPotentialCharacters 一致,自定义范围的最高潜力随之变化且与表格一致',
       'browser-parity',
       mcpExcludedOk && webExcludedOk && mismatches === 0,
-      `mcp save excluded ok=${mcpExcludedOk}; web save excluded=${JSON.stringify(webExcluded)} (picked ${JSON.stringify(webSave?.picked ?? [])}) ok=${webExcludedOk}; custom-scope bestPct vs page-side max excluding the same two characters: ${mismatches} mismatches`)
+      `mcp save excluded ok=${mcpExcludedOk}; web save excluded=${JSON.stringify(webExcluded)} (picked ${
+        JSON.stringify(webSave?.picked ?? [])
+      }) ok=${webExcludedOk}; custom-scope bestPct vs page-side max excluding the same two characters: ${mismatches} mismatches`,
+    )
     await callTool(client, 'update_state', { section: 'relicsTab', patch: { excludedRelicPotentialCharacters: [] } })
   }
 
@@ -728,11 +792,14 @@ try {
     const analyze = await callTool(client, 'analyze_relic', { relicId: probe.id, view: 'location' })
     const preview = await callTool(client, 'upsert_relic', { relicId: probe.id, previewUpgrade: true })
     const usable = score.relics.some((r) => r.id === probe.id) && analyze.relicId === probe.id && preview.previewUpgrade != null && preview.persisted === false
-    recordCase('relics.select', 1,
+    recordCase(
+      'relics.select',
+      1,
       '网页里选中遗器后的每个后续操作,在 MCP 侧都以遗器 id 作为参数直接指定,不需要先「选中」;list_relics 返回的 id 可直接用于这些操作',
       'browser-parity',
       idParity && usable,
-      `list_relics ids ≡ page inventory ids (162/162); probe ${probe.id} works directly as a param for score_relics / analyze_relic / upsert_relic(previewUpgrade, no write)`)
+      `list_relics ids ≡ page inventory ids (162/162); probe ${probe.id} works directly as a param for score_relics / analyze_relic / upsert_relic(previewUpgrade, no write)`,
+    )
   }
 
   // F7 relics.recent.read — fake archiver pushes 3 relics
@@ -740,38 +807,72 @@ try {
     const httpServer = createServer()
     const wss = new WebSocketServer({ server: httpServer })
     const archiverClients = new Set()
-    wss.on('connection', (ws) => { archiverClients.add(ws); ws.on('close', () => archiverClients.delete(ws)) })
+    wss.on('connection', (ws) => {
+      archiverClients.add(ws)
+      ws.on('close', () => archiverClients.delete(ws))
+    })
     await new Promise((r) => httpServer.listen(0, '127.0.0.1', r))
     const archiverUrl = `ws://127.0.0.1:${httpServer.address().port}/ws`
     const push = (event, data) => {
       const text = JSON.stringify({ event, data })
       for (const ws of archiverClients) if (ws.readyState === WebSocket.OPEN) ws.send(text)
     }
-    const SUBSTAT_KEY = { 'ATK': 'ATK', 'HP': 'HP', 'DEF': 'DEF', 'ATK%': 'ATK_', 'HP%': 'HP_', 'DEF%': 'DEF_', 'SPD': 'SPD', 'CRIT Rate': 'CRIT Rate_', 'CRIT DMG': 'CRIT DMG_', 'Effect Hit Rate': 'Effect Hit Rate_', 'Effect RES': 'Effect RES_', 'Break Effect': 'Break Effect_' }
+    const SUBSTAT_KEY = {
+      'ATK': 'ATK',
+      'HP': 'HP',
+      'DEF': 'DEF',
+      'ATK%': 'ATK_',
+      'HP%': 'HP_',
+      'DEF%': 'DEF_',
+      'SPD': 'SPD',
+      'CRIT Rate': 'CRIT Rate_',
+      'CRIT DMG': 'CRIT DMG_',
+      'Effect Hit Rate': 'Effect Hit Rate_',
+      'Effect RES': 'Effect RES_',
+      'Break Effect': 'Break Effect_',
+    }
     const headRelic = pristineSave.relics[0]
     const novel = (uid, shift) => ({
-      set_id: setIdByName[headRelic.set], name: 'verify relic', slot: headRelic.part, rarity: headRelic.grade,
-      level: headRelic.enhance, mainstat: 'HP',
+      set_id: setIdByName[headRelic.set],
+      name: 'verify relic',
+      slot: headRelic.part,
+      rarity: headRelic.grade,
+      level: headRelic.enhance,
+      mainstat: 'HP',
       substats: headRelic.substats.map((s, i) => ({ key: SUBSTAT_KEY[s.stat], value: i === 0 ? s.value + shift : s.value })),
-      location: '', lock: false, discard: false, _uid: uid,
+      location: '',
+      lock: false,
+      discard: false,
+      _uid: uid,
     })
     const archiverJson = (relics) => ({
-      source: 'reliquary_archiver', build: 'v0.8.0', version: 4,
-      metadata: { uid: 100000001, trailblazer: 'Stelle' }, gacha: { stellar_jade: 0, oneric_shards: 0 },
-      materials: [], characters: [], light_cones: [], relics,
+      source: 'reliquary_archiver',
+      build: 'v0.8.0',
+      version: 4,
+      metadata: { uid: 100000001, trailblazer: 'Stelle' },
+      gacha: { stellar_jade: 0, oneric_shards: 0 },
+      materials: [],
+      characters: [],
+      light_cones: [],
+      relics,
     })
     const web = await runWebTask({ label: 'recent-c1', seed: saveSeed() }, async (page) => {
       await page.goto('#import', { timeoutMs: 90_000 })
       await page.waitForText(['Advanced Settings'], { timeoutMs: 60_000 })
-      await page.evaluate(`async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }`)
+      await page.evaluate(
+        `async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }`,
+      )
       await sleep(400)
-      await page.evaluate(`async (url) => {
+      await page.evaluate(
+        `async (url) => {
         const input = document.querySelector('#websocket-url')
         const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
         setter.call(input, url)
         input.dispatchEvent(new Event('input', { bubbles: true }))
         return true
-      }`, [archiverUrl])
+      }`,
+        [archiverUrl],
+      )
       await page.evaluate(`async () => {
         const divs = Array.from(document.querySelectorAll('div'))
         const labelEl = divs.find((d) => (d.textContent || '').trim() === 'Enable Live Import (Recommended)' && d.children.length === 0)
@@ -841,11 +942,18 @@ try {
     await sleep(1500)
     const recent = (await callTool(client, 'get_state', { section: 'relicsTab' })).relicsTab?.recentRelics
     const webSection = web?.found === true && (web?.cards?.n ?? 0) >= 3
-    recordCase('relics.recent.read', 1,
+    recordCase(
+      'relics.recent.read',
+      1,
       '扫描器推送三件遗器后,返回的最近遗器 id 及顺序与折叠区里的卡片一致',
       'browser-parity',
       recent?.ids?.length >= 3 && recent.ids[0] === 'r3' && recent.ids[1] === 'r2' && recent.ids[2] === 'r1' && webSection,
-      `mcp recentRelics ids=[${recent?.ids?.slice(0, 3).join(',')}...] (newest first); web recently-updated panel on #relics: found=${web?.found}, non-empty cards=${web?.cards?.n}/${web?.cards?.total}, first-card head=${JSON.stringify((web?.cards?.order ?? [])[0] ?? '')}`)
+      `mcp recentRelics ids=[${
+        recent?.ids?.slice(0, 3).join(',')
+      }...] (newest first); web recently-updated panel on #relics: found=${web?.found}, non-empty cards=${web?.cards?.n}/${web?.cards?.total}, first-card head=${
+        JSON.stringify((web?.cards?.order ?? [])[0] ?? '')
+      }`,
+    )
     await callTool(client, 'scanner', { action: 'disconnect' })
     await new Promise((r) => {
       for (const ws of archiverClients) ws.terminate()
@@ -863,7 +971,11 @@ try {
     // tail; this case's 162→163 expectations assume a pristine inventory
     await callTool(client, 'load_save', { path: freshSavePath() })
     const spec = {
-      part: 'Head', set: 'Passerby of Wandering Cloud', grade: 5, enhance: 15, equippedBy: null,
+      part: 'Head',
+      set: 'Passerby of Wandering Cloud',
+      grade: 5,
+      enhance: 15,
+      equippedBy: null,
       substats: [
         { stat: 'CRIT DMG', value: 6.4 },
         { stat: 'SPD', value: 5.1 },
@@ -876,7 +988,8 @@ try {
       await page.goto('', { timeoutMs: 90_000 })
       await page.waitForSelector('#root > *', { timeoutMs: 90_000 })
       await new Promise((r) => setTimeout(r, 2500))
-      return page.evaluate(`async (spec) => {
+      return page.evaluate(
+        `async (spec) => {
         const { RelicAugmenter } = window.__HSR_DEBUG
         const unaugmented = {
           part: spec.part, set: spec.set, enhance: spec.enhance, grade: spec.grade,
@@ -886,7 +999,9 @@ try {
         }
         void unaugmented
         return true
-      }`, [spec])
+      }`,
+        [spec],
+      )
     })
     void refRelic
     // The main-stat value is derived by grade+enhance; compare against the
@@ -915,11 +1030,18 @@ try {
       && r.substats.every((s, i) => s.stat === ref.substats?.[i]?.stat && nearly(s.value, ref.substats?.[i]?.value ?? NaN, 1e-9))
       && r.verified === false && r.equippedBy == null
     const storeOk = (await callTool(client, 'list_relics', { limit: 1 })).total === 163
-    recordCase('relics.upsert', 1,
+    recordCase(
+      'relics.upsert',
+      1,
       '用同样的字段新增一件遗器后,两边存档里这件遗器除 id 外一致(含主词条数值与派生字段)',
       'browser-parity',
       fieldsOk && storeOk,
-      `mcp relic ≡ page RelicAugmenter.augment(same form) — main.value=${r.main?.value} (page ${ref.main?.value}), substats=${JSON.stringify(r.substats?.map((x) => [x.stat, x.value]))} vs spec ${JSON.stringify(spec.substats.map((x) => [x.stat, x.value]))}, preview=${r.previewSubstats?.length}, verified=${r.verified}, unequipped=${r.equippedBy == null}, storeOk=${storeOk} (163)`)
+      `mcp relic ≡ page RelicAugmenter.augment(same form) — main.value=${r.main?.value} (page ${ref.main?.value}), substats=${
+        JSON.stringify(r.substats?.map((x) => [x.stat, x.value]))
+      } vs spec ${JSON.stringify(spec.substats.map((x) => [x.stat, x.value]))}, preview=${r.previewSubstats?.length}, verified=${r.verified}, unequipped=${
+        r.equippedBy == null
+      }, storeOk=${storeOk} (163)`,
+    )
 
     // c2 — rejections
     const rejections = [
@@ -959,11 +1081,16 @@ try {
       const harvest = await page.harvestSaveState()
       return { opened: true, stillOpen: modalAfter != null, relics: harvest?.relics?.length }
     })
-    recordCase('relics.upsert', 2,
+    recordCase(
+      'relics.upsert',
+      2,
       '强化等级超过星级允许的上限、副词条重复、副词条与主词条相同、套装与部位类型不符时,两边都拒绝',
       'browser-parity',
       mcpReject && webReject.stillOpen && webReject.relics === 162,
-      `mcp rejects all 4 (${rejectDetails.join(',')}); web opened=${webReject.opened !== false}${webReject.reason ? ' (' + webReject.reason + ')' : ''}, stays open=${webReject.stillOpen}, inventory unchanged ${webReject.relics}/162`)
+      `mcp rejects all 4 (${rejectDetails.join(',')}); web opened=${webReject.opened !== false}${
+        webReject.reason ? ' (' + webReject.reason + ')' : ''
+      }, stays open=${webReject.stillOpen}, inventory unchanged ${webReject.relics}/162`,
+    )
   }
 
   // F8 c3 — part change while equipped (UI-driven edit on the web)
@@ -1018,12 +1145,15 @@ try {
     const mcpOk = mcpOwner?.equipped?.Head == null && mcpOwner?.equipped?.Hands === equippedHead.id
     const relicWeb = web.relics?.find((x) => x.id === equippedHead.id)
     const relicMcp = mcpSave.relics?.find((x) => x.id === equippedHead.id)
-    recordCase('relics.upsert', 3,
+    recordCase(
+      'relics.upsert',
+      3,
       '把一件已装备的遗器改到别的部位后,原装备者对应槽位清空,两边一致',
       'browser-parity',
       webOk && mcpOk && relicWeb?.part === 'Hands' && relicMcp?.part === 'Hands'
         && relicWeb?.main?.stat === relicMcp?.main?.stat,
-      `webOk=${webOk} mcpOk=${mcpOk}; relic part web=${relicWeb?.part} mcp=${relicMcp?.part} (want Hands); main web=${relicWeb?.main?.stat} mcp=${relicMcp?.main?.stat}`)
+      `webOk=${webOk} mcpOk=${mcpOk}; relic part web=${relicWeb?.part} mcp=${relicMcp?.part} (want Hands); main web=${relicWeb?.main?.stat} mcp=${relicMcp?.main?.stat}`,
+    )
   }
 
   // F8 c4 — verified flips to false on edit
@@ -1078,11 +1208,14 @@ try {
       substats: relicBefore.substats.map((s, i) => (i === 0 ? { stat: s.stat, value: s.value + 0.1 } : { stat: s.stat, value: s.value })),
       previewSubstats: relicBefore.previewSubstats ?? [],
     })
-    recordCase('relics.upsert', 4,
+    recordCase(
+      'relics.upsert',
+      4,
       '编辑已校验遗器的副词条数值后 verified 变为 false',
       'browser-parity',
       relicBefore.verified === true && edit.relic.verified === false && web === false,
-      `verified: before=true, after edit web=${web}, mcp=${edit.relic.verified}`)
+      `verified: before=true, after edit web=${web}, mcp=${edit.relic.verified}`,
+    )
   }
 
   // F9 relics.delete
@@ -1109,12 +1242,17 @@ try {
     const webOwner = web.characters?.find((c) => c.id === victimA.equippedBy)
     const mcpOwner = mcpSave.characters?.find((c) => c.id === victimA.equippedBy)
     const partOf = (id) => pristineSave.relics.find((r) => r.id === id).part
-    recordCase('relics.delete', 1,
+    recordCase(
+      'relics.delete',
+      1,
       '删除两件遗器(其中一件已装备)后,两边存档的 relics 少了这两件,原装备者对应槽位为空',
       'browser-parity',
       webGone && mcpGone && web.relics?.length === 160 && mcpSave.relics?.length === 160
         && webOwner?.equipped?.[partOf(victimA.id)] == null && mcpOwner?.equipped?.[partOf(victimA.id)] == null,
-      `gone web=${webGone} mcp=${mcpGone}; counts web=${web.relics?.length} mcp=${mcpSave.relics?.length} (want 160); owner slot web=${webOwner?.equipped?.[partOf(victimA.id)]} mcp=${mcpOwner?.equipped?.[partOf(victimA.id)]}`)
+      `gone web=${webGone} mcp=${mcpGone}; counts web=${web.relics?.length} mcp=${mcpSave.relics?.length} (want 160); owner slot web=${
+        webOwner?.equipped?.[partOf(victimA.id)]
+      } mcp=${mcpOwner?.equipped?.[partOf(victimA.id)]}`,
+    )
 
     // c2 — wipe everything: MCP export persists an empty array; web delete-all
     const allIds = (await callTool(client, 'list_relics', { limit: 500 })).relics.map((r) => r.id)
@@ -1135,11 +1273,14 @@ try {
       const harvest = await page.harvestSaveState()
       return { selected, relics: harvest?.relics?.length }
     })
-    recordCase('relics.delete', 2,
+    recordCase(
+      'relics.delete',
+      2,
       '删光全部遗器后存档仍能保存且 relics 为空数组',
       'browser-parity',
       wipeDisk.relics?.length === 0 && Array.isArray(wipeDisk.relics) && web2.relics === 0,
-      `mcp export_save persists relics:[] (${wipeDisk.relics?.length}); web delete-all (ctrl+A on ${web2.selected} rows) → save keeps relics:[] (${web2.relics})`)
+      `mcp export_save persists relics:[] (${wipeDisk.relics?.length}); web delete-all (ctrl+A on ${web2.selected} rows) → save keeps relics:[] (${web2.relics})`,
+    )
   }
 
   // F10 relics.card.read
@@ -1162,11 +1303,14 @@ try {
     // The card renders the focus character's score; without a UI focus set the
     // card shows no score — so compare the score engine value both ways.
     const cardRegion = /Equipped|装备|Enhance|\+15|Set/i.test(card)
-    recordCase('relics.card.read', 1,
+    recordCase(
+      'relics.card.read',
+      1,
       '对同一件遗器和同一角色,score_relics 返回的 percentScore 与评级和卡片上显示的一致',
       'browser-parity',
       nearly(mcpScore?.current?.percentScore ?? NaN, ref?.percentScore ?? NaN) && mcpScore?.current?.rating === ref?.rating && cardRegion,
-      `mcp percentScore=${mcpScore?.current?.percentScore} rating=${mcpScore?.current?.rating} ≡ page RelicScorer.getCurrentRelicScore (${ref?.percentScore}/${ref?.rating}); card region renders (no UI focus character set — the web card hides its score row by design in that state)`)
+      `mcp percentScore=${mcpScore?.current?.percentScore} rating=${mcpScore?.current?.rating} ≡ page RelicScorer.getCurrentRelicScore (${ref?.percentScore}/${ref?.rating}); card region renders (no UI focus character set — the web card hides its score row by design in that state)`,
+    )
   }
 
   // F11 relics.locator
@@ -1224,11 +1368,16 @@ try {
     })
     const mcp2 = await callTool(client, 'analyze_relic', { relicId: probe.id, view: 'location', rowLimit: 1 })
     const setFilterOk = mcp2.location?.needsSetFilter === true && web2.after != null
-    recordCase('relics.locator', 1,
+    recordCase(
+      'relics.locator',
+      1,
       '同一件遗器返回的行、列与是否需要套装筛选,和位置提示条显示的一致',
       'browser-parity',
       rowColOk && setFilterOk,
-      `defaults: web Row ${web?.row}/Col ${web?.col} ≡ analyze_relic row ${loc?.row}/col ${loc?.column}; rowLimit=1 → part+set fallback: web ${web2.after ? `Row ${web2.after.row}/Col ${web2.after.col}` : 'none'}, mcp needsSetFilter=${mcp2.location?.needsSetFilter}`)
+      `defaults: web Row ${web?.row}/Col ${web?.col} ≡ analyze_relic row ${loc?.row}/col ${loc?.column}; rowLimit=1 → part+set fallback: web ${
+        web2.after ? `Row ${web2.after.row}/Col ${web2.after.col}` : 'none'
+      }, mcp needsSetFilter=${mcp2.location?.needsSetFilter}`,
+    )
 
     // c2: inventoryWidth=8 persists on both sides and moves the position
     const web3 = await runWebTask({ label: 'locator-c2', seed: saveSeed() }, async (page) => {
@@ -1263,16 +1412,24 @@ try {
       const harvest = await page.harvestSaveState()
       return { before, after, locator: harvest?.relicLocator }
     })
-    await callTool(client, 'load_save', { path: freshSavePath((s) => { s.relicLocator = { inventoryWidth: 8, rowLimit: 10 }; return s }) })
+    await callTool(client, 'load_save', {
+      path: freshSavePath((s) => {
+        s.relicLocator = { inventoryWidth: 8, rowLimit: 10 }
+        return s
+      }),
+    })
     const mcpSave = (await callTool(client, 'export_save', { structured: true })).snapshot
     const mcpLoc8 = await callTool(client, 'analyze_relic', { relicId: probe.id, view: 'location' })
     const widthMoved = web3.before?.col !== web3.after?.col || web3.before?.row !== web3.after?.row
-    recordCase('relics.locator', 2,
+    recordCase(
+      'relics.locator',
+      2,
       '把背包宽度改为 8 后两边存档的 relicLocator.inventoryWidth 都是 8,行列随之变化',
       'browser-parity',
       web3.locator?.inventoryWidth === 8 && mcpSave.relicLocator?.inventoryWidth === 8
         && mcpLoc8.location?.inventoryWidth === 8 && widthMoved,
-      `web save width=${web3.locator?.inventoryWidth} (Row ${web3.before?.row}/Col ${web3.before?.col} → ${web3.after?.row}/${web3.after?.col}); mcp save round-trip width=${mcpSave.relicLocator?.inventoryWidth}, locator uses it (row ${mcpLoc8.location?.row}/col ${mcpLoc8.location?.column})`)
+      `web save width=${web3.locator?.inventoryWidth} (Row ${web3.before?.row}/Col ${web3.before?.col} → ${web3.after?.row}/${web3.after?.col}); mcp save round-trip width=${mcpSave.relicLocator?.inventoryWidth}, locator uses it (row ${mcpLoc8.location?.row}/col ${mcpLoc8.location?.column})`,
+    )
   }
 
   // F12 relics.insights.read
@@ -1295,36 +1452,52 @@ try {
     let orderOk = top > 0
     let valueOk = true
     for (let i = 0; i < top; i++) {
-      if (!nearly(chars[i]?.potential?.bestPct ?? NaN, refScored[i]?.bestPct) || !nearly(chars[i]?.potential?.averagePct ?? NaN, refScored[i]?.averagePct)) valueOk = false
+      if (!nearly(chars[i]?.potential?.bestPct ?? NaN, refScored[i]?.bestPct) || !nearly(chars[i]?.potential?.averagePct ?? NaN, refScored[i]?.averagePct)) {
+        valueOk = false
+      }
     }
     const refOrderById = new Map(refScored.map((x) => [x.id, x]))
     for (let i = 0; i < chars.length; i++) {
       const ref = refOrderById.get(chars[i]?.id)
-      if (ref == null || !nearly(chars[i]?.potential?.bestPct ?? NaN, ref.bestPct)) { valueOk = false; break }
+      if (ref == null || !nearly(chars[i]?.potential?.bestPct ?? NaN, ref.bestPct)) {
+        valueOk = false
+        break
+      }
     }
     for (let i = 1; i < chars.length; i++) {
-      if ((chars[i]?.potential?.bestPct ?? 0) > (chars[i - 1]?.potential?.bestPct ?? 0)) { orderOk = false; break }
+      if ((chars[i]?.potential?.bestPct ?? 0) > (chars[i - 1]?.potential?.bestPct ?? 0)) {
+        orderOk = false
+        break
+      }
     }
     // top-10 boundary ties make the exact id set arbitrary — compare the
     // bestPct value sequences instead (the panel's visible ranking)
     const mcpVals = chars.slice(0, 10).map((c) => Math.round((c.potential?.bestPct ?? 0) * 100) / 100)
     const refVals = refScored.slice(0, 10).map((x) => Math.round(x.bestPct * 100) / 100)
     if (JSON.stringify(mcpVals) !== JSON.stringify(refVals)) orderOk = false
-    recordCase('relics.insights.read', 1,
+    recordCase(
+      'relics.insights.read',
+      1,
       '对同一件遗器,返回的角色排序与各自的最高、平均潜力和前十名图一致',
       'browser-parity',
       orderOk && valueOk && chars.length === refScored.length,
-      `orderOk=${orderOk} valueOk=${valueOk}; counts mcp=${chars.length} ref=${refScored.length}; top-${top} compared`)
+      `orderOk=${orderOk} valueOk=${valueOk}; counts mcp=${chars.length} ref=${refScored.length}; top-${top} compared`,
+    )
 
     const owned = await callTool(client, 'analyze_relic', { relicId: probe.id, view: 'characters', characterIds: ownedCharacterIds })
     const ownedChars = owned.characters?.characters ?? []
     const ownedOk = ownedChars.every((c) => ownedCharacterIds.includes(c.id))
       && ownedChars.length === (refInsights?.scored ?? []).filter((x) => x.bestPct > 0 && ownedCharacterIds.includes(x.id) && !BUFFED_OLD_IDS.has(x.id)).length
-    recordCase('relics.insights.read', 2,
+    recordCase(
+      'relics.insights.read',
+      2,
       '角色范围选「已拥有」时结果只含角色列表里的角色,与面板一致',
       'browser-parity',
       ownedOk,
-      `characterIds=owned(${ownedCharacterIds.length}) → ${ownedChars.length} candidates, allOwned=${ownedChars.every((c) => ownedCharacterIds.includes(c.id))}, refCount=${(refInsights?.scored ?? []).filter((x) => x.bestPct > 0 && ownedCharacterIds.includes(x.id)).length}`)
+      `characterIds=owned(${ownedCharacterIds.length}) → ${ownedChars.length} candidates, allOwned=${
+        ownedChars.every((c) => ownedCharacterIds.includes(c.id))
+      }, refCount=${(refInsights?.scored ?? []).filter((x) => x.bestPct > 0 && ownedCharacterIds.includes(x.id)).length}`,
+    )
 
     const maxBuckets = await callTool(client, 'analyze_relic', { relicId: probe.id, view: 'characters' })
     const avgBuckets = await callTool(client, 'analyze_relic', { relicId: probe.id, view: 'characters', bucketMode: 'average' })
@@ -1342,11 +1515,14 @@ try {
     }
     const maxTotal = (maxBuckets.characters?.buckets ?? []).reduce((n, b) => n + b.characterIds.length, 0)
     const avgTotal = (avgBuckets.characters?.buckets ?? []).reduce((n, b) => n + b.characterIds.length, 0)
-    recordCase('relics.insights.read', 3,
+    recordCase(
+      'relics.insights.read',
+      3,
       '分桶结果里每个区间的角色集合与分桶图一致,切到平均潜力后同样一致',
       'browser-parity',
       maxOk && avgOk && maxTotal === chars.length && avgTotal === chars.length,
-      `every candidate's bucketIndex ≡ page-side floor(pct/10) over the page-scored values, maximum and average modes both (${chars.length} candidates distributed)`)
+      `every candidate's bucketIndex ≡ page-side floor(pct/10) over the page-scored values, maximum and average modes both (${chars.length} candidates distributed)`,
+    )
   }
 } finally {
   await client.close().catch(() => {})
@@ -1361,5 +1537,7 @@ try {
   rmSync(tempDir, { recursive: true, force: true })
 }
 
-console.log(failures === 0 ? `\nverify-relics: ALL CASES PASSED (${evidenceCases.length})` : `\nverify-relics: ${failures} CASE(S) FAILED of ${evidenceCases.length}`)
+console.log(
+  failures === 0 ? `\nverify-relics: ALL CASES PASSED (${evidenceCases.length})` : `\nverify-relics: ${failures} CASE(S) FAILED of ${evidenceCases.length}`,
+)
 process.exit(failures === 0 ? 0 : 1)

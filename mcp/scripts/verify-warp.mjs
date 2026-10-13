@@ -58,7 +58,10 @@ import {
   getDefaultEnvironment,
   StdioClientTransport,
 } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { WebSocket, WebSocketServer } from 'ws'
+import {
+  WebSocket,
+  WebSocketServer,
+} from 'ws'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
@@ -359,24 +362,56 @@ function compareMilestones(webRows, mcpMilestones) {
 try {
   // ═══ fixture saves ════════════════════════════════════════════════════════
   const R1 = {
-    passes: 20, jades: 8000, income: ['4.6_p1_1'], targets: [], plannerMode: 'multi',
-    strategy: 3, starlight: 'REFUND_HIGH', pityCharacter: 10, guaranteedCharacter: true,
-    pityLightCone: 5, guaranteedLightCone: false,
+    passes: 20,
+    jades: 8000,
+    income: ['4.6_p1_1'],
+    targets: [],
+    plannerMode: 'multi',
+    strategy: 3,
+    starlight: 'REFUND_HIGH',
+    pityCharacter: 10,
+    guaranteedCharacter: true,
+    pityLightCone: 5,
+    guaranteedLightCone: false,
   }
   const simpleSeed = {
-    passes: 0, jades: 64000, income: [], targets: [], plannerMode: 'simple',
-    strategy: 0, starlight: 'REFUND_NONE', pityCharacter: 0, guaranteedCharacter: false,
-    pityLightCone: 0, guaranteedLightCone: false,
+    passes: 0,
+    jades: 64000,
+    income: [],
+    targets: [],
+    plannerMode: 'simple',
+    strategy: 0,
+    starlight: 'REFUND_NONE',
+    pityCharacter: 0,
+    guaranteedCharacter: false,
+    pityLightCone: 0,
+    guaranteedLightCone: false,
   }
   const multiSeed = {
-    passes: 0, jades: 80000, income: [], targets: [], plannerMode: 'multi',
-    strategy: 0, starlight: 'REFUND_NONE', pityCharacter: 0, guaranteedCharacter: false,
-    pityLightCone: 0, guaranteedLightCone: false,
+    passes: 0,
+    jades: 80000,
+    income: [],
+    targets: [],
+    plannerMode: 'multi',
+    strategy: 0,
+    starlight: 'REFUND_NONE',
+    pityCharacter: 0,
+    guaranteedCharacter: false,
+    pityLightCone: 0,
+    guaranteedLightCone: false,
   }
   const scannerBase = {
-    passes: 7, jades: 1000, income: [], targets: [], plannerMode: 'simple',
-    strategy: 0, starlight: 'REFUND_NONE', pityCharacter: 5, guaranteedCharacter: false,
-    pityLightCone: 0, guaranteedLightCone: false,
+    passes: 7,
+    jades: 1000,
+    income: [],
+    targets: [],
+    plannerMode: 'simple',
+    strategy: 0,
+    starlight: 'REFUND_NONE',
+    pityCharacter: 5,
+    guaranteedCharacter: false,
+    pityLightCone: 0,
+    guaranteedLightCone: false,
   }
 
   // ═══ Phase A: resources.set — seeded request vs the page inputs ══════════
@@ -389,9 +424,17 @@ try {
 
   // resources.set case 2 (MCP half): save=true roundtrip
   const written = await callTool('warp_plan', {
-    jades: 32000, passes: 9, income: ['4.5_p1_1'], starlight: 'REFUND_LOW',
-    pityCharacter: 33, guaranteedCharacter: false, pityLightCone: 11, guaranteedLightCone: true,
-    plannerMode: 'multi', strategy: 5, save: true,
+    jades: 32000,
+    passes: 9,
+    income: ['4.5_p1_1'],
+    starlight: 'REFUND_LOW',
+    pityCharacter: 33,
+    guaranteedCharacter: false,
+    pityLightCone: 11,
+    guaranteedLightCone: true,
+    plannerMode: 'multi',
+    strategy: 5,
+    save: true,
     targets: [{ characterId: '1005', targetEidolonLevel: 2, currentEidolonLevel: 0 }],
   })
   const writtenExport = `${tempDir}/written.json`
@@ -421,23 +464,31 @@ try {
     const summaryOk = summaryText.includes('8,000') && summaryText.includes('20') && summaryText.includes('72') && summaryText.includes('157')
     const echoBudgetOk = fromSavedEcho.totalWarps === 157 && req.totalStarlight === 300 && req.additionalPasses === 72
     record(
-      'warp.resources.set', 1,
+      'warp.resources.set',
+      1,
       'fromSaved 读出的请求与网页端打开页面时各输入框显示的值一致',
       'browser-parity',
       inputOk && summaryOk && echoBudgetOk ? 'PASS' : 'FAIL',
-      `网页输入 jades=${webJades}/passes=${webPasses}/垫抽=${webPityChar},${webPityLc}/返利标签="${starlightLabel}" vs MCP fromSaved jades=${req.jades}/passes=${req.passes}/pity=${req.pityCharacter},${req.pityLightCone}/${req.starlight};摘要"${summaryText}"(8000+20+72+15=157);guaranteed勾选=${JSON.stringify(guaranteed)}`,
+      `网页输入 jades=${webJades}/passes=${webPasses}/垫抽=${webPityChar},${webPityLc}/返利标签="${starlightLabel}" vs MCP fromSaved jades=${req.jades}/passes=${req.passes}/pity=${req.pityCharacter},${req.pityLightCone}/${req.starlight};摘要"${summaryText}"(8000+20+72+15=157);guaranteed勾选=${
+        JSON.stringify(guaranteed)
+      }`,
     )
 
     // income pills: seeded 4.6_p1_1 selected on the page; unknown id dropped at load
     const pills = await page.evaluate(`() => [...document.querySelectorAll('#WARP .mantine-Pill-root, #WARP [class*=pill]')]
       .filter((p) => p.offsetParent !== null).map((p) => p.textContent.trim()).slice(0, 6)`)
     record(
-      'warp.resources.set', 3,
+      'warp.resources.set',
+      3,
       '传入不存在的收入选项 id 时报错并列出合法 id',
       'browser-parity',
       badIncomeErr != null && badIncomeErr.includes('9.9_p9_1') && badIncomeErr.includes('未知的收入选项')
-        && badIncomeErr.includes('4.5_p1_1') && badIncomeErr.includes('4.6_p2_1') ? 'PASS' : 'FAIL',
-      `MCP warp_plan(income=['9.9_p9_1']) 报错含该 id 与合法表:${(badIncomeErr ?? '').slice(0, 90)};合法 id 表与网页端收入选项同源(WarpIncomeOptions);网页已选收入=[${pills.join(',')}]`,
+        && badIncomeErr.includes('4.5_p1_1') && badIncomeErr.includes('4.6_p2_1')
+        ? 'PASS'
+        : 'FAIL',
+      `MCP warp_plan(income=['9.9_p9_1']) 报错含该 id 与合法表:${
+        (badIncomeErr ?? '').slice(0, 90)
+      };合法 id 表与网页端收入选项同源(WarpIncomeOptions);网页已选收入=[${pills.join(',')}]`,
     )
   })
 
@@ -447,15 +498,19 @@ try {
     const harvest = await page.evaluate(HARVEST)
     const webReq = harvest.warpRequest
     const savedReq = written.savedRequest
-    const equal = ['passes', 'jades', 'income', 'plannerMode', 'strategy', 'starlight', 'pityCharacter', 'guaranteedCharacter', 'pityLightCone', 'guaranteedLightCone']
-      .every((k) => JSON.stringify(webReq?.[k]) === JSON.stringify(savedReq?.[k]))
+    const equal =
+      ['passes', 'jades', 'income', 'plannerMode', 'strategy', 'starlight', 'pityCharacter', 'guaranteedCharacter', 'pityLightCone', 'guaranteedLightCone']
+        .every((k) => JSON.stringify(webReq?.[k]) === JSON.stringify(savedReq?.[k]))
       && JSON.stringify(webReq?.targets) === JSON.stringify(savedReq?.targets)
     record(
-      'warp.resources.set', 2,
+      'warp.resources.set',
+      2,
       '要求保存后，导出的存档里 warpRequest 与网页端填同样数值后的内容一致',
       'browser-parity',
       equal && JSON.stringify(writtenSave.warpRequest) === JSON.stringify(savedReq) ? 'PASS' : 'FAIL',
-      `MCP warp_plan(save=true) → export_save → 网页载入后页面自身 SaveState 落盘的 warpRequest 与 MCP 持久化请求逐字段一致:${equal};webTargets=${JSON.stringify(webReq?.targets?.map((t) => [t.characterId, t.currentEidolonLevel, t.targetEidolonLevel]))}`,
+      `MCP warp_plan(save=true) → export_save → 网页载入后页面自身 SaveState 落盘的 warpRequest 与 MCP 持久化请求逐字段一致:${equal};webTargets=${
+        JSON.stringify(webReq?.targets?.map((t) => [t.characterId, t.currentEidolonLevel, t.targetEidolonLevel]))
+      }`,
     )
   })
 
@@ -463,7 +518,10 @@ try {
   const strategyRuns = {}
   for (let s = 0; s <= 7; s++) {
     strategyRuns[s] = await callTool('warp_plan', {
-      jades: 64000, starlight: 'REFUND_NONE', strategy: s, applyPlannerMode: true,
+      jades: 64000,
+      starlight: 'REFUND_NONE',
+      strategy: s,
+      applyPlannerMode: true,
     })
   }
   // the fromSaved replay must run against the SAME simple-mode save the page loads
@@ -501,11 +559,14 @@ try {
       }
     }
     record(
-      'warp.plan.simple', 1,
+      'warp.plan.simple',
+      1,
       '八种策略下各里程碑的期望抽数与达成概率，与网页端简单模式结果表逐行一致',
       'browser-parity',
       allOk ? 'PASS' : 'FAIL',
-      `8 策略逐行比对(标签/概率%/期望抽数 ceil):${perStrategy.join('; ')};示例 strategy0 E6S5=${strategyRuns[0].targetResults[0].milestones.at(-1).warps.toFixed(1)}抽`,
+      `8 策略逐行比对(标签/概率%/期望抽数 ceil):${perStrategy.join('; ')};示例 strategy0 E6S5=${
+        strategyRuns[0].targetResults[0].milestones.at(-1).warps.toFixed(1)
+      }抽`,
     )
 
     // switch back to the seeded strategy (E0 first) before the fromSaved comparison
@@ -522,7 +583,8 @@ try {
     const webRows = tablesSimple.flat()
     const mismatch = compareMilestones(webRows, simpleSaveEcho.targetResults[0].milestones)
     record(
-      'warp.plan.simple', 2,
+      'warp.plan.simple',
+      2,
       '对一份处于简单模式的存档按网页端口径计算，结果与页面显示一致',
       'browser-parity',
       mismatch == null ? 'PASS' : 'FAIL',
@@ -544,11 +606,14 @@ try {
       && compareMilestones(tables89.flat(), mcpPity89.targetResults[0].milestones) == null
       && m0.warps > m89.warps
     record(
-      'warp.results.read', 3,
+      'warp.results.read',
+      3,
       '已垫抽数与必中状态变化后，结果与网页端同步变化',
       'browser-parity',
       pityOk ? 'PASS' : 'FAIL',
-      `垫抽 0→89(输入位4="${setPity}"):网页 E0S0 行 ${row0?.chance}%/${row0?.warps}抽 → ${row89?.chance}%/${row89?.warps}抽;MCP ${m0.warps.toFixed(2)}抽(${(m0.wins * 100).toFixed(1)}%) → ${m89.warps.toFixed(2)}抽(${(m89.wins * 100).toFixed(1)}%),期望抽数同步下降`,
+      `垫抽 0→89(输入位4="${setPity}"):网页 E0S0 行 ${row0?.chance}%/${row0?.warps}抽 → ${row89?.chance}%/${row89?.warps}抽;MCP ${m0.warps.toFixed(2)}抽(${
+        (m0.wins * 100).toFixed(1)
+      }%) → ${m89.warps.toFixed(2)}抽(${(m89.wins * 100).toFixed(1)}%),期望抽数同步下降`,
     )
   })
 
@@ -573,20 +638,28 @@ try {
     const h2 = await page.evaluate(HARVEST)
     const t2 = h2.warpRequest.targets
     const normRun = await callTool('warp_plan', {
-      jades: 80000, starlight: 'REFUND_NONE', plannerMode: 'multi', normalizeTargets: true,
+      jades: 80000,
+      starlight: 'REFUND_NONE',
+      plannerMode: 'multi',
+      normalizeTargets: true,
       targets: [{ characterId: '1308' }, { characterId: '1308' }],
     })
-    const normTargets = normRun.request.targets.map((t) => [t.currentEidolonLevel, t.targetEidolonLevel, t.currentSuperimpositionLevel, t.targetSuperimpositionLevel])
+    const normTargets = normRun.request.targets.map((
+      t,
+    ) => [t.currentEidolonLevel, t.targetEidolonLevel, t.currentSuperimpositionLevel, t.targetSuperimpositionLevel])
     const webTargets = t2.map((t) => [t.currentEidolonLevel, t.targetEidolonLevel, t.currentSuperimpositionLevel, t.targetSuperimpositionLevel])
     const chainOk = t2.length === 2 && pick1 === 'picked' && pick2 === 'picked'
       && JSON.stringify(webTargets) === JSON.stringify(normTargets)
       && webTargets[0][0] === -1 && webTargets[0][1] === 0 && webTargets[1][0] === 0 && webTargets[1][1] === 1
     record(
-      'warp.plan.targets', 2,
+      'warp.plan.targets',
+      2,
       '同一角色先后两个目标交给工具规范化后，起止等级与网页端自动接续后的结果一致',
       'browser-parity',
       chainOk ? 'PASS' : 'FAIL',
-      `网页两次「添加角色」(Acheron)自动接续 targets 等级[当前E,目标E,当前S,目标S]=${JSON.stringify(webTargets)};MCP normalizeTargets([{1308},{1308}])=${JSON.stringify(normTargets)}(首尾相接 E-1→E0 接 E0→E1)`,
+      `网页两次「添加角色」(Acheron)自动接续 targets 等级[当前E,目标E,当前S,目标S]=${JSON.stringify(webTargets)};MCP normalizeTargets([{1308},{1308}])=${
+        JSON.stringify(normTargets)
+      }(首尾相接 E-1→E0 接 E0→E1)`,
     )
   })
 
@@ -605,17 +678,24 @@ try {
     const t1 = h1.warpRequest.targets
     const tables1 = await page.evaluate(READ_WARP_TABLES)
     const plan1 = await callTool('warp_plan', {
-      jades: 80000, starlight: 'REFUND_NONE', plannerMode: 'multi', targets: t1,
+      jades: 80000,
+      starlight: 'REFUND_NONE',
+      plannerMode: 'multi',
+      targets: t1,
     })
     const mismatch1 = tables1.length === t1.length && t1.length === 2
       ? tables1.map((rows, i) => compareMilestones(rows, plan1.targetResults[i].milestones)).find((m) => m != null) ?? null
       : `rows web-tables=${tables1.length} targets=${t1.length} mcp=${plan1.targetResults.length}`
     record(
-      'warp.plan.targets', 1,
+      'warp.plan.targets',
+      1,
       '给出「某角色 E0 到 E2，再加其专属光锥 S1」的目标串，各里程碑的期望抽数与达成概率与网页端同样编排后的表格一致',
       'browser-parity',
       add1 === true && pick1 === 'picked' && seg === 'clicked' && mismatch1 == null ? 'PASS' : 'FAIL',
-      mismatch1 ?? `网页「角色+专属光锥」编排(Acheron:角色行 E${t1[0].currentEidolonLevel}→E${t1[0].targetEidolonLevel} + 光锥行 S${t1[1].currentSuperimpositionLevel}→S${t1[1].targetSuperimpositionLevel})两个目标表格与 MCP warp_plan(同 targets)逐行一致(${tables1.map((r) => r.length + '行').join('+')})`,
+      mismatch1
+        ?? `网页「角色+专属光锥」编排(Acheron:角色行 E${t1[0].currentEidolonLevel}→E${t1[0].targetEidolonLevel} + 光锥行 S${
+          t1[1].currentSuperimpositionLevel
+        }→S${t1[1].targetSuperimpositionLevel})两个目标表格与 MCP warp_plan(同 targets)逐行一致(${tables1.map((r) => r.length + '行').join('+')})`,
     )
 
     // — case 3: Jingliu (1212b1, owned E1) by id alone → start = owned eidolon —
@@ -626,7 +706,10 @@ try {
     const h3 = await page.evaluate(HARVEST)
     const t3Row = h3.warpRequest.targets.at(-1)
     const ownedRun = await callTool('warp_plan', {
-      jades: 80000, starlight: 'REFUND_NONE', plannerMode: 'multi', normalizeTargets: true,
+      jades: 80000,
+      starlight: 'REFUND_NONE',
+      plannerMode: 'multi',
+      normalizeTargets: true,
       targets: [{ characterId: '1212b1' }],
     })
     const ownedRow = ownedRun.request.targets[0]
@@ -634,7 +717,8 @@ try {
     const ownedOk = t3Row?.currentEidolonLevel === 1 && ownedRow.currentEidolonLevel === 1
       && jingliuSave?.form?.characterEidolon === 1
     record(
-      'warp.plan.targets', 3,
+      'warp.plan.targets',
+      3,
       '只给角色 id 新增目标时，起点等于存档里该角色的星魂',
       'browser-parity',
       pick3 === 'picked' && ownedOk ? 'PASS' : 'FAIL',
@@ -651,13 +735,17 @@ try {
     const dragged = orderAfter.length === 3 && orderAfter[0] === orderBefore[2] && orderAfter[1] === orderBefore[0] && orderAfter[2] === orderBefore[1]
     const tables4 = await page.evaluate(READ_WARP_TABLES)
     const plan4 = await callTool('warp_plan', {
-      jades: 80000, starlight: 'REFUND_NONE', plannerMode: 'multi', targets: afterDrag.warpRequest.targets,
+      jades: 80000,
+      starlight: 'REFUND_NONE',
+      plannerMode: 'multi',
+      targets: afterDrag.warpRequest.targets,
     })
     const mismatch4 = dragged
       ? tables4.map((rows, i) => compareMilestones(rows, plan4.targetResults[i]?.milestones ?? [])).find((m) => m != null) ?? null
       : 'drag did not land'
     record(
-      'warp.plan.targets', 4,
+      'warp.plan.targets',
+      4,
       '交换两个目标的顺序后，结果与网页端拖动后的表格一致',
       'browser-parity',
       dragged && mismatch4 == null ? 'PASS' : 'FAIL',
@@ -681,12 +769,17 @@ try {
     await sleep(900)
     const summary = (await page.evaluate(READ_SUMMARY)).join(' ')
     const mcpBudget = await callTool('warp_plan', {
-      jades: 32000, passes: 9, income: [], starlight: 'REFUND_LOW', plannerMode: 'multi',
+      jades: 32000,
+      passes: 9,
+      income: [],
+      starlight: 'REFUND_LOW',
+      plannerMode: 'multi',
     })
     const summaryOk = pickRefund === 'picked' && setJades === '32000' && setPasses === '9'
       && summary.includes('32,000') && summary.includes('9') && summary.includes('160') && summary.includes('217')
     record(
-      'warp.results.read', 1,
+      'warp.results.read',
+      1,
       '同一请求下总抽数、星芒返利折算的额外专票与网页端摘要一致',
       'browser-parity',
       summaryOk && mcpBudget.totalWarps === 217 && mcpBudget.request.totalStarlight === 160 ? 'PASS' : 'FAIL',
@@ -701,18 +794,26 @@ try {
     const tables = await page.evaluate(READ_WARP_TABLES)
     const harvest = await page.evaluate(HARVEST)
     const plan = await callTool('warp_plan', {
-      jades: 32000, passes: 9, income: [], starlight: 'REFUND_LOW', plannerMode: 'multi', targets: harvest.warpRequest.targets,
+      jades: 32000,
+      passes: 9,
+      income: [],
+      starlight: 'REFUND_LOW',
+      plannerMode: 'multi',
+      targets: harvest.warpRequest.targets,
     })
     const rowMismatch = tables.length === harvest.warpRequest.targets.length && harvest.warpRequest.targets.length === 2
       ? tables.map((rows, i) => compareMilestones(rows, plan.targetResults[i].milestones)).find((m) => m != null) ?? null
       : `rows web-tables=${tables.length} targets=${harvest.warpRequest.targets.length}`
     record(
-      'warp.results.read', 2,
+      'warp.results.read',
+      2,
       '每个目标每个里程碑的期望抽数与达成概率与网页端结果表逐行一致',
       'browser-parity',
       rowMismatch == null ? 'PASS' : 'FAIL',
       rowMismatch == null
-        ? `网页两个目标表格(${tables.map((r) => r.length + '行').join('+')})与 MCP 逐行一致(首表首行 ${tables[0][0].label} ${tables[0][0].chance}%/${tables[0][0].warps}抽)`
+        ? `网页两个目标表格(${tables.map((r) => r.length + '行').join('+')})与 MCP 逐行一致(首表首行 ${tables[0][0].label} ${tables[0][0].chance}%/${
+          tables[0][0].warps
+        }抽)`
         : `比对失败:${rowMismatch}`,
     )
   })
@@ -735,13 +836,20 @@ try {
   }
 
   // MCP side connects explicitly (its load_save does not auto-connect)
-  const scannerSavePath = seedFile('scanner-on', seedSave({
-    warpRequest: scannerBase,
-    scannerSettings: {
-      ingest: true, ingestCharacters: false, ingestOnlyExistingCharacters: false,
-      ingestWarpResources: true, websocketUrl: archiverUrl, customUrl: true,
-    },
-  }))
+  const scannerSavePath = seedFile(
+    'scanner-on',
+    seedSave({
+      warpRequest: scannerBase,
+      scannerSettings: {
+        ingest: true,
+        ingestCharacters: false,
+        ingestOnlyExistingCharacters: false,
+        ingestWarpResources: true,
+        websocketUrl: archiverUrl,
+        customUrl: true,
+      },
+    }),
+  )
   await callTool('load_save', { path: scannerSavePath })
   await callTool('update_state', { section: 'scanner', patch: { ingest: true, ingestWarpResources: true, websocketUrl: archiverUrl } })
   const connected = await callTool('scanner', { action: 'connect', url: archiverUrl })
@@ -752,12 +860,18 @@ try {
     ['UpdateMaterials', [{ id: '102', name: 'Special Pass', count: 5 }, { id: '252', name: 'Undying Starlight', count: 37 }]],
     ['UpdateGachaFunds', { stellar_jade: 1600, oneric_shards: 320 }],
     ['GachaResult', {
-      banner_id: 1, banner_type: 'Character', pity_4: { kind: 'AddPity', amount: 1 },
-      pity_5: { kind: 'AddPity', amount: 3 }, pull_results: [],
+      banner_id: 1,
+      banner_type: 'Character',
+      pity_4: { kind: 'AddPity', amount: 1 },
+      pity_5: { kind: 'AddPity', amount: 3 },
+      pull_results: [],
     }],
     ['GachaResult', {
-      banner_id: 11, banner_type: 'LightCone', pity_4: { kind: 'AddPity', amount: 1 },
-      pity_5: { kind: 'ResetPity', amount: 20, set_guarantee: true }, pull_results: [],
+      banner_id: 11,
+      banner_type: 'LightCone',
+      pity_4: { kind: 'AddPity', amount: 1 },
+      pity_5: { kind: 'ResetPity', amount: 20, set_guarantee: true },
+      pull_results: [],
     }],
   ]
 
@@ -782,22 +896,32 @@ try {
     const expected = { jades: 1920, passes: 6, pityCharacter: 8, pityLightCone: 20, guaranteedLightCone: true, guaranteedCharacter: false }
     const expectedOk = fields.every((k) => JSON.stringify(mcpReq[k]) === JSON.stringify(expected[k]))
     record(
-      'warp.scanner.sync', 1,
+      'warp.scanner.sync',
+      1,
       '回放一段含资源更新与抽卡结果的扫描器事件后，存档里 warpRequest 的星琼、专票、两个卡池的已垫抽数与必中状态与网页端回放同一段事件后一致',
       'browser-parity',
       bothConnected && diffs.length === 0 && expectedOk ? 'PASS' : 'FAIL',
-      `同一假 Archiver 同时连接两侧(${archiverClients.size} 客户端),回放 4 帧后网页 warpRequest=${JSON.stringify(fields.map((k) => webReq?.[k]))} vs MCP=${JSON.stringify(fields.map((k) => mcpReq[k]))};期望=${JSON.stringify([1920, 6, 8, false, 20, true])}(星琼=1600+320,专票=5+floor(37/20),角色垫抽 5+3,光锥重置 20+必中)`,
+      `同一假 Archiver 同时连接两侧(${archiverClients.size} 客户端),回放 4 帧后网页 warpRequest=${JSON.stringify(fields.map((k) => webReq?.[k]))} vs MCP=${
+        JSON.stringify(fields.map((k) => mcpReq[k]))
+      };期望=${JSON.stringify([1920, 6, 8, false, 20, true])}(星琼=1600+320,专票=5+floor(37/20),角色垫抽 5+3,光锥重置 20+必中)`,
     )
   })
 
   // — case 2: ingestWarpResources OFF → the same events change nothing on either side —
-  const scannerOffPath = seedFile('scanner-off', seedSave({
-    warpRequest: scannerBase,
-    scannerSettings: {
-      ingest: true, ingestCharacters: false, ingestOnlyExistingCharacters: false,
-      ingestWarpResources: false, websocketUrl: archiverUrl, customUrl: true,
-    },
-  }))
+  const scannerOffPath = seedFile(
+    'scanner-off',
+    seedSave({
+      warpRequest: scannerBase,
+      scannerSettings: {
+        ingest: true,
+        ingestCharacters: false,
+        ingestOnlyExistingCharacters: false,
+        ingestWarpResources: false,
+        websocketUrl: archiverUrl,
+        customUrl: true,
+      },
+    }),
+  )
   await callTool('update_state', { section: 'scanner', patch: { ingestWarpResources: false } })
   const mcpBefore2 = (await callTool('warp_plan', { fromSaved: true })).request
   await browserManager.runTask({ label: 'verify(warp-D2)', seed: readFileSync(scannerOffPath, 'utf8'), timeoutMs: 600_000 }, async (page) => {
@@ -809,8 +933,11 @@ try {
     push('UpdateGachaFunds', { stellar_jade: 9999, oneric_shards: 0 })
     push('UpdateMaterials', [{ id: '102', name: 'Special Pass', count: 100 }, { id: '252', name: 'Undying Starlight', count: 500 }])
     push('GachaResult', {
-      banner_id: 1, banner_type: 'Character', pity_4: { kind: 'AddPity', amount: 1 },
-      pity_5: { kind: 'AddPity', amount: 10 }, pull_results: [],
+      banner_id: 1,
+      banner_type: 'Character',
+      pity_4: { kind: 'AddPity', amount: 1 },
+      pity_5: { kind: 'AddPity', amount: 10 },
+      pull_results: [],
     })
     await sleep(2000)
 
@@ -820,7 +947,8 @@ try {
     const webUnchanged = fields2.every((k) => JSON.stringify(webAfter2.warpRequest?.[k]) === JSON.stringify(webBefore2.warpRequest?.[k]))
     const mcpUnchanged = fields2.every((k) => JSON.stringify(mcpAfter2[k]) === JSON.stringify(mcpBefore2[k]))
     record(
-      'warp.scanner.sync', 2,
+      'warp.scanner.sync',
+      2,
       'ingestWarpResources 关闭时同样的事件不改动 warpRequest',
       'browser-parity',
       webUnchanged && mcpUnchanged ? 'PASS' : 'FAIL',
@@ -847,12 +975,19 @@ try {
 }
 
 // ── evidence file ────────────────────────────────────────────────────────────
-writeFileSync(evidencePath, JSON.stringify({
-  area: 'warp',
-  generatedAt: GENERATED_AT,
-  gitCommit: GIT_COMMIT,
-  cases,
-}, null, 2) + '\n')
+writeFileSync(
+  evidencePath,
+  JSON.stringify(
+    {
+      area: 'warp',
+      generatedAt: GENERATED_AT,
+      gitCommit: GIT_COMMIT,
+      cases,
+    },
+    null,
+    2,
+  ) + '\n',
+)
 
 const failed = cases.filter((c) => c.result !== 'PASS').length
 console.log(failed === 0 ? `\nverify-warp: ALL ${cases.length} CASES PASSED` : `\nverify-warp: ${failed} OF ${cases.length} CASES FAILED/UNPROVEN`)

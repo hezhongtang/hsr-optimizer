@@ -7,9 +7,16 @@
 //   - rows with any FAIL / UNPROVEN / missing case stay untouched
 //
 // Usage: node scripts/flip-verified.mjs [area ...]   (no args = all areas)
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { readdirSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import {
+  dirname,
+  resolve,
+} from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const mcpDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -41,11 +48,13 @@ for (const area of areas) {
     const expected = row.acceptance.cases.length
     const results = byFeature.get(row.id)
     let passCount = 0
-    if (results) for (let i = 1; i <= expected; i++) if (results.get(i) === 'PASS') passCount++
+    if (results) { for (let i = 1; i <= expected; i++) if (results.get(i) === 'PASS') passCount++ }
     if (passCount === expected && expected > 0) {
       row.mcp.status = 'verified'
       row.acceptance.evidence = [
-        `mcp/coverage/evidence/${area}.json#${row.id} cases 1-${expected} PASS ${evidence.generatedAt?.slice(0, 10) ?? ''} (${(evidence.gitCommit ?? '').slice(0, 8)})`,
+        `mcp/coverage/evidence/${area}.json#${row.id} cases 1-${expected} PASS ${evidence.generatedAt?.slice(0, 10) ?? ''} (${
+          (evidence.gitCommit ?? '').slice(0, 8)
+        })`,
       ]
       flipped++
     } else if (!results || passCount < expected) {

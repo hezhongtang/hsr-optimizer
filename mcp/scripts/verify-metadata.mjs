@@ -64,7 +64,15 @@ function check(name, ok, detail = '') {
 }
 function assertCase(feature, index, desc, method, outcome, detail) {
   const result = typeof outcome === 'string' ? outcome : outcome ? 'PASS' : 'FAIL'
-  EVIDENCE.push({ feature, case: index, desc: desc.slice(0, 40), method, result, detail: String(detail).slice(0, 300), script: 'mcp/scripts/verify-metadata.mjs' })
+  EVIDENCE.push({
+    feature,
+    case: index,
+    desc: desc.slice(0, 40),
+    method,
+    result,
+    detail: String(detail).slice(0, 300),
+    script: 'mcp/scripts/verify-metadata.mjs',
+  })
   if (result !== 'PASS') failures++
   console.log(`[${result}] ${feature}#${index} — ${detail}`)
   return result === 'PASS'
@@ -322,13 +330,16 @@ try {
     await sleep(1500)
 
     // set-url → name map via the page's own Assets module
-    const setUrlMap = await p.evaluate(`(names) => {
+    const setUrlMap = await p.evaluate(
+      `(names) => {
       const out = {}
       for (const name of names) {
         try { out[window.__HSR_DEBUG.Assets.getSetImage(name)] = name } catch (e) { out['ERR:' + name] = String(e) }
       }
       return out
-    }`, [allSetNames])
+    }`,
+      [allSetNames],
+    )
     const setNameOf = (src) => setUrlMap[src] ?? null
 
     // ── Simulation sets grid ────────────────────────────────────────────────
@@ -378,10 +389,14 @@ try {
       }
     }
     assertCase(
-      'metadata.simulation.sets', 1,
+      'metadata.simulation.sets',
+      1,
       '不载入存档即可读到每个角色的默认推荐遗器套装和饰品套装,与网页端表格里点亮的格子一致',
-      'browser-parity', setsOk,
-      `${litByChar.size} web rows vs ${setsByChar.size} resource entries compared cell-by-cell (asset URLs translated with the page Assets); ${setDiffs.join(' ; ') || 'all match'}`,
+      'browser-parity',
+      setsOk,
+      `${litByChar.size} web rows vs ${setsByChar.size} resource entries compared cell-by-cell (asset URLs translated with the page Assets); ${
+        setDiffs.join(' ; ') || 'all match'
+      }`,
     )
 
     // path grouping (nine tables)
@@ -395,12 +410,17 @@ try {
     const webPathOk = setsGrid.ok && tableCharCounts.length === 9
       && JSON.stringify(tableCharCounts) === JSON.stringify(resourcePerPath)
       && pathOrder.filter((p) => p !== '(empty)').every((p) => expectedPaths.includes(p))
-      && pathOrder.filter((p) => p !== '(empty)').length === new Set([...resourcePerPath.map((n) => n > 0)].filter(Boolean)).size * 0 + pathOrder.filter((p) => p !== '(empty)').length
+      && pathOrder.filter((p) => p !== '(empty)').length
+        === new Set([...resourcePerPath.map((n) => n > 0)].filter(Boolean)).size * 0 + pathOrder.filter((p) => p !== '(empty)').length
     assertCase(
-      'metadata.simulation.sets', 2,
+      'metadata.simulation.sets',
+      2,
       '按命途分组后的角色集合与网页端九张表一致',
-      'browser-parity', webPathOk,
-      `web 九张表按命途固定顺序渲染,每表角色数 [${tableCharCounts.join(',')}] vs 资源按命途分组数 [${resourcePerPath.join(',')}];非空表的命途推导 [${pathOrder.join(',')}] 均在预期九命途内`,
+      'browser-parity',
+      webPathOk,
+      `web 九张表按命途固定顺序渲染,每表角色数 [${tableCharCounts.join(',')}] vs 资源按命途分组数 [${resourcePerPath.join(',')}];非空表的命途推导 [${
+        pathOrder.join(',')
+      }] 均在预期九命途内`,
     )
 
     // ── Simulation teams grid ───────────────────────────────────────────────
@@ -438,15 +458,19 @@ try {
       }
     }
     assertCase(
-      'metadata.simulation.teams', 1,
+      'metadata.simulation.teams',
+      1,
       '不载入存档即可读到每个角色的默认三名队友及光锥,与网页端表格一致',
-      'browser-parity', teamsOk,
+      'browser-parity',
+      teamsOk,
       `${webTeams.size} web rows vs ${teamsByChar.size} resource entries (teammate id + light cone id per slot); ${teamDiffs.join(' ; ') || 'all match'}`,
     )
     assertCase(
-      'metadata.simulation.teams', 2,
+      'metadata.simulation.teams',
+      2,
       '存档里自定义过队伍的角色,默认队伍仍与网页端这张表一致',
-      'browser-parity', teamsOk,
+      'browser-parity',
+      teamsOk,
       '浏览器会话已注入样例存档(8 角色),网页表格仍显示默认队伍(读 getGameMetadata,与存档无关);资源端同为默认值;样例存档未带 scoringMetadataOverrides',
     )
 
@@ -476,15 +500,21 @@ try {
       }
     }
     assertCase(
-      'metadata.simulation.combo', 1,
+      'metadata.simulation.combo',
+      1,
       '不载入存档即可读到每个角色的默认循环,行动顺序与网页端表格一致',
-      'browser-parity', comboOk,
-      `${webCombo.size} web rows vs ${comboByChar.size} resource entries(可读名称 " - " 连接;两侧均剔除空行动名后逐字比对——资源端 comboNames 对 NULL 行动产出空串,网页端在渲染前已剔除); ${comboDiffs.join(' ; ') || 'all match'}`,
+      'browser-parity',
+      comboOk,
+      `${webCombo.size} web rows vs ${comboByChar.size} resource entries(可读名称 " - " 连接;两侧均剔除空行动名后逐字比对——资源端 comboNames 对 NULL 行动产出空串,网页端在渲染前已剔除); ${
+        comboDiffs.join(' ; ') || 'all match'
+      }`,
     )
     assertCase(
-      'metadata.simulation.combo', 2,
+      'metadata.simulation.combo',
+      2,
       '同时给出行动的内部代号和可读名称,可读名称与网页端显示的一致',
-      'browser-parity', comboOk,
+      'browser-parity',
+      comboOk,
       `resource comboTurnAbilities(内部代号) non-empty for ${comboByChar.size} characters, comboNames(可读名称)逐角色与网页端一致(上例)`,
     )
 
@@ -539,7 +569,10 @@ try {
       const cells = new Map()
       let mappedCount = 0
       for (const preset of entry.presets) {
-        if (!(preset.name in PRESET_TO_SET)) { unmappedNames.add(preset.name); continue }
+        if (!(preset.name in PRESET_TO_SET)) {
+          unmappedNames.add(preset.name)
+          continue
+        }
         mappedCount++
         cells.set(preset.set ?? PRESET_TO_SET[preset.name], preset.value === true ? '⚪' : String(preset.value))
       }
@@ -566,11 +599,17 @@ try {
       }
     }
     assertCase(
-      'metadata.setPresets.read', 1,
+      'metadata.setPresets.read',
+      1,
       '返回的每个角色的预设套装和预设值与网页端表格里有内容的格子一致',
-      'browser-parity', presetsOk,
-      `${webPresets.size} web characters vs ${expectByChar.size} resource entries with panel-registered presets (⚪=true / 数字文本逐格比对,同套装多名预设以后者为准);${presetDiffs.join(' ; ') || 'all match'};`
-        + `网页 presetToSetMapping 未登记 ${[...unmappedNames].join(',')}(${charsWithOnlyUnmapped} 个角色仅有未登记名预设→网页无格子,清单 conditions 已注明面板只认登记过的预设;资源端字段完整)`,
+      'browser-parity',
+      presetsOk,
+      `${webPresets.size} web characters vs ${expectByChar.size} resource entries with panel-registered presets (⚪=true / 数字文本逐格比对,同套装多名预设以后者为准);${
+        presetDiffs.join(' ; ') || 'all match'
+      };`
+        + `网页 presetToSetMapping 未登记 ${
+          [...unmappedNames].join(',')
+        }(${charsWithOnlyUnmapped} 个角色仅有未登记名预设→网页无格子,清单 conditions 已注明面板只认登记过的预设;资源端字段完整)`,
     )
 
     // default_form cross-check for preset characters
@@ -592,10 +631,14 @@ try {
       }
     }
     assertCase(
-      'metadata.setPresets.read', 2,
+      'metadata.setPresets.read',
+      2,
       '对带预设的角色,default_form 里对应套装条件的取值与预设值一致',
-      'browser-parity', formPresetOk,
-      `default_form setConditionals spot-check on ${presetSample.join(', ')}(预设名经 presetToSetMapping 映射到套装); ${formPresetDetails.slice(0, 2).join(' ; ') || 'all match'}`,
+      'browser-parity',
+      formPresetOk,
+      `default_form setConditionals spot-check on ${presetSample.join(', ')}(预设名经 presetToSetMapping 映射到套装); ${
+        formPresetDetails.slice(0, 2).join(' ; ') || 'all match'
+      }`,
     )
 
     // ── Substat weights grid ────────────────────────────────────────────────
@@ -624,15 +667,19 @@ try {
       }
     }
     assertCase(
-      'metadata.substatWeights.read', 1,
+      'metadata.substatWeights.read',
+      1,
       '不载入存档即可读到每个角色九种副词条的默认权重,与网页端表格一致',
-      'browser-parity', weightsOk,
+      'browser-parity',
+      weightsOk,
       `${webWeights.size} web rows vs ${weightsByChar.size} resource entries (九列文本,0 显示为空); ${weightDiffs.join(' ; ') || 'all match'}`,
     )
     assertCase(
-      'metadata.substatWeights.read', 2,
+      'metadata.substatWeights.read',
+      2,
       '用户改过权重的角色,默认权重仍与网页端这张表一致',
-      'browser-parity', weightsOk,
+      'browser-parity',
+      weightsOk,
       '浏览器会话已注入样例存档,网页表格与资源端(均为默认配置)逐格一致;get_scoring_metadata 的生效值会合并用户覆盖,但本表口径是默认值',
     )
 
@@ -753,17 +800,23 @@ try {
     }
     void lbGrid
     assertCase(
-      'metadata.leaderboardTeams.read', 1,
+      'metadata.leaderboardTeams.read',
+      1,
       '不载入存档即可读到每个五星角色在各评分类型下的参评队伍、允许光锥和副 C 标记,与网页端面板一致',
-      'browser-parity', lbOk,
+      'browser-parity',
+      lbOk,
       `${webLb.size} web boards vs ${resourceLb.size} resource entries (teammate ids + allowed light cone ids per slot); ${lbDiffs.join(' ; ') || 'all match'}`,
     )
     const defaultCount = [...resourceLb.values()].filter((e) => e.usesDefaultTeam).length
     assertCase(
-      'metadata.leaderboardTeams.read', 2,
+      'metadata.leaderboardTeams.read',
+      2,
       '没有专门配置的角色标明使用默认队伍,与网页端半透明的那一行一致',
-      'browser-parity', lbOk && defaultCount > 0,
-      `resource marks ${defaultCount} characters usesDefaultTeam; web rows rendered with opacity 0.5 + DEFAULT 文本(逐板比对); ${lbDiffs.slice(0, 1).join('') || 'all match'}`,
+      'browser-parity',
+      lbOk && defaultCount > 0,
+      `resource marks ${defaultCount} characters usesDefaultTeam; web rows rendered with opacity 0.5 + DEFAULT 文本(逐板比对); ${
+        lbDiffs.slice(0, 1).join('') || 'all match'
+      }`,
     )
 
     // ── Set benchmark auditor (reduced grid: ornament only, SPD 0, noErr) ──
@@ -771,14 +824,15 @@ try {
     // UNPROVEN for its three browser-parity cases without killing the rest.
     let auditPhaseError = null
     try {
-    // NOTE: this page runs zh_CN, so the auditor picker's placeholder is NOT
-    // "Character" — anchor structurally on the auditor accordion item's first
-    // input instead (the previous batch's placeholder click silently no-op'd,
-    // the picker modal never opened, and the audit "hang" was really a
-    // disabled Run Audit button with no character selected).
-    await openAccordion(p, 'Set benchmark auditor')
-    await sleep(2000)
-    const auditorPickOpened = await p.evaluate(`() => {
+      // NOTE: this page runs zh_CN, so the auditor picker's placeholder is NOT
+      // "Character" — anchor structurally on the auditor accordion item's first
+      // input instead (the previous batch's placeholder click silently no-op'd,
+      // the picker modal never opened, and the audit "hang" was really a
+      // disabled Run Audit button with no character selected).
+      await openAccordion(p, 'Set benchmark auditor')
+      await sleep(2000)
+      const auditorPickOpened = await p.evaluate(
+        `() => {
       const visible = (el) => el.offsetParent !== null
       const items = [...document.querySelectorAll('.mantine-Accordion-item, [class*="Accordion-item"]')]
       const item = items.find((it) => visible(it) && (it.textContent || '').includes('Set benchmark auditor'))
@@ -787,10 +841,13 @@ try {
       if (!input) return { ok: false, reason: 'no input in auditor item' }
       input.click()
       return { ok: true, placeholder: input.placeholder || '(none)' }
-    }`, [])
-    check('web: auditor picker opened (structural anchor, zh-safe)', auditorPickOpened.ok, JSON.stringify(auditorPickOpened))
-    await sleep(1100)
-    const modalTyped = await p.evaluate(`(text) => {
+    }`,
+        [],
+      )
+      check('web: auditor picker opened (structural anchor, zh-safe)', auditorPickOpened.ok, JSON.stringify(auditorPickOpened))
+      await sleep(1100)
+      const modalTyped = await p.evaluate(
+        `(text) => {
       const modal = [...document.querySelectorAll('[role="dialog"], [class*="Modal-content"]')].find((e) => e.offsetParent !== null)
       if (!modal) return { ok: false, reason: 'no modal' }
       const input = [...modal.querySelectorAll('input')].find((i) => i.offsetParent !== null)
@@ -800,11 +857,14 @@ try {
       setter.call(input, text)
       input.dispatchEvent(new Event('input', { bubbles: true }))
       return { ok: true }
-    }`, ['镜流'])
-    await sleep(700)
-    // 镜流 is uniquely 1212b1 in the current game data (no plain 1212 exists);
-    // click the card by data-id inside the page (never a hard CDP timeout)
-    const auditorCardPick = await p.evaluate(`(id) => {
+    }`,
+        ['镜流'],
+      )
+      await sleep(700)
+      // 镜流 is uniquely 1212b1 in the current game data (no plain 1212 exists);
+      // click the card by data-id inside the page (never a hard CDP timeout)
+      const auditorCardPick = await p.evaluate(
+        `(id) => {
       const modal = [...document.querySelectorAll('[role="dialog"], [class*="Modal-content"]')].find((e) => e.offsetParent !== null)
       if (!modal) return { ok: false, reason: 'no modal after typing' }
       const cards = [...modal.querySelectorAll('[data-id]')].filter((c) => c.offsetParent !== null)
@@ -814,18 +874,27 @@ try {
       hit.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
       hit.click()
       return { ok: true }
-    }`, ['1212b1'])
-    check('web: auditor character card clicked (镜流/1212b1)', modalTyped.ok && auditorCardPick.ok,
-      `modal=${JSON.stringify(modalTyped)} card=${JSON.stringify(auditorCardPick)}`)
-    await sleep(1300)
-    const auditorPick = await p.evaluate(`() => [...document.querySelectorAll('input')].some((i) => i.offsetParent !== null && (i.value || '') === '镜流')`, [])
-    check('web: auditor character picked (镜流/1212b1)', auditorPick === true, 'auditor character label = 镜流')
-    await sleep(1200)
+    }`,
+        ['1212b1'],
+      )
+      check(
+        'web: auditor character card clicked (镜流/1212b1)',
+        modalTyped.ok && auditorCardPick.ok,
+        `modal=${JSON.stringify(modalTyped)} card=${JSON.stringify(auditorCardPick)}`,
+      )
+      await sleep(1300)
+      const auditorPick = await p.evaluate(
+        `() => [...document.querySelectorAll('input')].some((i) => i.offsetParent !== null && (i.value || '') === '镜流')`,
+        [],
+      )
+      check('web: auditor character picked (镜流/1212b1)', auditorPick === true, 'auditor character label = 镜流')
+      await sleep(1200)
 
-    // uncheck 4p relics / SPD 133 / SPD 160 / ERR rope to keep the grid small
-    const unchecks = []
-    for (const label of ['4p Relics', 'SPD 133', 'SPD 160', 'ERR Rope']) {
-      const focus = await p.evaluate(`(label) => {
+      // uncheck 4p relics / SPD 133 / SPD 160 / ERR rope to keep the grid small
+      const unchecks = []
+      for (const label of ['4p Relics', 'SPD 133', 'SPD 160', 'ERR Rope']) {
+        const focus = await p.evaluate(
+          `(label) => {
         const boxes = [...document.querySelectorAll('label')]
         const hit = boxes.find((b) => b.offsetParent !== null && (b.textContent || '').trim() === label)
         if (!hit) return { ok: false, reason: 'label not found: ' + label }
@@ -833,32 +902,45 @@ try {
         if (!box) return { ok: false, reason: 'no checkbox input' }
         box.focus()
         return { ok: true, checked: box.checked }
-      }`, [label])
-      if (focus.ok && focus.checked) {
-        await p.press(' ') // trusted Space toggles the Checkbox
-        await sleep(300)
+      }`,
+          [label],
+        )
+        if (focus.ok && focus.checked) {
+          await p.press(' ') // trusted Space toggles the Checkbox
+          await sleep(300)
+        }
+        unchecks.push({ label, ...focus })
       }
-      unchecks.push({ label, ...focus })
-    }
-    const uncheckVerify = await p.evaluate(`() => [...document.querySelectorAll('label')].filter((b) => b.offsetParent !== null
+      const uncheckVerify = await p.evaluate(
+        `() => [...document.querySelectorAll('label')].filter((b) => b.offsetParent !== null
       && ['4p Relics', 'SPD 133', 'SPD 160', 'ERR Rope'].includes((b.textContent || '').trim())
-      && b.querySelector('input[type="checkbox"]')?.checked !== false).map((b) => (b.textContent || '').trim())`, [])
-    check('web: auditor grid narrowed (ornament-only, SPD 0, noErr)', unchecks.every((u) => u.ok) && uncheckVerify.length === 0, JSON.stringify({ unchecks, stillChecked: uncheckVerify }))
-    await sleep(500)
+      && b.querySelector('input[type="checkbox"]')?.checked !== false).map((b) => (b.textContent || '').trim())`,
+        [],
+      )
+      check(
+        'web: auditor grid narrowed (ornament-only, SPD 0, noErr)',
+        unchecks.every((u) => u.ok) && uncheckVerify.length === 0,
+        JSON.stringify({ unchecks, stillChecked: uncheckVerify }),
+      )
+      await sleep(500)
 
-    const runFocus = await p.evaluate(`() => {
+      const runFocus = await p.evaluate(
+        `() => {
       const btn = [...document.querySelectorAll('button')].find((b) => b.offsetParent !== null && (b.textContent || '').trim() === 'Run Audit')
       if (!btn) return { ok: false }
       btn.focus()
       return { ok: true }
-    }`, [])
-    if (runFocus.ok) await p.press('Enter')
-    check('web: Run Audit clicked (trusted Enter)', runFocus.ok, JSON.stringify(runFocus))
+    }`,
+        [],
+      )
+      if (runFocus.ok) await p.press('Enter')
+      check('web: Run Audit clicked (trusted Enter)', runFocus.ok, JSON.stringify(runFocus))
 
-    // hook the page's own error paths so an audit CRASH is distinguishable
-    // from a long run (handleRun catches, logs 'Audit failed:' and returns to
-    // idle — which otherwise looks exactly like a hang)
-    await p.evaluate(`() => {
+      // hook the page's own error paths so an audit CRASH is distinguishable
+      // from a long run (handleRun catches, logs 'Audit failed:' and returns to
+      // idle — which otherwise looks exactly like a hang)
+      await p.evaluate(
+        `() => {
       const w = window
       w.__auditErrors = []
       const err = w.console.error.bind(w.console)
@@ -866,43 +948,53 @@ try {
       w.addEventListener('error', (e) => w.__auditErrors.push('window: ' + String(e.message).slice(0, 120)))
       w.addEventListener('unhandledrejection', (e) => w.__auditErrors.push('rejection: ' + String(e.reason).slice(0, 120)))
       return true
-    }`, [])
+    }`,
+        [],
+      )
 
-    const mcpSweepPromise = callTool(client, 'benchmark_runs', {
-      characterId: '1212b1',
-      sweep: 'sets',
-      sweepOptions: { setTypes: ['ornament'], spdBreakpoints: [0], modes: ['dps'], errRope: ['noErr'], scoringModes: ['perfection'] },
-    }, { timeout: 600_000 })
+      const mcpSweepPromise = callTool(client, 'benchmark_runs', {
+        characterId: '1212b1',
+        sweep: 'sets',
+        sweepOptions: { setTypes: ['ornament'], spdBreakpoints: [0], modes: ['dps'], errRope: ['noErr'], scoringModes: ['perfection'] },
+      }, { timeout: 600_000 })
 
-    // wait for the web audit to complete (the page's own worker pool runs it —
-    // ornament-only, SPD 0 keeps the grid small). Poll the auditor's own
-    // "Completed X / Y benchmarks" progress line: movement proves progress,
-    // stillness + errors proves a crash, stillness without errors = stall.
-    let auditDone = false
-    let lastProgressText = ''
-    let stallSince = null
-    for (let i = 0; i < 420; i++) {
-      const st = await p.evaluate(`() => ({
+      // wait for the web audit to complete (the page's own worker pool runs it —
+      // ornament-only, SPD 0 keeps the grid small). Poll the auditor's own
+      // "Completed X / Y benchmarks" progress line: movement proves progress,
+      // stillness + errors proves a crash, stillness without errors = stall.
+      let auditDone = false
+      let lastProgressText = ''
+      let stallSince = null
+      for (let i = 0; i < 420; i++) {
+        const st = await p.evaluate(`() => ({
         running: [...document.querySelectorAll('button')].some((b) => b.offsetParent !== null && (b.textContent || '').includes('Cancel')),
         progress: (document.body.innerText.match(/Completed\\s*[\\d,]+\\s*\\/\\s*[\\d,]+/g) || []).slice(-1)[0] ?? '',
         summary: document.body.innerText.includes('Compared to:'),
         rows: [...document.querySelectorAll('tr.custom-grid')].filter((tr) => tr.offsetParent !== null).length,
         errors: (window.__auditErrors ?? []).slice(0, 3),
       })`)
-      if (st.progress !== lastProgressText) { stallSince = null; lastProgressText = st.progress } else if (stallSince == null) stallSince = i
-      if (!st.running && st.summary && st.rows > 0) { auditDone = true; break }
-      // crashed back to idle with errors logged → fail fast with the reason
-      if (!st.running && (st.errors?.length ?? 0) > 0 && i > 20) {
-        console.log('        [audit diag] audit crashed:', JSON.stringify(st.errors))
-        break
+        if (st.progress !== lastProgressText) {
+          stallSince = null
+          lastProgressText = st.progress
+        } else if (stallSince == null) stallSince = i
+        if (!st.running && st.summary && st.rows > 0) {
+          auditDone = true
+          break
+        }
+        // crashed back to idle with errors logged → fail fast with the reason
+        if (!st.running && (st.errors?.length ?? 0) > 0 && i > 20) {
+          console.log('        [audit diag] audit crashed:', JSON.stringify(st.errors))
+          break
+        }
+        if (i > 0 && i % 30 === 0) {
+          console.log(`        [audit diag] ${i}s: running=${st.running} progress="${st.progress}" rows=${st.rows} errors=${st.errors?.length ?? 0}`)
+        }
+        await sleep(1000)
       }
-      if (i > 0 && i % 30 === 0) console.log(`        [audit diag] ${i}s: running=${st.running} progress="${st.progress}" rows=${st.rows} errors=${st.errors?.length ?? 0}`)
-      await sleep(1000)
-    }
-    check('web: auditor summary rendered', auditDone, `last progress "${lastProgressText}"`)
-    const mcpSweep = await mcpSweepPromise
+      check('web: auditor summary rendered', auditDone, `last progress "${lastProgressText}"`)
+      const mcpSweep = await mcpSweepPromise
 
-    const webAudit = await p.evaluate(`() => {
+      const webAudit = await p.evaluate(`() => {
       const visible = (el) => el.offsetParent !== null
       const sections = [...document.querySelectorAll('h3')].filter((h) => visible(h) && (h.textContent || '').includes('Ornament Sets'))
       const section = sections[0]
@@ -922,75 +1014,108 @@ try {
       })
       return { ok: true, comparedTo, rows }
     }`)
-    const refLabels = mcpSweep.reference
-    const refOk = auditDone && webAudit.ok && webAudit.comparedTo === refLabels.ornament
-    assertCase(
-      'metadata.setAuditor.run', 2,
-      '返回的参照套装与网页端「Compared to」后显示的一致',
-      'browser-parity', auditDone ? (refOk ? 'PASS' : 'FAIL') : 'UNPROVEN',
-      auditDone
-        ? `web "Compared to: ${webAudit.comparedTo}" vs MCP reference.ornament "${refLabels.ornament}"`
-        : `网页审计 7 分钟内未完成也未报错(进度停在 "${lastProgressText}");MCP sweep=sets 自身完成:${mcpSweep.summaries.length} 汇总,参照 ${refLabels.relic} + ${refLabels.ornament}`,
-    )
+      const refLabels = mcpSweep.reference
+      const refOk = auditDone && webAudit.ok && webAudit.comparedTo === refLabels.ornament
+      assertCase(
+        'metadata.setAuditor.run',
+        2,
+        '返回的参照套装与网页端「Compared to」后显示的一致',
+        'browser-parity',
+        auditDone ? (refOk ? 'PASS' : 'FAIL') : 'UNPROVEN',
+        auditDone
+          ? `web "Compared to: ${webAudit.comparedTo}" vs MCP reference.ornament "${refLabels.ornament}"`
+          : `网页审计 7 分钟内未完成也未报错(进度停在 "${lastProgressText}");MCP sweep=sets 自身完成:${mcpSweep.summaries.length} 汇总,参照 ${refLabels.relic} + ${refLabels.ornament}`,
+      )
 
-    // per-set rows: flag + bestDelta + label + params
-    const webRowsByLabel = new Map((webAudit.rows ?? []).map((r) => [r.label, r]))
-    let auditRowsOk = (webAudit.rows?.length ?? 0) === mcpSweep.summaries.length
-    const auditDiffs = []
-    for (const summary of mcpSweep.summaries) {
-      const web = webRowsByLabel.get(summary.label)
-      if (web == null) {
-        auditRowsOk = false
-        if (auditDiffs.length < 3) auditDiffs.push(`${summary.label} missing on web`)
-        continue
+      // per-set rows: flag + bestDelta + label + params
+      const webRowsByLabel = new Map((webAudit.rows ?? []).map((r) => [r.label, r]))
+      let auditRowsOk = (webAudit.rows?.length ?? 0) === mcpSweep.summaries.length
+      const auditDiffs = []
+      for (const summary of mcpSweep.summaries) {
+        const web = webRowsByLabel.get(summary.label)
+        if (web == null) {
+          auditRowsOk = false
+          if (auditDiffs.length < 3) auditDiffs.push(`${summary.label} missing on web`)
+          continue
+        }
+        const expectDelta = summary.bestDelta === -Infinity ? '—' : `${summary.bestDelta >= 0 ? '+' : ''}${summary.bestDelta.toFixed(2)}%`
+        const expectFlag = summary.flag === 'red' ? '🔴' : summary.flag === 'yellow' ? '🟡' : ''
+        if (web.bestDelta !== expectDelta || web.flag !== expectFlag || web.type !== 'Ornament') {
+          auditRowsOk = false
+          if (auditDiffs.length < 3) auditDiffs.push(`${summary.label}: ${web.flag}${web.bestDelta} vs ${expectFlag}${expectDelta}`)
+        }
       }
-      const expectDelta = summary.bestDelta === -Infinity ? '—' : `${summary.bestDelta >= 0 ? '+' : ''}${summary.bestDelta.toFixed(2)}%`
-      const expectFlag = summary.flag === 'red' ? '🔴' : summary.flag === 'yellow' ? '🟡' : ''
-      if (web.bestDelta !== expectDelta || web.flag !== expectFlag || web.type !== 'Ornament') {
-        auditRowsOk = false
-        if (auditDiffs.length < 3) auditDiffs.push(`${summary.label}: ${web.flag}${web.bestDelta} vs ${expectFlag}${expectDelta}`)
-      }
-    }
-    assertCase(
-      'metadata.setAuditor.run', 1,
-      '同一角色、光锥、队友和勾选项下,返回的每个套装的最佳差距、对应参数和红黄标记与网页端汇总表逐行一致',
-      'browser-parity', auditDone ? (auditRowsOk ? 'PASS' : 'FAIL') : 'UNPROVEN',
-      auditDone
-        ? `${webAudit.rows?.length ?? 0} web rows vs ${mcpSweep.summaries.length} MCP summaries (flag emoji + bestDelta +X.XX% + label); ${auditDiffs.join(' ; ') || 'all match'}`
-        : `网页审计未完成(进度 "${lastProgressText}");MCP sweep=sets 完成 ${mcpSweep.summaries.length} 组汇总`,
-    )
+      assertCase(
+        'metadata.setAuditor.run',
+        1,
+        '同一角色、光锥、队友和勾选项下,返回的每个套装的最佳差距、对应参数和红黄标记与网页端汇总表逐行一致',
+        'browser-parity',
+        auditDone ? (auditRowsOk ? 'PASS' : 'FAIL') : 'UNPROVEN',
+        auditDone
+          ? `${webAudit.rows?.length ?? 0} web rows vs ${mcpSweep.summaries.length} MCP summaries (flag emoji + bestDelta +X.XX% + label); ${
+            auditDiffs.join(' ; ') || 'all match'
+          }`
+          : `网页审计未完成(进度 "${lastProgressText}");MCP sweep=sets 完成 ${mcpSweep.summaries.length} 组汇总`,
+      )
 
-    // drilldown: expand the first web row
-    await p.evaluate(`() => {
+      // drilldown: expand the first web row
+      await p.evaluate(`() => {
       const rows = [...document.querySelectorAll('tr.custom-grid')].filter((el) => el.offsetParent !== null)
       rows[0]?.scrollIntoView({ block: 'center' })
     }`)
-    await p.click('tr.custom-grid', { timeoutMs: 10_000 }).catch(() => null)
-    const drilldown = await p.evaluate(`() => document.querySelectorAll('td[colspan="6"]').length > 0`, [])
-    await sleep(1000)
-    const webDrill = await p.evaluate(`() => {
+      await p.click('tr.custom-grid', { timeoutMs: 10_000 }).catch(() => null)
+      const drilldown = await p.evaluate(`() => document.querySelectorAll('td[colspan="6"]').length > 0`, [])
+      await sleep(1000)
+      const webDrill = await p.evaluate(`() => {
       const visible = (el) => el.offsetParent !== null
       const cells = [...document.querySelectorAll('td')].filter((td) => td.colSpan === 6 && visible(td))
       if (cells.length === 0) return { ok: false, reason: 'no drilldown cell' }
       return { ok: true, text: cells[cells.length - 1].innerText.slice(0, 1500) }
     }`)
-    // MCP drilldown for the first summary (sorted the same way: red→yellow→其余, bestDelta desc)
-    const firstSummary = mcpSweep.summaries[0]
-    const drillOk = drilldown.ok && webDrill.ok && firstSummary.results.length > 0
-      && firstSummary.results.every((run) => Number.isFinite(run.score) && Number.isFinite(run.referenceScore))
-      && webDrill.text.length > 50
-    assertCase(
-      'metadata.setAuditor.run', 3,
-      '展开数据(每组参数下的分数、参照分、差距)与网页端展开行一致',
-      'browser-parity', auditDone ? (drillOk ? 'PASS' : 'FAIL') : 'UNPROVEN',
-      `web drilldown text ${webDrill.ok ? webDrill.text.length : 0} chars; MCP first summary ${firstSummary.label} has ${firstSummary.results.length} param rows (score/referenceScore/deltaPct finite); params ${JSON.stringify(firstSummary.bestDeltaParams)}`,
-    )
+      // MCP drilldown for the first summary (sorted the same way: red→yellow→其余, bestDelta desc)
+      const firstSummary = mcpSweep.summaries[0]
+      const drillOk = drilldown.ok && webDrill.ok && firstSummary.results.length > 0
+        && firstSummary.results.every((run) => Number.isFinite(run.score) && Number.isFinite(run.referenceScore))
+        && webDrill.text.length > 50
+      assertCase(
+        'metadata.setAuditor.run',
+        3,
+        '展开数据(每组参数下的分数、参照分、差距)与网页端展开行一致',
+        'browser-parity',
+        auditDone ? (drillOk ? 'PASS' : 'FAIL') : 'UNPROVEN',
+        `web drilldown text ${
+          webDrill.ok ? webDrill.text.length : 0
+        } chars; MCP first summary ${firstSummary.label} has ${firstSummary.results.length} param rows (score/referenceScore/deltaPct finite); params ${
+          JSON.stringify(firstSummary.bestDeltaParams)
+        }`,
+      )
     } catch (e) {
       auditPhaseError = String(e?.message ?? e).slice(0, 150)
       console.log('        [audit diag] auditor phase crashed:', auditPhaseError)
-      assertCase('metadata.setAuditor.run', 2, '返回的参照套装与网页端「Compared to」后显示的一致', 'browser-parity', 'UNPROVEN', `审计阶段驱动异常:${auditPhaseError}`)
-      assertCase('metadata.setAuditor.run', 1, '同一角色、光锥、队友和勾选项下,返回的每个套装的最佳差距、对应参数和红黄标记与网', 'browser-parity', 'UNPROVEN', `审计阶段驱动异常:${auditPhaseError}`)
-      assertCase('metadata.setAuditor.run', 3, '展开数据(每组参数下的分数、参照分、差距)与网页端展开行一致', 'browser-parity', 'UNPROVEN', `审计阶段驱动异常:${auditPhaseError}`)
+      assertCase(
+        'metadata.setAuditor.run',
+        2,
+        '返回的参照套装与网页端「Compared to」后显示的一致',
+        'browser-parity',
+        'UNPROVEN',
+        `审计阶段驱动异常:${auditPhaseError}`,
+      )
+      assertCase(
+        'metadata.setAuditor.run',
+        1,
+        '同一角色、光锥、队友和勾选项下,返回的每个套装的最佳差距、对应参数和红黄标记与网',
+        'browser-parity',
+        'UNPROVEN',
+        `审计阶段驱动异常:${auditPhaseError}`,
+      )
+      assertCase(
+        'metadata.setAuditor.run',
+        3,
+        '展开数据(每组参数下的分数、参照分、差距)与网页端展开行一致',
+        'browser-parity',
+        'UNPROVEN',
+        `审计阶段驱动异常:${auditPhaseError}`,
+      )
     }
 
     // ── Character color grid ────────────────────────────────────────────────
@@ -1000,13 +1125,16 @@ try {
     check('web: color grid cards rendered', cardIds.length >= 5, `${cardIds.length} cards`)
 
     const clipCard = async (cardId) => {
-      const rect = await p.evaluate(`(id) => {
+      const rect = await p.evaluate(
+        `(id) => {
         window.scrollTo(0, 0)
         const el = document.getElementById(id)
         if (!el) return null
         const r = el.getBoundingClientRect()
         return { x: Math.max(0, Math.floor(r.x)), y: Math.max(0, Math.floor(r.y)), width: Math.ceil(r.width), height: Math.ceil(r.height) }
-      }`, [cardId])
+      }`,
+        [cardId],
+      )
       if (!rect || rect.width <= 0) return null
       return await p.screenshot({ clip: rect })
     }
@@ -1033,8 +1161,11 @@ try {
         controlDiff = diffImages(decodePng(Buffer.from(webClips[0].png)), decodePng(Buffer.from(controlPng)))
       }
     } catch { /* control is diagnostic only */ }
-    check('web: color-grid clip control (same card twice)', controlDiff.mean <= 2 && controlDiff.hotRatio <= 0.05,
-      `mean=${controlDiff.mean.toFixed(2)} hot=${(controlDiff.hotRatio * 100).toFixed(2)}%`)
+    check(
+      'web: color-grid clip control (same card twice)',
+      controlDiff.mean <= 2 && controlDiff.hotRatio <= 0.05,
+      `mean=${controlDiff.mean.toFixed(2)} hot=${(controlDiff.hotRatio * 100).toFixed(2)}%`,
+    )
 
     // MCP renders for the same characters. The web grid forces the debug
     // rendering pipeline ("卡片固定用调试模式渲染" — feature conditions), so the
@@ -1071,9 +1202,11 @@ try {
       }
     }
     assertCase(
-      'metadata.colorGrid.view', 1,
+      'metadata.colorGrid.view',
+      1,
       '在同一组视觉调试参数下对多个角色批量渲染,得到的每张卡片与网页端总览里对应的卡片外观一致',
-      'browser-parity', colorOk,
+      'browser-parity',
+      colorOk,
       `${colorDetails.join(' ; ')};对照(同一网页卡连拍两次)mean=${controlDiff.mean.toFixed(2)}/hot=${(controlDiff.hotRatio * 100).toFixed(1)}%`
         + '(两侧均为默认视觉调试参数:网页总览卡片 forceDebug 调试管线;MCP 侧先 update_state(visualDebug.cardDebug=true) 再 render(character_card)——但 render 域不消费会话 visualDebug/cardDebug(无 taskGlobals 桥接),截图走标准管线,与 forceDebug 调试管线像素不可对齐;MCP snapdom dpr2 → 缩至网页 CDP dpr1 后逐像素比对, mean≤8 / hot≤10%)',
     )
@@ -1103,9 +1236,11 @@ try {
     await callTool(client, 'update_state', { section: 'visualDebug', patch: { cardDebug: false, reset: true } })
     const mcpChanged = !Buffer.from(pngAfter).equals(Buffer.from(renderBefore.png))
     assertCase(
-      'metadata.colorGrid.view', 2,
+      'metadata.colorGrid.view',
+      2,
       '修改一项调试参数后重新渲染,所有卡片都按新参数变化',
-      'browser-parity', webChanged && mcpChanged,
+      'browser-parity',
+      webChanged && mcpChanged,
       `web slider(${sliderDrive.name}) ${sliderDrive.before}→+20 后截图变化=${webChanged};MCP update_state(visualDebug.portraitBlur=40→60) 后渲染变化=${mcpChanged}——render 任务不消费 visualDebug 会话存储(无桥接),如实登记`,
     )
 
@@ -1125,44 +1260,57 @@ try {
       mode: 'static',
       characterId: IC_CHAR,
     }, { timeout: 300_000 })
-    console.log('        [diag image_center] params run:', JSON.stringify({
-      applied: icMcp.applied,
-      configText: icMcp.config?.text,
-      previewClip: icMcp.previewClip ?? null,
-      notes: icMcp.notes,
-      previewArtifactId: icMcp.previewArtifactId ?? null,
-      previewNote: icMcp.previewNote ?? null,
-    }))
-    console.log('        [diag image_center] default run:', JSON.stringify({
-      applied: icMcpDefault.applied,
-      configText: icMcpDefault.config?.text,
-    }))
+    console.log(
+      '        [diag image_center] params run:',
+      JSON.stringify({
+        applied: icMcp.applied,
+        configText: icMcp.config?.text,
+        previewClip: icMcp.previewClip ?? null,
+        notes: icMcp.notes,
+        previewArtifactId: icMcp.previewArtifactId ?? null,
+        previewNote: icMcp.previewNote ?? null,
+      }),
+    )
+    console.log(
+      '        [diag image_center] default run:',
+      JSON.stringify({
+        applied: icMcpDefault.applied,
+        configText: icMcpDefault.config?.text,
+      }),
+    )
 
     await openAccordion(p, 'Image center editor')
     await sleep(2200)
     // select the character through the editor's own SearchableCombobox:
     // focus the placeholder target, trusted Enter to open (search autofocused),
     // type the name, then click the OPTION whose avatar URL embeds 1212b1
-    const icSelect = await p.evaluate(`(placeholder) => {
+    const icSelect = await p.evaluate(
+      `(placeholder) => {
       const buttons = [...document.querySelectorAll('button')].filter((b) => b.offsetParent !== null)
       const target = buttons.find((b) => (b.textContent || '').trim() === placeholder)
       if (!target) return { ok: false, texts: buttons.map((b) => (b.textContent || '').trim()).filter((t) => t.length > 0 && t.length < 24).slice(0, 12) }
       target.focus()
       return { ok: true }
-    }`, ['Select character'])
+    }`,
+      ['Select character'],
+    )
     if (icSelect.ok) {
       await p.press('Enter')
       await sleep(800)
-      await p.evaluate(`(text) => {
+      await p.evaluate(
+        `(text) => {
         const el = document.activeElement
         if (!el || el.tagName !== 'INPUT') return false
         const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
         setter.call(el, text)
         el.dispatchEvent(new Event('input', { bubbles: true }))
         return true
-      }`, ['镜流'])
+      }`,
+        ['镜流'],
+      )
       await sleep(600)
-      const icPicked = await p.evaluate(`(id) => {
+      const icPicked = await p.evaluate(
+        `(id) => {
         const options = [...document.querySelectorAll('[role="option"]')].filter((o) => o.offsetParent !== null)
         const hit = options.find((o) => {
           const img = o.querySelector('img')
@@ -1171,7 +1319,9 @@ try {
         if (!hit) return { ok: false, n: options.length }
         hit.click()
         return { ok: true, label: (hit.textContent ?? '').trim() }
-      }`, [IC_CHAR])
+      }`,
+        [IC_CHAR],
+      )
       check('web: image-center character option picked by avatar id', icPicked.ok, JSON.stringify(icPicked))
       await sleep(1500)
     }
@@ -1188,11 +1338,15 @@ try {
       return node ? { ok: true, codeText: (node.querySelector('code')?.textContent ?? '').trim() } : { ok: false }
     }`
     const webPristineCode = await p.evaluate(readStaticCode, [])
-    check('web: pristine static code text (config existing value)', webPristineCode.ok
-      && webPristineCode.codeText === icMcpDefault.config?.text,
-      `web "${(webPristineCode.codeText || '').slice(0, 50)}" vs MCP no-params "${(icMcpDefault.config?.text || '').slice(0, 50)}"`)
+    check(
+      'web: pristine static code text (config existing value)',
+      webPristineCode.ok
+        && webPristineCode.codeText === icMcpDefault.config?.text,
+      `web "${(webPristineCode.codeText || '').slice(0, 50)}" vs MCP no-params "${(icMcpDefault.config?.text || '').slice(0, 50)}"`,
+    )
 
-    const webIc = await p.evaluate(`(args) => {
+    const webIc = await p.evaluate(
+      `(args) => {
       const findSection = () => {
         const b = Array.from(document.querySelectorAll('b')).find((el) => (el.textContent ?? '').trim() === 'Static')
         let node = b ?? null
@@ -1225,11 +1379,19 @@ try {
         applied[label] = { wanted: value, committed: input.value }
       }
       return { ok: Object.keys(applied).length > 0, applied, codeText: (section.querySelector('code')?.textContent ?? '').trim() }
-    }`, [{ values: IC_PARAMS }])
+    }`,
+      [{ values: IC_PARAMS }],
+    )
     const configTextOk = icMcp.config?.text != null && webIc.ok && icMcp.config.text === webIc.codeText
-    const appliedOk = icMcp.applied != null && Number(icMcp.applied.x) === IC_PARAMS.x && Number(icMcp.applied.y) === IC_PARAMS.y && Number(icMcp.applied.z) === IC_PARAMS.z
-    check('image_center: applied values + config text', appliedOk && configTextOk,
-      `MCP applied=${JSON.stringify(icMcp.applied)} config="${(icMcp.config?.text || '').slice(0, 60)}";web applied=${JSON.stringify(webIc.applied)} code="${(webIc.codeText || '').slice(0, 60)}"`)
+    const appliedOk = icMcp.applied != null && Number(icMcp.applied.x) === IC_PARAMS.x && Number(icMcp.applied.y) === IC_PARAMS.y
+      && Number(icMcp.applied.z) === IC_PARAMS.z
+    check(
+      'image_center: applied values + config text',
+      appliedOk && configTextOk,
+      `MCP applied=${JSON.stringify(icMcp.applied)} config="${(icMcp.config?.text || '').slice(0, 60)}";web applied=${JSON.stringify(webIc.applied)} code="${
+        (webIc.codeText || '').slice(0, 60)
+      }"`,
+    )
 
     // preview screenshots: MCP artifact vs an independent CDP clip of the same preview container
     let icPreviewOk = false
@@ -1271,22 +1433,27 @@ try {
       icPreviewDetail = String(e).slice(0, 80)
     }
     assertCase(
-      'metadata.imageCenter.edit', 1,
+      'metadata.imageCenter.edit',
+      1,
       '给定角色和一组临时的立绘中心与缩放,渲染出的展示卡与网页端预览在同样数值下的外观一致',
-      'browser-parity', appliedOk && configTextOk && icPreviewOk,
+      'browser-parity',
+      appliedOk && configTextOk && icPreviewOk,
       `同角色 1212b1 同数值 x${IC_PARAMS.x}/y${IC_PARAMS.y}/z${IC_PARAMS.z} 独立驱动两侧;数值一致=${appliedOk};配置串一致=${configTextOk};预览像素比对 ${icPreviewDetail}`,
     )
     assertCase(
-      'metadata.imageCenter.edit', 2,
+      'metadata.imageCenter.edit',
+      2,
       '返回的配置文本与网页端显示的那一段逐字相同,数值按相同规则取整',
-      'browser-parity', configTextOk,
+      'browser-parity',
+      configTextOk,
       `MCP "${(icMcp.config?.text || '').slice(0, 70)}" === web "${(webIc.codeText || '').slice(0, 70)}"`,
     )
 
     // case 3: no temp values -> the config's existing values; the editor's own
     // Reset restores the same text (real el.click() — focus+Enter does not
     // reach this button's handler)
-    const webAfterReset = await p.evaluate(`() => {
+    const webAfterReset = await p.evaluate(
+      `() => {
       const b = Array.from(document.querySelectorAll('b')).find((el) => (el.textContent ?? '').trim() === 'Static')
       let node = b ?? null
       for (let i = 0; i < 6 && node; i++) {
@@ -1298,15 +1465,20 @@ try {
       if (!btn) return { ok: false, reason: 'no Reset button' }
       btn.click()
       return { ok: true }
-    }`, [])
+    }`,
+      [],
+    )
     await sleep(900)
     const webResetCode = await p.evaluate(readStaticCode, [])
     assertCase(
-      'metadata.imageCenter.edit', 3,
+      'metadata.imageCenter.edit',
+      3,
       '不传临时数值时使用配置里的现有值,与网页端点重置后的状态一致',
       'browser-parity',
       icMcpDefault.config?.text === webPristineCode.codeText && webAfterReset.ok && icMcpDefault.config?.text === webResetCode.codeText,
-      `MCP no-params "${(icMcpDefault.config?.text || '').slice(0, 60)}";web 选角后未动(输入前读) "${(webPristineCode.codeText || '').slice(0, 60)}";web Reset 后 "${(webResetCode.codeText || '').slice(0, 60)}"`,
+      `MCP no-params "${(icMcpDefault.config?.text || '').slice(0, 60)}";web 选角后未动(输入前读) "${
+        (webPristineCode.codeText || '').slice(0, 60)
+      }";web Reset 后 "${(webResetCode.codeText || '').slice(0, 60)}"`,
     )
 
     return true
@@ -1358,11 +1530,19 @@ try {
   const cancelOk = progressEvents.length >= 1 && sweepCancelled?.error == null
     && sweepCancelled.cancelled === true && (sweepCancelled.summaries ?? []).length === 0
   assertCase(
-    'metadata.setAuditor.run', 4,
+    'metadata.setAuditor.run',
+    4,
     '带进度令牌时按已完成的基准数发送进度,取消后不返回半截结果',
-    'browser-parity', cancelOk,
-    `${progressEvents.length} progress notification(s)(progress=已完成基准数,样例 progress=${JSON.stringify(progressEvents[0]?.progress ?? null)}/total=${JSON.stringify(progressEvents[0]?.total ?? null)});${cancelDiag || 'cancel 未及发出'};审计耗时 ${(sweepMs / 1000).toFixed(1)}s;cancelled=${sweepCancelled?.cancelled}, summaries=${(sweepCancelled?.summaries ?? []).length}${sweepCancelled?.error ? ';error=' + String(sweepCancelled.error).slice(0, 60) : ''}`
-      + (cancelOk ? '(取消即弃置全部半截汇总)' : '——内联引擎占满服务器单线程,中途的 cancel 请求要等审计跑完才被读取(与 benchmarks.generate#3 同根因);未取消时返回的是完整汇总而非半截'),
+    'browser-parity',
+    cancelOk,
+    `${progressEvents.length} progress notification(s)(progress=已完成基准数,样例 progress=${JSON.stringify(progressEvents[0]?.progress ?? null)}/total=${
+      JSON.stringify(progressEvents[0]?.total ?? null)
+    });${cancelDiag || 'cancel 未及发出'};审计耗时 ${(sweepMs / 1000).toFixed(1)}s;cancelled=${sweepCancelled?.cancelled}, summaries=${
+      (sweepCancelled?.summaries ?? []).length
+    }${sweepCancelled?.error ? ';error=' + String(sweepCancelled.error).slice(0, 60) : ''}`
+      + (cancelOk
+        ? '(取消即弃置全部半截汇总)'
+        : '——内联引擎占满服务器单线程,中途的 cancel 请求要等审计跑完才被读取(与 benchmarks.generate#3 同根因);未取消时返回的是完整汇总而非半截'),
   )
 } catch (e) {
   failures++
@@ -1376,15 +1556,25 @@ try {
 }
 
 // ── evidence file ────────────────────────────────────────────────────────────
-import { writeFileSync, mkdirSync } from 'node:fs'
+import {
+  mkdirSync,
+  writeFileSync,
+} from 'node:fs'
 const evidenceDir = resolve(mcpDir, 'coverage/evidence')
 mkdirSync(evidenceDir, { recursive: true })
-writeFileSync(resolve(evidenceDir, 'metadata.json'), JSON.stringify({
-  area: 'metadata',
-  generatedAt: new Date().toISOString(),
-  gitCommit: '8ac1d045',
-  cases: EVIDENCE,
-}, null, 2))
+writeFileSync(
+  resolve(evidenceDir, 'metadata.json'),
+  JSON.stringify(
+    {
+      area: 'metadata',
+      generatedAt: new Date().toISOString(),
+      gitCommit: '8ac1d045',
+      cases: EVIDENCE,
+    },
+    null,
+    2,
+  ),
+)
 console.log(`\nevidence: ${EVIDENCE.length} cases → mcp/coverage/evidence/metadata.json`)
 console.log(failures === 0 ? '\nverify-metadata: ALL CASES PASSED' : `\nverify-metadata: ${failures} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)

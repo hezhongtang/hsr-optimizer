@@ -17,14 +17,15 @@
 //
 // Usage: node scripts/verify-leaderboard.mjs [serverEntry]
 
+import { createHash } from 'node:crypto'
 import {
   copyFileSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
-  mkdirSync,
 } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -34,7 +35,6 @@ import {
 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
-import { createHash } from 'node:crypto'
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import {
@@ -54,7 +54,15 @@ function check(name, ok, detail = '') {
   return ok
 }
 function record(feature, index, desc, method, result, detail) {
-  EVIDENCE.push({ feature, case: index, desc: desc.slice(0, 40), method, result, detail: String(detail).slice(0, 300), script: 'mcp/scripts/verify-leaderboard.mjs' })
+  EVIDENCE.push({
+    feature,
+    case: index,
+    desc: desc.slice(0, 40),
+    method,
+    result,
+    detail: String(detail).slice(0, 300),
+    script: 'mcp/scripts/verify-leaderboard.mjs',
+  })
   console.log(`[${result}] ${feature}#${index} — ${detail}`)
   if (result === 'FAIL') failures++
 }
@@ -262,8 +270,29 @@ const TIMELINE = {
   schemaVersion: 2,
   generatedAt: '2026-10-05T12:00:00Z',
   events: [
-    { type: 'new_best', characterId: '1308', configType: 'dps', candidateId: candidateOf('1308'), date: '2026-10-05T10:00:00Z', score: 2.05, previousScore: 1.2, rank: 1, previousRank: 2, buildId: 'bld-top' },
-    { type: 'new_character', characterId: '1217b1', configType: 'heal', candidateId: candidateOf('1217b1'), date: '2026-10-04T08:00:00Z', score: 1.62, rank: 1, entryCount: 101, buildId: 'bld-heal-user' },
+    {
+      type: 'new_best',
+      characterId: '1308',
+      configType: 'dps',
+      candidateId: candidateOf('1308'),
+      date: '2026-10-05T10:00:00Z',
+      score: 2.05,
+      previousScore: 1.2,
+      rank: 1,
+      previousRank: 2,
+      buildId: 'bld-top',
+    },
+    {
+      type: 'new_character',
+      characterId: '1217b1',
+      configType: 'heal',
+      candidateId: candidateOf('1217b1'),
+      date: '2026-10-04T08:00:00Z',
+      score: 1.62,
+      rank: 1,
+      entryCount: 101,
+      buildId: 'bld-heal-user',
+    },
     { type: 'new_best', characterId: '1308' },
   ],
 }
@@ -611,14 +640,26 @@ try {
       listOk = false
       listDiffs.push(`order ${webOrder.join(',')} vs ${mcpOrder.join(',')}`)
     }
-    record('leaderboard.characters.list', 1,
+    record(
+      'leaderboard.characters.list',
+      1,
       '返回的角色顺序、最高分(保留一位小数、向下截断)和人数与网页端列表逐行一致',
-      'browser-parity', listOk ? 'PASS' : 'FAIL',
-      `${webActive.length} active rows (order+score+public/total) vs MCP ${mcpActive.length}; ${listDiffs.slice(0, 2).join(' ; ') || 'all match'}`)
-    record('leaderboard.data.load', 1,
+      'browser-parity',
+      listOk ? 'PASS' : 'FAIL',
+      `${webActive.length} active rows (order+score+public/total) vs MCP ${mcpActive.length}; ${listDiffs.slice(0, 2).join(' ; ') || 'all match'}`,
+    )
+    record(
+      'leaderboard.data.load',
+      1,
       '下载并解压后得到的角色数、每个角色的最高分和参与人数与网页端角色列表一致',
-      'browser-parity', listOk ? 'PASS' : 'FAIL',
-      `同一 fixture 两侧比对:web ${webActive.length + webGrowing.length} 行 vs MCP ${mcpChars.characters.length} 行(active ${mcpActive.length} + 数据不足 ${mcpGrowing.length});${listDiffs.slice(0, 2).join(' ; ') || 'all match'}`)
+      'browser-parity',
+      listOk ? 'PASS' : 'FAIL',
+      `同一 fixture 两侧比对:web ${
+        webActive.length + webGrowing.length
+      } 行 vs MCP ${mcpChars.characters.length} 行(active ${mcpActive.length} + 数据不足 ${mcpGrowing.length});${
+        listDiffs.slice(0, 2).join(' ; ') || 'all match'
+      }`,
+    )
 
     // c3: growing group (count cell shows the entryCount, or '—' when 0)
     const growingOk = webGrowing.length === mcpGrowing.length
@@ -629,10 +670,16 @@ try {
           : (w?.count || '') === '—'
         return w != null && w.growing && countMatches
       })
-    record('leaderboard.characters.list', 3,
+    record(
+      'leaderboard.characters.list',
+      3,
       '未开榜的角色单独标出,与网页端「数据不足」一组一致',
-      'browser-parity', growingOk ? 'PASS' : 'FAIL',
-      `web growing ${webGrowing.length} rows [${webGrowing.map((r) => r.id).join(',')}] vs MCP 数据不足 ${mcpGrowing.length} [${mcpGrowing.map((c) => c.characterId).join(',')}]`)
+      'browser-parity',
+      growingOk ? 'PASS' : 'FAIL',
+      `web growing ${webGrowing.length} rows [${webGrowing.map((r) => r.id).join(',')}] vs MCP 数据不足 ${mcpGrowing.length} [${
+        mcpGrowing.map((c) => c.characterId).join(',')
+      }]`,
+    )
 
     // c2: configType chip filter (the chips carry counts, e.g. "DPS (50)")
     const chipFocus = await p.evaluate(FOCUS_CHIP, ['DPS'])
@@ -643,10 +690,16 @@ try {
     const mcpFiltered = await callTool(client, 'leaderboard', { view: 'characters', configType: 'dps', limit: 200 })
     const mcpFilteredActive = mcpFiltered.characters.filter((c) => c.group === 'active').map((c) => c.characterId)
     const filterOk = chipFocus.ok && JSON.stringify(webFilteredIds) === JSON.stringify(mcpFilteredActive)
-    record('leaderboard.characters.list', 2,
+    record(
+      'leaderboard.characters.list',
+      2,
       '按评分类型筛选后的角色集合与网页端点对应标签后一致',
-      'browser-parity', filterOk ? 'PASS' : 'FAIL',
-      `web chip(DPS) filter → ${webFilteredIds.length} 角色 vs MCP dps tag ${mcpFilteredActive.length} 角色;差集 web=${webFilteredIds.filter((x) => !mcpFilteredActive.includes(x)).slice(0, 4)} mcp=${mcpFilteredActive.filter((x) => !webFilteredIds.includes(x)).slice(0, 4)}${chipFocus.ok ? '' : ' (chip 未找到:' + chipFocus.reason + ')'}`)
+      'browser-parity',
+      filterOk ? 'PASS' : 'FAIL',
+      `web chip(DPS) filter → ${webFilteredIds.length} 角色 vs MCP dps tag ${mcpFilteredActive.length} 角色;差集 web=${
+        webFilteredIds.filter((x) => !mcpFilteredActive.includes(x)).slice(0, 4)
+      } mcp=${mcpFilteredActive.filter((x) => !webFilteredIds.includes(x)).slice(0, 4)}${chipFocus.ok ? '' : ' (chip 未找到:' + chipFocus.reason + ')'}`,
+    )
     // reset the chip for later phases
     if (chipFocus.ok) {
       await p.evaluate(FOCUS_CHIP, ['DPS'])
@@ -681,31 +734,49 @@ try {
           && row.lcId === (m.lightCone?.id ?? null)
           && JSON.stringify(row.teamAvatarIds.slice(0, 3)) === JSON.stringify(m.team.map((t) => t.characterId))
       })
-    record('leaderboard.board.read', 1,
+    record(
+      'leaderboard.board.read',
+      1,
       '同一角色、同一评分类型下返回的名次、分数、星魂、叠影、光锥和队友与网页端名次列表逐行一致',
-      'browser-parity', boardRowsOk ? 'PASS' : 'FAIL',
-      `${webBoard.rows.length} web 行(localhost 不做 150% 截断,条件见清单)前 ${mcpBoard.total} 行与 MCP 逐行一致(rank/scoreDisplay/光锥 id/队友头像 id),web 多余行全部 <150%=${webBoard.rows.filter((r) => scoreNumberOf(r) >= 150).length === mcpBoard.total}${boardRowsOk ? '' : `;首行 web ${JSON.stringify(webBoard.rows[0] ?? {})} vs MCP rank=${mcpBoard.rows?.[0]?.rank}`}${opened.ok ? '' : ' (' + opened.reason + ')'}`)
+      'browser-parity',
+      boardRowsOk ? 'PASS' : 'FAIL',
+      `${webBoard.rows.length} web 行(localhost 不做 150% 截断,条件见清单)前 ${mcpBoard.total} 行与 MCP 逐行一致(rank/scoreDisplay/光锥 id/队友头像 id),web 多余行全部 <150%=${
+        webBoard.rows.filter((r) => scoreNumberOf(r) >= 150).length === mcpBoard.total
+      }${boardRowsOk ? '' : `;首行 web ${JSON.stringify(webBoard.rows[0] ?? {})} vs MCP rank=${mcpBoard.rows?.[0]?.rank}`}${
+        opened.ok ? '' : ' (' + opened.reason + ')'
+      }`,
+    )
 
     // c2: default config type — fixture has only dps for 1308; web entered it directly
-    record('leaderboard.board.read', 2,
+    record(
+      'leaderboard.board.read',
+      2,
       '不指定评分类型时取到的类型与网页端直接点该角色时一致',
       'browser-parity',
       opened.ok && mcpBoard.configType === 'dps' && mcpBoard.configTypeRequested === false ? 'PASS' : 'FAIL',
-      `MCP default configType=${mcpBoard.configType}(requested=${mcpBoard.configTypeRequested});web 直接点开 1308 渲染同一榜单(${webBoard.rows.length} 行)`)
+      `MCP default configType=${mcpBoard.configType}(requested=${mcpBoard.configTypeRequested});web 直接点开 1308 渲染同一榜单(${webBoard.rows.length} 行)`,
+    )
 
     // c3: ≤100 rows + 150% cutoff
     const huohuoBoard = await callTool(client, 'leaderboard', { view: 'board', characterId: '1217b1' })
     const cutoffOk = mcpBoard.total === 3 && mcpBoard.rows.every((r) => r.score >= 1.5)
       && huohuoBoard.total === 100 && huohuoBoard.rows.every((r) => r.score >= 1.5)
-    record('leaderboard.board.read', 3,
+    record(
+      'leaderboard.board.read',
+      3,
       '结果不超过 100 行,且不含分数低于 150% 的配装',
-      'browser-parity', cutoffOk ? 'PASS' : 'FAIL',
-      `1308 榜 3 行(去重+150% 截断后),1217b1 榜恰 100 行(101 条合格,含 bld-heal-user? ${huohuoBoard.rows.some((r) => r.buildId === 'bld-heal-user')});全部行分数≥1.5`)
+      'browser-parity',
+      cutoffOk ? 'PASS' : 'FAIL',
+      `1308 榜 3 行(去重+150% 截断后),1217b1 榜恰 100 行(101 条合格,含 bld-heal-user? ${
+        huohuoBoard.rows.some((r) => r.buildId === 'bld-heal-user')
+      });全部行分数≥1.5`,
+    )
 
     // ── board.filter c2: eidolon e6 (pre-filter rank numbers) ───────────────
     // the eidolon bar is a Mantine SegmentedControl — the visible labels are
     // <label> elements wired to radio inputs (values 'all'/'e0'/'e2'/'e6')
-    const e6Focus = await p.evaluate(`() => {
+    const e6Focus = await p.evaluate(
+      `() => {
       const visible = (el) => el.offsetParent !== null
       const radio = [...document.querySelectorAll('#LEADERBOARD input[type="radio"][value="e6"]')].find(visible)
       if (!radio) return { ok: false, reason: 'no e6 radio' }
@@ -713,39 +784,54 @@ try {
       if (!label) return { ok: false, reason: 'no e6 label' }
       label.click()
       return { ok: true }
-    }`, [])
+    }`,
+      [],
+    )
     await sleep(1400)
     const webE6 = await p.evaluate(SCRAPE_RANK_LIST, [])
     const e6Ok = e6Focus.ok
       && webE6.rows.length >= mcpBoardE6.total
       && webE6.rows.slice(0, mcpBoardE6.total).every((row, i) => String(mcpBoardE6.rows[i]?.rank) === row.rank)
-    record('leaderboard.board.filter', 2,
+    record(
+      'leaderboard.board.filter',
+      2,
       '指定星魂档位后返回的行与网页端一致,名次保持筛选前的数字',
-      'browser-parity', e6Ok ? 'PASS' : 'FAIL',
-      `E6 筛选后 web ${webE6.rows.length} 行 rank=${webE6.rows.map((r) => r.rank).join(',')} vs MCP ${mcpBoardE6.total} 行 rank=${mcpBoardE6.rows.map((r) => r.rank).join(',')}${e6Focus.ok ? '' : ' (' + e6Focus.reason + ')'}`)
+      'browser-parity',
+      e6Ok ? 'PASS' : 'FAIL',
+      `E6 筛选后 web ${webE6.rows.length} 行 rank=${webE6.rows.map((r) => r.rank).join(',')} vs MCP ${mcpBoardE6.total} 行 rank=${
+        mcpBoardE6.rows.map((r) => r.rank).join(',')
+      }${e6Focus.ok ? '' : ' (' + e6Focus.reason + ')'}`,
+    )
     // reset to 全部 / All (radio value 'all')
     if (e6Focus.ok) {
-      await p.evaluate(`() => {
+      await p.evaluate(
+        `() => {
         const visible = (el) => el.offsetParent !== null
         const radio = [...document.querySelectorAll('#LEADERBOARD input[type="radio"][value="all"]')].find(visible)
         const label = radio ? (radio.closest('label') ?? document.querySelector('label[for="' + (radio.id || '') + '"]')) : null
         label?.click()
-      }`, [])
+      }`,
+        [],
+      )
       await sleep(1000)
     }
 
     // ── board.filter c1/c3: team dropdown ───────────────────────────────────
-    const teamDropdown = await p.evaluate(`() => {
+    const teamDropdown = await p.evaluate(
+      `() => {
       const wrap = document.getElementById('LEADERBOARD')
       const buttons = [...wrap.querySelectorAll('button')].filter((b) => b.offsetParent !== null)
       const target = buttons.find((b) => (b.textContent || '').includes('全部队伍') || (b.textContent || '').includes('All teams'))
       if (!target) return { ok: false, reason: 'no team button', texts: buttons.map((b) => (b.textContent || '').trim()).slice(0, 12) }
       target.focus()
       return { ok: true }
-    }`, [])
+    }`,
+      [],
+    )
     if (teamDropdown.ok) await p.press('Enter')
     await sleep(1000)
-    const teamPanel = await p.evaluate(`() => {
+    const teamPanel = await p.evaluate(
+      `() => {
       const visible = (el) => el.offsetParent !== null
       const wrap = document.getElementById('LEADERBOARD')
       const options = [...wrap.querySelectorAll('[role="option"], [class*="Dropdown-item"], [class*="Popover"] button, [class*="Popover"] div[class*="item"]')]
@@ -755,20 +841,29 @@ try {
           avatars: [...el.querySelectorAll('img[src*="/icon/avatar/"]')].map((i) => (i.src.match(/avatar\\/([0-9b]+)\\.webp/) || [])[1]),
         }))
       return { ok: true, options, text: wrap.innerText.slice(0, 300) }
-    }`, [])
+    }`,
+      [],
+    )
     // MCP teams payload: two teams, each with 3 teammate ids — both combos must
     // be present in the web dropdown panel (order preserved within a team)
     const comboOf = (t) => t.teammates.map((x) => x.characterId).join(',')
     const webCombos = teamPanel.options.map((o) => o.avatars.slice(0, 3).join(','))
     const teamsOk = mcpBoard.teams.length === 2
       && mcpBoard.teams.every((t) => webCombos.includes(comboOf(t)))
-    record('leaderboard.board.filter', 3,
+    record(
+      'leaderboard.board.filter',
+      3,
       '返回的可选队伍列表(队友与顺序)与网页端下拉面板一致',
-      'browser-parity', teamsOk ? 'PASS' : 'FAIL',
-      `MCP teams [${mcpBoard.teams.map((t) => t.teamId + ':' + comboOf(t)).join(' | ')}];web 下拉面板选项 ${teamPanel.options.length} 项 [${webCombos.slice(0, 4).join(' | ')}]${teamDropdown.ok ? '' : ' (队伍按钮未找到:' + JSON.stringify(teamDropdown.reason ?? teamDropdown.texts).slice(0, 100) + ')'}`)
+      'browser-parity',
+      teamsOk ? 'PASS' : 'FAIL',
+      `MCP teams [${mcpBoard.teams.map((t) => t.teamId + ':' + comboOf(t)).join(' | ')}];web 下拉面板选项 ${teamPanel.options.length} 项 [${
+        webCombos.slice(0, 4).join(' | ')
+      }]${teamDropdown.ok ? '' : ' (队伍按钮未找到:' + JSON.stringify(teamDropdown.reason ?? teamDropdown.texts).slice(0, 100) + ')'}`,
+    )
 
     // select acheron-alt in the dropdown (option mentioning 1217b1 as third teammate)
-    const altPick = await p.evaluate(`() => {
+    const altPick = await p.evaluate(
+      `() => {
       const visible = (el) => el.offsetParent !== null
       const wrap = document.getElementById('LEADERBOARD')
       const options = [...wrap.querySelectorAll('[role="option"], [class*="Dropdown-item"], [class*="Popover"] button, [class*="Popover"] div[class*="item"]')].filter(visible)
@@ -779,19 +874,29 @@ try {
       if (!target) return { ok: false, reason: 'alt team option not found' }
       target.focus()
       return { ok: true }
-    }`, [])
+    }`,
+      [],
+    )
     if (altPick.ok) await p.press('Enter')
     await sleep(1400)
     const webTeamBoard = await p.evaluate(SCRAPE_RANK_LIST, [])
     // localhost: extra rows below the 150% cutoff are expected on the web
     const teamFilterOk = altPick.ok
       && webTeamBoard.rows.length >= mcpBoardTeam.total
-      && webTeamBoard.rows.slice(0, mcpBoardTeam.total).every((row, i) => String(mcpBoardTeam.rows[i]?.rank) === row.rank
-        && (row.score || '').startsWith(String(mcpBoardTeam.rows[i]?.scoreDisplay)))
-    record('leaderboard.board.filter', 1,
+      && webTeamBoard.rows.slice(0, mcpBoardTeam.total).every((row, i) =>
+        String(mcpBoardTeam.rows[i]?.rank) === row.rank
+        && (row.score || '').startsWith(String(mcpBoardTeam.rows[i]?.scoreDisplay))
+      )
+    record(
+      'leaderboard.board.filter',
+      1,
       '指定队伍后返回的行和名次与网页端一致',
-      'browser-parity', teamFilterOk ? 'PASS' : 'FAIL',
-      `acheron-alt 队内榜:web ${webTeamBoard.rows.length} 行(localhost 含 <150% 行)rank=${webTeamBoard.rows.map((r) => r.rank).join(',')} vs MCP ${mcpBoardTeam.total} 行 rank=${mcpBoardTeam.rows.map((r) => r.rank).join(',')}${altPick.ok ? '' : ' (' + altPick.reason + ')'}`)
+      'browser-parity',
+      teamFilterOk ? 'PASS' : 'FAIL',
+      `acheron-alt 队内榜:web ${webTeamBoard.rows.length} 行(localhost 含 <150% 行)rank=${
+        webTeamBoard.rows.map((r) => r.rank).join(',')
+      } vs MCP ${mcpBoardTeam.total} 行 rank=${mcpBoardTeam.rows.map((r) => r.rank).join(',')}${altPick.ok ? '' : ' (' + altPick.reason + ')'}`,
+    )
 
     // ── entry.read c1: shared link #leaderboard?b=bld-top ───────────────────
     // The b hash param is consumed ONLY on the leaderboard tab's FIRST
@@ -822,7 +927,12 @@ try {
     }
     // zh_CN ships no leaderboardTab namespace → the banner falls back to the
     // en_US strings ('All teams' / 'Team rank')
-    const bannerScope = (label) => (label || '').includes('全部队伍') || (label || '') === 'All teams' ? 'all' : (label || '').includes('队伍内') || /^Team/.test(label || '') ? 'team' : null
+    const bannerScope = (label) =>
+      (label || '').includes('全部队伍') || (label || '') === 'All teams'
+        ? 'all'
+        : (label || '').includes('队伍内') || /^Team/.test(label || '')
+        ? 'team'
+        : null
     const mcpSetCountTotal = Object.values(mcpEntryTop.setCounts ?? {}).reduce((a, b) => a + b, 0)
     const entryTopOk = (bannerTop.cardId || '').includes('1308')
       && bannerTop.rank === String(mcpEntryTop.rank)
@@ -832,10 +942,20 @@ try {
       && bannerTop.lcId === String(mcpEntryTop.lightCone?.id ?? bannerTop.lcId)
       && JSON.stringify(bannerTop.avatars || []) === JSON.stringify(mcpEntryTop.team.map((t) => t.characterId))
       && (bannerTop.setBadges || []).length === Object.keys(mcpEntryTop.setCounts ?? {}).length
-    record('leaderboard.entry.read', 1,
+    record(
+      'leaderboard.entry.read',
+      1,
       '按配装编号返回的名次、分数、星魂、光锥、队友、套装件数和六件遗器与网页端打开同一链接后显示的一致',
-      'browser-parity', entryTopOk ? 'PASS' : 'FAIL',
-      `#leaderboard?b=bld-top → web banner rank=${bannerTop.rank}/AEON=${bannerTop.aeon}/scope=${bannerScope(bannerTop.entriesLabel)}/score=${bannerTop.scoreText}/lc=${bannerTop.lcId}/队友=${(bannerTop.avatars || []).join(',')}/套装徽标 ${(bannerTop.setBadges || []).map((b) => b.pieces).join('|')};MCP rank=${mcpEntryTop.rank}/aeon=${mcpEntryTop.aeon}/teamScope=${mcpEntryTop.teamScope}/scoreDisplay=${mcpEntryTop.scoreDisplay}/setCounts=${JSON.stringify(mcpEntryTop.setCounts)}(件数合计 ${mcpSetCountTotal})`)
+      'browser-parity',
+      entryTopOk ? 'PASS' : 'FAIL',
+      `#leaderboard?b=bld-top → web banner rank=${bannerTop.rank}/AEON=${bannerTop.aeon}/scope=${
+        bannerScope(bannerTop.entriesLabel)
+      }/score=${bannerTop.scoreText}/lc=${bannerTop.lcId}/队友=${(bannerTop.avatars || []).join(',')}/套装徽标 ${
+        (bannerTop.setBadges || []).map((b) => b.pieces).join('|')
+      };MCP rank=${mcpEntryTop.rank}/aeon=${mcpEntryTop.aeon}/teamScope=${mcpEntryTop.teamScope}/scoreDisplay=${mcpEntryTop.scoreDisplay}/setCounts=${
+        JSON.stringify(mcpEntryTop.setCounts)
+      }(件数合计 ${mcpSetCountTotal})`,
+    )
 
     // entry.read c3 (below-cutoff build lands on its own team board) — the
     // tab is initialized now, so the b param needs a fresh page again
@@ -859,11 +979,16 @@ try {
     }
     // bld-low is off the all-teams board: the banner's all-teams rank shows '--'
     const entryLowOk = bannerLow.rank == null || bannerLow.rank === '--' || mcpEntryLow.rank === null
-    record('leaderboard.entry.read', 3,
+    record(
+      'leaderboard.entry.read',
+      3,
       '返回结果指明这套配装所在的榜单是全部队伍还是某支队伍,与网页端落到的榜单一致',
       'browser-parity',
       mcpEntryLow.onBoard === false && mcpEntryLow.teamScope === 'team' && mcpEntryLow.scoredTeamId === 'acheron-alt' && entryLowOk ? 'PASS' : 'FAIL',
-      `bld-low(1.20<150%):MCP onBoard=false/teamScope=team/scoredTeamId=acheron-alt/rank=null;web 打开链接后全部榜名次=${bannerLow.rank === '--' || bannerLow.rank == null ? '无(--)' : bannerLow.rank}${bannerLow.entriesLabel ? `,榜单标签="${bannerLow.entriesLabel}"` : ''};bld-top 则在全部队伍榜(scope=${bannerScope(bannerTop.entriesLabel)})`)
+      `bld-low(1.20<150%):MCP onBoard=false/teamScope=team/scoredTeamId=acheron-alt/rank=null;web 打开链接后全部榜名次=${
+        bannerLow.rank === '--' || bannerLow.rank == null ? '无(--)' : bannerLow.rank
+      }${bannerLow.entriesLabel ? `,榜单标签="${bannerLow.entriesLabel}"` : ''};bld-top 则在全部队伍榜(scope=${bannerScope(bannerTop.entriesLabel)})`,
+    )
 
     // entry.read c2: recorded score unaffected by local scoring settings
     await callTool(client, 'set_scoring_override', { characterId: '1308', weights: { SPD: 1 } })
@@ -873,17 +998,24 @@ try {
     const entryScoreStable = mcpEntryAfter.score === mcpEntryTop.score
       && mcpEntryAfter.scoreDisplay === mcpEntryTop.scoreDisplay
       && mcpScoreAfter.recorded.score === mcpEntryTop.score
-    record('leaderboard.entry.read', 2,
+    record(
+      'leaderboard.entry.read',
+      2,
       '返回的分数是榜单记录的数值,不随本地评分设置变化',
-      'browser-parity', entryScoreStable ? 'PASS' : 'FAIL',
-      `set_scoring_override(1308, SPD 权重=1) 前后 entry.score 均为 ${mcpEntryTop.score}(display ${mcpEntryTop.scoreDisplay});view=score 的 recorded 块同值(重算块 recomputed.percent=${mcpScoreAfter.recomputed?.percent},delta=${mcpScoreAfter.delta?.percent}——本地重算仅供对照)`)
+      'browser-parity',
+      entryScoreStable ? 'PASS' : 'FAIL',
+      `set_scoring_override(1308, SPD 权重=1) 前后 entry.score 均为 ${mcpEntryTop.score}(display ${mcpEntryTop.scoreDisplay});view=score 的 recorded 块同值(重算块 recomputed.percent=${mcpScoreAfter.recomputed?.percent},delta=${mcpScoreAfter.delta?.percent}——本地重算仅供对照)`,
+    )
 
     // entry.read c4: unknown buildId
-    record('leaderboard.entry.read', 4,
+    record(
+      'leaderboard.entry.read',
+      4,
       '配装编号不在榜上时返回明确的未找到',
       'browser-parity',
       mcpEntry404 != null && mcpEntry404.includes('未找到配装编号') ? 'PASS' : 'FAIL',
-      `MCP view=entry(buildId=no-such-build) → "${(mcpEntry404 || '').slice(0, 80)}"`)
+      `MCP view=entry(buildId=no-such-build) → "${(mcpEntry404 || '').slice(0, 80)}"`,
+    )
 
     // render source=leaderboard (M9): actually renders the shared-link card
     const rendered = await callTool(client, 'render', {
@@ -895,8 +1027,13 @@ try {
     const renderOk = rendered != null && rendered.width >= 800 && rendered.height >= 600
       && rendered.characterId === '1308' && rendered.buildId === 'bld-top' && rendered.via === 'cdp'
       && rendered.leaderboardFetchHits === 2 && await requestCount('/fx1/leaderboard.json') === 1
-    check('render(character_card source=leaderboard) — #leaderboard?b= 渲染取证', renderOk,
-      `${rendered?.width}x${rendered?.height} via=${rendered?.via} fetchHits=${rendered?.leaderboardFetchHits} 服务端 manifest 下载 ${await requestCount('/fx1/leaderboard.json')} 次`)
+    check(
+      'render(character_card source=leaderboard) — #leaderboard?b= 渲染取证',
+      renderOk,
+      `${rendered?.width}x${rendered?.height} via=${rendered?.via} fetchHits=${rendered?.leaderboardFetchHits} 服务端 manifest 下载 ${await requestCount(
+        '/fx1/leaderboard.json',
+      )} 次`,
+    )
 
     // ── timeline.read ───────────────────────────────────────────────────────
     const webTimeline = await p.evaluate(SCRAPE_TIMELINE, [])
@@ -906,14 +1043,21 @@ try {
       && tlRows.length === 2
       && tlRows[0]?.avatarId === '1308' && (tlRows[0]?.text || '').includes(String(disp(2.05)))
       && tlRows[1]?.avatarId === '1217b1' && (tlRows[1]?.text || '').includes(String(disp(1.62)))
-    record('leaderboard.timeline.read', 1,
+    record(
+      'leaderboard.timeline.read',
+      1,
       '返回的动态条目(角色、评分类型、名次、分数、涨幅、是否新开榜)与网页端列表逐条一致,顺序相同',
-      'browser-parity', tlOk ? 'PASS' : 'FAIL',
-      `MCP 2 条(黄泉 new_best score 205/delta 55% + 藿藿 new_character rank1),1 条畸形丢弃;web feedRow ${tlRows.length} 条 [${tlRows.map((r) => r.avatarId + ':' + (r.text || '').slice(0, 24)).join(' / ')}]`)
+      'browser-parity',
+      tlOk ? 'PASS' : 'FAIL',
+      `MCP 2 条(黄泉 new_best score 205/delta 55% + 藿藿 new_character rank1),1 条畸形丢弃;web feedRow ${tlRows.length} 条 [${
+        tlRows.map((r) => r.avatarId + ':' + (r.text || '').slice(0, 24)).join(' / ')
+      }]`,
+    )
 
     // c2: every event carries buildId → click the 黄泉 feed row (the row whose
     // name cell is 黄泉) — handleRowClick navigates to that event's build
-    const feedClick = await p.evaluate(`() => {
+    const feedClick = await p.evaluate(
+      `() => {
       const visible = (el) => el.offsetParent !== null
       const wrap = document.getElementById('LEADERBOARD')
       const rows = [...wrap.querySelectorAll('[class*="feedRow"]')].filter(visible)
@@ -921,23 +1065,36 @@ try {
       if (!row) return { ok: false, reason: 'no feed row', n: rows.length }
       row.click()
       return { ok: true, n: rows.length }
-    }`, [])
+    }`,
+      [],
+    )
     await sleep(2000)
     const feedHash = await p.evaluate(`() => location.hash`, [])
     const buildIdOk = tl.events.every((e) => typeof e.buildId === 'string' && e.buildId.length > 0)
       && (feedClick.ok ? decodeURIComponent(feedHash).includes(tl.events[0].buildId) : true)
-    record('leaderboard.timeline.read', 2,
+    record(
+      'leaderboard.timeline.read',
+      2,
       '每条动态带配装编号,可以直接用来读取配装详情',
-      'browser-parity', buildIdOk ? 'PASS' : 'FAIL',
-      `MCP 每条事件带 buildId(${tl.events.map((e) => e.buildId).join(',')});web 点黄泉动态行后地址栏=${feedHash}${feedClick.ok ? '' : ' (' + feedClick.reason + ')'}`)
+      'browser-parity',
+      buildIdOk ? 'PASS' : 'FAIL',
+      `MCP 每条事件带 buildId(${tl.events.map((e) => e.buildId).join(',')});web 点黄泉动态行后地址栏=${feedHash}${
+        feedClick.ok ? '' : ' (' + feedClick.reason + ')'
+      }`,
+    )
 
     // c3: timeline unavailable → empty list + reason (fx2 404)
-    record('leaderboard.timeline.read', 3,
+    record(
+      'leaderboard.timeline.read',
+      3,
       '动态文件不可用时返回空列表并说明原因',
       'browser-parity',
       mcpTimelineMissing.available === false && typeof mcpTimelineMissing.reason === 'string'
-        && mcpTimelineMissing.events.length === 0 ? 'PASS' : 'FAIL',
-      `fx2(404 timeline)→ available=false, reason="${String(mcpTimelineMissing.reason).slice(0, 60)}", events=0`)
+        && mcpTimelineMissing.events.length === 0
+        ? 'PASS'
+        : 'FAIL',
+      `fx2(404 timeline)→ available=false, reason="${String(mcpTimelineMissing.reason).slice(0, 60)}", events=0`,
+    )
 
     // ── myRanks.read ────────────────────────────────────────────────────────
     await p.evaluate(NAV_HASH, ['#leaderboard'])
@@ -949,18 +1106,27 @@ try {
       && r1308?.rank === 1 && r1308?.isTeamRank === false
       && rHuohuo?.rank === 1 && rHuohuo?.isTeamRank === true && rHuohuo?.teamId === 'heal-solo'
       && webRanks.hasCard
-    record('leaderboard.myRanks.read', 1,
+    record(
+      'leaderboard.myRanks.read',
+      1,
       '同一 UID 返回的名次、角色、评分类型、分数和是否为队伍内名次与网页端卡片一致',
-      'browser-parity', myRanksOk ? 'PASS' : 'FAIL',
-      `MCP uid=${UID}(存档 scorerId):1308 全部榜 rank1(isTeamRank=false)+1217b1 heal-solo 队内 rank1(isTeamRank=true);web 卡片渲染=${webRanks.hasCard};文本含藿藿=${(webRanks.text || '').includes('藿藿')}`)
+      'browser-parity',
+      myRanksOk ? 'PASS' : 'FAIL',
+      `MCP uid=${UID}(存档 scorerId):1308 全部榜 rank1(isTeamRank=false)+1217b1 heal-solo 队内 rank1(isTeamRank=true);web 卡片渲染=${webRanks.hasCard};文本含藿藿=${
+        (webRanks.text || '').includes('藿藿')
+      }`,
+    )
 
     // c2: no-uid error captured with the stripped save (above); with the
     // seeded save the remembered UID is used instead
-    record('leaderboard.myRanks.read', 2,
+    record(
+      'leaderboard.myRanks.read',
+      2,
       '不传 UID 时使用存档里展示柜页记住的 UID,没有则返回需要 UID 的提示',
       'browser-parity',
       mcpMyRanks.uidSource === 'saved' && noUidError != null && noUidError.includes('需要 UID') ? 'PASS' : 'FAIL',
-      `带存档 scorerId=${UID} → uidSource=${mcpMyRanks.uidSource};载入剥离 scorerId 的存档副本后报 "${(noUidError || '').slice(0, 70)}"`)
+      `带存档 scorerId=${UID} → uidSource=${mcpMyRanks.uidSource};载入剥离 scorerId 的存档副本后报 "${(noUidError || '').slice(0, 70)}"`,
+    )
 
     // c3: no uid-bearing network requests (re-read the CURRENT window's stub —
     // the entry phases reloaded the page and re-injected since)
@@ -968,25 +1134,36 @@ try {
     const urls = (freshServeState?.urls ?? []).join(' ')
     const lbDownloads = await requestCount('/fx1/leaderboard.json')
     const netOk = !urls.includes(UID) && lbDownloads === 1
-    record('leaderboard.myRanks.read', 3,
+    record(
+      'leaderboard.myRanks.read',
+      3,
       '查询过程不产生任何带 UID 的网络请求',
-      'browser-parity', netOk ? 'PASS' : 'FAIL',
-      `页面侧拦截到的榜单请求 URL 均不含 UID(${urls.length} 次,样例 "${(urls.split(',')[0] || '').slice(-40)}");服务端 manifest 下载 ${lbDownloads} 次`)
+      'browser-parity',
+      netOk ? 'PASS' : 'FAIL',
+      `页面侧拦截到的榜单请求 URL 均不含 UID(${urls.length} 次,样例 "${(urls.split(',')[0] || '').slice(-40)}");服务端 manifest 下载 ${lbDownloads} 次`,
+    )
 
     // ── data.load c2/c3 ─────────────────────────────────────────────────────
     await callTool(client, 'leaderboard', { view: 'characters', limit: 5 })
     await callTool(client, 'leaderboard', { view: 'board', characterId: '1217b1' })
     const downloadsAfter = await requestCount('/fx1/leaderboard.json')
-    record('leaderboard.data.load', 2,
+    record(
+      'leaderboard.data.load',
+      2,
       '同一会话内多次查询只下载一次',
-      'browser-parity', downloadsAfter === 1 ? 'PASS' : 'FAIL',
-      `MCP 会话内 characters/board/entry/score/timeline/my_ranks 共 8+ 次查询后,fixture 的 /fx1/leaderboard.json 被下载 ${downloadsAfter} 次`)
+      'browser-parity',
+      downloadsAfter === 1 ? 'PASS' : 'FAIL',
+      `MCP 会话内 characters/board/entry/score/timeline/my_ranks 共 8+ 次查询后,fixture 的 /fx1/leaderboard.json 被下载 ${downloadsAfter} 次`,
+    )
 
-    record('leaderboard.data.load', 3,
+    record(
+      'leaderboard.data.load',
+      3,
       '下载失败时返回明确的错误,而不是空榜单',
       'browser-parity',
       mcp404 != null && mcp404.includes('HTTP 404') && mcp404.includes('不会以空榜单') ? 'PASS' : 'FAIL',
-      `404 fixture → "${(mcp404 || '').slice(0, 90)}"(网页端行为按清单 conditions:下载失败列表为空、页面不报错)`)
+      `404 fixture → "${(mcp404 || '').slice(0, 90)}"(网页端行为按清单 conditions:下载失败列表为空、页面不报错)`,
+    )
 
     return true
   })
@@ -1005,12 +1182,19 @@ try {
 
 const evidenceDir = resolve(mcpDir, 'coverage/evidence')
 mkdirSync(evidenceDir, { recursive: true })
-writeFileSync(resolve(evidenceDir, 'leaderboard.json'), JSON.stringify({
-  area: 'leaderboard',
-  generatedAt: new Date().toISOString(),
-  gitCommit: '8ac1d045',
-  cases: EVIDENCE,
-}, null, 2))
+writeFileSync(
+  resolve(evidenceDir, 'leaderboard.json'),
+  JSON.stringify(
+    {
+      area: 'leaderboard',
+      generatedAt: new Date().toISOString(),
+      gitCommit: '8ac1d045',
+      cases: EVIDENCE,
+    },
+    null,
+    2,
+  ),
+)
 console.log(`\nevidence: ${EVIDENCE.length} cases → mcp/coverage/evidence/leaderboard.json`)
 console.log(failures === 0 ? '\nverify-leaderboard: ALL CASES PASSED' : `\nverify-leaderboard: ${failures} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)

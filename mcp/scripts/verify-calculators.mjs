@@ -277,28 +277,68 @@ try {
   const ahaShuffled = await callTool('calc_aha', { speeds: [100, 160, 120] })
   const ahaEmpty = await callTool('calc_aha', { speeds: [] })
   const ehrProb1 = await callTool('calc_ehr', {
-    mode: 'probability', effectRes: 40, debuffRes: 0, baseChance: 100, attempts: 1, effectHitRate: 50, desiredHitRate: 100,
+    mode: 'probability',
+    effectRes: 40,
+    debuffRes: 0,
+    baseChance: 100,
+    attempts: 1,
+    effectHitRate: 50,
+    desiredHitRate: 100,
   })
   const ehrProb3 = await callTool('calc_ehr', {
-    mode: 'probability', effectRes: 40, debuffRes: 0, baseChance: 100, attempts: 3, effectHitRate: 50, desiredHitRate: 100,
+    mode: 'probability',
+    effectRes: 40,
+    debuffRes: 0,
+    baseChance: 100,
+    attempts: 3,
+    effectHitRate: 50,
+    desiredHitRate: 100,
   })
   const ehrClamp = await callTool('calc_ehr', {
-    mode: 'probability', effectRes: 40, debuffRes: 0, baseChance: 100, attempts: 1, effectHitRate: 250, desiredHitRate: 100,
+    mode: 'probability',
+    effectRes: 40,
+    debuffRes: 0,
+    baseChance: 100,
+    attempts: 1,
+    effectHitRate: 250,
+    desiredHitRate: 100,
   })
   const ehrGridDefault = await callTool('calc_ehr', {
-    mode: 'grid', effectRes: 40, debuffRes: 0, baseChance: 100, attempts: 1, effectHitRate: 50, desiredHitRate: 100,
+    mode: 'grid',
+    effectRes: 40,
+    debuffRes: 0,
+    baseChance: 100,
+    attempts: 1,
+    effectHitRate: 50,
+    desiredHitRate: 100,
   })
   const ehrSolve25 = await callTool('calc_ehr', {
-    effectRes: 20, debuffRes: 0, baseChance: 100, attempts: 1, desiredHitRate: 100,
+    effectRes: 20,
+    debuffRes: 0,
+    baseChance: 100,
+    attempts: 1,
+    desiredHitRate: 100,
   })
   const ehrSolve24 = await callTool('calc_ehr', {
-    effectRes: 20, debuffRes: 0, baseChance: 100, attempts: 2.4, desiredHitRate: 100,
+    effectRes: 20,
+    debuffRes: 0,
+    baseChance: 100,
+    attempts: 2.4,
+    desiredHitRate: 100,
   })
   const ehrSolve2 = await callTool('calc_ehr', {
-    effectRes: 20, debuffRes: 0, baseChance: 100, attempts: 2, desiredHitRate: 100,
+    effectRes: 20,
+    debuffRes: 0,
+    baseChance: 100,
+    attempts: 2,
+    desiredHitRate: 100,
   })
   const ehrUnreachable = await callTool('calc_ehr', {
-    effectRes: 20, debuffRes: 100, baseChance: 100, attempts: 1, desiredHitRate: 50,
+    effectRes: 20,
+    debuffRes: 100,
+    baseChance: 100,
+    attempts: 1,
+    desiredHitRate: 50,
   })
 
   // site://pages resource (panel.switch case 1)
@@ -332,7 +372,8 @@ try {
     const tabEhrOk = backToEhrTitles.some((t) => t.includes('Debuff Application Calculator'))
       && !backToEhrTitles.some((t) => t.includes('Aha Speed Calculator'))
     record(
-      'calculators.panel.switch', 2,
+      'calculators.panel.switch',
+      2,
       '浏览器运行环境按 #ehr 打开后显示的是效果命中面板，与网页端点击该页签的结果一致',
       'browser-parity',
       hashShowsEhr && tabAhaOk && tabEhrOk ? 'PASS' : 'FAIL',
@@ -346,11 +387,14 @@ try {
     const listsHashes = calcPage?.hash === '#aha' && note.includes('#aha') && note.includes('#ehr')
     const namesTools = /calc_aha/.test(resourceText) && /calc_ehr/.test(resourceText)
     record(
-      'calculators.panel.switch', 1,
+      'calculators.panel.switch',
+      1,
       'site://pages 在计算器页下列出两个子面板，hash 分别是 #aha 与 #ehr，并指明对应的工具是 calc_aha 与 calc_ehr',
       'browser-parity',
       listsHashes && namesTools ? 'PASS' : 'FAIL',
-      `site://pages 顶层键=[${Object.keys(pagesResource).join(',')}];CALCULATORS.hash=${calcPage?.hash},note含#aha/#ehr:${note.includes('#aha') && note.includes('#ehr')};资源全文指明 calc_aha/calc_ehr:${namesTools}`,
+      `site://pages 顶层键=[${Object.keys(pagesResource).join(',')}];CALCULATORS.hash=${calcPage?.hash},note含#aha/#ehr:${
+        note.includes('#aha') && note.includes('#ehr')
+      };资源全文指明 calc_aha/calc_ehr:${namesTools}`,
     )
 
     // ── aha.compute #1: contributions 32/12/5 + ahaSpeed 129 from the panel ─
@@ -378,15 +422,19 @@ try {
       && contribNumbers.every((v, i) => closeEnough(v, mcpContribs[i]))
       && closeEnough(contribNumbers[0], 32) && closeEnough(contribNumbers[1], 12) && closeEnough(contribNumbers[2], 5)
     record(
-      'calculators.aha.compute', 1,
+      'calculators.aha.compute',
+      1,
       '队友速度 160、120、100 时阿哈速度为 129，各名次的贡献为 32、12、5，与网页端贡献条一致',
       'browser-parity',
       closeEnough(webAhaSpeed, ahaCompute.ahaSpeed) && closeEnough(webAhaSpeed, 129) && contribOk ? 'PASS' : 'FAIL',
-      `网页公式=${webAhaSpeed}(期望129) vs MCP calc_aha=${ahaCompute.ahaSpeed};网页贡献条=[${contribNumbers.join(',')}] vs MCP=[${mcpContribs.map((v) => v.toFixed(1)).join(',')}] (32/12/5)`,
+      `网页公式=${webAhaSpeed}(期望129) vs MCP calc_aha=${ahaCompute.ahaSpeed};网页贡献条=[${contribNumbers.join(',')}] vs MCP=[${
+        mcpContribs.map((v) => v.toFixed(1)).join(',')
+      }] (32/12/5)`,
     )
 
     // aha.compute #2: shuffled input order → same result (web re-ranks by speed)
-    const setSlot = await page.evaluate(`(values) => {
+    const setSlot = await page.evaluate(
+      `(values) => {
       const inputs = [...document.querySelectorAll('#CALCULATORS input')].filter((el) => el.offsetParent !== null).slice(0, 4)
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
       inputs.forEach((el, i) => {
@@ -395,12 +443,15 @@ try {
         el.dispatchEvent(new Event('blur', { bubbles: true }))
       })
       return inputs.map((el) => el.value)
-    }`, [[100, 160, 120, '']])
+    }`,
+      [[100, 160, 120, '']],
+    )
     await sleep(900)
     const shuffledRead = await page.evaluate(READ_AHA)
     const webShuffledSpeed = parseFloat((shuffledRead.formulas.find((f) => f.includes('Aha Speed')) ?? '').match(/=([\d.]+)SPD/)?.[1] ?? 'NaN')
     record(
-      'calculators.aha.compute', 2,
+      'calculators.aha.compute',
+      2,
       '传入顺序打乱后结果不变',
       'browser-parity',
       closeEnough(webShuffledSpeed, ahaShuffled.ahaSpeed) && closeEnough(webShuffledSpeed, ahaCompute.ahaSpeed) ? 'PASS' : 'FAIL',
@@ -408,7 +459,8 @@ try {
     )
 
     // aha.compute #3: all slots cleared → base 80
-    await page.evaluate(`(values) => {
+    await page.evaluate(
+      `(values) => {
       const inputs = [...document.querySelectorAll('#CALCULATORS input')].filter((el) => el.offsetParent !== null).slice(0, 4)
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
       inputs.forEach((el) => {
@@ -417,12 +469,15 @@ try {
         el.dispatchEvent(new Event('blur', { bubbles: true }))
       })
       return true
-    }`, [[]])
+    }`,
+      [[]],
+    )
     await sleep(900)
     const emptyRead = await page.evaluate(READ_AHA)
     const webEmptySpeed = parseFloat((emptyRead.formulas.find((f) => f.includes('Aha Speed')) ?? '').match(/=([\d.]+)SPD/)?.[1] ?? 'NaN')
     record(
-      'calculators.aha.compute', 3,
+      'calculators.aha.compute',
+      3,
       '不传队友时返回基础值 80',
       'browser-parity',
       closeEnough(webEmptySpeed, 80) && ahaEmpty.ahaSpeed === 80 ? 'PASS' : 'FAIL',
@@ -467,17 +522,22 @@ try {
     // aha.solve #1: 180/135 target 135 → 3rd teammate 110
     const solverHeaders = await page.evaluate(`() => [...document.querySelectorAll('#CALCULATORS h1,h2,h3,h4,h5,h6,[class*=headerText]')]
       .filter((e) => e.offsetParent !== null).map((e) => e.textContent.trim()).slice(-4)`)
-    const webSolveValue = parseFloat(await page.evaluate(`() => {
+    const webSolveValue = parseFloat(
+      await page.evaluate(`() => {
       const outBlocks = [...document.querySelectorAll('#CALCULATORS div')]
         .filter((d) => d.className && String(d.className).includes('reverseOutput'))
       return outBlocks.length ? outBlocks[0].querySelector('span')?.textContent ?? '' : ''
-    }`))
+    }`),
+    )
     record(
-      'calculators.aha.solve', 1,
+      'calculators.aha.solve',
+      1,
       '已有队友 180 与 135、目标 135 时返回第三名队友需要 110 速度，与网页端求解器显示的一致',
       'browser-parity',
-      solverHeaders.some((h) => h.includes("3rd Teammate's SPD")) && closeEnough(webSolveValue, 110)
-        && solve110.solve.status === 'solved' && closeEnough(solve110.solve.requiredSpeed, 110) ? 'PASS' : 'FAIL',
+      solverHeaders.some((h) => h.includes('3rd Teammate\'s SPD')) && closeEnough(webSolveValue, 110)
+        && solve110.solve.status === 'solved' && closeEnough(solve110.solve.requiredSpeed, 110)
+        ? 'PASS'
+        : 'FAIL',
       `网页求解器标题=${JSON.stringify(solverHeaders)} 值=${webSolveValue};MCP calc_aha(fromSaved)=${JSON.stringify(solve110.solve)}`,
     )
 
@@ -494,11 +554,14 @@ try {
       return outBlocks.length ? outBlocks[0].querySelector('span')?.textContent ?? '' : ''
     }`)
     record(
-      'calculators.aha.solve', 2,
+      'calculators.aha.solve',
+      2,
       '已填满四名队友时明确返回没有空位，而不是给出一个数',
       'browser-parity',
       fullHeaders.some((h) => h.includes('No slots open')) && (fullValue === '' || fullValue == null)
-        && solveNoSlots.solve.status === 'noSlots' && solveNoSlots.solve.requiredSpeed === null ? 'PASS' : 'FAIL',
+        && solveNoSlots.solve.status === 'noSlots' && solveNoSlots.solve.requiredSpeed === null
+        ? 'PASS'
+        : 'FAIL',
       `四格填满(180/135/160/150)后网页标题=${JSON.stringify(fullHeaders)} 值="${fullValue}";MCP=${JSON.stringify(solveNoSlots.solve)}`,
     )
   })
@@ -508,17 +571,22 @@ try {
     // aha.solve #3: already met (seeded target 129 ≤ current 129.5) — no typing needed
     const metHeaders = await page.evaluate(`() => [...document.querySelectorAll('#CALCULATORS h1,h2,h3,h4,h5,h6,[class*=headerText]')]
       .filter((e) => e.offsetParent !== null).map((e) => e.textContent.trim()).slice(-4)`)
-    const metValue = parseFloat(await page.evaluate(`() => {
+    const metValue = parseFloat(
+      await page.evaluate(`() => {
       const outBlocks = [...document.querySelectorAll('#CALCULATORS div')]
         .filter((d) => d.className && String(d.className).includes('reverseOutput'))
       return (outBlocks.length ? outBlocks[0].querySelector('span')?.textContent ?? '' : '').replace('−', '-')
-    }`))
+    }`),
+    )
     record(
-      'calculators.aha.solve', 3,
+      'calculators.aha.solve',
+      3,
       '当前阿哈速度已经不低于目标时标明已满足，数值与网页端一致',
       'browser-parity',
       metHeaders.some((h) => h.includes('SPD target already reached'))
-        && solveMet.solve.status === 'alreadyMet' && closeEnough(metValue, solveMet.solve.requiredSpeed) ? 'PASS' : 'FAIL',
+        && solveMet.solve.status === 'alreadyMet' && closeEnough(metValue, solveMet.solve.requiredSpeed)
+        ? 'PASS'
+        : 'FAIL',
       `底稿目标129(当前129.5) 网页标题=${JSON.stringify(metHeaders)} 值=${metValue};MCP=${JSON.stringify(solveMet.solve)}`,
     )
   })
@@ -533,7 +601,8 @@ try {
     const mcpValues = [draft.teammate0, draft.teammate1, draft.teammate2, draft.teammate3, draft.desiredAha]
     const draftOk = webValues.length === 5 && webValues.every((v, i) => v === mcpValues[i])
     record(
-      'calculators.aha.form', 2,
+      'calculators.aha.form',
+      2,
       '写回四个队友速度和目标值后导出存档，网页端载入后面板里显示的就是这组数值',
       'browser-parity',
       draftOk ? 'PASS' : 'FAIL',
@@ -556,7 +625,8 @@ try {
     const webValues = inputs.slice(0, 5).map((v) => (v === '' ? '' : parseFloat(v)))
     const draftOk = webValues[0] === 165 && webValues[1] === 145 && webValues[2] === '' && webValues[3] === ''
     record(
-      'calculators.aha.form', 1,
+      'calculators.aha.form',
+      1,
       '载入网页端导出的存档后，按存档取值计算得到的阿哈速度与网页端打开该面板时显示的一致',
       'browser-parity',
       draftOk && closeEnough(webSpeed, fromSaved.ahaSpeed) ? 'PASS' : 'FAIL',
@@ -572,7 +642,8 @@ try {
     const prob1Text = ehrFormulas.filter((f) => f.includes('chance')).join(' | ')
     const web90 = parseFloat(prob1Text.match(/([\d.]+)%chance/)?.[1] ?? 'NaN')
     record(
-      'calculators.ehr.probability', 1,
+      'calculators.ehr.probability',
+      1,
       '效果命中 50、基础概率 100、效果抵抗 40、减益抵抗 0、施加 1 次时返回 90，与网页端公式一行的结果一致',
       'browser-parity',
       closeEnough(web90, 90) && closeEnough(ehrProb1.applicationPercent, 90) ? 'PASS' : 'FAIL',
@@ -586,11 +657,14 @@ try {
     const clampText = clampFormulas.filter((f) => f.includes('chance')).join(' | ')
     const webClamped = parseFloat(clampText.match(/([\d.]+)%chance/)?.[1] ?? 'NaN')
     record(
-      'calculators.ehr.probability', 3,
+      'calculators.ehr.probability',
+      3,
       '计算结果超过 100 时返回 100',
       'browser-parity',
       closeEnough(webClamped, 100) && closeEnough(ehrClamp.applicationPercent, 100) && ehrClamp.perAttemptProbability > 1 ? 'PASS' : 'FAIL',
-      `效果命中 250% 后网页显示="${clampText.slice(0, 60)}";MCP perAttempt原始=${ehrClamp.perAttemptProbability.toFixed(3)}(>1) 显示钳制=${ehrClamp.applicationPercent}`,
+      `效果命中 250% 后网页显示="${clampText.slice(0, 60)}";MCP perAttempt原始=${
+        ehrClamp.perAttemptProbability.toFixed(3)
+      }(>1) 显示钳制=${ehrClamp.applicationPercent}`,
     )
     await page.evaluate(SET_NUMBER_INPUT, ['250%', '50%'])
     await sleep(600)
@@ -605,11 +679,14 @@ try {
     const webPer = perM ? parseFloat(perM[1]) : NaN
     const webOver = overM ? parseFloat(overM[1]) : NaN
     record(
-      'calculators.ehr.probability', 2,
+      'calculators.ehr.probability',
+      2,
       '施加次数改为 3 时同时返回单次概率和三次内至少成功一次的概率，与网页端两个数值一致',
       'browser-parity',
       closeEnough(webPer, 90) && closeEnough(webOver, 99.9)
-        && closeEnough(ehrProb3.perAttemptPercent, 90) && closeEnough(ehrProb3.applicationPercent, 99.9) ? 'PASS' : 'FAIL',
+        && closeEnough(ehrProb3.perAttemptPercent, 90) && closeEnough(ehrProb3.applicationPercent, 99.9)
+        ? 'PASS'
+        : 'FAIL',
       `网页="${att3Text}" (90/99.9);MCP=单次${ehrProb3.perAttemptPercent}%/累计${ehrProb3.applicationPercent}%`,
     )
 
@@ -632,11 +709,14 @@ try {
       }
     }
     record(
-      'calculators.ehr.grid', 1,
+      'calculators.ehr.grid',
+      1,
       '默认输入、范围 50 时返回 21 行乘 9 列，行从 100 降到 0，各格数值与网页端表格逐格一致',
       'browser-parity',
       rowsOk && cellMismatch == null ? 'PASS' : 'FAIL',
-      `网页 ${gridWeb.rows.length} 行(${gridWeb.rows[0]?.ehr}→${gridWeb.rows[20]?.ehr}) × 9 列 vs MCP ${gridMcp.rows.length} 行(${gridMcp.windowMax}→${gridMcp.windowMin});逐格比对${cellMismatch ?? '全部一致'}`,
+      `网页 ${gridWeb.rows.length} 行(${gridWeb.rows[0]?.ehr}→${
+        gridWeb.rows[20]?.ehr
+      }) × 9 列 vs MCP ${gridMcp.rows.length} 行(${gridMcp.windowMax}→${gridMcp.windowMin});逐格比对${cellMismatch ?? '全部一致'}`,
     )
 
     // ehr.grid #2: EHR 52 → center row 50 + current-column marker on 40
@@ -645,11 +725,14 @@ try {
     const grid52 = await page.evaluate(READ_EHR_GRID)
     const currentRow = grid52.rows.find((r) => r.isCurrentRow)
     record(
-      'calculators.ehr.grid', 2,
+      'calculators.ehr.grid',
+      2,
       '效果命中 52 时中心行是 50，效果抵抗 40 所在列被标为当前列',
       'browser-parity',
       currentRow?.ehr === 50 && grid52.resGuideIndex === 4 && ehrGridDefault.grid.centerEhr === 50 && ehrGridDefault.grid.nearestRes === 40 ? 'PASS' : 'FAIL',
-      `EHR 52 后网页当前行=${currentRow?.ehr}(带EHR标线),当前列下标=${grid52.resGuideIndex}(第${(grid52.resGuideIndex ?? -1) + 1}列=40%);MCP mode=grid centerEhr=50 nearestRes=40`,
+      `EHR 52 后网页当前行=${currentRow?.ehr}(带EHR标线),当前列下标=${grid52.resGuideIndex}(第${
+        (grid52.resGuideIndex ?? -1) + 1
+      }列=40%);MCP mode=grid centerEhr=50 nearestRes=40`,
     )
     await page.evaluate(SET_NUMBER_INPUT, ['52%', '50%'])
     await sleep(600)
@@ -660,16 +743,26 @@ try {
     await sleep(900)
     const grid10 = await page.evaluate(READ_EHR_GRID)
     const grid10Mcp = await callTool('calc_ehr', {
-      mode: 'grid', effectRes: 40, debuffRes: 0, baseChance: 100, attempts: 1, effectHitRate: 50, desiredHitRate: 100, windowHalf: 10,
+      mode: 'grid',
+      effectRes: 40,
+      debuffRes: 0,
+      baseChance: 100,
+      attempts: 1,
+      effectHitRate: 50,
+      desiredHitRate: 100,
+      windowHalf: 10,
     })
     const range10Ok = grid10.rows.length === 5 && grid10.rows[0].ehr === 60 && grid10.rows[4].ehr === 40
       && grid10Mcp.grid.rows.length === 5 && grid10Mcp.grid.windowMin === 40 && grid10Mcp.grid.windowMax === 60
     record(
-      'calculators.ehr.grid', 3,
+      'calculators.ehr.grid',
+      3,
       '范围改为 10 时只返回中心行上下各两档',
       'browser-parity',
       range10Ok && rangeClicked === 'clicked' && picked10 === 'picked' ? 'PASS' : 'FAIL',
-      `网页范围10后 ${grid10.rows.length} 行(${grid10.rows.map((r) => r.ehr).join(',')});MCP windowHalf=10 → ${grid10Mcp.grid.rows.length} 行(${grid10Mcp.grid.windowMax}→${grid10Mcp.grid.windowMin});交互=${rangeClicked}/${picked10}`,
+      `网页范围10后 ${grid10.rows.length} 行(${
+        grid10.rows.map((r) => r.ehr).join(',')
+      });MCP windowHalf=10 → ${grid10Mcp.grid.rows.length} 行(${grid10Mcp.grid.windowMax}→${grid10Mcp.grid.windowMin});交互=${rangeClicked}/${picked10}`,
     )
 
     // ehr.solve #1: res 20 → 25 (switch the effect-res select to 20%)
@@ -679,7 +772,8 @@ try {
     const ehrSolveWeb = await page.evaluate(READ_SOLVER, ['Required EHR'])
     const webRequired = parseFloat((ehrSolveWeb?.value ?? '').replace('%', ''))
     record(
-      'calculators.ehr.solve', 1,
+      'calculators.ehr.solve',
+      1,
       '效果抵抗 20、基础概率 100、施加 1 次、目标 100 时返回 25，与网页端求解器一致',
       'browser-parity',
       resClicked === 'clicked' && resPicked === 'picked' && closeEnough(webRequired, 25) && closeEnough(ehrSolve25.requiredEhr, 25) ? 'PASS' : 'FAIL',
@@ -696,11 +790,14 @@ try {
     const solve2 = await page.evaluate(READ_SOLVER, ['Required EHR'])
     const web2 = parseFloat((solve2?.value ?? '').replace('%', ''))
     record(
-      'calculators.ehr.solve', 2,
+      'calculators.ehr.solve',
+      2,
       '施加次数 2.4 与 2 的结果相同',
       'browser-parity',
       closeEnough(web24, web2) && closeEnough(ehrSolve24.requiredEhr, ehrSolve2.requiredEhr)
-        && ehrSolve24.attemptsUsed === 2 ? 'PASS' : 'FAIL',
+        && ehrSolve24.attemptsUsed === 2
+        ? 'PASS'
+        : 'FAIL',
       `网页 attempts=2.4→${web24}% vs =2→${web2}%;MCP 2.4→${ehrSolve24.requiredEhr}(attemptsUsed=${ehrSolve24.attemptsUsed}) vs 2→${ehrSolve2.requiredEhr}`,
     )
 
@@ -711,12 +808,15 @@ try {
     const solveUnreachable = await page.evaluate(READ_SOLVER, ['Required EHR'])
     const webUnreachable = solveUnreachable?.value ?? '(missing)'
     record(
-      'calculators.ehr.solve', 3,
+      'calculators.ehr.solve',
+      3,
       '减益抵抗 100 时返回不可达和原因，而不是 0',
       'browser-parity',
       drClicked === 'clicked' && drPicked === 'picked' && webUnreachable.trim() === ''
         && ehrUnreachable.achievable === false && ehrUnreachable.requiredEhr === null
-        && ehrUnreachable.reasons.some((r) => r.includes('减益抵抗')) ? 'PASS' : 'FAIL',
+        && ehrUnreachable.reasons.some((r) => r.includes('减益抵抗'))
+        ? 'PASS'
+        : 'FAIL',
       `网页减益抵抗100%后求解器值="${webUnreachable}"(空,非0);MCP achievable=false requiredEhr=null reasons=${JSON.stringify(ehrUnreachable.reasons)}`,
     )
   })
@@ -734,13 +834,22 @@ try {
 }
 
 // ── evidence file ────────────────────────────────────────────────────────────
-writeFileSync(evidencePath, JSON.stringify({
-  area: 'calculators',
-  generatedAt: GENERATED_AT,
-  gitCommit: GIT_COMMIT,
-  cases,
-}, null, 2) + '\n')
+writeFileSync(
+  evidencePath,
+  JSON.stringify(
+    {
+      area: 'calculators',
+      generatedAt: GENERATED_AT,
+      gitCommit: GIT_COMMIT,
+      cases,
+    },
+    null,
+    2,
+  ) + '\n',
+)
 
 const failed = cases.filter((c) => c.result !== 'PASS').length
-console.log(failed === 0 ? `\nverify-calculators: ALL ${cases.length} CASES PASSED` : `\nverify-calculators: ${failed} OF ${cases.length} CASES FAILED/UNPROVEN`)
+console.log(
+  failed === 0 ? `\nverify-calculators: ALL ${cases.length} CASES PASSED` : `\nverify-calculators: ${failed} OF ${cases.length} CASES FAILED/UNPROVEN`,
+)
 process.exit(failed === 0 ? 0 : 1)

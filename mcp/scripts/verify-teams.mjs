@@ -367,7 +367,9 @@ function teamEntrySummary(team) {
     name: team.name,
     characterIds: team.characterIds,
     snapshot: team.benchmarkSnapshot
-      ? team.benchmarkSnapshot.members.map((m) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null])
+      ? team.benchmarkSnapshot.members.map((
+        m,
+      ) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null])
       : null,
   }
 }
@@ -424,7 +426,8 @@ try {
         && JSON.stringify(webSlots) === JSON.stringify(mcpSlots)
         && JSON.stringify(webSlots) === JSON.stringify([J, K, S, B])
       record(
-        'teams.working.setSlot', 1,
+        'teams.working.setSlot',
+        1,
         '空队伍里给第一个槽位选一个存有自定义评分队伍的角色，返回的四个槽位与网页自动补位后的结果一致',
         'browser-parity',
         c1ok ? 'PASS' : 'FAIL',
@@ -446,11 +449,14 @@ try {
         && JSON.stringify(webChar.equipped ?? {}) === JSON.stringify(mcpChar.equipped ?? {})
         && (harvest.characters ?? []).length === (mcpSave.characters ?? []).length
       record(
-        'teams.working.setSlot', 2,
+        'teams.working.setSlot',
+        2,
         '选一个未拥有的角色后，两边存档的 characters 都多出该角色（默认表单、空装备）',
         'browser-parity',
         cleared === 'clicked' && addChar === 'clicked' && pick2 === 'picked' && sameChar ? 'PASS' : 'FAIL',
-        `网页选未拥有角色 ${UNOWNED} 后存档 characters ${(harvest.characters ?? []).length} 人(新增条目 form/equipped 与 MCP export 完全一致:${sameChar};MCP rosterAdded=${JSON.stringify(mcpUnownedAdded)})`,
+        `网页选未拥有角色 ${UNOWNED} 后存档 characters ${
+          (harvest.characters ?? []).length
+        } 人(新增条目 form/equipped 与 MCP export 完全一致:${sameChar};MCP rosterAdded=${JSON.stringify(mcpUnownedAdded)})`,
       )
 
       // c3: pick a character already in another slot → that slot empties
@@ -487,7 +493,8 @@ try {
         && JSON.stringify(after) === JSON.stringify(mcpDupSlots)
         && after[3] === null && after[0] === B
       record(
-        'teams.working.setSlot', 3,
+        'teams.working.setSlot',
+        3,
         '把已在第三槽的角色选进第一槽后，第三槽变空',
         'browser-parity',
         c3ok ? 'PASS' : 'FAIL',
@@ -529,16 +536,29 @@ try {
       const webSnap = webTeam?.benchmarkSnapshot
       const syncOk = tile === 'clicked' && sync === 'clicked'
         && webSnap != null
-        && JSON.stringify(webSnap.members.map((m) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null]))
-          === JSON.stringify(mcpSync.snapshot.members.map((m) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null]))
+        && JSON.stringify(
+            webSnap.members.map((
+              m,
+            ) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null]),
+          )
+          === JSON.stringify(
+            mcpSync.snapshot.members.map((
+              m,
+            ) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null]),
+          )
       record(
-        'teams.benchmarks.sync', 1,
+        'teams.benchmarks.sync',
+        1,
         '对同一支四人队伍同步后，两边存档里该队伍的 benchmarkSnapshot.members 逐项一致（含推断出的套装）',
         'browser-parity',
         syncOk ? 'PASS' : 'FAIL',
         syncOk
-          ? `网页同步按钮与 MCP sync_benchmarks 对同一队伍捕获的 4 名成员(光锥/星魂/叠影/推断遗器4件+饰品2件套装)逐项一致;成员=${JSON.stringify(webSnap.members.map((m) => [m.characterId, m.teamRelicSet, m.teamOrnamentSet]))}`
-          : `网页快照=${webSnap ? '有' : '无'};网页成员=${JSON.stringify(webSnap?.members?.map((m) => [m.characterId, m.lightCone, m.teamRelicSet, m.teamOrnamentSet]) ?? [])};MCP=${JSON.stringify(mcpSync.snapshot.members.map((m) => [m.characterId, m.lightCone, m.teamRelicSet, m.teamOrnamentSet]))};交互=${tile}/${sync}`,
+          ? `网页同步按钮与 MCP sync_benchmarks 对同一队伍捕获的 4 名成员(光锥/星魂/叠影/推断遗器4件+饰品2件套装)逐项一致;成员=${
+            JSON.stringify(webSnap.members.map((m) => [m.characterId, m.teamRelicSet, m.teamOrnamentSet]))
+          }`
+          : `网页快照=${webSnap ? '有' : '无'};网页成员=${
+            JSON.stringify(webSnap?.members?.map((m) => [m.characterId, m.lightCone, m.teamRelicSet, m.teamOrnamentSet]) ?? [])
+          };MCP=${JSON.stringify(mcpSync.snapshot.members.map((m) => [m.characterId, m.lightCone, m.teamRelicSet, m.teamOrnamentSet]))};交互=${tile}/${sync}`,
       )
 
       // cards.read c1: the synced cards vs dps_score(team=snapshot)
@@ -552,12 +572,15 @@ try {
         if (webScore == null || !closeEnough(webScore, mcpScore, 2e-3)) mismatches.push(`${charId}: web=${webScore} mcp=${mcpScore}`)
       }
       record(
-        'teams.cards.read', 1,
+        'teams.cards.read',
+        1,
         '对一支已同步基准的队伍，四名成员各自的评分与队伍面板四张卡上的分数一致',
         'browser-parity',
         mismatches.length === 0 ? 'PASS' : 'FAIL',
         mismatches.length === 0
-          ? `四卡(已同步快照,槽0主C/其余副C)=[${cards.map((c) => `${c.charId}:${parseSimTitle(c.simTitle)}`).join(', ')}] 与 MCP dps_score(team=snapshot) scores.original 逐个一致`
+          ? `四卡(已同步快照,槽0主C/其余副C)=[${
+            cards.map((c) => `${c.charId}:${parseSimTitle(c.simTitle)}`).join(', ')
+          }] 与 MCP dps_score(team=snapshot) scores.original 逐个一致`
           : `评分不一致:${mismatches.join('; ')}`,
       )
 
@@ -592,7 +615,8 @@ try {
         if (webScore == null || !closeEnough(webScore, mcpScore, 2e-3)) mismatches.push(`${charId}: web=${webScore} mcp=${mcpScore}`)
       }
       record(
-        'teams.cards.read', 2,
+        'teams.cards.read',
+        2,
         '未同步时返回的分数与各角色单独展示卡的分数一致',
         'browser-parity',
         mismatches.length === 0 ? 'PASS' : 'FAIL',
@@ -614,11 +638,14 @@ try {
       const webRefused = webTeam?.benchmarkSnapshot == null && toastText
       const mcpRefused = mcpNoLcErr != null && mcpNoLcErr.includes('光锥')
       record(
-        'teams.benchmarks.sync', 2,
+        'teams.benchmarks.sync',
+        2,
         '有成员没装光锥时两边都拒绝并给出同类错误',
         'browser-parity',
         tile === 'clicked' && sync === 'clicked' && webRefused && mcpRefused ? 'PASS' : 'FAIL',
-        `网页:成员 ${UNOWNED}(补入列表的默认表单无光锥)点同步 → toast "No selected light cone" 且队伍快照仍为空:${webRefused};MCP sync_benchmarks 报错:"${(mcpNoLcErr ?? '').slice(0, 80)}"`,
+        `网页:成员 ${UNOWNED}(补入列表的默认表单无光锥)点同步 → toast "No selected light cone" 且队伍快照仍为空:${webRefused};MCP sync_benchmarks 报错:"${
+          (mcpNoLcErr ?? '').slice(0, 80)
+        }"`,
       )
     })
   }
@@ -659,11 +686,14 @@ try {
         && web0 != null && closeEnough(web0, mcp0, 2e-3)
         && web1 != null && closeEnough(web1, mcp1, 2e-3)
       record(
-        'teams.working.reorder', 1,
+        'teams.working.reorder',
+        1,
         '把第三槽角色换到第一槽后，该角色按主 C、原第一槽角色按副 C 评分，分数与网页拖拽后的两张卡一致',
         'browser-parity',
         ok ? 'PASS' : 'FAIL',
-        `网页拖拽(合成鼠标事件) [${SIM_TEAM.join(',')}] → [${order.join(',')}](槽位交换);槽0 ${SIM_TEAM[2]}(主C)=${web0} vs MCP ${mcp0};槽1 ${SIM_TEAM[1]}(副C)=${web1} vs MCP ${mcp1}`,
+        `网页拖拽(合成鼠标事件) [${SIM_TEAM.join(',')}] → [${order.join(',')}](槽位交换);槽0 ${SIM_TEAM[2]}(主C)=${web0} vs MCP ${mcp0};槽1 ${
+          SIM_TEAM[1]
+        }(副C)=${web1} vs MCP ${mcp1}`,
       )
     })
   }
@@ -700,15 +730,21 @@ try {
       const webTeams = teamsOf(harvest)
       const savedUnchanged = webTeams.length === 2 && webTeams.map(teamEntrySummary)
         .every((t, i) => t.name === (i === 0 ? 'Probe One' : 'Probe Two'))
-      const mcpSaved = (mcpSave.savedSession?.global?.teamShowcaseSavedTeams ?? [])
-      const savedEqual = JSON.stringify(webTeams.map((t) => ({ n: t.name, c: t.characterIds }))) === JSON.stringify(mcpSaved.map((t) => ({ n: t.name, c: t.characterIds })))
+      const mcpSaved = mcpSave.savedSession?.global?.teamShowcaseSavedTeams ?? []
+      const savedEqual =
+        JSON.stringify(webTeams.map((t) => ({ n: t.name, c: t.characterIds }))) === JSON.stringify(mcpSaved.map((t) => ({ n: t.name, c: t.characterIds })))
       record(
-        'teams.working.clear', 1,
+        'teams.working.clear',
+        1,
         '清空后读到的工作队伍四槽皆空、没有基准快照，已保存队伍列表不变',
         'browser-parity',
         clear === 'clicked' && emptySlots && savedUnchanged && savedEqual
-          && mcpCleared.characterIds.every((id) => id === null) && mcpCleared.hasBenchmarkSnapshot === false ? 'PASS' : 'FAIL',
-        `网页清空后四卡皆空:${emptySlots},已保存队伍不变(2支,与 MCP export 一致:${savedEqual});MCP compose clear → 四槽 null/无快照:${mcpCleared.characterIds.every((id) => id === null)}/${mcpCleared.hasBenchmarkSnapshot === false}`,
+          && mcpCleared.characterIds.every((id) => id === null) && mcpCleared.hasBenchmarkSnapshot === false
+          ? 'PASS'
+          : 'FAIL',
+        `网页清空后四卡皆空:${emptySlots},已保存队伍不变(2支,与 MCP export 一致:${savedEqual});MCP compose clear → 四槽 null/无快照:${
+          mcpCleared.characterIds.every((id) => id === null)
+        }/${mcpCleared.hasBenchmarkSnapshot === false}`,
       )
     })
   }
@@ -729,22 +765,28 @@ try {
       await page.evaluate(CLICK_TEAM_TILE, ['Probe One'])
       await sleep(3500)
       // reveal the overlay by focusing the slot-0 card options target, then open the Benchmark select
-      await page.evaluate(`() => { const t = [...document.querySelectorAll('${PANEL} [aria-label^="Card options"]')].filter((b) => b.offsetParent !== null)[0]; t.focus(); return true }`)
+      await page.evaluate(
+        `() => { const t = [...document.querySelectorAll('${PANEL} [aria-label^="Card options"]')].filter((b) => b.offsetParent !== null)[0]; t.focus(); return true }`,
+      )
       await sleep(700)
       const opened = await page.evaluate(SET_SLOT_SCORING, ['Substat Rolls'])
       await sleep(700)
-      const picked = await page.evaluate(`(text) => {
+      const picked = await page.evaluate(
+        `(text) => {
         const opts = [...document.querySelectorAll('[role=option]')].filter((o) => o.offsetParent !== null)
         const hit = opts.find((o) => o.textContent.trim() === text)
         if (!hit) return 'option-not-found:' + opts.map((o) => o.textContent.trim()).slice(0, 5).join('|')
         hit.click()
         return 'picked'
-      }`, ['Substat Rolls'])
+      }`,
+        ['Substat Rolls'],
+      )
       await sleep(1500)
       const harvest = await page.evaluate(HARVEST)
       const webValue = harvest.showcasePreferences?.[J]?.scoringType
       record(
-        'teams.slot.scoringType', 1,
+        'teams.slot.scoringType',
+        1,
         '在队伍面板把某槽位切到副词条评分后，两边存档里该角色的 showcasePreferences.scoringType 都是 1',
         'browser-parity',
         opened === 'opened' && picked === 'picked' && webValue === 1 && mcpValue === 1 && updated.updated === true ? 'PASS' : 'FAIL',
@@ -784,11 +826,14 @@ try {
         && webNew.id !== mcpNewTeam.id
         && webTeams.length === 2
       record(
-        'teams.saved.save', 1,
+        'teams.saved.save',
+        1,
         '保存同样的四槽后，两边存档的 teamShowcaseSavedTeams 末尾多出的队伍除 id 外一致',
         'browser-parity',
         change === 'clicked' && pick === 'picked' && save === 'clicked' && same ? 'PASS' : 'FAIL',
-        `网页把工作队伍改为 [${webNew?.characterIds?.join(',')}] 后保存 → 末尾新增「${webNew?.name}」(id ${webNew?.id?.slice(0, 8)}…);MCP save_team 同槽位 → 「${mcpNewTeam?.name}」(id ${mcpNewTeam?.id?.slice(0, 8)}…);名字/四槽一致,仅 id 不同`,
+        `网页把工作队伍改为 [${webNew?.characterIds?.join(',')}] 后保存 → 末尾新增「${webNew?.name}」(id ${
+          webNew?.id?.slice(0, 8)
+        }…);MCP save_team 同槽位 → 「${mcpNewTeam?.name}」(id ${mcpNewTeam?.id?.slice(0, 8)}…);名字/四槽一致,仅 id 不同`,
       )
     })
 
@@ -815,13 +860,18 @@ try {
       await sleep(2000)
       const harvest = await page.evaluate(HARVEST)
       const webNew = teamsOf(harvest).at(-1)
-      const webMembers = webNew?.benchmarkSnapshot?.members?.map((m) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null])
-      const mcpMembers = mcpNewTeam2?.benchmarkSnapshot?.members?.map((m) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null])
+      const webMembers = webNew?.benchmarkSnapshot?.members?.map((
+        m,
+      ) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null])
+      const mcpMembers = mcpNewTeam2?.benchmarkSnapshot?.members?.map((
+        m,
+      ) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null])
       const same = webNew && mcpNewTeam2 && webNew.name === mcpNewTeam2.name
         && JSON.stringify(webNew.characterIds) === JSON.stringify(mcpNewTeam2.characterIds)
         && JSON.stringify(webMembers) === JSON.stringify(mcpMembers)
       record(
-        'teams.saved.save', 2,
+        'teams.saved.save',
+        2,
         '带着已同步的基准保存时，两边队伍里的 benchmarkSnapshot 一致',
         'browser-parity',
         change === 'clicked' && save === 'clicked' && same ? 'PASS' : 'FAIL',
@@ -847,19 +897,32 @@ try {
       const webTeams = teamsOf(harvest)
       const namesOk = JSON.stringify(sidebar) === JSON.stringify(['Probe One', 'Probe Two', 'Probe Three'])
       const listOk = listed.total === 3 && listed.teams.length === 3
-        && listed.teams.every((t, i) => t.name === webTeams[i].name
+        && listed.teams.every((t, i) =>
+          t.name === webTeams[i].name
           && JSON.stringify(t.characterIds) === JSON.stringify(webTeams[i].characterIds)
-          && t.hasBenchmarkSnapshot === (webTeams[i].benchmarkSnapshot != null))
+          && t.hasBenchmarkSnapshot === (webTeams[i].benchmarkSnapshot != null)
+        )
         && JSON.stringify(listed.teams.map((t) => t.id)) === JSON.stringify(webTeams.map((t) => t.id))
       const snapOk = listed.teams[1].benchmarkSnapshot != null
-        && JSON.stringify(listed.teams[1].benchmarkSnapshot.members.map((m) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null]))
-          === JSON.stringify((webTeams[1].benchmarkSnapshot?.members ?? []).map((m) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null]))
+        && JSON.stringify(
+            listed.teams[1].benchmarkSnapshot.members.map((
+              m,
+            ) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null]),
+          )
+          === JSON.stringify(
+            (webTeams[1].benchmarkSnapshot?.members ?? []).map((
+              m,
+            ) => [m.characterId, m.lightCone, m.characterEidolon, m.lightConeSuperimposition, m.teamRelicSet ?? null, m.teamOrnamentSet ?? null]),
+          )
       record(
-        'teams.saved.list', 1,
+        'teams.saved.list',
+        1,
         'list_teams 返回的队伍数量、顺序、名字、四槽角色与基准快照，和侧栏列表及存档内容一致',
         'browser-parity',
         namesOk && listOk && snapOk ? 'PASS' : 'FAIL',
-        `侧栏=[${sidebar.join(',')}] 与 list_teams 顺序/名字一致:${namesOk};四槽/快照标志/快照成员与页面自身落盘一致:${listOk && snapOk}(第二支带快照,第三支含两个空槽)`,
+        `侧栏=[${sidebar.join(',')}] 与 list_teams 顺序/名字一致:${namesOk};四槽/快照标志/快照成员与页面自身落盘一致:${
+          listOk && snapOk
+        }(第二支带快照,第三支含两个空槽)`,
       )
     })
   }
@@ -886,11 +949,14 @@ try {
       const slotsOk = JSON.stringify(cards.map((c) => c.charId)) === JSON.stringify(loadRes.workingTeam.characterIds)
       const charOk = webChar && mcpChar && JSON.stringify(webChar.form) === JSON.stringify(mcpChar.form)
       record(
-        'teams.saved.load', 1,
+        'teams.saved.load',
+        1,
         '载入一支含未拥有角色的队伍后，两边存档的 characters 都多出该角色，返回的四槽与网页一致',
         'browser-parity',
         tile === 'clicked' && slotsOk && charOk ? 'PASS' : 'FAIL',
-        `网页载入 → 四卡=[${cards.map((c) => c.charId).join(',')}] 与 MCP manage_team(load) 一致:${slotsOk};存档新增 ${UNOWNED} 的条目 form 与 MCP export 完全一致:${charOk}`,
+        `网页载入 → 四卡=[${
+          cards.map((c) => c.charId).join(',')
+        }] 与 MCP manage_team(load) 一致:${slotsOk};存档新增 ${UNOWNED} 的条目 form 与 MCP export 完全一致:${charOk}`,
       )
     })
 
@@ -932,11 +998,14 @@ try {
       const mcpNoSnapshot = loadBad.workingTeam.hasBenchmarkSnapshot === false
       // unsynced scoring on the surviving cards proves the working team carries no snapshot
       record(
-        'teams.saved.load', 2,
+        'teams.saved.load',
+        2,
         '队伍里有一个元数据中不存在的角色 id 时，该槽位为空且不带基准快照',
         'browser-parity',
         tile === 'clicked' && slotsOk && rosterUnchanged && mcpNoSnapshot ? 'PASS' : 'FAIL',
-        `网页载入含未知 id 9999 的队伍 → 第2槽空卡(四卡=[${cards.map((c) => c.charId).join(',')}]),9999 不进角色列表:${rosterUnchanged};MCP load → 槽位 [${loadBad.workingTeam.characterIds.join(',')}],hasBenchmarkSnapshot=${loadBad.workingTeam.hasBenchmarkSnapshot}(槽位失配即弃快照)`,
+        `网页载入含未知 id 9999 的队伍 → 第2槽空卡(四卡=[${cards.map((c) => c.charId).join(',')}]),9999 不进角色列表:${rosterUnchanged};MCP load → 槽位 [${
+          loadBad.workingTeam.characterIds.join(',')
+        }],hasBenchmarkSnapshot=${loadBad.workingTeam.hasBenchmarkSnapshot}(槽位失配即弃快照)`,
       )
     })
   }
@@ -963,9 +1032,11 @@ try {
       await sleep(2000)
       const harvest = await page.evaluate(HARVEST)
       const webTeams = teamsOf(harvest)
-      const equal = JSON.stringify(webTeams.map(teamEntrySummary)) === JSON.stringify((mcpSave.savedSession?.global?.teamShowcaseSavedTeams ?? []).map(teamEntrySummary))
+      const equal =
+        JSON.stringify(webTeams.map(teamEntrySummary)) === JSON.stringify((mcpSave.savedSession?.global?.teamShowcaseSavedTeams ?? []).map(teamEntrySummary))
       record(
-        'teams.saved.rename', 1,
+        'teams.saved.rename',
+        1,
         'save_team(teamId, name) 之后的存档与网页行内重命名为同一名字后的存档一致，槽位与基准快照不变',
         'browser-parity',
         start === 'clicked' && commit === 'committed' && equal && renamed.team.name === 'Renamed Two' ? 'PASS' : 'FAIL',
@@ -991,22 +1062,29 @@ try {
     await browserManager.runTask({ label: 'verify(teams-g11)', seed: seed.seed, timeoutMs: 600_000 }, async (page) => {
       await openTeamsPanel(page, seed.seed)
       // delete the SECOND tile's team (delete icons appear in tile order)
-      const del = await page.evaluate(`(nth) => {
+      const del = await page.evaluate(
+        `(nth) => {
         const btns = [...document.querySelectorAll('${PANEL} button[aria-label="Delete team"]')].filter((b) => b.offsetParent !== null)
         if (!btns[nth]) return 'not-found/' + btns.length
         btns[nth].click()
         return 'clicked'
-      }`, [1])
+      }`,
+        [1],
+      )
       await sleep(2000)
       const harvest = await page.evaluate(HARVEST)
       const webTeams = teamsOf(harvest)
-      const equal = JSON.stringify(webTeams.map(teamEntrySummary)) === JSON.stringify((mcpSave.savedSession?.global?.teamShowcaseSavedTeams ?? []).map(teamEntrySummary))
+      const equal =
+        JSON.stringify(webTeams.map(teamEntrySummary)) === JSON.stringify((mcpSave.savedSession?.global?.teamShowcaseSavedTeams ?? []).map(teamEntrySummary))
       record(
-        'teams.saved.delete', 1,
+        'teams.saved.delete',
+        1,
         '删除一支队伍后两边存档的 teamShowcaseSavedTeams 一致，其余队伍顺序不变',
         'browser-parity',
         del === 'clicked' && equal && webTeams.length === 2 ? 'PASS' : 'FAIL',
-        `网页删除第二支后剩 [${webTeams.map((t) => t.name).join(',')}];MCP manage_team(delete) 后剩 [${(mcpSave.savedSession?.global?.teamShowcaseSavedTeams ?? []).map((t) => t.name).join(',')}];两侧队伍表逐项一致:${equal};返回 remainingTeamIds=${deleted.remainingTeamIds.length} 支`,
+        `网页删除第二支后剩 [${webTeams.map((t) => t.name).join(',')}];MCP manage_team(delete) 后剩 [${
+          (mcpSave.savedSession?.global?.teamShowcaseSavedTeams ?? []).map((t) => t.name).join(',')
+        }];两侧队伍表逐项一致:${equal};返回 remainingTeamIds=${deleted.remainingTeamIds.length} 支`,
       )
     })
   }
@@ -1032,9 +1110,11 @@ try {
       const harvest = await page.evaluate(HARVEST)
       const webTeams = teamsOf(harvest)
       const webOrder = webTeams.map((t) => t.name)
-      const equal = JSON.stringify(webTeams.map(teamEntrySummary)) === JSON.stringify((mcpSave.savedSession?.global?.teamShowcaseSavedTeams ?? []).map(teamEntrySummary))
+      const equal =
+        JSON.stringify(webTeams.map(teamEntrySummary)) === JSON.stringify((mcpSave.savedSession?.global?.teamShowcaseSavedTeams ?? []).map(teamEntrySummary))
       record(
-        'teams.saved.move', 1,
+        'teams.saved.move',
+        1,
         '把第三支队伍移到最前后，两边存档的 teamShowcaseSavedTeams 顺序一致',
         'browser-parity',
         drag.endsWith('>up') && webOrder[0] === 'Probe Three' && equal ? 'PASS' : 'FAIL',
@@ -1073,14 +1153,16 @@ try {
     const cardsOk = webCards.every((c) => c.charId != null) && JSON.stringify(webCards.map((c) => c.charId)) === JSON.stringify(SIM_TEAM)
     const scoresOk = webCards.every((c) => c.simTitle != null)
     record(
-      'teams.screenshot', 1,
+      'teams.screenshot',
+      1,
       '渲染出的队伍图片尺寸与网页下载的一致，四张卡的角色、分数与顺序相同',
       'browser-parity',
       dimsOk && cardsOk && scoresOk ? 'PASS' : 'FAIL',
-      `网页自身下载按钮捕获 PNG ${webDims?.width}×${webDims?.height} vs MCP render(team_card) ${mcpW}×${mcpH};四卡角色=[${webCards.map((c) => c.charId).join(',')}](带模拟评分 ${webCards.map((c) => parseSimTitle(c.simTitle)).join('/')})`,
+      `网页自身下载按钮捕获 PNG ${webDims?.width}×${webDims?.height} vs MCP render(team_card) ${mcpW}×${mcpH};四卡角色=[${
+        webCards.map((c) => c.charId).join(',')
+      }](带模拟评分 ${webCards.map((c) => parseSimTitle(c.simTitle)).join('/')})`,
     )
   }
-
 } catch (e) {
   console.error('verify-teams: harness error', e)
   process.exitCode = 1
@@ -1184,12 +1266,19 @@ async function rawStdioRenderTeamCard(savePath) {
 }
 
 // ── evidence file ────────────────────────────────────────────────────────────
-writeFileSync(evidencePath, JSON.stringify({
-  area: 'teams',
-  generatedAt: GENERATED_AT,
-  gitCommit: GIT_COMMIT,
-  cases,
-}, null, 2) + '\n')
+writeFileSync(
+  evidencePath,
+  JSON.stringify(
+    {
+      area: 'teams',
+      generatedAt: GENERATED_AT,
+      gitCommit: GIT_COMMIT,
+      cases,
+    },
+    null,
+    2,
+  ) + '\n',
+)
 
 const failed = cases.filter((c) => c.result !== 'PASS').length
 console.log(failed === 0 ? `\nverify-teams: ALL ${cases.length} CASES PASSED` : `\nverify-teams: ${failed} OF ${cases.length} CASES FAILED/UNPROVEN`)

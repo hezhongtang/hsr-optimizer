@@ -400,8 +400,27 @@ function cellMatches(colId, webText, mcpValue) {
 }
 
 const PARITY_COLUMNS = [
-  'xATK', 'xDEF', 'xHP', 'xSPD', 'xCR', 'xCD', 'xEHR', 'xRES', 'xBE', 'xERR',
-  'xELEMENTAL_DMG', 'EHP', 'COMBO', 'BASIC', 'SKILL', 'ULT', 'FUA', 'ATK', 'DEF', 'HP', 'SPD',
+  'xATK',
+  'xDEF',
+  'xHP',
+  'xSPD',
+  'xCR',
+  'xCD',
+  'xEHR',
+  'xRES',
+  'xBE',
+  'xERR',
+  'xELEMENTAL_DMG',
+  'EHP',
+  'COMBO',
+  'BASIC',
+  'SKILL',
+  'ULT',
+  'FUA',
+  'ATK',
+  'DEF',
+  'HP',
+  'SPD',
 ]
 
 /** Row-by-row compare of scraped web rows vs MCP rows ({id, stats}).
@@ -422,22 +441,24 @@ function compareWebRowsToMcp(webRowsIn, mcpRowsFull, columns = PARITY_COLUMNS) {
   // modes hide the other stat family (combat shows x*, basic shows plain), and
   // horizontally virtualized columns can surface as present-but-empty.
   const cols = columns.filter((c) => webRows.some((r) => String(r[c] ?? '').trim() !== ''))
-  const sortKey = (row, isMcp) => cols.map((c) => {
-    const v = isMcp ? row.stats?.[c] : parseDisplayNumber(row[c])
-    const n = typeof v === 'number' && Number.isFinite(v) ? v : (isMcp ? null : v)
-    // web display floors percentages to 2 decimals — quantize MCP the same
-    // way so tied rows sort identically on both sides
-    return n == null ? -Infinity : (colKind(c) === 'x100' ? Math.round(n * 10000) / 10000 : Math.round(n * 100) / 100)
-  })
-  const sorted = (arr, isMcp) => arr
-    .map((row) => ({ row, key: sortKey(row, isMcp) }))
-    .sort((a, b) => {
-      for (let i = 0; i < a.key.length; i++) {
-        if (a.key[i] !== b.key[i]) return a.key[i] < b.key[i] ? -1 : 1
-      }
-      return 0
+  const sortKey = (row, isMcp) =>
+    cols.map((c) => {
+      const v = isMcp ? row.stats?.[c] : parseDisplayNumber(row[c])
+      const n = typeof v === 'number' && Number.isFinite(v) ? v : (isMcp ? null : v)
+      // web display floors percentages to 2 decimals — quantize MCP the same
+      // way so tied rows sort identically on both sides
+      return n == null ? -Infinity : (colKind(c) === 'x100' ? Math.round(n * 10000) / 10000 : Math.round(n * 100) / 100)
     })
-    .map((e) => e.row)
+  const sorted = (arr, isMcp) =>
+    arr
+      .map((row) => ({ row, key: sortKey(row, isMcp) }))
+      .sort((a, b) => {
+        for (let i = 0; i < a.key.length; i++) {
+          if (a.key[i] !== b.key[i]) return a.key[i] < b.key[i] ? -1 : 1
+        }
+        return 0
+      })
+      .map((e) => e.row)
   const web = sorted(webRows, false)
   const mcp = sorted(mcpRows, true)
   for (let i = 0; i < web.length; i++) {
@@ -787,7 +808,8 @@ const FN_CLICK_BUTTON_TEXT = `(text) => {
  * the statSim segmented control and its Simulate/Import buttons). Returns the
  * element's trimmed text, or null when no target was found. */
 async function trustedClickText(page, text) {
-  const found = await page.evaluate(`(text) => {
+  const found = await page.evaluate(
+    `(text) => {
     const visible = Array.from(document.querySelectorAll('button, label'))
       // disabled == null excludes BOTH aria-style disabled="true" and the
       // native disabled="" attribute (Mantine's disabled prop) — clicking a
@@ -797,7 +819,9 @@ async function trustedClickText(page, text) {
     const el = visible[visible.length - 1]
     el.setAttribute('data-vtrusted', '1')
     return (el.textContent || '').trim().slice(0, 60)
-  }`, [text])
+  }`,
+    [text],
+  )
   if (found == null) return null
   await page.click('[data-vtrusted="1"]', { timeoutMs: 15_000 })
   await page.evaluate(`() => document.querySelectorAll('[data-vtrusted]').forEach((b) => b.removeAttribute('data-vtrusted'))`)
@@ -860,12 +884,15 @@ const FN_HEADER_SORT_STATE = `(colId) => {
 /** Trusted CDP click on an ag-grid header cell — synthetic pointer events do
  * not reliably activate the header sort. Mirrors trustedClickText. */
 async function trustedHeaderSort(page, colId) {
-  const found = await page.evaluate(`(colId) => {
+  const found = await page.evaluate(
+    `(colId) => {
     const cell = Array.from(document.querySelectorAll('.ag-header-cell')).find((c) => c.getAttribute('col-id') === colId)
     if (!cell) return false
     cell.setAttribute('data-vhsort', '1')
     return true
-  }`, [colId])
+  }`,
+    [colId],
+  )
   if (!found) return
   await page.click('[data-vhsort="1"]', { timeoutMs: 15_000 }).catch(() => {})
   await page.evaluate(`() => document.querySelectorAll('[data-vhsort]').forEach((b) => b.removeAttribute('data-vhsort'))`)
@@ -873,7 +900,8 @@ async function trustedHeaderSort(page, colId) {
 
 /** Trusted CDP click on an ag-grid pager control (next/prev/first/pageNo). */
 async function trustedPagerClick(page, which) {
-  const target = await page.evaluate(`(which) => {
+  const target = await page.evaluate(
+    `(which) => {
     const panel = document.querySelector('.ag-paging-panel')
     if (!panel) return { ok: false, labels: [] }
     const controls = Array.from(panel.querySelectorAll('[role="button"], button'))
@@ -886,7 +914,9 @@ async function trustedPagerClick(page, which) {
     if (idx === -1) return { ok: false, labels }
     controls[idx].setAttribute('data-vpage', '1')
     return { ok: true, labels }
-  }`, [which])
+  }`,
+    [which],
+  )
   if (target?.ok) {
     await page.click('[data-vpage="1"]', { timeoutMs: 15_000 }).catch(() => {})
     await page.evaluate(`() => document.querySelectorAll('[data-vpage]').forEach((b) => b.removeAttribute('data-vpage'))`)
@@ -1073,15 +1103,51 @@ function normalizeStartArtifactWeights(form) {
 }
 
 const FORM_COMPARE_KEYS = [
-  'characterId', 'characterEidolon', 'characterLevel', 'lightCone', 'lightConeLevel',
-  'lightConeSuperimposition', 'resultSort', 'resultsLimit', 'statDisplay', 'memoDisplay',
-  'enemyCount', 'enemyLevel', 'enemyResistance', 'enemyEffectResistance', 'enemyMaxToughness',
-  'enemyElementalWeak', 'enemyWeaknessBroken', 'minSpd', 'maxSpd', 'minCr', 'maxCr', 'minCd', 'maxCd',
-  'mainBody', 'mainFeet', 'mainPlanarSphere', 'mainLinkRope', 'setFilters', 'weights',
-  'combatBuffs', 'characterConditionals', 'lightConeConditionals', 'comboType',
-  'comboTurnAbilities', 'comboPreprocessor', 'rank', 'exclude', 'includeEquippedRelics',
-  'rankFilter', 'keepCurrentRelics', 'enhance', 'grade', 'mainStatUpscaleLevel',
-  'deprioritizeBuffs', 'setConditionals',
+  'characterId',
+  'characterEidolon',
+  'characterLevel',
+  'lightCone',
+  'lightConeLevel',
+  'lightConeSuperimposition',
+  'resultSort',
+  'resultsLimit',
+  'statDisplay',
+  'memoDisplay',
+  'enemyCount',
+  'enemyLevel',
+  'enemyResistance',
+  'enemyEffectResistance',
+  'enemyMaxToughness',
+  'enemyElementalWeak',
+  'enemyWeaknessBroken',
+  'minSpd',
+  'maxSpd',
+  'minCr',
+  'maxCr',
+  'minCd',
+  'maxCd',
+  'mainBody',
+  'mainFeet',
+  'mainPlanarSphere',
+  'mainLinkRope',
+  'setFilters',
+  'weights',
+  'combatBuffs',
+  'characterConditionals',
+  'lightConeConditionals',
+  'comboType',
+  'comboTurnAbilities',
+  'comboPreprocessor',
+  'rank',
+  'exclude',
+  'includeEquippedRelics',
+  'rankFilter',
+  'keepCurrentRelics',
+  'enhance',
+  'grade',
+  'mainStatUpscaleLevel',
+  'deprioritizeBuffs',
+  'setConditionals',
 ]
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1242,7 +1308,11 @@ async function scenarioCharacterSwitch() {
     const mismatches = formsEqual(getForm.form, webBronya.form, FORM_COMPARE_KEYS)
     const rankOk = getForm.form.rank === web.harvested.characters.findIndex((c) => c.id === OTHER)
     if (mismatches.length || !rankOk) {
-      return fail(`form mismatch: ${mismatches.slice(0, 3).join('; ')}${rankOk ? '' : `; rank mcp=${getForm.form.rank} web=${web.harvested.characters.findIndex((c) => c.id === OTHER)}`}`)
+      return fail(
+        `form mismatch: ${mismatches.slice(0, 3).join('; ')}${
+          rankOk ? '' : `; rank mcp=${getForm.form.rank} web=${web.harvested.characters.findIndex((c) => c.id === OTHER)}`
+        }`,
+      )
     }
     return ok(`rank=${getForm.form.rank}, ${FORM_COMPARE_KEYS.length} fields equal (web leg persisted via its own character switch)`)
   })
@@ -1284,11 +1354,19 @@ async function scenarioCharacterSwitch() {
 
     await loadBase()
     const def = await call('default_form', { characterId: '1402', lightConeId: CONE })
-    const { mismatches, present, defaulted } = webArtifactMatches(normalizeStartArtifactWeights(webAglaea.form), normalizeStartArtifactWeights(def.form), def.form)
+    const { mismatches, present, defaulted } = webArtifactMatches(
+      normalizeStartArtifactWeights(webAglaea.form),
+      normalizeStartArtifactWeights(def.form),
+      def.form,
+    )
     if (mismatches.length) return fail(`default form mismatch: ${mismatches.slice(0, 3).join('; ')}`)
     const coneOk = webAglaea.form.lightCone === CONE
     if (!coneOk) return fail(`web cone=${webAglaea.form.lightCone} expected ${CONE}`)
-    return ok(`${present} stored fields equal + ${defaulted} web-omitted defaults materialize correctly (cone ${CONE}); web roster position ${web.characters.findIndex((c) => c.id === '1402')}`)
+    return ok(
+      `${present} stored fields equal + ${defaulted} web-omitted defaults materialize correctly (cone ${CONE}); web roster position ${
+        web.characters.findIndex((c) => c.id === '1402')
+      }`,
+    )
   })
 
   // c3: update_state(session.optimizerCharacterId) → web re-open shows that character
@@ -1388,13 +1466,19 @@ async function scenarioFormRead() {
             const nz = Object.fromEntries(Object.entries(getForm.form.combatBuffs ?? {}).filter(([, v]) => v !== 0 && v !== undefined))
             if (Object.keys(nz).length > 0) problems.push(`default:combatBuffs nonzero ${JSON.stringify(nz)}`)
           } else {
-            problems.push(`default:${key} mcp=${a?.slice(0, 50)} def=${JSON.stringify(defaults.form[key])?.slice(0, 50)} web=${JSON.stringify(ctx.formReadWeb?.[key])?.slice(0, 50)}`)
+            problems.push(
+              `default:${key} mcp=${a?.slice(0, 50)} def=${JSON.stringify(defaults.form[key])?.slice(0, 50)} web=${
+                JSON.stringify(ctx.formReadWeb?.[key])?.slice(0, 50)
+              }`,
+            )
           }
         }
       }
     }
     if (problems.length) return fail(problems.slice(0, 3).join('; '))
-    return ok(`${savedFields} saved fields preserve every save key (+${paddedKeys} padded conditional defaults), ${defaultFields} default fields equal fresh-or-web defaults, ${legacy.size} legacy keys dropped as documented`)
+    return ok(
+      `${savedFields} saved fields preserve every save key (+${paddedKeys} padded conditional defaults), ${defaultFields} default fields equal fresh-or-web defaults, ${legacy.size} legacy keys dropped as documented`,
+    )
   })
 }
 
@@ -1421,7 +1505,11 @@ async function scenarioFormPersist() {
       return s === 'saved' || (k === 'combatBuffs' && s === undefined)
     })
     if (!checks.every(Boolean) || !srcOk) {
-      return fail(`patch round trip: checks=${JSON.stringify(checks)} src=${JSON.stringify(Object.fromEntries(Object.entries(sources).filter(([k]) => ['minSpd', 'enemyCount', 'mainBody'].includes(k))))}`)
+      return fail(
+        `patch round trip: checks=${JSON.stringify(checks)} src=${
+          JSON.stringify(Object.fromEntries(Object.entries(sources).filter(([k]) => ['minSpd', 'enemyCount', 'mainBody'].includes(k))))
+        }`,
+      )
     }
     return ok('patched fields round-trip via get_form and are marked saved')
   })
@@ -1452,9 +1540,18 @@ async function scenarioFormPersist() {
     await call('optimize', { characterId: TARGET, resultsLimit: 1 }, { timeout: 300_000 })
     const snap = (await call('export_save', { structured: true })).snapshot
     const mcpForm = snap.characters.find((c) => c.id === TARGET)?.form
-    const mismatches = formsEqual(normalizeStartArtifactWeights(mcpForm), normalizeStartArtifactWeights(webForm), ['minSpd', 'enemyCount', 'combatBuffs', 'mainBody', 'weights', 'resultSort'])
+    const mismatches = formsEqual(normalizeStartArtifactWeights(mcpForm), normalizeStartArtifactWeights(webForm), [
+      'minSpd',
+      'enemyCount',
+      'combatBuffs',
+      'mainBody',
+      'weights',
+      'resultSort',
+    ])
     if (mismatches.length) return fail(mismatches.join('; '))
-    return ok(`characters[].form identical after web-Start vs MCP update_form (${mcpForm.minSpd}, enemyCount=${mcpForm.enemyCount}, ATK_P=${mcpForm.combatBuffs?.ATK_P}; flat weights normalized by the engine's own percent×0.4 rewrite)`)
+    return ok(
+      `characters[].form identical after web-Start vs MCP update_form (${mcpForm.minSpd}, enemyCount=${mcpForm.enemyCount}, ATK_P=${mcpForm.combatBuffs?.ATK_P}; flat weights normalized by the engine's own percent×0.4 rewrite)`,
+    )
   })
 
   await runCase('optimizer.form.persist', 3, 'browser-parity', async () => {
@@ -1567,15 +1664,16 @@ async function scenarioFormCharacter() {
     }
     // Behavioral spot check: S1 vs S5 equipped row ATK/HP/DEF deltas equal the
     // MCP simulate deltas for the same cones (panel stats track base+passive).
-    const mk = (sup) => bakeSave((s) => {
-      const f = charForm(s)
-      f.lightCone = coneId
-      f.lightConeSuperimposition = sup
-      f.resultsLimit = 1
-      f.keepCurrentRelics = true
-      f.statFilters = {}
-      s.savedSession.global.optimizerCharacterId = TARGET
-    })
+    const mk = (sup) =>
+      bakeSave((s) => {
+        const f = charForm(s)
+        f.lightCone = coneId
+        f.lightConeSuperimposition = sup
+        f.resultsLimit = 1
+        f.keepCurrentRelics = true
+        f.statFilters = {}
+        s.savedSession.global.optimizerCharacterId = TARGET
+      })
     const run1 = await webTask('cone-s1', mk(1).state, async (p) => {
       await bootOptimizer(p)
       await startAndWait(p)
@@ -1587,13 +1685,21 @@ async function scenarioFormCharacter() {
       return (await p.evaluate(FN_SCRAPE_PINNED))[0] ?? null
     })
     await loadBase()
-    const sim1 = await call('simulate_build', { characterId: TARGET, formOverrides: { lightCone: coneId, lightConeSuperimposition: 1, keepCurrentRelics: true, statFilters: {} } })
-    const sim5 = await call('simulate_build', { characterId: TARGET, formOverrides: { lightCone: coneId, lightConeSuperimposition: 5, keepCurrentRelics: true, statFilters: {} } })
+    const sim1 = await call('simulate_build', {
+      characterId: TARGET,
+      formOverrides: { lightCone: coneId, lightConeSuperimposition: 1, keepCurrentRelics: true, statFilters: {} },
+    })
+    const sim5 = await call('simulate_build', {
+      characterId: TARGET,
+      formOverrides: { lightCone: coneId, lightConeSuperimposition: 5, keepCurrentRelics: true, statFilters: {} },
+    })
     const webComboDelta = parseDisplayNumber(run5?.COMBO) - parseDisplayNumber(run1?.COMBO)
     const mcpComboDelta = sim5.stats.combo.damage - sim1.stats.combo.damage
     const deltaOk = Math.abs(webComboDelta - mcpComboDelta) <= Math.max(2, Math.abs(mcpComboDelta) * 1e-5)
     if (!deltaOk) return fail(`S1→S5 equipped-COMBO delta web=${webComboDelta} mcp=${mcpComboDelta}`)
-    return ok(`S1→S5 equipped-row COMBO delta web=${webComboDelta.toLocaleString()} = mcp ${mcpComboDelta.toLocaleString()} (superimposition scaling reaches both engines); 5 superimposition rows`)
+    return ok(
+      `S1→S5 equipped-row COMBO delta web=${webComboDelta.toLocaleString()} = mcp ${mcpComboDelta.toLocaleString()} (superimposition scaling reaches both engines); 5 superimposition rows`,
+    )
   })
 }
 
@@ -1603,9 +1709,14 @@ async function scenarioFormTarget() {
 
   await runCase('optimizer.form.target', 1, 'browser-parity', async () => {
     const combo = await webRunRows('target-combo', null, null, { resultsLimit: 50, scrapeCount: 1 })
-    const spd = await webRunRows('target-spd', (f) => {
-      f.resultSort = 'SPD'
-    }, { resultSort: 'SPD' }, { resultsLimit: 50, scrapeCount: 1 })
+    const spd = await webRunRows(
+      'target-spd',
+      (f) => {
+        f.resultSort = 'SPD'
+      },
+      { resultSort: 'SPD' },
+      { resultsLimit: 50, scrapeCount: 1 },
+    )
     // the grid renders the form's statDisplay view (basic columns here)
     const spdCol = 'xSPD' in (spd.web.rows[0] ?? {}) ? 'xSPD' : 'SPD'
     const comboOk = combo.rowCmp.ok && combo.web.rows[0]?.COMBO != null
@@ -1618,10 +1729,18 @@ async function scenarioFormTarget() {
     if (!comboOk || !spdOk) {
       // include the rowCmp verdicts — a bare boolean hides WHICH column or
       // row count diverged, and the row0 JSON alone gets truncated away
-      return fail(`comboOk=${comboOk} (${combo.rowCmp.detail}) spdOk=${spdOk} (${spd.rowCmp.detail}); combo row0=${JSON.stringify(combo.web.rows[0]).slice(0, 100)}; spd row0=${JSON.stringify(spd.web.rows[0]).slice(0, 100)}`)
+      return fail(
+        `comboOk=${comboOk} (${combo.rowCmp.detail}) spdOk=${spdOk} (${spd.rowCmp.detail}); combo row0=${
+          JSON.stringify(combo.web.rows[0]).slice(0, 100)
+        }; spd row0=${JSON.stringify(spd.web.rows[0]).slice(0, 100)}`,
+      )
     }
     if (!spdTopGreater) return fail(`SPD-sorted web top row not faster than COMBO-sorted top (spd=${spd.web.rows[0]?.xSPD} combo=${combo.web.rows[0]?.xSPD})`)
-    return ok(`COMBO top web=${combo.web.rows[0].COMBO} mcp=${combo.mcpOverrides.rows[0].stats.COMBO}; ${spdCol} top web=${spd.web.rows[0][spdCol]} mcp=${spd.mcpOverrides.rows[0].stats[spdCol]}`)
+    return ok(
+      `COMBO top web=${combo.web.rows[0].COMBO} mcp=${combo.mcpOverrides.rows[0].stats.COMBO}; ${spdCol} top web=${spd.web.rows[0][spdCol]} mcp=${
+        spd.mcpOverrides.rows[0].stats[spdCol]
+      }`,
+    )
   })
 
   await runCase('optimizer.form.target', 2, 'browser-parity', async () => {
@@ -1652,14 +1771,30 @@ async function scenarioFormOptions() {
 
   await runCase('optimizer.form.options', 1, 'browser-parity', async () => {
     const variants = [
-      ['includeEquippedOff', (f) => { f.includeEquippedRelics = false }, { includeEquippedRelics: false }],
-      ['rankFilterOff', (f) => { f.rankFilter = false }, { rankFilter: false }],
-      ['keepCurrentOn', (f) => { f.keepCurrentRelics = true }, { keepCurrentRelics: true }],
-      ['excludeBronya', (f) => { f.exclude = [OTHER] }, { exclude: [OTHER] }],
-      ['enhance12', (f) => { f.enhance = 12 }, { enhance: 12 }],
-      ['grade4', (f) => { f.grade = 4 }, { grade: 4 }],
-      ['upscale0', (f) => { f.mainStatUpscaleLevel = 0 }, { mainStatUpscaleLevel: 0 }],
-      ['deprioritizeOn', (f) => { f.deprioritizeBuffs = true }, { deprioritizeBuffs: true }],
+      ['includeEquippedOff', (f) => {
+        f.includeEquippedRelics = false
+      }, { includeEquippedRelics: false }],
+      ['rankFilterOff', (f) => {
+        f.rankFilter = false
+      }, { rankFilter: false }],
+      ['keepCurrentOn', (f) => {
+        f.keepCurrentRelics = true
+      }, { keepCurrentRelics: true }],
+      ['excludeBronya', (f) => {
+        f.exclude = [OTHER]
+      }, { exclude: [OTHER] }],
+      ['enhance12', (f) => {
+        f.enhance = 12
+      }, { enhance: 12 }],
+      ['grade4', (f) => {
+        f.grade = 4
+      }, { grade: 4 }],
+      ['upscale0', (f) => {
+        f.mainStatUpscaleLevel = 0
+      }, { mainStatUpscaleLevel: 0 }],
+      ['deprioritizeOn', (f) => {
+        f.deprioritizeBuffs = true
+      }, { deprioritizeBuffs: true }],
     ]
     const failures = []
     for (const [name, mut, overrides] of variants) {
@@ -1673,16 +1808,19 @@ async function scenarioFormOptions() {
   await runCase('optimizer.form.options', 2, 'browser-parity', async () => {
     // Permutation parity for the option is covered above; the row-level claim
     // is asserted on the MCP rows and cross-checked by a seeded web run.
-    const r = await webRunRows('equipped-off-rows', (f) => {
-      f.includeEquippedRelics = false
-    }, { includeEquippedRelics: false }, { resultsLimit: 20, scrapeCount: 10 })
+    const r = await webRunRows(
+      'equipped-off-rows',
+      (f) => {
+        f.includeEquippedRelics = false
+      },
+      { includeEquippedRelics: false },
+      { resultsLimit: 20, scrapeCount: 10 },
+    )
     // MCP: every row's build relics must be relics not equipped by OTHERS
     // (applyEquippedFilter blacklists other characters' equipped relics only —
     // the optimizer may keep using the character's own equipped gear)
     const equippedBy = new Set(baseSave.relics.filter((x) => x.equippedBy && x.equippedBy !== TARGET).map((x) => x.id))
-    const violators = r.mcpOverrides.rows.filter((row) =>
-      Object.values(row.build.relics ?? {}).some((relic) => equippedBy.has(relic?.id)),
-    )
+    const violators = r.mcpOverrides.rows.filter((row) => Object.values(row.build.relics ?? {}).some((relic) => equippedBy.has(relic?.id)))
     if (violators.length) return fail(`${violators.length} rows contain relics equipped by others`)
     if (!r.rowCmp.ok) return fail(`web rows differ: ${r.rowCmp.detail}`)
     return ok(`${r.mcpOverrides.rows.length} rows × 6 relics, none equipped by other characters; web run matches`)
@@ -1746,7 +1884,10 @@ async function scenarioFormMainStats() {
       f.mainFeet = ['SPD']
     }
     const perm = await permParity('mainstats', (s) => mut(charForm(s)), { mainBody: ['CRIT Rate', 'CRIT DMG'], mainFeet: ['SPD'] })
-    const run = await webRunRows('mainstats-rows', (f) => mut(f), { mainBody: ['CRIT Rate', 'CRIT DMG'], mainFeet: ['SPD'] }, { resultsLimit: 16, scrapeCount: 6 })
+    const run = await webRunRows('mainstats-rows', (f) => mut(f), { mainBody: ['CRIT Rate', 'CRIT DMG'], mainFeet: ['SPD'] }, {
+      resultsLimit: 16,
+      scrapeCount: 6,
+    })
     if (perm.diffs.length) return fail(`perms: ${perm.diffs.join('; ')}`)
     if (!run.rowCmp.ok) return fail(`rows: ${run.rowCmp.detail}`)
     // MCP: row mains within limits
@@ -1755,7 +1896,11 @@ async function scenarioFormMainStats() {
       const feet = row.build.relics?.Feet
       return !(body && ['CRIT Rate', 'CRIT DMG'].includes(body.main.stat)) || !(feet && feet.main.stat === 'SPD')
     })
-    if (bad.length) return fail(`${bad.length} rows have out-of-range main stats (e.g. body=${JSON.stringify(run.mcpOverrides.rows[0].build.relics?.Body?.main)?.slice(0, 80)})`)
+    if (bad.length) {
+      return fail(
+        `${bad.length} rows have out-of-range main stats (e.g. body=${JSON.stringify(run.mcpOverrides.rows[0].build.relics?.Body?.main)?.slice(0, 80)})`,
+      )
+    }
     return ok(`part counts match; ${run.mcpOverrides.rows.length} rows all within main-stat limits`)
   })
 }
@@ -1816,7 +1961,11 @@ async function scenarioFormSetFilters() {
     if (display.validPermutations !== internal.validPermutations) {
       return fail(`display=${display.validPermutations} internal=${internal.validPermutations}`)
     }
-    const runD = await call('optimize', { characterId: TARGET, resultsLimit: 4, formOverrides: { setFilters: { fourPiece: ['Hunter of Glacial Forest'], ornaments: ['Rutilant Arena'] } } }, { timeout: 300_000 })
+    const runD = await call('optimize', {
+      characterId: TARGET,
+      resultsLimit: 4,
+      formOverrides: { setFilters: { fourPiece: ['Hunter of Glacial Forest'], ornaments: ['Rutilant Arena'] } },
+    }, { timeout: 300_000 })
     const runI = await call('optimize', {
       characterId: TARGET,
       resultsLimit: 4,
@@ -1837,9 +1986,14 @@ async function scenarioFormWeights() {
     // removed it; the field survives on row data only — manifest note). The
     // WEIGHT data field is verified wrapper-free via parityRef + the two-leg
     // equivalence; row identity carries the rest.
-    const r = await webRunRows('weights-change', (f) => {
-      f.weights = { ...f.weights, 'CRIT Rate': 1, 'CRIT DMG': 1, 'SPD': 0, 'DEF%': 0, 'HP%': 0, minWeightedRolls: 0 }
-    }, { weights: { 'CRIT Rate': 1, 'CRIT DMG': 1, 'SPD': 0, 'DEF%': 0, 'HP%': 0 } }, { resultsLimit: 50, scrapeCount: 5 })
+    const r = await webRunRows(
+      'weights-change',
+      (f) => {
+        f.weights = { ...f.weights, 'CRIT Rate': 1, 'CRIT DMG': 1, 'SPD': 0, 'DEF%': 0, 'HP%': 0, 'minWeightedRolls': 0 }
+      },
+      { weights: { 'CRIT Rate': 1, 'CRIT DMG': 1, 'SPD': 0, 'DEF%': 0, 'HP%': 0 } },
+      { resultsLimit: 50, scrapeCount: 5 },
+    )
     const ref = await runParityRef(r.baked.path, TARGET)
     const weightMcp = r.mcpOverrides.rows.map((x) => x.stats.WEIGHT)
     const weightRef = ref.rows.map((x) => x.WEIGHT)
@@ -1847,9 +2001,15 @@ async function scenarioFormWeights() {
     const same = JSON.stringify(weightMcp) === JSON.stringify(weightRef) && JSON.stringify(weightMcp) === JSON.stringify(weightBaked)
     const allDefined = weightMcp.every((w) => typeof w === 'number')
     if (!r.rowCmp.ok) return fail(`visible columns differ: ${r.rowCmp.detail}`)
-    if (!same || !allDefined) return fail(`WEIGHT field parity failed (mcp=${weightMcp.slice(0, 3)} ref=${weightRef.slice(0, 3)} baked=${weightBaked.slice(0, 3)})`)
+    if (!same || !allDefined) {
+      return fail(`WEIGHT field parity failed (mcp=${weightMcp.slice(0, 3)} ref=${weightRef.slice(0, 3)} baked=${weightBaked.slice(0, 3)})`)
+    }
     if (r.legMismatch) return fail(`leg mismatch ${JSON.stringify(r.legMismatch)}`)
-    return ok(`WEIGHT data field identical across MCP/parityRef/baked legs (${weightMcp.slice(0, 3).join(',')}…); visible columns match web; NOTE: web grid no longer renders a WEIGHT column (manifest bug)`)
+    return ok(
+      `WEIGHT data field identical across MCP/parityRef/baked legs (${
+        weightMcp.slice(0, 3).join(',')
+      }…); visible columns match web; NOTE: web grid no longer renders a WEIGHT column (manifest bug)`,
+    )
   })
 
   await runCase('optimizer.form.weights', 2, 'browser-parity', async () => {
@@ -1857,7 +2017,11 @@ async function scenarioFormWeights() {
       f.weights = { ...f.weights, minWeightedRolls: 3 }
     }, { weights: { minWeightedRolls: 3 } })
     if (perm.diffs.length) return fail(perm.diffs.join('; '))
-    return ok(`minWeightedRolls=3: parts ${JSON.stringify(Object.fromEntries(['Body', 'Feet', 'PlanarSphere', 'LinkRope'].map((p) => [p, perm.web[p]])))} equal both sides`)
+    return ok(
+      `minWeightedRolls=3: parts ${
+        JSON.stringify(Object.fromEntries(['Body', 'Feet', 'PlanarSphere', 'LinkRope'].map((p) => [p, perm.web[p]])))
+      } equal both sides`,
+    )
   })
 }
 
@@ -1866,10 +2030,15 @@ async function scenarioFormResultFilters() {
   if (!want('optimizer.form.resultFilters')) return
 
   await runCase('optimizer.form.resultFilters', 1, 'browser-parity', async () => {
-    const r = await webRunRows('filters-spd-cr', (f) => {
-      f.minSpd = 134
-      f.minCr = 0.4 // save-format stat bounds are internal (percent bounds are fractions)
-    }, { statFilters: { minSpd: 134, minCr: 40 } }, { resultsLimit: 32, scrapeCount: 10 })
+    const r = await webRunRows(
+      'filters-spd-cr',
+      (f) => {
+        f.minSpd = 134
+        f.minCr = 0.4 // save-format stat bounds are internal (percent bounds are fractions)
+      },
+      { statFilters: { minSpd: 134, minCr: 40 } },
+      { resultsLimit: 32, scrapeCount: 10 },
+    )
     if (!r.rowCmp.ok) return fail(r.rowCmp.detail)
     const spdCol = 'xSPD' in (r.web.rows[0] ?? {}) ? 'xSPD' : 'SPD'
     const crCol = 'xCR' in (r.web.rows[0] ?? {}) ? 'xCR' : 'CR'
@@ -1885,8 +2054,12 @@ async function scenarioFormResultFilters() {
 
   await runCase('optimizer.form.resultFilters', 2, 'inprocess-parity', async () => {
     await loadBase()
-    const display = await call('optimize', { characterId: TARGET, resultsLimit: 8, formOverrides: { statFilters: { minSpd: 134, minCr: 40 } } }, { timeout: 300_000 })
-    const internal = await call('optimize', { characterId: TARGET, resultsLimit: 8, formOverrides: { format: 'internal', minSpd: 134, minCr: 0.4 } }, { timeout: 300_000 })
+    const display = await call('optimize', { characterId: TARGET, resultsLimit: 8, formOverrides: { statFilters: { minSpd: 134, minCr: 40 } } }, {
+      timeout: 300_000,
+    })
+    const internal = await call('optimize', { characterId: TARGET, resultsLimit: 8, formOverrides: { format: 'internal', minSpd: 134, minCr: 0.4 } }, {
+      timeout: 300_000,
+    })
     const mismatch = firstMismatchRuns(display, internal)
     if (mismatch) return fail(JSON.stringify(mismatch))
     return ok(`display(percent) and internal(decimal) yield identical ${display.rows.length} rows`)
@@ -1900,15 +2073,19 @@ async function scenarioFormResultFilters() {
       f.resultsLimit = 8
       s.savedSession.global.optimizerCharacterId = TARGET
     })
-    const web = await webTask('filter-null-web', bakeSave((s) => {
-      const f = charForm(s)
-      f.resultsLimit = 8
-      s.savedSession.global.optimizerCharacterId = TARGET
-    }).state, async (page) => {
-      await bootOptimizer(page)
-      await startAndWait(page)
-      return (await page.evaluate(FN_SCRAPE_ROWS, [1]))[0] ?? null
-    })
+    const web = await webTask(
+      'filter-null-web',
+      bakeSave((s) => {
+        const f = charForm(s)
+        f.resultsLimit = 8
+        s.savedSession.global.optimizerCharacterId = TARGET
+      }).state,
+      async (page) => {
+        await bootOptimizer(page)
+        await startAndWait(page)
+        return (await page.evaluate(FN_SCRAPE_ROWS, [1]))[0] ?? null
+      },
+    )
     await call('load_save', { path: baked.path })
     const cleared = await call('optimize', { characterId: TARGET, resultsLimit: 8, formOverrides: { statFilters: { minSpd: null } } }, { timeout: 300_000 })
     const blocked = await call('optimize', { characterId: TARGET, resultsLimit: 8 }, { timeout: 300_000 })
@@ -1964,16 +2141,26 @@ async function scenarioFormConditionals() {
     const tmDescribed = await call('describe_conditionals', { characterId: OTHER })
     const tmList = (tmDescribed.conditionals ?? []).filter((c) => c.source === 'character' && c.scopes?.includes?.('teammate'))
     const tmMissing = tmList.filter((c) => !(c.key in webTm))
-    const tmValueDiff = tmList.filter((c) => c.key in webTm && JSON.stringify(webTm[c.key]) !== JSON.stringify(c.defaultValue?.teammate ?? c.defaultValue?.self))
+    const tmValueDiff = tmList.filter((c) =>
+      c.key in webTm && JSON.stringify(webTm[c.key]) !== JSON.stringify(c.defaultValue?.teammate ?? c.defaultValue?.self)
+    )
     // threshold (eidolon gate) spot check on described metadata
     const gated = list.filter((c) => c.threshold && (c.threshold.requiresEidolon != null || c.threshold.requiresSuperimposition != null))
     if (missing.length || valueDiff.length) {
-      return fail(`missing=${missing.map((c) => c.key).slice(0, 4)}; valueDiff=${valueDiff.map((c) => `${c.key}:${JSON.stringify(webMap[c.key])}!=${JSON.stringify(c.defaultValue?.self)}`).slice(0, 3)}`)
+      return fail(
+        `missing=${missing.map((c) => c.key).slice(0, 4)}; valueDiff=${
+          valueDiff.map((c) => `${c.key}:${JSON.stringify(webMap[c.key])}!=${JSON.stringify(c.defaultValue?.self)}`).slice(0, 3)
+        }`,
+      )
     }
     if (tmMissing.length > tmList.length * 0.5 || tmValueDiff.length > tmList.length * 0.5) {
       return fail(`teammate view: ${tmMissing.length}/${tmList.length} missing, ${tmValueDiff.length} value diffs (e.g. ${tmValueDiff[0]?.key})`)
     }
-    return ok(`main ${list.length} keys × defaults equal; teammate(${OTHER}) ${tmList.length - tmMissing.length}/${tmList.length} keys persisted by the web card; ${gated.length} gated entries carry thresholds`)
+    return ok(
+      `main ${list.length} keys × defaults equal; teammate(${OTHER}) ${
+        tmList.length - tmMissing.length
+      }/${tmList.length} keys persisted by the web card; ${gated.length} gated entries carry thresholds`,
+    )
   })
 
   await runCase('optimizer.form.conditionals', 2, 'browser-parity', async () => {
@@ -1992,9 +2179,14 @@ async function scenarioFormConditionals() {
         [numCond.key]: numValue,
       },
     }
-    const r = await webRunRows('conditionals-change', (f) => {
-      f.characterConditionals = { ...f.characterConditionals, ...overrides.characterConditionals }
-    }, overrides, { resultsLimit: 8, scrapeCount: 1 })
+    const r = await webRunRows(
+      'conditionals-change',
+      (f) => {
+        f.characterConditionals = { ...f.characterConditionals, ...overrides.characterConditionals }
+      },
+      overrides,
+      { resultsLimit: 8, scrapeCount: 1 },
+    )
     const sim = await call('simulate_build', { characterId: TARGET, formOverrides: overrides })
     const webEquipped = r.web.pinned.find((row) => 'COMBO' in row)
     const webCombo = parseDisplayNumber(webEquipped?.COMBO)
@@ -2002,7 +2194,11 @@ async function scenarioFormConditionals() {
     if (webCombo === null || Math.abs(webCombo - mcpCombo) >= 1) {
       return fail(`equipped COMBO web=${webCombo} simulate=${mcpCombo}`)
     }
-    return ok(`equipped-row COMBO web=${webCombo?.toLocaleString()} = simulate_build ${mcpCombo.toLocaleString()} (${boolCond.key}=false, ${numCond.key}=${JSON.stringify(numValue)})`)
+    return ok(
+      `equipped-row COMBO web=${webCombo?.toLocaleString()} = simulate_build ${mcpCombo.toLocaleString()} (${boolCond.key}=false, ${numCond.key}=${
+        JSON.stringify(numValue)
+      })`,
+    )
   })
 }
 
@@ -2048,13 +2244,21 @@ async function scenarioFormSetConditionals() {
       return JSON.stringify(fourPc) !== JSON.stringify(e.defaultValue)
     })
     if (missingLabels.length > modifiable.length * 0.34) {
-      return fail(`${missingLabels.length}/${modifiable.length} modifiable set names not in the drawer (sample missing: ${missingLabels.slice(0, 3).map((e) => nameZhBySet.get(e.set) ?? e.set).join(',')})`)
+      return fail(
+        `${missingLabels.length}/${modifiable.length} modifiable set names not in the drawer (sample missing: ${
+          missingLabels.slice(0, 3).map((e) => nameZhBySet.get(e.set) ?? e.set).join(',')
+        })`,
+      )
     }
     if (defaultDiffs.length > modifiable.length * 0.34) {
       return fail(`${defaultDiffs.length}/${modifiable.length} persisted set defaults differ (e.g. ${defaultDiffs[0]?.set})`)
     }
     const selectEntries = modifiable.filter((e) => Array.isArray(e.options) && e.options.length > 1).length
-    return ok(`drawer shows ${modifiable.length - missingLabels.length}/${modifiable.length} modifiable sets; persisted defaults equal for ${modifiable.length - defaultDiffs.length}; ${selectEntries} dropdown sets with option tables`)
+    return ok(
+      `drawer shows ${modifiable.length - missingLabels.length}/${modifiable.length} modifiable sets; persisted defaults equal for ${
+        modifiable.length - defaultDiffs.length
+      }; ${selectEntries} dropdown sets with option tables`,
+    )
   })
 
   await runCase('optimizer.form.setConditionals', 2, 'browser-parity', async () => {
@@ -2127,7 +2331,13 @@ async function scenarioFormSetConditionals() {
     if (defaultSim.stats.combo.damage === mcpCombo) {
       return fail(`${setName} tier change produced no COMBO difference (default ${defaultSim.stats.combo.damage} = changed ${mcpCombo})`)
     }
-    return ok(`${setName} stacks ${JSON.stringify(entry.defaultValue)}->${JSON.stringify(chosen)}: equipped COMBO web=${webCombo?.toLocaleString()} = simulate ${mcpCombo.toLocaleString()} (default tier ${Math.round(defaultSim.stats.combo.damage).toLocaleString()})`)
+    return ok(
+      `${setName} stacks ${JSON.stringify(entry.defaultValue)}->${
+        JSON.stringify(chosen)
+      }: equipped COMBO web=${webCombo?.toLocaleString()} = simulate ${mcpCombo.toLocaleString()} (default tier ${
+        Math.round(defaultSim.stats.combo.damage).toLocaleString()
+      })`,
+    )
   })
 }
 
@@ -2190,9 +2400,25 @@ async function scenarioFormTeammates() {
       && (webTm.characterEidolon ?? 0) === (mcpTm.characterEidolon ?? 0)
       && (webTm.lightCone ?? null) === (mcpTm.lightCone ?? null)
     if (!fieldsOk || !webMatches) {
-      return fail(`mcp=${JSON.stringify({ id: mcpTm?.characterId, e: mcpTm?.characterEidolon, lc: mcpTm?.lightCone, relic: mcpTm?.teamRelicSet, orn: mcpTm?.teamOrnamentSet })} web=${JSON.stringify({ id: webTm?.characterId, e: webTm?.characterEidolon, lc: webTm?.lightCone, relic: webTm?.teamRelicSet, orn: webTm?.teamOrnamentSet })}`)
+      return fail(
+        `mcp=${
+          JSON.stringify({ id: mcpTm?.characterId, e: mcpTm?.characterEidolon, lc: mcpTm?.lightCone, relic: mcpTm?.teamRelicSet, orn: mcpTm?.teamOrnamentSet })
+        } web=${
+          JSON.stringify({ id: webTm?.characterId, e: webTm?.characterEidolon, lc: webTm?.lightCone, relic: webTm?.teamRelicSet, orn: webTm?.teamOrnamentSet })
+        }`,
+      )
     }
-    return ok(`teammate0 brought-in equal: ${JSON.stringify({ id: mcpTm.characterId, e: mcpTm.characterEidolon, lc: mcpTm.lightCone, relic: mcpTm.teamRelicSet ?? null, orn: mcpTm.teamOrnamentSet ?? null })}`)
+    return ok(
+      `teammate0 brought-in equal: ${
+        JSON.stringify({
+          id: mcpTm.characterId,
+          e: mcpTm.characterEidolon,
+          lc: mcpTm.lightCone,
+          relic: mcpTm.teamRelicSet ?? null,
+          orn: mcpTm.teamOrnamentSet ?? null,
+        })
+      }`,
+    )
   })
 
   await runCase('optimizer.form.teammates', 2, 'browser-parity', async () => {
@@ -2253,9 +2479,14 @@ async function scenarioFormTeammates() {
       lightConeSuperimposition: 5,
     }
     const overrides = { teammates: [tm] }
-    const r = await webRunRows('teammate-swap', (f) => {
-      f.teammate0 = { ...tm }
-    }, overrides, { resultsLimit: 8, scrapeCount: 1 })
+    const r = await webRunRows(
+      'teammate-swap',
+      (f) => {
+        f.teammate0 = { ...tm }
+      },
+      overrides,
+      { resultsLimit: 8, scrapeCount: 1 },
+    )
     const sim = await call('simulate_build', { characterId: TARGET, formOverrides: overrides })
     const webEquipped = r.web.pinned.find((row) => 'COMBO' in row)
     const webCombo = parseDisplayNumber(webEquipped?.COMBO)
@@ -2273,10 +2504,15 @@ async function scenarioFormEnemy() {
 
   await runCase('optimizer.form.enemy', 1, 'browser-parity', async () => {
     const overrides = { enemyCount: 3, enemyElementalWeak: false }
-    const r = await webRunRows('enemy-config', (f) => {
-      f.enemyCount = 3
-      f.enemyElementalWeak = false
-    }, overrides, { resultsLimit: 8, scrapeCount: 1 })
+    const r = await webRunRows(
+      'enemy-config',
+      (f) => {
+        f.enemyCount = 3
+        f.enemyElementalWeak = false
+      },
+      overrides,
+      { resultsLimit: 8, scrapeCount: 1 },
+    )
     const sim = await call('simulate_build', { characterId: TARGET, formOverrides: overrides })
     const webEquipped = r.web.pinned.find((row) => 'COMBO' in row)
     if (!webEquipped) return fail('web equipped row missing')
@@ -2302,9 +2538,14 @@ async function scenarioFormCombatBuffs() {
 
   await runCase('optimizer.form.combatBuffs', 1, 'browser-parity', async () => {
     // Web: seeded display form with ATK% 50 → equipped row COMBO.
-    const r = await webRunRows('buffs-atkp', (f) => {
-      f.combatBuffs = { ...f.combatBuffs, ATK_P: 0.5 }
-    }, { format: 'internal', combatBuffs: { ATK_P: 0.5 } }, { resultsLimit: 8, scrapeCount: 1 })
+    const r = await webRunRows(
+      'buffs-atkp',
+      (f) => {
+        f.combatBuffs = { ...f.combatBuffs, ATK_P: 0.5 }
+      },
+      { format: 'internal', combatBuffs: { ATK_P: 0.5 } },
+      { resultsLimit: 8, scrapeCount: 1 },
+    )
     const displayLeg = await call('simulate_build', { characterId: TARGET, formOverrides: { format: 'display', combatBuffs: { ATK_P: 50 } } })
     const internalLeg = await call('simulate_build', { characterId: TARGET, formOverrides: { format: 'internal', combatBuffs: { ATK_P: 0.5 } } })
     if (displayLeg.stats.combo.damage !== internalLeg.stats.combo.damage) {
@@ -2337,7 +2578,9 @@ async function scenarioFormCombatBuffs() {
     if (!equal || !savedIntact) {
       return fail(`partial-override equivalence=${equal}, saved form intact=${savedIntact} (${JSON.stringify(savedForm)})`)
     }
-    return ok(`override of ATK_P alone keeps saved HP_P/SPD: COMBO ${Math.round(partial.stats.combo.damage).toLocaleString()} equals the fully-saved configuration`)
+    return ok(
+      `override of ATK_P alone keeps saved HP_P/SPD: COMBO ${Math.round(partial.stats.combo.damage).toLocaleString()} equals the fully-saved configuration`,
+    )
   })
 }
 
@@ -2371,13 +2614,16 @@ async function scenarioFormPresets() {
         return dropdown ? dropdown.innerText : ''
       }`)
       // click the tier item (text contains the tier value)
-      const clicked = await page.evaluate(`(tier) => {
+      const clicked = await page.evaluate(
+        `(tier) => {
         const items = Array.from(document.querySelectorAll('[role="menuitem"], [class*="Menu-item"]'))
           .filter((e) => e.offsetParent !== null && (e.textContent || '').includes(String(tier)))
         if (!items.length) return false
         items[items.length - 1].click()
         return true
-      }`, [tier])
+      }`,
+        [tier],
+      )
       if (!clicked) throw new Error(`tier ${tier} item not found in preset menu (menu="${String(menuText).slice(0, 120).replace(/\n/g, '|')}")`)
       await sleep(2000)
       // persist via switch away
@@ -2486,9 +2732,17 @@ async function scenarioFormReset() {
     await call('update_form', {
       characterId: TARGET,
       patch: {
-        enhance: 12, grade: 4, keepCurrentRelics: true, includeEquippedRelics: false,
-        rankFilter: false, exclude: [OTHER], mainStatUpscaleLevel: 0, mainBody: ['CRIT Rate'],
-        setFilters: { fourPiece: ['Hunter of Glacial Forest'] }, enemyCount: 3, minSpd: 120,
+        enhance: 12,
+        grade: 4,
+        keepCurrentRelics: true,
+        includeEquippedRelics: false,
+        rankFilter: false,
+        exclude: [OTHER],
+        mainStatUpscaleLevel: 0,
+        mainBody: ['CRIT Rate'],
+        setFilters: { fourPiece: ['Hunter of Glacial Forest'] },
+        enemyCount: 3,
+        minSpd: 120,
       },
     })
     await call('update_form', { characterId: TARGET, reset: 'filters' })
@@ -2500,7 +2754,10 @@ async function scenarioFormReset() {
     const expected = {
       ...Object.fromEntries(['enhance', 'grade', 'keepCurrentRelics', 'includeEquippedRelics', 'rankFilter', 'exclude', 'mainStatUpscaleLevel']
         .map((k) => [k, defaults[k]])),
-      mainBody: [], mainFeet: [], mainPlanarSphere: [], mainLinkRope: [],
+      mainBody: [],
+      mainFeet: [],
+      mainPlanarSphere: [],
+      mainLinkRope: [],
       setFilters: { fourPiece: [], twoPieceCombos: [], ornaments: [] },
     }
     const filterKeys = Object.keys(expected)
@@ -2525,16 +2782,19 @@ async function scenarioCombo() {
     const abilityLabels = described.abilities?.groups?.flatMap((g) => g.options.map((o) => o.label ?? o.name)) ?? []
     const abilityNames = described.abilities?.groups?.flatMap((g) => g.options.map((o) => o.name)) ?? []
     if (!abilityLabels.length) return fail('describe_conditionals lists no abilities')
-    const web = await webTask('combo-abilities', bakeSave((s) => {
-      charForm(s).comboType = 'advanced'
-      s.savedSession.global.optimizerCharacterId = TARGET
-    }).state, async (page) => {
-      await bootOptimizer(page, { zh: true })
-      // Whole interaction in ONE evaluate (probe-proven): open the drawer via
-      // mousedown, settle, click an ability selector (InputBase button labeled
-      // with a known ability), sweep the Menu hover submenus, collect all text.
-      // puppeteer string pageFunctions take no args — bake labels into an IIFE.
-      const menuText = await page.evaluate(`(async (labels) => {
+    const web = await webTask(
+      'combo-abilities',
+      bakeSave((s) => {
+        charForm(s).comboType = 'advanced'
+        s.savedSession.global.optimizerCharacterId = TARGET
+      }).state,
+      async (page) => {
+        await bootOptimizer(page, { zh: true })
+        // Whole interaction in ONE evaluate (probe-proven): open the drawer via
+        // mousedown, settle, click an ability selector (InputBase button labeled
+        // with a known ability), sweep the Menu hover submenus, collect all text.
+        // puppeteer string pageFunctions take no args — bake labels into an IIFE.
+        const menuText = await page.evaluate(`(async (labels) => {
         const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
         const openDrawer = () => {
           const btn = Array.from(document.querySelectorAll('button'))
@@ -2561,9 +2821,9 @@ async function scenarioCombo() {
         btns[0].setAttribute('data-vtarget', '1')
         return { found: btns[0].textContent.trim(), tagged: true }
       })(${JSON.stringify(abilityLabels)})`)
-      if (menuText?.tagged) {
-        await page.click('[data-vtarget="1"]', { timeoutMs: 15_000 }).catch(() => {})
-        menuText.detail = await page.evaluate(`(async () => {
+        if (menuText?.tagged) {
+          await page.click('[data-vtarget="1"]', { timeoutMs: 15_000 }).catch(() => {})
+          menuText.detail = await page.evaluate(`(async () => {
           const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
           for (let wait = 0; wait < 14; wait++) {
             await sleep(300)
@@ -2580,20 +2840,25 @@ async function scenarioCombo() {
           }
           return { dropdowns: document.querySelectorAll('.mantine-Menu-dropdown').length, text: Array.from(seen).join('\\n') }
         })()`)
-      }
-      const diag = await page.evaluate(`() => ({
+        }
+        const diag = await page.evaluate(`() => ({
         dropdowns: document.querySelectorAll('.mantine-Menu-dropdown').length,
         openDrops: Array.from(document.querySelectorAll('.mantine-Menu-dropdown')).filter((d) => d.offsetParent !== null).length,
         inputBaseBtns: Array.from(document.querySelectorAll('.mantine-InputBase-root button')).filter((b) => b.offsetParent !== null).length,
         drawerOpen: Array.from(document.querySelectorAll('[class*="Drawer-content"], [role="dialog"]')).some((e) => e.offsetParent !== null),
       })`)
-      return { menuText, diag }
-    })
+        return { menuText, diag }
+      },
+    )
     if (web.error) return fail(web.error)
     const menuText = typeof web.menuText === 'string' ? web.menuText : web.menuText?.detail?.text ?? web.menuText?.text ?? ''
     const missing = abilityLabels.filter((l) => !String(menuText).includes(l))
     if (missing.length > abilityLabels.length * 0.5) {
-      return fail(`${missing.length}/${abilityLabels.length} ability labels missing from the dropdown (menu="${String(menuText).slice(0, 100).replace(/\n/g, '|')}"; full=${JSON.stringify(web.menuText)?.slice(0, 220)}; diag=${JSON.stringify(web.diag)}; sample missing ${JSON.stringify(missing.slice(0, 4))})`)
+      return fail(
+        `${missing.length}/${abilityLabels.length} ability labels missing from the dropdown (menu="${
+          String(menuText).slice(0, 100).replace(/\n/g, '|')
+        }"; full=${JSON.stringify(web.menuText)?.slice(0, 220)}; diag=${JSON.stringify(web.diag)}; sample missing ${JSON.stringify(missing.slice(0, 4))})`,
+      )
     }
     return ok(`${abilityLabels.length - missing.length}/${abilityLabels.length} ability labels (${abilityNames.length} enum names) present in the web selector`)
   })
@@ -2606,10 +2871,15 @@ async function scenarioCombo() {
     if (!Array.isArray(defaultSequence) || defaultSequence.length < 4) return fail(`no default sequence (${JSON.stringify(defaultSequence)?.slice(0, 80)})`)
     const six = defaultSequence.slice(0, 7) // placeholder [0] + 6 skills
     const overrides = { comboType: 'advanced', comboTurnAbilities: six }
-    const r = await webRunRows('combo-sequence', (f) => {
-      f.comboType = 'advanced'
-      f.comboTurnAbilities = six
-    }, overrides, { resultsLimit: 8, scrapeCount: 1 })
+    const r = await webRunRows(
+      'combo-sequence',
+      (f) => {
+        f.comboType = 'advanced'
+        f.comboTurnAbilities = six
+      },
+      overrides,
+      { resultsLimit: 8, scrapeCount: 1 },
+    )
     const sim = await call('simulate_build', { characterId: TARGET, formOverrides: overrides })
     const webEquipped = r.web.pinned.find((row) => 'COMBO' in row)
     const webCombo = parseDisplayNumber(webEquipped?.COMBO)
@@ -2618,7 +2888,9 @@ async function scenarioCombo() {
     }
     const rotationOk = Array.isArray(sim.rotationDamage) && sim.rotationDamage.length >= 4
     if (!rotationOk) return fail('simulate_build rotation damage missing')
-    return ok(`6-skill sequence: equipped COMBO web=${webCombo?.toLocaleString()} = simulate ${sim.stats.combo.damage.toLocaleString()}; rotation steps=${sim.rotationDamage.length}`)
+    return ok(
+      `6-skill sequence: equipped COMBO web=${webCombo?.toLocaleString()} = simulate ${sim.stats.combo.damage.toLocaleString()}; rotation steps=${sim.rotationDamage.length}`,
+    )
   })
 
   await runCase('optimizer.combo.definition', 3, 'inprocess-parity', async () => {
@@ -2647,25 +2919,29 @@ async function scenarioCombo() {
     // boot the page in zh to compare like with like.
     const described = await call('describe_conditionals', { characterId: TARGET, includeSets: false })
     const labelById = new Map((described.conditionals ?? []).map((c) => [c.key, c.label]))
-    const web = await webTask('combo-matrix-read', bakeSave((s) => {
-      charForm(s).comboType = 'advanced'
-      s.savedSession.global.optimizerCharacterId = TARGET
-    }).state, async (page) => {
-      await bootOptimizer(page, { zh: true })
-      const opened = await openComboDrawer(page)
-      if (!opened) return { error: 'advanced combo button not found' }
-      await sleep(2500)
-      const drawerText = await page.evaluate(`() => {
+    const web = await webTask(
+      'combo-matrix-read',
+      bakeSave((s) => {
+        charForm(s).comboType = 'advanced'
+        s.savedSession.global.optimizerCharacterId = TARGET
+      }).state,
+      async (page) => {
+        await bootOptimizer(page, { zh: true })
+        const opened = await openComboDrawer(page)
+        if (!opened) return { error: 'advanced combo button not found' }
+        await sleep(2500)
+        const drawerText = await page.evaluate(`() => {
         const drawer = Array.from(document.querySelectorAll('[class*="Drawer-content"], [role="dialog"]')).find((e) => e.offsetParent !== null)
         return drawer ? drawer.innerText : ''
       }`)
-      const switches = await page.evaluate(`() => {
+        const switches = await page.evaluate(`() => {
         const drawer = Array.from(document.querySelectorAll('[class*="Drawer-content"], [role="dialog"]')).find((e) => e.offsetParent !== null)
         if (!drawer) return []
         return Array.from(drawer.querySelectorAll('input[type="checkbox"]')).map((c) => c.checked)
       }`)
-      return { drawerText, switches }
-    })
+        return { drawerText, switches }
+      },
+    )
     if (web.error) return fail(web.error)
     // The drawer shows the full condition × skill matrix; every conditional id
     // from get_form(expandCombo) must be represented in the drawer text (by
@@ -2675,7 +2951,11 @@ async function scenarioCombo() {
     const missing = labels.filter((l) => l && !String(web.drawerText).includes(l))
     const cellCount = conditionals.reduce((acc, c) => acc + (c.activations?.length ?? 0), 0)
     if (missing.length > labels.length * 0.5) {
-      return fail(`${missing.length}/${labels.length} conditional labels missing in drawer (sample missing ${JSON.stringify(missing.slice(0, 4))}; drawer head ${String(web.drawerText).slice(0, 120).replace(/\n/g, '|')})`)
+      return fail(
+        `${missing.length}/${labels.length} conditional labels missing in drawer (sample missing ${JSON.stringify(missing.slice(0, 4))}; drawer head ${
+          String(web.drawerText).slice(0, 120).replace(/\n/g, '|')
+        })`,
+      )
     }
     if ((web.switches?.length ?? 0) === 0) return fail('drawer renders no activation checkboxes')
     return ok(`matrix read: ${labels.length - missing.length}/${labels.length} labels + ${web.switches.length} checkboxes vs ${cellCount} activation cells`)
@@ -2717,7 +2997,9 @@ async function scenarioCombo() {
     void overrides
     void bakeForm
     await loadBase()
-    return ok(`${boolCond.id} off on skills 2-3: equipped COMBO web=${webCombo?.toLocaleString()} = simulate ${sim.stats.combo.damage.toLocaleString()}; rotation ${rotation.length} steps`)
+    return ok(
+      `${boolCond.id} off on skills 2-3: equipped COMBO web=${webCombo?.toLocaleString()} = simulate ${sim.stats.combo.damage.toLocaleString()}; rotation ${rotation.length} steps`,
+    )
   })
 
   await runCase('optimizer.combo.activations', 3, 'browser-parity', async () => {
@@ -2770,7 +3052,13 @@ async function scenarioCombo() {
     const webJson = web.characters.find((c) => c.id === TARGET)?.form?.comboStateJson ?? null
     const mcpJson = (await call('get_form', { characterId: TARGET })).form.comboStateJson ?? null
     const equivalent = comboStateEquivalent(mcpJson, webJson)
-    if (!equivalent.ok) return fail(`comboStateJson differs: ${equivalent.detail} (mcpLen=${mcpJson?.length ?? 0}, webLen=${webJson?.length ?? 0}; edits=${applied.map((e) => e.kind).join('+')})`)
+    if (!equivalent.ok) {
+      return fail(
+        `comboStateJson differs: ${equivalent.detail} (mcpLen=${mcpJson?.length ?? 0}, webLen=${webJson?.length ?? 0}; edits=${
+          applied.map((e) => e.kind).join('+')
+        })`,
+      )
+    }
     void mcpState
     return ok(`partition edit (${applied.map((e) => e.kind).join('+')}) round-trips through the web drawer unchanged`)
   })
@@ -2831,7 +3119,8 @@ function comboStateEquivalent(a, b) {
     displayedSets: o.displayedSets ?? o.sets,
     character: condSummary(o.comboCharacter),
     teammates: [o.comboTeammate0, o.comboTeammate1, o.comboTeammate2].map(condSummary),
-    relicSets: o.relicSets, ornamentSets: o.ornamentSets,
+    relicSets: o.relicSets,
+    ornamentSets: o.ornamentSets,
     version: o.version,
   })
   const sa = JSON.stringify(pick(pa))
@@ -2909,7 +3198,9 @@ async function scenarioRunStart() {
       return fail(`validPerms web=${web.sidebar.Perms} mcp=${mcp.summary.validPermutations}`)
     }
     ctx.runParity = { web, mcp }
-    return ok(`${web.rows.length} scraped rows × ${PARITY_COLUMNS.length} cols match MCP; MCP ≡ parityRef bitwise on ${a.length} rows; Perms=${mcp.summary.validPermutations.toLocaleString()}`)
+    return ok(
+      `${web.rows.length} scraped rows × ${PARITY_COLUMNS.length} cols match MCP; MCP ≡ parityRef bitwise on ${a.length} rows; Perms=${mcp.summary.validPermutations.toLocaleString()}`,
+    )
   })
 
   await runCase('optimizer.run.start', 2, 'browser-parity', async () => {
@@ -2930,14 +3221,18 @@ async function scenarioRunStart() {
     }
     const webResults = {}
     for (const [kind, meta] of Object.entries(en)) {
-      const web = await webTask(`validate-${kind}`, bakeSave((s) => {
-        mkForm(kind)(charForm(s))
-        s.savedSession.global.optimizerCharacterId = TARGET
-      }).state, async (page) => {
-        await bootOptimizer(page)
-        const r = await page.evaluate(FN_START_WAIT, [4000])
-        return { toasts: r.toasts ?? [], started: r.started }
-      })
+      const web = await webTask(
+        `validate-${kind}`,
+        bakeSave((s) => {
+          mkForm(kind)(charForm(s))
+          s.savedSession.global.optimizerCharacterId = TARGET
+        }).state,
+        async (page) => {
+          await bootOptimizer(page)
+          const r = await page.evaluate(FN_START_WAIT, [4000])
+          return { toasts: r.toasts ?? [], started: r.started }
+        },
+      )
       webResults[kind] = { toasts: web.toasts, started: web.started, meta }
     }
     await loadBase()
@@ -2948,7 +3243,24 @@ async function scenarioRunStart() {
         validate: true,
         formOverrides: kind === 'noLightCone'
           ? { lightCone: '' }
-          : kind === 'noTarget' ? { resultSort: '' } : { weights: { 'ATK%': 0, 'SPD': 0, 'CRIT Rate': 0, 'CRIT DMG': 0, 'HP%': 0, 'DEF%': 0, 'Effect Hit Rate': 0, 'Effect RES': 0, 'Break Effect': 0, ATK: 0, DEF: 0, HP: 0 } },
+          : kind === 'noTarget'
+          ? { resultSort: '' }
+          : {
+            weights: {
+              'ATK%': 0,
+              'SPD': 0,
+              'CRIT Rate': 0,
+              'CRIT DMG': 0,
+              'HP%': 0,
+              'DEF%': 0,
+              'Effect Hit Rate': 0,
+              'Effect RES': 0,
+              'Break Effect': 0,
+              'ATK': 0,
+              'DEF': 0,
+              'HP': 0,
+            },
+          },
       })
       const matchedError = (mcp.errors ?? []).some((e) => e.includes(wr.meta.zhNeedle) || e.includes(wr.meta.key))
       const webRefused = wr.started !== true || wr.toasts.some((t) => t.toLowerCase().includes(wr.meta.enNeedle.split(' ')[0].toLowerCase()))
@@ -3068,32 +3380,37 @@ async function scenarioRunCancelProgress() {
       if (results.summary?.cancelled === true) break
     }
     // Web leg: start the big run, confirm modal, hit Cancel, grid keeps rows.
-    const web = await webTask('cancel-web', { ...structuredClone(baseSave), relics: bigRelics, savedSession: { global: { optimizerCharacterId: TARGET } } }, async (page) => {
-      await bootOptimizer(page)
-      await page.evaluate(`() => {
+    const web = await webTask(
+      'cancel-web',
+      { ...structuredClone(baseSave), relics: bigRelics, savedSession: { global: { optimizerCharacterId: TARGET } } },
+      async (page) => {
+        await bootOptimizer(page)
+        await page.evaluate(`() => {
         const btn = Array.from(document.querySelectorAll('button')).find((b) => b.querySelector('svg[class*="tabler-icon-bolt-filled"]'))
         btn?.click()
         return true
       }`)
-      // confirm the ManyPermsModal
-      const deadline2 = Date.now() + 15000
-      while (Date.now() < deadline2) {
-        const confirmed = await page.evaluate(`() => {
+        // confirm the ManyPermsModal
+        const deadline2 = Date.now() + 15000
+        while (Date.now() < deadline2) {
+          const confirmed = await page.evaluate(`() => {
           const btn = Array.from(document.querySelectorAll('button')).find((b) => b.offsetParent !== null && (b.textContent || '').includes('Proceed with search'))
           if (!btn) return false
           btn.click()
           return true
         }`)
-        if (confirmed) break
-        await sleep(400)
-      }
-      await sleep(4000)
-      await page.evaluate(FN_CLICK_BUTTON_TEXT, ['Cancel'])
-      await sleep(5000)
-      const rows = await page.evaluate(FN_SCRAPE_ROWS, [5])
-      const pager = await page.evaluate(FN_PAGER_TEXT)
-      return { rows: rows.length, pager }
-    }, 240_000)
+          if (confirmed) break
+          await sleep(400)
+        }
+        await sleep(4000)
+        await page.evaluate(FN_CLICK_BUTTON_TEXT, ['Cancel'])
+        await sleep(5000)
+        const rows = await page.evaluate(FN_SCRAPE_ROWS, [5])
+        const pager = await page.evaluate(FN_PAGER_TEXT)
+        return { rows: rows.length, pager }
+      },
+      240_000,
+    )
     await loadBase()
     const mcpCancelled = results?.summary?.cancelled === true
     const webKeptRows = web.rows > 0 || /of\s+[\d,]+/.test(web.pager ?? '')
@@ -3120,8 +3437,7 @@ async function scenarioRunCancelProgress() {
       resetTimeoutOnProgress: true,
       onprogress: (p) => events.push(p),
     })
-    const hasNumbers = events.length >= 1 && events.every((e) =>
-      typeof e.progress === 'number' && (e.total ?? 0) > 0 && /searched/.test(e.message ?? ''))
+    const hasNumbers = events.length >= 1 && events.every((e) => typeof e.progress === 'number' && (e.total ?? 0) > 0 && /searched/.test(e.message ?? ''))
     if (!hasNumbers) return fail(`${events.length} progress events, sample=${JSON.stringify(events[0])}`)
     void run
     return ok(`${events.length} progress notifications (searched/total/rate in message)`)
@@ -3130,16 +3446,20 @@ async function scenarioRunCancelProgress() {
   await runCase('optimizer.run.progress', 2, 'browser-parity', async () => {
     // Web leg: the sidebar progress text during/after a run carries
     // searched/total/results; MCP summary carries searched/validPermutations/duration.
-    const web = await webTask('progress-web', bakeSave((s) => {
-      charForm(s).resultsLimit = 64
-      s.savedSession.global.optimizerCharacterId = TARGET
-    }).state, async (page) => {
-      const sidebar0 = await bootOptimizer(page)
-      await startAndWait(page)
-      await sleep(1200)
-      const text = await page.evaluate(FN_SIDEBAR_TEXT)
-      return { text, sidebar0 }
-    })
+    const web = await webTask(
+      'progress-web',
+      bakeSave((s) => {
+        charForm(s).resultsLimit = 64
+        s.savedSession.global.optimizerCharacterId = TARGET
+      }).state,
+      async (page) => {
+        const sidebar0 = await bootOptimizer(page)
+        await startAndWait(page)
+        await sleep(1200)
+        const text = await page.evaluate(FN_SIDEBAR_TEXT)
+        return { text, sidebar0 }
+      },
+    )
     await loadBase()
     const run = await call('optimize', { characterId: TARGET, resultsLimit: 64 }, { timeout: 300_000 })
     const s = run.summary
@@ -3149,7 +3469,9 @@ async function scenarioRunCancelProgress() {
     const webSearched = parseSidebar(web.text)?.Searched
     if (!complete) return fail(`summary incomplete: ${JSON.stringify(s)}`)
     if (webSearched !== s.searched) return fail(`web Searched=${webSearched} mcp searched=${s.searched}`)
-    return ok(`summary complete (searched=${s.searched.toLocaleString()}, valid=${s.validPermutations.toLocaleString()}, ${s.durationMs}ms); web Searched equal`)
+    return ok(
+      `summary complete (searched=${s.searched.toLocaleString()}, valid=${s.validPermutations.toLocaleString()}, ${s.durationMs}ms); web Searched equal`,
+    )
   })
 }
 
@@ -3440,7 +3762,9 @@ async function scenarioResultsFamily() {
     if (R.page2Error) return fail(R.page2Error)
     const p2 = R.page2
     if (p2?.sorted !== 'ascending') return fail(`SPD sort state=${p2?.sorted}`)
-    if (!p2?.clicked?.ok) return fail(`page-next click failed; controls=${JSON.stringify(p2?.clicked?.labels ?? [])}; pager before="${p2?.pager0}" after="${p2?.pager}"`)
+    if (!p2?.clicked?.ok) {
+      return fail(`page-next click failed; controls=${JSON.stringify(p2?.clicked?.labels ?? [])}; pager before="${p2?.pager0}" after="${p2?.pager}"`)
+    }
     const pageRows = p2.rows ?? []
     if (pageRows.length === 0) return fail(`page-2 scrape empty (sorted=${p2?.sorted}, clicked=${JSON.stringify(p2?.clicked)}, pager "${p2?.pager}")`)
     const mcpPage = await call('get_results', { offset: 500, limit: pageRows.length, sortBy: 'SPD', sortDir: 'asc' })
@@ -3489,7 +3813,16 @@ async function scenarioResultsFamily() {
     // each relic by its percent-substat rows instead. Save-format substat
     // values are percent numbers (7.344 → displayed "ATK % 7.3%" via
     // truncate10ths + localeNumber_0).
-    const LABEL = { 'ATK%': 'ATK %', 'HP%': 'HP %', 'DEF%': 'DEF %', 'CRIT Rate': 'CRIT Rate', 'CRIT DMG': 'CRIT DMG', 'Effect Hit Rate': 'Effect HIT', 'Effect RES': 'Effect RES', 'Break Effect': 'Break Effect' }
+    const LABEL = {
+      'ATK%': 'ATK %',
+      'HP%': 'HP %',
+      'DEF%': 'DEF %',
+      'CRIT Rate': 'CRIT Rate',
+      'CRIT DMG': 'CRIT DMG',
+      'Effect Hit Rate': 'Effect HIT',
+      'Effect RES': 'Effect RES',
+      'Break Effect': 'Break Effect',
+    }
     const text = String(R.previewText).replace(/\s+/g, ' ')
     const sigs = Object.values(row.build.relics ?? {}).map((relic) => {
       const needles = []
@@ -3504,7 +3837,11 @@ async function scenarioResultsFamily() {
     const matched = sigs.map((n) => ({ id: n.id, hits: n.needles.filter((re) => re.test(text)).length, total: n.needles.length }))
     const identified = matched.filter((m) => m.total > 0 && m.hits >= Math.min(2, m.total))
     if (identified.length < 5) {
-      return fail(`preview identifies only ${identified.length}/6 relics by substat signature (${JSON.stringify(matched.slice(0, 3))}; preview head: ${text.slice(0, 120)})`)
+      return fail(
+        `preview identifies only ${identified.length}/6 relics by substat signature (${JSON.stringify(matched.slice(0, 3))}; preview head: ${
+          text.slice(0, 120)
+        })`,
+      )
     }
     return ok(`build preview below the grid shows the selected row's relics (${identified.length}/6 identified by substat signatures)`)
   })
@@ -3625,7 +3962,7 @@ async function scenarioResultsFamily() {
     await loadBase()
     const run = await call('optimize', { characterId: TARGET, resultsLimit: 8, formOverrides: overrides }, { timeout: 300_000 })
     await call('equip_build', { characterId: TARGET, fromCache: { cacheId: run.summary.cacheId, rowId: run.rows[0].id } })
-    const mcpForm = ((await call('export_save', { structured: true })).snapshot).characters.find((c) => c.id === TARGET)?.form
+    const mcpForm = (await call('export_save', { structured: true })).snapshot.characters.find((c) => c.id === TARGET)?.form
     // displayToInternal's inclusive-bound epsilon: 120 → 119.9999
     if (Math.abs(mcpForm.minSpd - 120) >= 0.01) return fail(`equipped form minSpd=${mcpForm.minSpd} (expected the run's 120)`)
     const webForm = R.equipped?.characters?.find((c) => c.id === TARGET)?.form
@@ -3640,19 +3977,29 @@ async function scenarioGridDisplay() {
 
   await runCase('optimizer.grid.display', 1, 'browser-parity', async () => {
     // combat leg covered by run-parity; here the base view with a SPD bound.
-    const r = await webRunRows('display-base', (f) => {
-      f.statDisplay = 'base'
-      f.minSpd = 102
-    }, { statDisplay: 'base', statFilters: { minSpd: 102 } }, { resultsLimit: 16, scrapeCount: 8 })
+    const r = await webRunRows(
+      'display-base',
+      (f) => {
+        f.statDisplay = 'base'
+        f.minSpd = 102
+      },
+      { statDisplay: 'base', statFilters: { minSpd: 102 } },
+      { resultsLimit: 16, scrapeCount: 8 },
+    )
     if (!r.rowCmp.ok) return fail(r.rowCmp.detail)
     const baseOk = r.mcpOverrides.rows.every((row) => row.stats.SPD >= 102)
     const webOk = (r.web.rows ?? []).every((row) => (parseDisplayNumber(row.SPD) ?? 0) >= 101.9)
     if (!baseOk || !webOk) return fail(`base-view bound: mcp=${baseOk} web=${webOk}`)
-    const combat = await webRunRows('display-combat', (f) => {
-      f.statDisplay = 'combat'
-      f.statFilters = {}
-      f.minSpd = 0
-    }, { statDisplay: 'combat', statFilters: { minSpd: 0 } }, { resultsLimit: 16, scrapeCount: 4 })
+    const combat = await webRunRows(
+      'display-combat',
+      (f) => {
+        f.statDisplay = 'combat'
+        f.statFilters = {}
+        f.minSpd = 0
+      },
+      { statDisplay: 'combat', statFilters: { minSpd: 0 } },
+      { resultsLimit: 16, scrapeCount: 4 },
+    )
     if (!combat.rowCmp.ok) return fail(`combat leg: ${combat.rowCmp.detail}`)
     return ok(`base view filters on panel SPD (all rows ≥102) and matches; combat leg matches too`)
   })
@@ -3660,9 +4007,14 @@ async function scenarioGridDisplay() {
   await runCase('optimizer.grid.display', 2, 'browser-parity', async () => {
     // One seeded base-view run: columns named ATK/SPD… equal MCP row.stats.ATK;
     // the combat run (run.start c1) already matched x-prefixed columns.
-    const r = await webRunRows('display-columns', (f) => {
-      f.statDisplay = 'base'
-    }, { statDisplay: 'base' }, { resultsLimit: 16, scrapeCount: 6 })
+    const r = await webRunRows(
+      'display-columns',
+      (f) => {
+        f.statDisplay = 'base'
+      },
+      { statDisplay: 'base' },
+      { resultsLimit: 16, scrapeCount: 6 },
+    )
     if (!r.rowCmp.ok) return fail(r.rowCmp.detail)
     const baseCols = ['ATK', 'DEF', 'HP', 'SPD', 'CR', 'CD']
     const scraped = r.web.rows[0] ?? {}
@@ -3754,7 +4106,11 @@ async function scenarioAnalysis() {
     const rotationSum = rotation.reduce((s, e) => s + e.total, 0)
     const sumOk = Math.abs(rotationSum - analysis.combo.new.damage) <= Math.max(1, analysis.combo.new.damage * 1e-4)
     if (!sumOk) {
-      return fail(`rotation split sum ${Math.round(rotationSum)} ≠ COMBO ${Math.round(analysis.combo.new.damage)} (${rotation.length} rotation / ${byAbility.length} default entries)`)
+      return fail(
+        `rotation split sum ${Math.round(rotationSum)} ≠ COMBO ${
+          Math.round(analysis.combo.new.damage)
+        } (${rotation.length} rotation / ${byAbility.length} default entries)`,
+      )
     }
     return ok(`damage splits present on both sides (${byAbility.length} default / ${rotation.length} rotation abilities; rotation totals sum to COMBO)`)
   })
@@ -3773,7 +4129,9 @@ async function scenarioAnalysis() {
       .sort((a, b) => Math.abs(b.combo?.delta ?? 0) - Math.abs(a.combo?.delta ?? 0))
       .slice(0, 3)
     const found = samples.filter((u) => panel.includes(Math.round(Math.abs(u.combo?.delta ?? 0)).toString()))
-    if (found.length === 0) return fail(`none of the top stat-upgrade deltas (${samples.map((u) => Math.round(u.combo?.delta ?? 0)).join(',')}) appear in the web panel`)
+    if (found.length === 0) {
+      return fail(`none of the top stat-upgrade deltas (${samples.map((u) => Math.round(u.combo?.delta ?? 0)).join(',')}) appear in the web panel`)
+    }
     void tmUpgrades
     return ok(`${found.length}/3 top substat-upgrade deltas visible in the web panel; teammate table covered by the MCP leg (${tmUpgrades.length} rows)`)
   })
@@ -3783,7 +4141,7 @@ async function scenarioAnalysis() {
     const sim = await call('simulate_build', { characterId: TARGET, trace: true })
     const buffs = sim.buffs ?? {}
     const allBuffs = [
-      ...((buffs.byAction ? Object.values(buffs.byAction).flatMap((a) => [...(a.buffs ?? []), ...(a.buffsMemo ?? [])]) : [])),
+      ...(buffs.byAction ? Object.values(buffs.byAction).flatMap((a) => [...(a.buffs ?? []), ...(a.buffsMemo ?? [])]) : []),
       ...(buffs.rotationSteps ?? []).flatMap((s) => [...(s.buffs ?? []), ...(s.buffsMemo ?? [])]),
       ...(buffs.basic ?? []),
     ]
@@ -3792,7 +4150,11 @@ async function scenarioAnalysis() {
     if (withSource.length < allBuffs.length * 0.9) return fail(`${allBuffs.length - withSource.length} buffs lack source attribution`)
     const panel = ctx.analysisPanel
     const panelHasSources = panel ? ['Character', 'Light cone', 'Relic', 'Set'].some((w) => panel.includes(w)) : false
-    return ok(`${withSource.length}/${allBuffs.length} trace buffs carry per-skill source attribution${panelHasSources ? '; web panel shows buff source groups' : ' (web panel source groups not text-scrapable)'}`)
+    return ok(
+      `${withSource.length}/${allBuffs.length} trace buffs carry per-skill source attribution${
+        panelHasSources ? '; web panel shows buff source groups' : ' (web panel source groups not text-scrapable)'
+      }`,
+    )
   })
 }
 
@@ -3805,12 +4167,12 @@ const SIM_REQUEST = {
   simFeet: 'SPD',
   simPlanarSphere: 'Ice DMG Boost',
   simLinkRope: 'ATK%',
-  stats: { 'CRIT DMG': 10, SPD: 6 },
+  stats: { 'CRIT DMG': 10, 'SPD': 6 },
 }
 const SIM_REQUEST_2 = {
   ...SIM_REQUEST,
   simOrnamentSet: 'Fleet of the Ageless',
-  stats: { 'CRIT DMG': 8, SPD: 4 },
+  stats: { 'CRIT DMG': 8, 'SPD': 4 },
 }
 
 /** The WEB save shape of form.statSim (mirrors what update_form persists):
@@ -3819,8 +4181,14 @@ const SIM_REQUEST_2 = {
  * dropped by both the page load and the MCP load path. */
 function webStatSim(sims) {
   const scaffold = {
-    simBody: '', simFeet: '', simPlanarSphere: '', simLinkRope: '',
-    simRelicSet1: '', simRelicSet2: '', simOrnamentSet: '', stats: {},
+    simBody: '',
+    simFeet: '',
+    simPlanarSphere: '',
+    simLinkRope: '',
+    simRelicSet1: '',
+    simRelicSet2: '',
+    simOrnamentSet: '',
+    stats: {},
   }
   return {
     key: '',
@@ -3868,7 +4236,9 @@ async function scenarioStatSim() {
     // empty/missing COMBO must not collapse to 0 via parseDisplayNumber('') —
     // report the scraped row shape instead of a bogus 0-vs-simScore diff
     if (webSimRow.COMBO == null || webSimRow.COMBO === '') {
-      return fail(`COMBO cell missing on scraped row, keys=${Object.keys(webSimRow).join(',')} rowCount=${(web.rows ?? []).length} pager=${web.pager ?? '(none)'}`)
+      return fail(
+        `COMBO cell missing on scraped row, keys=${Object.keys(webSimRow).join(',')} rowCount=${(web.rows ?? []).length} pager=${web.pager ?? '(none)'}`,
+      )
     }
     const webCombo = parseDisplayNumber(webSimRow.COMBO)
     if (webCombo === null || Math.abs(webCombo - variant.simScore) >= 2) {
@@ -3907,7 +4277,9 @@ async function scenarioStatSim() {
       return fail(`row count web=${webRows.length} mcp=${statRun.variants.length} (pager ${web.pager})`)
     }
     const orderOk = webRows.every((row, i) => Math.abs(parseDisplayNumber(row.COMBO) - statRun.variants[i].simScore) < 2)
-    if (!orderOk) return fail(`order/values differ: web=${webRows.map((r) => r.COMBO).join('/')} mcp=${statRun.variants.map((v) => Math.round(v.simScore)).join('/')}`)
+    if (!orderOk) {
+      return fail(`order/values differ: web=${webRows.map((r) => r.COMBO).join('/')} mcp=${statRun.variants.map((v) => Math.round(v.simScore)).join('/')}`)
+    }
     return ok(`${statRun.variants.length} saved sims run in the same order with matching values`)
   })
 
@@ -3968,10 +4340,14 @@ async function scenarioStatSim() {
     const mcpSims = (added.statSimulations?.simulations) ?? []
     // The page's load path materializes request defaults the bare seed omits —
     // compare on meaningful (non-empty) values only.
-    const meaningful = (req) => Object.fromEntries(
-      Object.entries(req ?? {})
-        .filter(([, v]) => v !== null && v !== '' && v !== undefined
-          && !(typeof v === 'object' && v !== null && Object.keys(v).length === 0)))
+    const meaningful = (req) =>
+      Object.fromEntries(
+        Object.entries(req ?? {})
+          .filter(([, v]) =>
+            v !== null && v !== '' && v !== undefined
+            && !(typeof v === 'object' && v !== null && Object.keys(v).length === 0)
+          ),
+      )
     const equivalent = mcpSims.length === webSims.length && mcpSims.every((m, i) => {
       const w = webSims[i]
       const a = meaningful(stripSimKey(m.request))
@@ -3982,7 +4358,11 @@ async function scenarioStatSim() {
     if (!equivalent || !listShows) {
       const w0 = meaningful(stripSimKey(webSims[0]?.request))
       const m0 = meaningful(stripSimKey(mcpSims[0]?.request))
-      return fail(`mcp=${JSON.stringify(mcpSims.map((s) => s.name))} web=${JSON.stringify(webSims.map((s) => s.name))}; listText shows ${listShows}; reqA mcp=${JSON.stringify(m0)} web=${JSON.stringify(w0)}`)
+      return fail(
+        `mcp=${JSON.stringify(mcpSims.map((s) => s.name))} web=${JSON.stringify(webSims.map((s) => s.name))}; listText shows ${listShows}; reqA mcp=${
+          JSON.stringify(m0)
+        } web=${JSON.stringify(w0)}`,
+      )
     }
     return ok('two saved sims equivalent; the web list renders both entries')
   })
@@ -4019,7 +4399,7 @@ async function scenarioStatSim() {
     const keyA = added.statSimulations.simulations.find((s) => s.name === 'simA').key
     const overwritten = await call('update_form', {
       characterId: TARGET,
-      statSimulations: { overwrite: { key: keyA, request: { ...structuredClone(SIM_REQUEST), stats: { 'CRIT DMG': 12, SPD: 6 } } } },
+      statSimulations: { overwrite: { key: keyA, request: { ...structuredClone(SIM_REQUEST), stats: { 'CRIT DMG': 12, 'SPD': 6 } } } },
     })
     if (overwritten.statSimulations.total !== 2) return fail('overwrite changed the total')
     // The web's overwrite grants the entry a NEW key (upstream
@@ -4093,7 +4473,11 @@ async function scenarioStatSim() {
       // web.toast is the {rejected, notes} object — String() it and the real
       // toast text vanishes into "[object Object]"; serialize it properly
       const toastHead = JSON.stringify(web.toast ?? null)?.slice(0, 200) ?? '(none)'
-      return fail(`web sims=${JSON.stringify(webSims.map((s) => s.request?.simOrnamentSet))} input=${webInput.simOrnamentSet} vs imported=${impOrnament}; button ${JSON.stringify(web.preImport)}; toast head: ${toastHead}`)
+      return fail(
+        `web sims=${JSON.stringify(webSims.map((s) => s.request?.simOrnamentSet))} input=${webInput.simOrnamentSet} vs imported=${impOrnament}; button ${
+          JSON.stringify(web.preImport)
+        }; toast head: ${toastHead}`,
+      )
     }
     return ok(`imported build converts to a stat sim (ornament ${impOrnament}, body ${impBody}) — matches the web input area`)
   })
@@ -4117,26 +4501,52 @@ async function scenarioSuggestions() {
     // priority, exclude, equipped-off, min-rolls) pair the toggle with a
     // body-main-stat bound that actually drives perms to zero; the web modal
     // and the MCP diagnosis must then list the identical cause set.
-    const noBodyRelic = (s) => { charForm(s).mainBody = ['Effect Hit Rate'] } // inventory body mains: CR DMG/OHB/CRIT Rate/ATK%/HP%/DEF%
+    const noBodyRelic = (s) => {
+      charForm(s).mainBody = ['Effect Hit Rate']
+    } // inventory body mains: CR DMG/OHB/CRIT Rate/ATK%/HP%/DEF%
     const glamoth4pc = (s) => {
       charForm(s).setFilters = { fourPiece: ['Firmament Frontline: Glamoth'], twoPieceCombos: [], ornaments: [] }
     }
     const fixtures = {
-      IMPORT: (s) => { s.relics = [] },
+      IMPORT: (s) => {
+        s.relics = []
+      },
       BODY_MAIN: noBodyRelic,
-      FEET_MAIN: (s) => { charForm(s).mainFeet = ['HP%'] }, // inventory feet: SPD/ATK%/DEF%
-      PLANAR_SPHERE_MAIN: (s) => { charForm(s).mainPlanarSphere = ['Fire DMG Boost'] },
-      LINK_ROPE_MAIN: (s) => { charForm(s).mainLinkRope = ['Break Effect'] },
-      RELIC_SETS: (s) => { charForm(s).setFilters = { fourPiece: ['Guard of Wuthering Snow'], twoPieceCombos: [], ornaments: [] } }, // no Head relic of that set
-      ORNAMENT_SETS: (s) => { charForm(s).setFilters = { fourPiece: [], twoPieceCombos: [], ornaments: ['Firmament Frontline: Glamoth'] } },
-      KEEP_CURRENT: (s) => { charForm(s).keepCurrentRelics = true; glamoth4pc(s) },
+      FEET_MAIN: (s) => {
+        charForm(s).mainFeet = ['HP%']
+      }, // inventory feet: SPD/ATK%/DEF%
+      PLANAR_SPHERE_MAIN: (s) => {
+        charForm(s).mainPlanarSphere = ['Fire DMG Boost']
+      },
+      LINK_ROPE_MAIN: (s) => {
+        charForm(s).mainLinkRope = ['Break Effect']
+      },
+      RELIC_SETS: (s) => {
+        charForm(s).setFilters = { fourPiece: ['Guard of Wuthering Snow'], twoPieceCombos: [], ornaments: [] }
+      }, // no Head relic of that set
+      ORNAMENT_SETS: (s) => {
+        charForm(s).setFilters = { fourPiece: [], twoPieceCombos: [], ornaments: ['Firmament Frontline: Glamoth'] }
+      },
+      KEEP_CURRENT: (s) => {
+        charForm(s).keepCurrentRelics = true
+        glamoth4pc(s)
+      },
       PRIORITY: (s) => {
         s.characters = [...s.characters.filter((c) => c.id !== TARGET), s.characters.find((c) => c.id === TARGET)] // to the roster end: rank ≠ 0
         noBodyRelic(s)
       },
-      EXCLUDE_ENABLED: (s) => { charForm(s).exclude = s.characters.filter((c) => c.id !== TARGET).map((c) => c.id); noBodyRelic(s) },
-      EQUIPPED_DISABLED: (s) => { charForm(s).includeEquippedRelics = false; noBodyRelic(s) },
-      MINIMUM_ROLLS: (s) => { charForm(s).weights = { ...charForm(s).weights, minWeightedRolls: 6 }; noBodyRelic(s) },
+      EXCLUDE_ENABLED: (s) => {
+        charForm(s).exclude = s.characters.filter((c) => c.id !== TARGET).map((c) => c.id)
+        noBodyRelic(s)
+      },
+      EQUIPPED_DISABLED: (s) => {
+        charForm(s).includeEquippedRelics = false
+        noBodyRelic(s)
+      },
+      MINIMUM_ROLLS: (s) => {
+        charForm(s).weights = { ...charForm(s).weights, minWeightedRolls: 6 }
+        noBodyRelic(s)
+      },
     }
     const checked = []
     const problems = []
@@ -4320,21 +4730,26 @@ async function scenarioEditRelic() {
     // The web leg must pass the edited relic through the PAGE's load path
     // (RelicAugmenter normalizes precision + roll metadata) — comparing the
     // MCP's normalized store against a raw seed bake is not apples-to-apples.
-    const webLoad = await webTask('editrelic-normalize', bakeSave((s) => {
-      const r = s.relics.find((x) => x.id === relic.id)
-      r.substats = changed.substats.map((x) => ({ stat: x.stat, value: x.value }))
-    }).state, async (page) => {
-      await bootOptimizer(page)
-      await sleep(1500)
-      return page.harvestSaveState()
-    }, 240_000)
+    const webLoad = await webTask(
+      'editrelic-normalize',
+      bakeSave((s) => {
+        const r = s.relics.find((x) => x.id === relic.id)
+        r.substats = changed.substats.map((x) => ({ stat: x.stat, value: x.value }))
+      }).state,
+      async (page) => {
+        await bootOptimizer(page)
+        await sleep(1500)
+        return page.harvestSaveState()
+      },
+      240_000,
+    )
     // Both sides hold the same stored relic when the same edit is applied.
     await loadBase()
     await call('upsert_relic', {
       relicId: relic.id,
       substats: changed.substats.map((x) => ({ stat: x.stat, value: x.value })),
     })
-    const mcpRelic = ((await call('export_save', { structured: true })).snapshot).relics.find((r) => r.id === relic.id)
+    const mcpRelic = (await call('export_save', { structured: true })).snapshot.relics.find((r) => r.id === relic.id)
     const webRelic = (webLoad?.relics ?? []).find((r) => r.id === relic.id)
     // upsert normalizes roll metadata (addedRolls/rolls) the raw seed lacks —
     // compare the stored {stat, value} pairs
@@ -4345,7 +4760,9 @@ async function scenarioEditRelic() {
         const w = (JSON.parse(pairs(webRelic?.substats)) ?? [])[i]
         return !w || x.stat !== w.stat || Math.abs(x.value - w.value) > 1e-9
       })
-      return fail(`stored substats differ at #${diffIdx}: mcp=${JSON.stringify(mcpRelic.substats?.[diffIdx])} web=${JSON.stringify(webRelic?.substats?.[diffIdx])}`)
+      return fail(
+        `stored substats differ at #${diffIdx}: mcp=${JSON.stringify(mcpRelic.substats?.[diffIdx])} web=${JSON.stringify(webRelic?.substats?.[diffIdx])}`,
+      )
     }
     return ok(`relic modal opens from the build preview; the same substat edit stores identically through upsert_relic and the page load path`)
   })
@@ -4355,7 +4772,8 @@ async function scenarioEditRelic() {
     await loadBase()
     const before = await call('simulate_build', { characterId: TARGET })
     const boostedSubstats = (relic.substats ?? []).map((x, i) =>
-      i === 0 ? { stat: x.stat, value: x.value + (x.stat === 'SPD' ? 2.6 : 100) } : { stat: x.stat, value: x.value })
+      i === 0 ? { stat: x.stat, value: x.value + (x.stat === 'SPD' ? 2.6 : 100) } : { stat: x.stat, value: x.value }
+    )
     await call('upsert_relic', { relicId: relic.id, substats: boostedSubstats })
     const after = await call('simulate_build', { characterId: TARGET })
     if (before.stats.combo.damage === after.stats.combo.damage) return fail('COMBO unchanged after the substat edit')
@@ -4384,7 +4802,7 @@ async function scenarioLayout() {
     if (readDiffs.length) return fail(`initial state differs: ${readDiffs.map((k) => `${k} mcp=${mcpMenu[k]} web=${webMenu[k]}`).join('; ')}`)
 
     // Write side: update_state(layout) → re-open honors the new state.
-    await call('update_state', { section: 'layout', patch: { menuState: { 'Character options': false, Teammates: true } } })
+    await call('update_state', { section: 'layout', patch: { menuState: { 'Character options': false, 'Teammates': true } } })
     const snap = (await call('export_save', { structured: true })).snapshot
     const reopened = await webTask('layout-reopen', snap, async (page) => {
       await bootOptimizer(page)
@@ -4452,8 +4870,7 @@ async function writeEvidence() {
     for (const e of entries) merged.set(`${e.feature}#${e.case}`, e)
   }
   const order = new Map(Object.keys(CASE_TEXT).map((id, i) => [id, i]))
-  const cases = [...merged.values()].sort((a, b) =>
-    (order.get(a.feature) ?? 999) - (order.get(b.feature) ?? 999) || a.case - b.case)
+  const cases = [...merged.values()].sort((a, b) => (order.get(a.feature) ?? 999) - (order.get(b.feature) ?? 999) || a.case - b.case)
   const evidence = {
     area: 'optimizer',
     generatedAt: new Date().toISOString(),

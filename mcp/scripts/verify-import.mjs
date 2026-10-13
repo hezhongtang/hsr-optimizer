@@ -44,7 +44,10 @@ import {
   getDefaultEnvironment,
   StdioClientTransport,
 } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { WebSocket, WebSocketServer } from 'ws'
+import {
+  WebSocket,
+  WebSocketServer,
+} from 'ws'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
@@ -61,8 +64,8 @@ function findChrome() {
   const candidates = process.platform === 'win32'
     ? ['C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe']
     : process.platform === 'darwin'
-      ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium']
-      : ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser', '/usr/bin/chromium']
+    ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium']
+    : ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser', '/usr/bin/chromium']
   return candidates.find((p) => existsSync(p)) ?? null
 }
 function findSiteDist() {
@@ -92,7 +95,10 @@ function recordCase(feature, caseNo, desc, method, ok, detail, script = 'mcp/scr
   evidenceCases.push({ feature, case: caseNo, desc: desc.slice(0, 40), method, result: ok ? 'PASS' : 'FAIL', detail: detail.slice(0, 200), script })
   // incremental flush: a later hang or crash must not lose what already ran
   try {
-    writeFileSync(evidencePath, `${JSON.stringify({ area: 'import', generatedAt: new Date().toISOString(), gitCommit: GIT_COMMIT, cases: evidenceCases }, null, 2)}\n`)
+    writeFileSync(
+      evidencePath,
+      `${JSON.stringify({ area: 'import', generatedAt: new Date().toISOString(), gitCommit: GIT_COMMIT, cases: evidenceCases }, null, 2)}\n`,
+    )
   } catch { /* best-effort */ }
 }
 process.on('unhandledRejection', (e) => {
@@ -124,17 +130,37 @@ async function toolErrorText(client, name, args) {
 
 // ── fixture builders (mirror kelzFormatParser lookups) ──────────────────────
 const SUBSTAT_KEY = {
-  'ATK': 'ATK', 'HP': 'HP', 'DEF': 'DEF', 'ATK%': 'ATK_', 'HP%': 'HP_', 'DEF%': 'DEF_',
-  'SPD': 'SPD', 'CRIT Rate': 'CRIT Rate_', 'CRIT DMG': 'CRIT DMG_',
-  'Effect Hit Rate': 'Effect Hit Rate_', 'Effect RES': 'Effect RES_', 'Break Effect': 'Break Effect_',
+  'ATK': 'ATK',
+  'HP': 'HP',
+  'DEF': 'DEF',
+  'ATK%': 'ATK_',
+  'HP%': 'HP_',
+  'DEF%': 'DEF_',
+  'SPD': 'SPD',
+  'CRIT Rate': 'CRIT Rate_',
+  'CRIT DMG': 'CRIT DMG_',
+  'Effect Hit Rate': 'Effect Hit Rate_',
+  'Effect RES': 'Effect RES_',
+  'Break Effect': 'Break Effect_',
 }
 const MAINSTAT_KEY = {
-  'HP%': 'HP', 'ATK%': 'ATK', 'DEF%': 'DEF', 'SPD': 'SPD', 'CRIT Rate': 'CRIT Rate', 'CRIT DMG': 'CRIT DMG',
-  'Effect Hit Rate': 'Effect Hit Rate', 'Break Effect': 'Break Effect',
-  'Energy Regeneration Rate': 'Energy Regeneration Rate', 'Outgoing Healing Boost': 'Outgoing Healing Boost',
-  'Physical DMG Boost': 'Physical DMG Boost', 'Fire DMG Boost': 'Fire DMG Boost', 'Ice DMG Boost': 'Ice DMG Boost',
-  'Lightning DMG Boost': 'Lightning DMG Boost', 'Wind DMG Boost': 'Wind DMG Boost',
-  'Quantum DMG Boost': 'Quantum DMG Boost', 'Imaginary DMG Boost': 'Imaginary DMG Boost',
+  'HP%': 'HP',
+  'ATK%': 'ATK',
+  'DEF%': 'DEF',
+  'SPD': 'SPD',
+  'CRIT Rate': 'CRIT Rate',
+  'CRIT DMG': 'CRIT DMG',
+  'Effect Hit Rate': 'Effect Hit Rate',
+  'Break Effect': 'Break Effect',
+  'Energy Regeneration Rate': 'Energy Regeneration Rate',
+  'Outgoing Healing Boost': 'Outgoing Healing Boost',
+  'Physical DMG Boost': 'Physical DMG Boost',
+  'Fire DMG Boost': 'Fire DMG Boost',
+  'Ice DMG Boost': 'Ice DMG Boost',
+  'Lightning DMG Boost': 'Lightning DMG Boost',
+  'Wind DMG Boost': 'Wind DMG Boost',
+  'Quantum DMG Boost': 'Quantum DMG Boost',
+  'Imaginary DMG Boost': 'Imaginary DMG Boost',
 }
 /** Store relic → V4ParserRelic; substatValueOverrides shift individual values. */
 function scannerRelicFromStore(relic, uid, substatValueOverrides = {}, overrides = {}) {
@@ -146,8 +172,18 @@ function scannerRelicFromStore(relic, uid, substatValueOverrides = {}, overrides
     return { key, value: substatValueOverrides[i] ?? s.value }
   })
   return {
-    set_id: setIdByName[relic.set], name: 'verify relic', slot: relic.part, rarity: relic.grade,
-    level: relic.enhance, mainstat, substats, location: '', lock: false, discard: false, _uid: uid, ...overrides,
+    set_id: setIdByName[relic.set],
+    name: 'verify relic',
+    slot: relic.part,
+    rarity: relic.grade,
+    level: relic.enhance,
+    mainstat,
+    substats,
+    location: '',
+    lock: false,
+    discard: false,
+    _uid: uid,
+    ...overrides,
   }
 }
 /** reliquary flavor: substats carry count/step so the speedVerified roll path stays clean. */
@@ -158,18 +194,30 @@ function reliquaryRelicFromStore(relic, uid, substatValueOverrides = {}, overrid
 }
 function kelzJson(relics, characters = [], lightCones = [], extra = {}) {
   return {
-    source: 'HSR-Scanner', build: 'v1.2.0', version: 4,
+    source: 'HSR-Scanner',
+    build: 'v1.2.0',
+    version: 4,
     metadata: { uid: 100000001, trailblazer: 'Stelle' },
-    gacha: { stellar_jade: 0, oneric_shards: 0 }, materials: [],
-    characters, light_cones: lightCones, relics, ...extra,
+    gacha: { stellar_jade: 0, oneric_shards: 0 },
+    materials: [],
+    characters,
+    light_cones: lightCones,
+    relics,
+    ...extra,
   }
 }
 function archiverJson(relics, characters = [], lightCones = [], extra = {}) {
   return {
-    source: 'reliquary_archiver', build: 'v0.8.0', version: 4,
+    source: 'reliquary_archiver',
+    build: 'v0.8.0',
+    version: 4,
     metadata: { uid: 100000001, trailblazer: 'Stelle' },
-    gacha: { stellar_jade: 0, oneric_shards: 0 }, materials: [],
-    characters, light_cones: lightCones, relics, ...extra,
+    gacha: { stellar_jade: 0, oneric_shards: 0 },
+    materials: [],
+    characters,
+    light_cones: lightCones,
+    relics,
+    ...extra,
   }
 }
 const LIGHT_CONES = [
@@ -192,10 +240,12 @@ const ownedHeadSpdIndex = ownedHead.substats.findIndex((s) => s.stat === 'SPD')
 // The web applies a live InitialScan as a native full-inventory replace
 // (the scan IS the whole inventory); MCP wraps the same frame in its union
 // merge — both sides converge iff the scan carries every current store relic.
-const fullScan = (extraRelics, characters) => archiverJson(
-  [...pristineSave.relics.map((r, i) => scannerRelicFromStore(r, String(i), {}, { location: r.equippedBy ?? '' })), ...extraRelics],
-  characters, [],
-)
+const fullScan = (extraRelics, characters) =>
+  archiverJson(
+    [...pristineSave.relics.map((r, i) => scannerRelicFromStore(r, String(i), {}, { location: r.equippedBy ?? '' })), ...extraRelics],
+    characters,
+    [],
+  )
 
 let copyCounter = 0
 function freshSavePath(mutate) {
@@ -210,16 +260,31 @@ function saveSeed(mutate) {
 
 // ── canonical comparison ─────────────────────────────────────────────────────
 function relicKey(r) {
-  return [r.id, r.part, r.set, r.grade, r.enhance, r.main?.stat, r.main?.value,
+  return [
+    r.id,
+    r.part,
+    r.set,
+    r.grade,
+    r.enhance,
+    r.main?.stat,
+    r.main?.value,
     ...(r.substats ?? []).map((s) => `${s.stat}:${s.value}`),
-    `verified:${r.verified === true}`, `equipped:${r.equippedBy ?? '-'}`, `age:${r.ageIndex ?? '-'}`].join('|')
+    `verified:${r.verified === true}`,
+    `equipped:${r.equippedBy ?? '-'}`,
+    `age:${r.ageIndex ?? '-'}`,
+  ].join('|')
 }
 function saveSlice(save) {
   return {
     relics: (save.relics ?? []).map(relicKey).sort(),
-    characters: (save.characters ?? []).map((c) => JSON.stringify({
-      id: c.id, equipped: c.equipped, form: c.form, builds: c.builds,
-    })).sort(),
+    characters: (save.characters ?? []).map((c) =>
+      JSON.stringify({
+        id: c.id,
+        equipped: c.equipped,
+        form: c.form,
+        builds: c.builds,
+      })
+    ).sort(),
   }
 }
 function sameSlice(a, b) {
@@ -267,7 +332,18 @@ async function runWebTask(opts, fn) {
     const message = String(e?.message ?? e)
     console.log(`    [web-task-error:${opts?.label}] ${message.slice(0, 400)}`)
     // harvest-shaped safe defaults so downstream ok-checks read falsy, never throw
-    return { __error: message, relics: [], characters: [], scannerSettings: {}, links: [], counts: ['', ''], errText: '', end: {}, afterSequence: {}, afterNoise: {} }
+    return {
+      __error: message,
+      relics: [],
+      characters: [],
+      scannerSettings: {},
+      links: [],
+      counts: ['', ''],
+      errText: '',
+      end: {},
+      afterSequence: {},
+      afterNoise: {},
+    }
   }
 }
 
@@ -395,7 +471,9 @@ async function startArchiver() {
       const text = JSON.stringify({ event, data })
       for (const ws of clients) if (ws.readyState === WebSocket.OPEN) ws.send(text)
     },
-    terminateAll: () => { for (const ws of clients) ws.terminate() },
+    terminateAll: () => {
+      for (const ws of clients) ws.terminate()
+    },
     clientCount: () => clients.size,
     waitForClient: async (timeoutMs = 20000) => {
       const deadline = Date.now() + timeoutMs
@@ -408,14 +486,15 @@ async function startArchiver() {
     // http.close()'s callback never fires while a ws client (the MCP scanner or
     // the page) still holds the socket open — that deadlock hung whole runs.
     // Terminate every client, then close with a hard fallback.
-    close: () => new Promise((r) => {
-      for (const ws of clients) ws.terminate()
-      wss.clients.forEach((c) => c.terminate())
-      wss.close(() => {})
-      http.close(() => r())
-      http.closeAllConnections?.()
-      setTimeout(r, 3000).unref?.()
-    }),
+    close: () =>
+      new Promise((r) => {
+        for (const ws of clients) ws.terminate()
+        wss.clients.forEach((c) => c.terminate())
+        wss.close(() => {})
+        http.close(() => r())
+        http.closeAllConnections?.()
+        setTimeout(r, 3000).unref?.()
+      }),
   }
 }
 
@@ -452,18 +531,25 @@ try {
     const diff = firstSliceDiff(web, mcp)
     const webOk = web.relics.length === 161 && web.relics[3]?.equippedBy == null
     const mcpOk = mcp.relics.length === 161 && mcp.relics[3]?.equippedBy == null
-    recordCase('import.save.load', 1,
+    recordCase(
+      'import.save.load',
+      1,
       '同一存档经网页「载入数据」与 load_save 载入后,SaveState.save() 输出逐键一致',
       'browser-parity',
       webOk && mcpOk && diff == null,
-      diff ?? `both sides: ${web.relics.length} relics, relic[3] unequipped, seenFeatures kept`)
+      diff ?? `both sides: ${web.relics.length} relics, relic[3] unequipped, seenFeatures kept`,
+    )
 
     // c2: a save with a custom websocketUrl loads with manual-load (sanitize)
     //     semantics on both sides — url stays the default.
     const wsMutator = (s) => {
       s.scannerSettings = {
-        ingest: false, ingestCharacters: false, ingestOnlyExistingCharacters: false, ingestWarpResources: false,
-        websocketUrl: 'ws://10.99.99.99:9999/ws', customUrl: true,
+        ingest: false,
+        ingestCharacters: false,
+        ingestOnlyExistingCharacters: false,
+        ingestWarpResources: false,
+        websocketUrl: 'ws://10.99.99.99:9999/ws',
+        customUrl: true,
       }
       return s
     }
@@ -485,11 +571,14 @@ try {
     const webUrl = web2.scannerSettings?.websocketUrl
     const mcpUrl = mcp2.scannerSettings?.websocketUrl
     const mcpState = await callTool(client, 'get_state', { section: 'scanner' })
-    recordCase('import.save.load', 2,
+    recordCase(
+      'import.save.load',
+      2,
       '带自定义 websocketUrl 的存档按手动载入语义载入后,websocketUrl 仍是默认值',
       'browser-parity',
       webUrl === DEFAULT_WS && mcpUrl === DEFAULT_WS && mcpState.scanner.websocketUrl === DEFAULT_WS && mcpState.scanner.customUrl === false,
-      `web=${webUrl} mcp=${mcpUrl} get_state.customUrl=${mcpState.scanner.customUrl}`)
+      `web=${webUrl} mcp=${mcpUrl} get_state.customUrl=${mcpState.scanner.customUrl}`,
+    )
 
     // c3: scanner-shaped file and a relics-less file are rejected by both sides,
     //     current data unchanged.
@@ -512,12 +601,15 @@ try {
     })
     const mcpErr1 = await toolErrorText(client, 'load_save', { json: scannerShaped })
     const mcpErr2 = await toolErrorText(client, 'load_save', { json: relicsLess })
-    recordCase('import.save.load', 3,
+    recordCase(
+      'import.save.load',
+      3,
       '扫描器文件与缺少 relics/characters 的文件被拒绝,当前数据不变',
       'browser-parity',
       web3.rejected && web3.relics === 162 && web3.chars === 8
         && mcpErr1 != null && mcpErr2 != null && /relics|characters/i.test(String(mcpErr1) + String(mcpErr2)),
-      `web rejected=${web3.rejected}, save unchanged ${web3.relics}/${web3.chars}; mcp errors present=${mcpErr1 != null && mcpErr2 != null}`)
+      `web rejected=${web3.rejected}, save unchanged ${web3.relics}/${web3.chars}; mcp errors present=${mcpErr1 != null && mcpErr2 != null}`,
+    )
   }
 
   // ── import.save.export ─────────────────────────────────────────────────────
@@ -544,17 +636,23 @@ try {
       && (webSave.relics[1].enhance === mcpSave.relics[1].enhance)
     // reload-ability on both sides
     const reloadMcp = await callTool(client, 'load_save', { path: exportPath })
-    const reloadWeb = await runWebTask({ label: 'export-c1-reload', seed: typeof webSaveString === 'string' ? webSaveString : '{}', timeoutMs: 240_000 }, async (page) => {
-      await page.goto('', { timeoutMs: 90_000 })
-      await page.waitForSelector('#root > *', { timeoutMs: 90_000 })
-      await sleep(800)
-      return page.harvestSaveState()
-    })
-    recordCase('import.save.export', 1,
+    const reloadWeb = await runWebTask(
+      { label: 'export-c1-reload', seed: typeof webSaveString === 'string' ? webSaveString : '{}', timeoutMs: 240_000 },
+      async (page) => {
+        await page.goto('', { timeoutMs: 90_000 })
+        await page.waitForSelector('#root > *', { timeoutMs: 90_000 })
+        await sleep(800)
+        return page.harvestSaveState()
+      },
+    )
+    recordCase(
+      'import.save.export',
+      1,
       'export_save 写出的文件与网页「保存数据」下载的文件内容逐键一致,可被两边重新载入',
       'browser-parity',
       same && reloadMcp.relics === 162 && reloadWeb?.relics?.length === 162,
-      `web SaveState.save() ≡ export_save file (162 relics, relic[1] +12); reloaded: mcp=${reloadMcp.relics}, web=${reloadWeb?.relics?.length}`)
+      `web SaveState.save() ≡ export_save file (162 relics, relic[1] +12); reloaded: mcp=${reloadMcp.relics}, web=${reloadWeb?.relics?.length}`,
+    )
   }
 
   // ── import.save.clear ──────────────────────────────────────────────────────
@@ -582,26 +680,36 @@ try {
     const webKeeps = JSON.stringify(web.seenFeatures) === JSON.stringify(['feature.verify.keep'])
     const mcpEmpty = disk.relics?.length === 0 && disk.characters?.length === 0 && Object.keys(disk.scoringMetadataOverrides ?? {}).length === 0
     const mcpKeeps = JSON.stringify(disk.seenFeatures) === JSON.stringify(['feature.verify.keep'])
-    recordCase('import.save.clear', 1,
+    recordCase(
+      'import.save.clear',
+      1,
       'reset_all(persist=true) 之后磁盘存档的 relics、characters、scoringMetadataOverrides 为空且 seenFeatures 保留,与网页清除并等待落盘后的存档一致',
       'browser-parity',
       webEmpty && webKeeps && mcpEmpty && mcpKeeps,
-      `web: relics=${web.relics?.length} chars=${web.characters?.length} seen=${web.seenFeatures}; mcp disk: relics=${disk.relics?.length} chars=${disk.characters?.length} seen=${disk.seenFeatures}`)
+      `web: relics=${web.relics?.length} chars=${web.characters?.length} seen=${web.seenFeatures}; mcp disk: relics=${disk.relics?.length} chars=${disk.characters?.length} seen=${disk.seenFeatures}`,
+    )
   }
 
   // ── import.scanner.parseFile ───────────────────────────────────────────────
   {
     const kelzFixture = kelzJson(
       [scannerRelicFromStore(headRelic, '900', { 0: headRelic.substats[0].value + 10 })],
-      [CH_EXISTING, CH_NEW], LIGHT_CONES,
+      [CH_EXISTING, CH_NEW],
+      LIGHT_CONES,
     )
     const hoyolabFixture = {
       data: {
         avatar_list: [{
-          id: 1107, level: 76, name: 'Clara', rank: 0,
+          id: 1107,
+          level: 76,
+          name: 'Clara',
+          rank: 0,
           equip: { id: 20000, level: 80, rank: 1, rarity: 5 },
           relics: [{
-            id: 61153, level: 15, pos: 3, rarity: 5,
+            id: 61153,
+            level: 15,
+            pos: 3,
+            rarity: 5,
             main_property: { property_type: 53, value: '64.8', times: 0 },
             properties: [
               { property_type: 33, value: '11.7%', times: 2, is_preview: false },
@@ -609,7 +717,10 @@ try {
             ],
           }],
           ornaments: [{
-            id: 63116, level: 15, pos: 6, rarity: 5,
+            id: 63116,
+            level: 15,
+            pos: 6,
+            rarity: 5,
             main_property: { property_type: 54, value: '55.1%', times: 0 },
             properties: [{ property_type: 29, value: '38.1', times: 2, is_preview: false }],
           }],
@@ -649,11 +760,20 @@ try {
     const hoyolabOk = webHoyolab.relics === '2' && webHoyolab.characters === '1'
       && mcpHoyolab.added + mcpHoyolab.updated + mcpHoyolab.skipped === 2 && mcpHoyolab.charactersTouched === 1
     const unknownOk = webCounts.errText.includes('Invalid scanner file') && mcpUnknown != null && /无法识别的扫描器/.test(mcpUnknown)
-    recordCase('import.scanner.parseFile', 1,
+    recordCase(
+      'import.scanner.parseFile',
+      1,
       '同一文件在网页确认页显示的遗器数、角色数与 import_scanner_json / import_hoyolab(dryRun=true) 的统计一致;未知来源两边都报错',
       'browser-parity',
       kelzOk && hoyolabOk && unknownOk,
-      `kelz ${kelzOk} web ${webKelz.relics}/${webKelz.characters} vs mcp ${mcpKelz.added + mcpKelz.updated + mcpKelz.skipped}/${mcpKelz.charactersTouched}; hoyolab ${hoyolabOk} web ${webHoyolab.relics}/${webHoyolab.characters} vs mcp ${mcpHoyolab.added + mcpHoyolab.updated + mcpHoyolab.skipped}/${mcpHoyolab.charactersTouched}; unknown ${unknownOk} — web errText: ${String(webCounts.errText).slice(0, 80).replace(/\n/g, ' ')}; mcp err: ${String(mcpUnknown).slice(0, 60)}`)
+      `kelz ${kelzOk} web ${webKelz.relics}/${webKelz.characters} vs mcp ${
+        mcpKelz.added + mcpKelz.updated + mcpKelz.skipped
+      }/${mcpKelz.charactersTouched}; hoyolab ${hoyolabOk} web ${webHoyolab.relics}/${webHoyolab.characters} vs mcp ${
+        mcpHoyolab.added + mcpHoyolab.updated + mcpHoyolab.skipped
+      }/${mcpHoyolab.charactersTouched}; unknown ${unknownOk} — web errText: ${String(webCounts.errText).slice(0, 80).replace(/\n/g, ' ')}; mcp err: ${
+        String(mcpUnknown).slice(0, 60)
+      }`,
+    )
   }
 
   // ── import.scanner.mergeRelicsOnly ─────────────────────────────────────────
@@ -683,12 +803,15 @@ try {
     // MCP union regression alongside (README #9 union semantics)
     await callTool(client, 'load_save', { path: freshSavePath() })
     const union = await callTool(client, 'import_scanner_json', { inline: fixture, includeCharacters: false })
-    recordCase('import.scanner.mergeRelicsOnly', 1,
+    recordCase(
+      'import.scanner.mergeRelicsOnly',
+      1,
       'includeCharacters=false、merge=replace 导入后,角色列表不变、遗器库存与网页点「导入遗器」之后的存档一致',
       'browser-parity',
       diff == null && web.relics.length === 3 && web.characters.length === 8
         && mcpRun.charactersTouched === 0 && union.totalAfter === 163 && union.added === 1,
-      diff ?? `both: 3 relics / 8 chars; mcp replace charactersTouched=${mcpRun.charactersTouched}; union keeps ${union.totalBefore}→${union.totalAfter}`)
+      diff ?? `both: 3 relics / 8 chars; mcp replace charactersTouched=${mcpRun.charactersTouched}; union keeps ${union.totalBefore}→${union.totalAfter}`,
+    )
   }
 
   // ── import.scanner.mergeCharacters ─────────────────────────────────────────
@@ -717,13 +840,17 @@ try {
     const diffAll = firstSliceDiff(webAll, mcpAll)
     const char1107web = webAll.characters.find((c) => c.id === '1107')
     const char1107mcp = mcpAll.characters.find((c) => c.id === '1107')
-    recordCase('import.scanner.mergeCharacters', 1,
+    recordCase(
+      'import.scanner.mergeCharacters',
+      1,
       'merge=replace 导入后的存档与网页点「导入角色与遗器」之后的存档一致',
       'browser-parity',
       diffAll == null && webAll.relics.length === 3 && webAll.characters.length === 9
         && char1107web?.form?.characterLevel === 80 && char1107mcp?.form?.characterLevel === 80
         && char1107web?.equipped?.Head === char1107mcp?.equipped?.Head,
-      diffAll ?? `both: 3 relics / 9 chars; 1107 level 80 web=${char1107web?.form?.characterLevel} mcp=${char1107mcp?.form?.characterLevel}; mcp charactersTouched=${mcpAllRun.charactersTouched}`)
+      diffAll
+        ?? `both: 3 relics / 9 chars; 1107 level 80 web=${char1107web?.form?.characterLevel} mcp=${char1107mcp?.form?.characterLevel}; mcp charactersTouched=${mcpAllRun.charactersTouched}`,
+    )
 
     const webOnly = await runWebTask({ label: 'merge-chars-c2', seed: saveSeed(), timeoutMs: 240_000 }, async (page) => {
       await page.goto('#import', { timeoutMs: 90_000 })
@@ -741,12 +868,15 @@ try {
     await callTool(client, 'import_scanner_json', { inline: fixture, merge: 'replace', existingCharactersOnly: true })
     const mcpOnly = await mcpExportSlice()
     const diffOnly = firstSliceDiff(webOnly, mcpOnly)
-    recordCase('import.scanner.mergeCharacters', 2,
+    recordCase(
+      'import.scanner.mergeCharacters',
+      2,
       'existingCharactersOnly=true 与勾选「只导入已有角色」的结果一致',
       'browser-parity',
       diffOnly == null && webOnly.characters.length === 8 && mcpOnly.characters.length === 8
         && !webOnly.characters.some((c) => c.id === '1107'),
-      diffOnly ?? `both: 8 chars, 1107 absent, ${webOnly.relics.length} relics`)
+      diffOnly ?? `both: 8 chars, 1107 absent, ${webOnly.relics.length} relics`,
+    )
   }
 
   // ── supplementary: reliquary verified same-hash overwrite (README 留尾巴) ──
@@ -760,9 +890,14 @@ try {
     const buildMutator = (s) => {
       const char = s.characters.find((c) => c.id === '1205')
       char.builds = [{
-        name: 'verify-build', characterId: '1205', equipped: { Head: oldId },
-        characterEidolon: 0, lightCone: '20000', lightConeSuperimposition: 1,
-        source: 'character', team: [null, null, null],
+        name: 'verify-build',
+        characterId: '1205',
+        equipped: { Head: oldId },
+        characterEidolon: 0,
+        lightCone: '20000',
+        lightConeSuperimposition: 1,
+        source: 'character',
+        team: [null, null, null],
       }]
       return s
     }
@@ -794,7 +929,9 @@ try {
         ok: relic != null && gone && relic.verified === true && relic.equippedBy === '1205'
           && Math.abs(spd - (Math.floor(ownedHead.substats[ownedHeadSpdIndex].value) + 0.6)) < 1e-9
           && char?.equipped?.Head === NEW_ID && char?.builds?.[0]?.equipped?.Head === NEW_ID,
-        detail: `${label}: id=${relic?.id} verified=${relic?.verified} spd=${spd} equippedBy=${relic?.equippedBy} slot=${char?.equipped?.Head} build=${char?.builds?.[0]?.equipped?.Head} oldGone=${gone}`,
+        detail: `${label}: id=${relic?.id} verified=${relic?.verified} spd=${spd} equippedBy=${relic?.equippedBy} slot=${char?.equipped?.Head} build=${
+          char?.builds?.[0]?.equipped?.Head
+        } oldGone=${gone}`,
       }
     }
     const webSide = checkSide(web, 'web')
@@ -807,11 +944,14 @@ try {
     const unionChar = await callTool(client, 'get_character', { characterId: '1205' })
     const unionOk = unionRun.totalAfter === 162 && unionRun.updated === 1 && unionRelic?.verified === true
       && unionChar.equippedSlots?.Head?.equippedId === NEW_ID
-    recordCase('import.scanner.mergeRelicsOnly', 'extra-1 (reliquary verified 分支专测)',
+    recordCase(
+      'import.scanner.mergeRelicsOnly',
+      'extra-1 (reliquary verified 分支专测)',
       'verified 导入件同 hash 覆盖副词条/置真/id 改链(含已存配装引用)——README 留尾巴补测',
       'browser-parity',
       webSide.ok && mcpSide.ok && diff == null && unionOk,
-      (diff ?? `${webSide.detail}; ${mcpSide.detail}`) + `; union: ${unionRun.totalBefore}→${unionRun.totalAfter} updated=${unionRun.updated} slot→${NEW_ID}`)
+      (diff ?? `${webSide.detail}; ${mcpSide.detail}`) + `; union: ${unionRun.totalBefore}→${unionRun.totalAfter} updated=${unionRun.updated} slot→${NEW_ID}`,
+    )
   }
 
   // ── import.live.settings ───────────────────────────────────────────────────
@@ -821,11 +961,13 @@ try {
       await page.goto('#import', { timeoutMs: 90_000 })
       await page.waitForText(['Advanced Settings'], { timeoutMs: 60_000 })
       // set the custom URL (also exercises setWebsocketUrl persistence)
-      await page.evaluate('async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }')
+      await page.evaluate(
+        'async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }',
+      )
       await sleep(400)
       await page.evaluate(DOM.setWsUrl, [archiver.url])
       await page.evaluate(DOM.setSwitch, ['Enable Live Import (Recommended)', true])
-      await page.evaluate(DOM.setSwitch, ["Enable updating characters' equipped relics and lightcones", true])
+      await page.evaluate(DOM.setSwitch, ['Enable updating characters\' equipped relics and lightcones', true])
       await sleep(300)
       await page.evaluate(DOM.setSwitch, ['Only update existing characters', true])
       await page.evaluate(DOM.setSwitch, ['Enable importing Warp resources (jades, passes, pity)', true])
@@ -833,7 +975,12 @@ try {
       return page.harvestSaveState()
     })
     await callTool(client, 'load_save', { path: freshSavePath() })
-    for (const [key, value] of [['websocketUrl', archiver.url], ['ingest', true], ['ingestCharacters', true], ['ingestOnlyExistingCharacters', true], ['ingestWarpResources', true]]) {
+    for (
+      const [key, value] of [['websocketUrl', archiver.url], ['ingest', true], ['ingestCharacters', true], ['ingestOnlyExistingCharacters', true], [
+        'ingestWarpResources',
+        true,
+      ]]
+    ) {
       await callTool(client, 'update_state', { section: 'scanner', patch: { [key]: value } })
     }
     const mcp = await mcpExportSlice()
@@ -843,11 +990,14 @@ try {
     const settingsOk = ['ingest', 'ingestCharacters', 'ingestOnlyExistingCharacters', 'ingestWarpResources'].every((k) => webS[k] === true && mcpS[k] === true)
       && webS.websocketUrl === archiver.url && mcpS.websocketUrl === archiver.url
       && webS.customUrl === true && mcpS.customUrl === true
-    recordCase('import.live.settings', 1,
+    recordCase(
+      'import.live.settings',
+      1,
       '逐项修改后导出的存档 scannerSettings(含 customUrl)与网页拨动同一开关后的存档一致',
       'browser-parity',
       settingsOk,
-      `web ${JSON.stringify(webS)} ≡ mcp ${JSON.stringify(mcpS)}`)
+      `web ${JSON.stringify(webS)} ≡ mcp ${JSON.stringify(mcpS)}`,
+    )
 
     // c2: while connected, flipping ingestCharacters ON replays the cached scan
     //     with characters on both sides.
@@ -856,7 +1006,9 @@ try {
     const web2 = await runWebTask({ label: 'settings-c2', seed: saveSeed(), timeoutMs: 300_000 }, async (page) => {
       await page.goto('#import', { timeoutMs: 90_000 })
       await page.waitForText(['Advanced Settings'], { timeoutMs: 60_000 })
-      await page.evaluate('async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }')
+      await page.evaluate(
+        'async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }',
+      )
       await sleep(400)
       await page.evaluate(DOM.setWsUrl, [archiver.url])
       await page.evaluate(DOM.setSwitch, ['Enable Live Import (Recommended)', true]) // ingest ON, ingestCharacters OFF
@@ -868,12 +1020,15 @@ try {
       await sleep(2500)
       const mid = await page.harvestSaveState()
       // flip ingestCharacters ON → replays the scan with characters
-      await page.evaluate(DOM.setSwitch, ["Enable updating characters' equipped relics and lightcones", true])
+      await page.evaluate(DOM.setSwitch, ['Enable updating characters\' equipped relics and lightcones', true])
       await sleep(6500)
       const end = await page.harvestSaveState()
       return { midChars: mid.characters.length, midRelics: mid.relics.length, endChars: end.characters.length, endRelics: end.relics.length, end }
     })
-    await callTool(client, 'update_state', { section: 'scanner', patch: { websocketUrl: archiver.url, ingest: true, ingestCharacters: false, ingestOnlyExistingCharacters: false } })
+    await callTool(client, 'update_state', {
+      section: 'scanner',
+      patch: { websocketUrl: archiver.url, ingest: true, ingestCharacters: false, ingestOnlyExistingCharacters: false },
+    })
     await callTool(client, 'scanner', { action: 'connect' })
     await archiver.waitForClient()
     await archiver.frame('InitialScan', fullScan([novelR('930', 10)], [CH]))
@@ -884,13 +1039,16 @@ try {
     await sleep(1500)
     const mcpEnd = await mcpExportSlice()
     const endChars = mcpEnd.characters.length
-      const diff = firstSliceDiff(web2.end, mcpEnd)
-      recordCase('import.live.settings', 2,
-        '已连接状态下打开 ingestCharacters 会触发一次按角色的重新导入,结果与网页一致',
-        'browser-parity',
-        web2.midChars === 8 && midChars === 8 && web2.endChars === 9 && endChars === 9
-          && web2.endRelics === 163 && midRelics === 163 && diff == null,
-        diff ?? `both: scan(ingestCharacters off) relics-only 162→163 chars 8→8; flip on → chars 9, relics 163`)
+    const diff = firstSliceDiff(web2.end, mcpEnd)
+    recordCase(
+      'import.live.settings',
+      2,
+      '已连接状态下打开 ingestCharacters 会触发一次按角色的重新导入,结果与网页一致',
+      'browser-parity',
+      web2.midChars === 8 && midChars === 8 && web2.endChars === 9 && endChars === 9
+        && web2.endRelics === 163 && midRelics === 163 && diff == null,
+      diff ?? `both: scan(ingestCharacters off) relics-only 162→163 chars 8→8; flip on → chars 9, relics 163`,
+    )
     await callTool(client, 'scanner', { action: 'disconnect' })
     await archiver.close()
   }
@@ -903,7 +1061,9 @@ try {
     const web = await runWebTask({ label: 'conn-c1', seed: saveSeed(), timeoutMs: 300_000 }, async (page) => {
       await page.goto('#import', { timeoutMs: 90_000 })
       await page.waitForText(['Advanced Settings'], { timeoutMs: 60_000 })
-      await page.evaluate('async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }')
+      await page.evaluate(
+        'async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }',
+      )
       await sleep(400)
       await page.evaluate(DOM.setWsUrl, [archiver.url])
       await page.evaluate(DOM.setSwitch, ['Enable Live Import (Recommended)', true])
@@ -911,18 +1071,27 @@ try {
       let connected = false
       for (let i = 0; i < 100; i++) {
         await sleep(200)
-        if ((await page.evaluate(DOM.connectionText)) === 'connected') { connected = true; break }
+        if ((await page.evaluate(DOM.connectionText)) === 'connected') {
+          connected = true
+          break
+        }
       }
       archiver.terminateAll()
       let disconnected = false
       for (let i = 0; i < 100; i++) {
         await sleep(200)
-        if ((await page.evaluate(DOM.connectionText)) === 'disconnected') { disconnected = true; break }
+        if ((await page.evaluate(DOM.connectionText)) === 'disconnected') {
+          disconnected = true
+          break
+        }
       }
       let reconnected = false
       for (let i = 0; i < 150; i++) {
         await sleep(200)
-        if ((await page.evaluate(DOM.connectionText)) === 'connected') { reconnected = true; break }
+        if ((await page.evaluate(DOM.connectionText)) === 'connected') {
+          reconnected = true
+          break
+        }
       }
       return { connected, disconnected, reconnected }
     })
@@ -935,13 +1104,19 @@ try {
     for (let i = 0; i < 100; i++) {
       await sleep(200)
       const s = await callTool(client, 'scanner', { action: 'status' })
-      if (s.connected === true && s.reconnects >= 1) { mcpReconnected = true; break }
+      if (s.connected === true && s.reconnects >= 1) {
+        mcpReconnected = true
+        break
+      }
     }
-    recordCase('import.live.connection', 1,
+    recordCase(
+      'import.live.connection',
+      1,
       '对本地假扫描器服务:connect 后 status 报告已连接,服务端断开后报告未连接并自动重连',
       'browser-parity',
       web.connected && web.disconnected && web.reconnected && connected1.connected === true && mcpConnected1 && mcpReconnected,
-      `web connect/drop/reconnect=${web.connected}/${web.disconnected}/${web.reconnected}; mcp connected=${mcpConnected1}, auto-reconnect=${mcpReconnected}`)
+      `web connect/drop/reconnect=${web.connected}/${web.disconnected}/${web.reconnected}; mcp connected=${mcpConnected1}, auto-reconnect=${mcpReconnected}`,
+    )
     await callTool(client, 'scanner', { action: 'disconnect' })
     await archiver.close()
 
@@ -956,18 +1131,23 @@ try {
     const web2 = await runWebTask({ label: 'conn-c2', seed: saveSeed(), timeoutMs: 240_000 }, async (page) => {
       await page.goto('#import', { timeoutMs: 90_000 })
       await page.waitForText(['Advanced Settings'], { timeoutMs: 60_000 })
-      await page.evaluate('async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }')
+      await page.evaluate(
+        'async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }',
+      )
       await sleep(400)
       await page.evaluate(DOM.setWsUrl, [deadUrl])
       await page.evaluate(DOM.setSwitch, ['Enable Live Import (Recommended)', true])
       await sleep(4000)
       return page.evaluate(DOM.connectionText)
     })
-    recordCase('import.live.connection', 2,
+    recordCase(
+      'import.live.connection',
+      2,
       '目标地址不可达时返回明确的连接失败原因,而不是空成功',
       'browser-parity',
       mcpErr != null && /连接扫描器失败/.test(mcpErr) && web2 === 'disconnected',
-      `mcp error: ${String(mcpErr).slice(0, 80)}; web status after 4s: ${web2}`)
+      `mcp error: ${String(mcpErr).slice(0, 80)}; web status after 4s: ${web2}`,
+    )
   }
 
   // ── import.live.events ─────────────────────────────────────────────────────
@@ -991,7 +1171,7 @@ try {
       let onlyExistingState = false
       for (const step of comboPlan) {
         if (step.chars !== charsState) {
-          await applySwitches("Enable updating characters' equipped relics and lightcones", step.chars)
+          await applySwitches('Enable updating characters\' equipped relics and lightcones', step.chars)
           charsState = step.chars
           await sleep(2500) // cached-scan replay window on the flip
         }
@@ -1009,7 +1189,9 @@ try {
     const web = await runWebTask({ label: 'events', seed: saveSeed(), timeoutMs: 500_000 }, async (page) => {
       await page.goto('#import', { timeoutMs: 90_000 })
       await page.waitForText(['Advanced Settings'], { timeoutMs: 60_000 })
-      await page.evaluate('async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }')
+      await page.evaluate(
+        'async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }',
+      )
       await sleep(400)
       await page.evaluate(DOM.setWsUrl, [archiver.url])
       await page.evaluate(DOM.setSwitch, ['Enable Live Import (Recommended)', true])
@@ -1024,9 +1206,24 @@ try {
       await archiver.frame('UpdateCharacters', [CH])
       await archiver.frame('UpdateMaterials', [{ id: '2', name: 'x', count: 1 }])
       await archiver.frame('UpdateGachaFunds', { stellar_jade: 100, oneric_shards: 20 })
-      await archiver.frame('UpdateLightCones', [{ id: '20000', name: 'lc', level: 5, ascension: 0, superimposition: 1, location: CH.id, lock: false, _uid: 'lc-x' }])
+      await archiver.frame('UpdateLightCones', [{
+        id: '20000',
+        name: 'lc',
+        level: 5,
+        ascension: 0,
+        superimposition: 1,
+        location: CH.id,
+        lock: false,
+        _uid: 'lc-x',
+      }])
       await archiver.frame('DeleteLightCones', ['lc-x'])
-      await archiver.frame('GachaResult', { banner_id: 1, banner_type: 'Character', pity_4: { kind: 'AddPity', amount: 1 }, pity_5: { kind: 'AddPity', amount: 1 }, pull_results: [] })
+      await archiver.frame('GachaResult', {
+        banner_id: 1,
+        banner_type: 'Character',
+        pity_4: { kind: 'AddPity', amount: 1 },
+        pity_5: { kind: 'AddPity', amount: 1 },
+        pull_results: [],
+      })
       await sleep(2500)
       const afterSequence = await page.harvestSaveState()
 
@@ -1064,14 +1261,32 @@ try {
     await archiver.frame('UpdateCharacters', [CH])
     await archiver.frame('UpdateMaterials', [{ id: '2', name: 'x', count: 1 }])
     await archiver.frame('UpdateGachaFunds', { stellar_jade: 100, oneric_shards: 20 })
-    await archiver.frame('UpdateLightCones', [{ id: '20000', name: 'lc', level: 5, ascension: 0, superimposition: 1, location: CH.id, lock: false, _uid: 'lc-x' }])
+    await archiver.frame('UpdateLightCones', [{
+      id: '20000',
+      name: 'lc',
+      level: 5,
+      ascension: 0,
+      superimposition: 1,
+      location: CH.id,
+      lock: false,
+      _uid: 'lc-x',
+    }])
     await archiver.frame('DeleteLightCones', ['lc-x'])
-    await archiver.frame('GachaResult', { banner_id: 1, banner_type: 'Character', pity_4: { kind: 'AddPity', amount: 1 }, pity_5: { kind: 'AddPity', amount: 1 }, pull_results: [] })
+    await archiver.frame('GachaResult', {
+      banner_id: 1,
+      banner_type: 'Character',
+      pity_4: { kind: 'AddPity', amount: 1 },
+      pity_5: { kind: 'AddPity', amount: 1 },
+      pull_results: [],
+    })
     await sleep(1500)
     const mcpSequence = await mcpExportSlice()
     for (const step of comboPlan) {
       if (step.chars) {
-        await callTool(client, 'update_state', { section: 'scanner', patch: { ingestCharacters: true, ...(step.onlyExisting ? { ingestOnlyExistingCharacters: true } : {}) } })
+        await callTool(client, 'update_state', {
+          section: 'scanner',
+          patch: { ingestCharacters: true, ...(step.onlyExisting ? { ingestOnlyExistingCharacters: true } : {}) },
+        })
       } else {
         await callTool(client, 'update_state', { section: 'scanner', patch: { ingestCharacters: false } })
       }
@@ -1091,30 +1306,42 @@ try {
     const mcpAfterNoise = await mcpExportSlice()
 
     const diffSeq = firstSliceDiff(web.afterSequence, mcpSequence)
-    recordCase('import.live.events', 1,
+    recordCase(
+      'import.live.events',
+      1,
       '向 MCP 与网页回放同一段事件序列(InitialScan、UpdateRelics、UpdateCharacters、DeleteRelics、UpdateMaterials、UpdateGachaFunds、UpdateLightCones、DeleteLightCones、GachaResult),两边导出的存档一致',
       'browser-parity',
       diffSeq == null && web.afterSequence.relics.length === mcpSequence.relics.length,
-      diffSeq ?? `both: ${web.afterSequence.relics.length} relics, ${web.afterSequence.characters.length} chars after the 9-kind sequence`)
+      diffSeq ?? `both: ${web.afterSequence.relics.length} relics, ${web.afterSequence.characters.length} chars after the 9-kind sequence`,
+    )
 
     const wearer = (save, uid) => save.relics.find((r) => r.id === uid)?.equippedBy ?? undefined
     const comboOk = comboPlan.every((step) => wearer(web.end, step.relic) === step.expect && wearer(mcpEnd, step.relic) === step.expect)
     const diffEnd = firstSliceDiff(web.end, mcpEnd)
-    recordCase('import.live.events', 2,
+    recordCase(
+      'import.live.events',
+      2,
       '四种开关组合(ingest × ingestCharacters × ingestOnlyExistingCharacters)下 UpdateRelics 的佩戴者处理与网页一致',
       'browser-parity',
       comboOk && diffEnd == null,
-      diffEnd ?? `wearers web={${comboPlan.map((s) => `${s.relic}:${wearer(web.end, s.relic) ?? '-'}`).join(',')}} ≡ mcp={${comboPlan.map((s) => `${s.relic}:${wearer(mcpEnd, s.relic) ?? '-'}`).join(',')}}`)
+      diffEnd
+        ?? `wearers web={${comboPlan.map((s) => `${s.relic}:${wearer(web.end, s.relic) ?? '-'}`).join(',')}} ≡ mcp={${
+          comboPlan.map((s) => `${s.relic}:${wearer(mcpEnd, s.relic) ?? '-'}`).join(',')
+        }}`,
+    )
 
     const noiseWeb = !web.afterFourStar.relics.some((r) => r.id === '932') && !web.afterNoise.relics.some((r) => r.id === '932')
     const noiseMcp = !mcpAfterFourStar.relics.some((r) => r.id === '932') && !mcpAfterNoise.relics.some((r) => r.id === '932')
     const noiseWebStable = web.afterNoise.relics.length === web.end.relics.length
     const noiseMcpStable = mcpAfterNoise.relics.length === mcpEnd.relics.length
-    recordCase('import.live.events', 3,
+    recordCase(
+      'import.live.events',
+      3,
       '非 5★ 遗器的更新与删除事件不改动库存',
       'browser-parity',
       noiseWeb && noiseMcp && noiseWebStable && noiseMcpStable,
-      `post-flip 4★ update never lands: web=${noiseWeb} mcp=${noiseMcp}; its delete frame keeps counts: web ${web.end.relics.length}→${web.afterNoise.relics.length} (${noiseWebStable}), mcp ${mcpEnd.relics.length}→${mcpAfterNoise.relics.length} (${noiseMcpStable})`)
+      `post-flip 4★ update never lands: web=${noiseWeb} mcp=${noiseMcp}; its delete frame keeps counts: web ${web.end.relics.length}→${web.afterNoise.relics.length} (${noiseWebStable}), mcp ${mcpEnd.relics.length}→${mcpAfterNoise.relics.length} (${noiseMcpStable})`,
+    )
     await callTool(client, 'scanner', { action: 'disconnect' })
     await archiver.close()
   }
@@ -1134,7 +1361,9 @@ try {
     const web = await runWebTask({ label: 'reroll-c1', seed: saveSeed(), timeoutMs: 300_000 }, async (page) => {
       await page.goto('#import', { timeoutMs: 90_000 })
       await page.waitForText(['Advanced Settings'], { timeoutMs: 60_000 })
-      await page.evaluate('async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }')
+      await page.evaluate(
+        'async () => { const c = Array.from(document.querySelectorAll(".mantine-Accordion-control")).find((x) => (x.textContent||"").includes("Advanced Settings")); if (c) c.click(); return true }',
+      )
       await sleep(400)
       await page.evaluate(DOM.setWsUrl, [archiver.url])
       await page.evaluate(DOM.setSwitch, ['Enable Live Import (Recommended)', true])
@@ -1165,9 +1394,13 @@ try {
     await archiver.frame('UpdateRelics', [rerollFrame])
     await sleep(1500)
     const mcpView = await callTool(client, 'analyze_relic', {
-      relicId: '950', view: 'reroll',
+      relicId: '950',
+      view: 'reroll',
       rerollSubstats: [
-        { stat: 'SPD', value: 6.4 }, { stat: 'CRIT Rate', value: 6.9 }, { stat: 'Break Effect', value: 5.1 }, { stat: 'ATK%', value: 7.3 },
+        { stat: 'SPD', value: 6.4 },
+        { stat: 'CRIT Rate', value: 6.9 },
+        { stat: 'Break Effect', value: 5.1 },
+        { stat: 'ATK%', value: 7.3 },
       ],
     })
     await callTool(client, 'scanner', { action: 'disconnect' })
@@ -1180,11 +1413,22 @@ try {
       && mcpOrig.relic?.substats?.some((s) => s.stat === 'SPD' && Math.abs(s.value - 4) < 1e-9)
       && mcpRerolled.relic?.substats?.some((s) => s.stat === 'SPD' && Math.abs(s.value - 6.4) < 1e-9)
       && mcpReroll.scoredByOwner === true
-    recordCase('import.live.rerollPreview', 1,
+    recordCase(
+      'import.live.rerollPreview',
+      1,
       '对带 reroll_substats 的遗器事件,返回原/重掷两组副词条及各自的当前分,与弹窗里两张遗器卡的数值一致;无佩戴者时不给分',
       'browser-parity',
       webModalOk && webShowsSpd && mcpOk,
-      `web modalOk=${webModalOk} (Rerol=${/Rerol/i.test(String(web))}, Original=${/Original/i.test(String(web))}), webShowsSpd=${webShowsSpd}; mcpOk=${mcpOk} (orig SPD4=${mcpOrig?.relic?.substats?.some((s) => s.stat === 'SPD' && Math.abs(s.value - 4) < 1e-9)}, reroll SPD6.4=${mcpRerolled?.relic?.substats?.some((s) => s.stat === 'SPD' && Math.abs(s.value - 6.4) < 1e-9)}, score=${mcpOrig?.score?.percentScore}/${mcpRerolled?.score?.percentScore}, scoredByOwner=${mcpReroll?.scoredByOwner})${(!webModalOk || !webShowsSpd) ? ` — modal head: ${String(web).slice(0, 160).replace(/\n/g, ' ')}` : ''}`)
+      `web modalOk=${webModalOk} (Rerol=${/Rerol/i.test(String(web))}, Original=${
+        /Original/i.test(String(web))
+      }), webShowsSpd=${webShowsSpd}; mcpOk=${mcpOk} (orig SPD4=${
+        mcpOrig?.relic?.substats?.some((s) => s.stat === 'SPD' && Math.abs(s.value - 4) < 1e-9)
+      }, reroll SPD6.4=${
+        mcpRerolled?.relic?.substats?.some((s) => s.stat === 'SPD' && Math.abs(s.value - 6.4) < 1e-9)
+      }, score=${mcpOrig?.score?.percentScore}/${mcpRerolled?.score?.percentScore}, scoredByOwner=${mcpReroll?.scoredByOwner})${
+        (!webModalOk || !webShowsSpd) ? ` — modal head: ${String(web).slice(0, 160).replace(/\n/g, ' ')}` : ''
+      }`,
+    )
     await archiver.close()
   }
 
@@ -1219,11 +1463,16 @@ try {
       && expected[3] === byTopic.get('live-import')?.url
       && byTopic.get('scorer')?.internalHash === '#showcase'
       && helpEntries.every((e) => (e.titleZh ?? '').length > 0 && (e.points ?? []).length > 0)
-    recordCase('import.help.read', 1,
+    recordCase(
+      'import.help.read',
+      1,
       'site://help/{topic} 五个主题列出各来源的名称、要点与链接,与导入页当前语言下的内容一致',
       'browser-parity',
       allPresent && resourceOk,
-      `page links ⊇ {reliquary, kelz, hoyolab-discussions, live-import.md} (${expected.filter((u) => hrefs.includes(u)).length}/4); resource topics=${helpEntries.length}/5 urls+internalHash verified=${resourceOk}`)
+      `page links ⊇ {reliquary, kelz, hoyolab-discussions, live-import.md} (${
+        expected.filter((u) => hrefs.includes(u)).length
+      }/4); resource topics=${helpEntries.length}/5 urls+internalHash verified=${resourceOk}`,
+    )
   }
 } finally {
   await client.close().catch(() => {})
@@ -1238,5 +1487,7 @@ try {
   rmSync(tempDir, { recursive: true, force: true })
 }
 
-console.log(failures === 0 ? `\nverify-import: ALL CASES PASSED (${evidenceCases.length})` : `\nverify-import: ${failures} CASE(S) FAILED of ${evidenceCases.length}`)
+console.log(
+  failures === 0 ? `\nverify-import: ALL CASES PASSED (${evidenceCases.length})` : `\nverify-import: ${failures} CASE(S) FAILED of ${evidenceCases.length}`,
+)
 process.exit(failures === 0 ? 0 : 1)

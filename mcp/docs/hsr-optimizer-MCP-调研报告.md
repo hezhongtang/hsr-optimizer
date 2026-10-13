@@ -27,13 +27,13 @@
 
 ### 2.2 最接近的外部项目
 
-| 项目 | 是什么 | 与"agent 操控 optimizer"的关系 |
-|---|---|---|
-| [chenxizhao-cs/hsr-relic-agent](https://github.com/chenxizhao-cs/hsr-relic-agent) ⭐2 | 清华 Rust 课程 Demo：遗器强化决策 Agent | **最接近**。固定上游 commit（`df630a0`）、`npm ci` 构建官方源码、外套薄 Adapter，Rust 决策引擎推荐强化 Continue/Hold/Stop。但最终强化仍由人在页面点击，非完全操控 |
-| [hsr-assistant/hsr-assistant-driver](https://github.com/hsr-assistant/hsr-assistant-driver) ⭐5 | 真 MCP server（Python，2026-04 更新） | 暴露的是**游戏客户端自动化**（集成 Auto_Simulated Universe + March7thAssistant），与遗器优化器无关 |
-| [ReZeroE/StarRail](https://github.com/ReZeroE/StarRail) ⭐298 | 游戏客户端 CLI 自动化包 | 操控游戏本体，非优化器 |
-| [IceDynamix/reliquary-archiver](https://github.com/IceDynamix/reliquary-archiver) ⭐439 / [kel-z/HSR-Scanner](https://github.com/kel-z/HSR-Scanner) ⭐205 | 抓包/OCR 导出账号遗器 JSON | agent 化的**数据输入端** |
-| [orexis](https://github.com/hessiser/orexis) ⭐4 + [orexis-extension](https://github.com/NightKoneko/orexis-extension) ⭐3 | 装在 fribbels 网站上的浏览器扩展（配装插件） | 证明"向官方网页注入扩展"可行，但与 LLM/agent 无关 |
+| 项目                                                                                                                                                      | 是什么                                       | 与"agent 操控 optimizer"的关系                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [chenxizhao-cs/hsr-relic-agent](https://github.com/chenxizhao-cs/hsr-relic-agent) ⭐2                                                                     | 清华 Rust 课程 Demo：遗器强化决策 Agent      | **最接近**。固定上游 commit（`df630a0`）、`npm ci` 构建官方源码、外套薄 Adapter，Rust 决策引擎推荐强化 Continue/Hold/Stop。但最终强化仍由人在页面点击，非完全操控 |
+| [hsr-assistant/hsr-assistant-driver](https://github.com/hsr-assistant/hsr-assistant-driver) ⭐5                                                           | 真 MCP server（Python，2026-04 更新）        | 暴露的是**游戏客户端自动化**（集成 Auto_Simulated Universe + March7thAssistant），与遗器优化器无关                                                                |
+| [ReZeroE/StarRail](https://github.com/ReZeroE/StarRail) ⭐298                                                                                             | 游戏客户端 CLI 自动化包                      | 操控游戏本体，非优化器                                                                                                                                            |
+| [IceDynamix/reliquary-archiver](https://github.com/IceDynamix/reliquary-archiver) ⭐439 / [kel-z/HSR-Scanner](https://github.com/kel-z/HSR-Scanner) ⭐205 | 抓包/OCR 导出账号遗器 JSON                   | agent 化的**数据输入端**                                                                                                                                          |
+| [orexis](https://github.com/hessiser/orexis) ⭐4 + [orexis-extension](https://github.com/NightKoneko/orexis-extension) ⭐3                                | 装在 fribbels 网站上的浏览器扩展（配装插件） | 证明"向官方网页注入扩展"可行，但与 LLM/agent 无关                                                                                                                 |
 
 GitHub 搜 `relic optimizer mcp` 结果为 **0**。另有一个 Reddit r/ClaudeAI 帖子（GitHub Actions + Claude 自动化 HSR damage optimizer）被反爬拦截无法核实，存疑。
 
@@ -53,16 +53,16 @@ GitHub 搜 `relic optimizer mcp` 结果为 **0**。另有一个 Reddit r/ClaudeA
 
 **Engine A —— 遗器库穷举搜索（配装优化器）**
 
-| 环节 | 位置 | 说明 |
-|---|---|---|
-| UI 入口 | `src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts:401-444` | `startOptimization()`：校验 → 存 form 到角色 → `optimizationId = uuid()` → `Optimizer.optimize(form)` |
-| 编排器 | `src/lib/optimization/optimizer.ts:187-436` | **UI 耦合**（zustand grid stores、Mantine 弹窗、i18next、WebGPU 分支），headless 需绕开，自写调度循环复刻 `optimizer.ts:314-435` |
-| 遗器筛选 | `optimizer.ts:159-185` + `src/lib/optimization/relicFilters.ts` | 从 `getRelics()`（zustand relic store）取库存后过滤 |
-| 套装求解 | `src/lib/optimization/relicSetSolver.ts`（:24/:90/:164/:239） | 纯函数 `generateRelicSetSolutions` / `generateOrnamentSetSolutions` / 半连接约减 |
-| 上下文构建 | `src/lib/optimization/context/calculateContext.ts:24` | `generateContext(request)` 纯函数（元数据初始化后） |
-| 计算内核 | `src/lib/worker/optimizerWorker.ts`（526 行） | **纯计算**，无 store/DOM import；分块 `THREAD_BUFFER_LENGTH=150000` 排列，顶部 N 队列 |
-| 结果编码 | `src/lib/optimization/bufferPacker.ts`（SIZE=77 :13） | Float32 行 → `OptimizerDisplayData`（`extractCharacter`/`extractArrayToResults`）；行 `id` = 排列索引 |
-| build 反解 | `src/lib/tabs/tabOptimizer/optimizerTabController.ts:295-306` | `calculateRelicIdsFromId(id)` 混合进制反解出 6 件遗器 ID |
+| 环节       | 位置                                                                      | 说明                                                                                                                             |
+| ---------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| UI 入口    | `src/lib/tabs/tabOptimizer/optimizerForm/optimizerFormActions.ts:401-444` | `startOptimization()`：校验 → 存 form 到角色 → `optimizationId = uuid()` → `Optimizer.optimize(form)`                            |
+| 编排器     | `src/lib/optimization/optimizer.ts:187-436`                               | **UI 耦合**（zustand grid stores、Mantine 弹窗、i18next、WebGPU 分支），headless 需绕开，自写调度循环复刻 `optimizer.ts:314-435` |
+| 遗器筛选   | `optimizer.ts:159-185` + `src/lib/optimization/relicFilters.ts`           | 从 `getRelics()`（zustand relic store）取库存后过滤                                                                              |
+| 套装求解   | `src/lib/optimization/relicSetSolver.ts`（:24/:90/:164/:239）             | 纯函数 `generateRelicSetSolutions` / `generateOrnamentSetSolutions` / 半连接约减                                                 |
+| 上下文构建 | `src/lib/optimization/context/calculateContext.ts:24`                     | `generateContext(request)` 纯函数（元数据初始化后）                                                                              |
+| 计算内核   | `src/lib/worker/optimizerWorker.ts`（526 行）                             | **纯计算**，无 store/DOM import；分块 `THREAD_BUFFER_LENGTH=150000` 排列，顶部 N 队列                                            |
+| 结果编码   | `src/lib/optimization/bufferPacker.ts`（SIZE=77 :13）                     | Float32 行 → `OptimizerDisplayData`（`extractCharacter`/`extractArrayToResults`）；行 `id` = 排列索引                            |
+| build 反解 | `src/lib/tabs/tabOptimizer/optimizerTabController.ts:295-306`             | `calculateRelicIdsFromId(id)` 混合进制反解出 6 件遗器 ID                                                                         |
 
 - **Worker 输入** `OptimizerWorkerInput`（`optimizerWorker.ts:62-83`）：`{ workerType, relics{6槽}, request: Form, context, buffer, relicSetSolutions, ornamentSetSolutions, permutations, WIDTH, skip }` —— 全部是数据，遗器库在 worker 边界已物化为消息。
 - **Worker 输出**：`{ rows: [], buffer }`，尾部 `self.postMessage`（`optimizerWorker.ts:322-325`）—— Node 无 `self`，需一行 shim 或内联调用。
@@ -79,13 +79,13 @@ GitHub 搜 `relic optimizer mcp` 结果为 **0**。另有一个 Reddit r/ClaudeA
 
 **核心 Zustand stores（`src/lib/stores/`）**
 
-| Store | 文件 | 内容 |
-|---|---|---|
-| `useRelicStore` | `relic/relicStore.ts:28` | `relics[]`，actions `setRelics/upsertRelic/batchUpsertRelics/deleteRelic`，命令式 `getRelics()` |
-| `useCharacterStore` | `character/characterStore.ts:31` | `characters[]`（`{id, equipped: 6槽→relicId, form, builds}`） |
-| `useOptimizerRequestStore` | `optimizerForm/useOptimizerRequestStore.ts:101` | 完整 Form 状态（过滤/权重/conditionals/队友/连招）+ `loadForm(form)` |
-| `useOptimizerDisplayStore` | `optimizerUI/useOptimizerDisplayStore.ts:85` | 运行态：`optimizationId`、进度、context、选中行 |
-| `useGlobalStore` / `useScoringStore` 等 | `app/appStore.ts` / `scoring/scoringStore.ts` | 设置 / 评分覆盖 |
+| Store                                   | 文件                                            | 内容                                                                                            |
+| --------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `useRelicStore`                         | `relic/relicStore.ts:28`                        | `relics[]`，actions `setRelics/upsertRelic/batchUpsertRelics/deleteRelic`，命令式 `getRelics()` |
+| `useCharacterStore`                     | `character/characterStore.ts:31`                | `characters[]`（`{id, equipped: 6槽→relicId, form, builds}`）                                   |
+| `useOptimizerRequestStore`              | `optimizerForm/useOptimizerRequestStore.ts:101` | 完整 Form 状态（过滤/权重/conditionals/队友/连招）+ `loadForm(form)`                            |
+| `useOptimizerDisplayStore`              | `optimizerUI/useOptimizerDisplayStore.ts:85`    | 运行态：`optimizationId`、进度、context、选中行                                                 |
+| `useGlobalStore` / `useScoringStore` 等 | `app/appStore.ts` / `scoring/scoringStore.ts`   | 设置 / 评分覆盖                                                                                 |
 
 所有 store 为 vanilla 实现，`store.getState().action()` 在 Node 中可直接调用（React 只负责渲染）。
 
@@ -132,16 +132,16 @@ GitHub 搜 `relic optimizer mcp` 结果为 **0**。另有一个 Reddit r/ClaudeA
 
 ### 3.6 Node 运行阻塞点与解法
 
-| 阻塞点 | 位置 | 解法 |
-|---|---|---|
-| `import.meta.glob`（1000+ 模块） | conditionals 两个注册表 | 照 leaderboard 走 Vite SSR 打包（已验证可行） |
-| `?worker` 导入后缀 | `workerPool.ts:1` | 不用 workerPool，内联调用 worker 函数 |
-| `self.postMessage` | `optimizerWorker.ts:322` | 复刻 `SEQUENTIAL_BENCHMARKS` 内联返回模式，或 shim `globalThis.self` |
-| JSON import attributes | `metadataInitializer.ts:1-3` | Node ≥ 26 原生支持；SSR 打包亦解 |
-| 路径别名 `lib/* → src/lib/*` | `tsconfig.json:23-25` | Vite 构建解析 |
-| `beforeunload` 注册 | `saveState.ts:27` | 不 import SaveState，或提供 window shim |
-| i18next | 仅编排层用 | 内核无 i18n 依赖；headless 不走 `Optimizer.optimize` 即不触发 |
-| WebGPU 分支 | `optimizer.ts:283-312` | 强制 CPU 路径 |
+| 阻塞点                           | 位置                         | 解法                                                                 |
+| -------------------------------- | ---------------------------- | -------------------------------------------------------------------- |
+| `import.meta.glob`（1000+ 模块） | conditionals 两个注册表      | 照 leaderboard 走 Vite SSR 打包（已验证可行）                        |
+| `?worker` 导入后缀               | `workerPool.ts:1`            | 不用 workerPool，内联调用 worker 函数                                |
+| `self.postMessage`               | `optimizerWorker.ts:322`     | 复刻 `SEQUENTIAL_BENCHMARKS` 内联返回模式，或 shim `globalThis.self` |
+| JSON import attributes           | `metadataInitializer.ts:1-3` | Node ≥ 26 原生支持；SSR 打包亦解                                     |
+| 路径别名 `lib/* → src/lib/*`     | `tsconfig.json:23-25`        | Vite 构建解析                                                        |
+| `beforeunload` 注册              | `saveState.ts:27`            | 不 import SaveState，或提供 window shim                              |
+| i18next                          | 仅编排层用                   | 内核无 i18n 依赖；headless 不走 `Optimizer.optimize` 即不触发        |
+| WebGPU 分支                      | `optimizer.ts:283-312`       | 强制 CPU 路径                                                        |
 
 ---
 
@@ -165,13 +165,13 @@ hsr-mcp-server（Node 26 进程，Vite SSR 打包，直接 import 上游 src/）
 
 ### 4.2 工具清单（覆盖网页端核心功能）
 
-| 类别 | MCP tools | 底层实现 |
-|---|---|---|
-| 存档 | `load_save` / `save_status` / `export_save` / `import_scanner_json`（4 种格式） | SaveState 格式读写 + `mergeRelics` |
-| 查询 | `list_characters` / `get_character` / `list_relics`（筛选）/ `get_game_metadata`（zh_CN 名单） | store 命令式读取 + i18n YAML |
-| 优化 | `optimize(characterId, overrides?)` → 候选列表 + 每名 6 件遗器明细；`simulate_build` | Engine A 调度器 / `simulateBuild.ts` |
-| 装备 | `equip_build(rank)` / `equip_relics` / `unequip` → 自动触发网页同步 | `equipmentService.equipRelicIds` |
-| 评分 | `score_relics(characterId?)`（字母+潜力）/ `dps_score(characterId)` | `RelicScorer` / Engine B |
+| 类别 | MCP tools                                                                                      | 底层实现                             |
+| ---- | ---------------------------------------------------------------------------------------------- | ------------------------------------ |
+| 存档 | `load_save` / `save_status` / `export_save` / `import_scanner_json`（4 种格式）                | SaveState 格式读写 + `mergeRelics`   |
+| 查询 | `list_characters` / `get_character` / `list_relics`（筛选）/ `get_game_metadata`（zh_CN 名单） | store 命令式读取 + i18n YAML         |
+| 优化 | `optimize(characterId, overrides?)` → 候选列表 + 每名 6 件遗器明细；`simulate_build`           | Engine A 调度器 / `simulateBuild.ts` |
+| 装备 | `equip_build(rank)` / `equip_relics` / `unequip` → 自动触发网页同步                            | `equipmentService.equipRelicIds`     |
+| 评分 | `score_relics(characterId?)`（字母+潜力）/ `dps_score(characterId)`                            | `RelicScorer` / Engine B             |
 
 ### 4.3 网页端自动同步
 
@@ -187,13 +187,13 @@ hsr-mcp-server（Node 26 进程，Vite SSR 打包，直接 import 上游 src/）
 
 ### 4.5 风险与对策
 
-| 风险 | 等级 | 对策 |
-|---|---|---|
-| Engine A 单线程慢（2059 遗器全库穷举） | 中 | `node:worker_threads` 池（leaderboard `profileWorkerThread` 有先例）；或限套装/主词条约束缩小解空间 |
-| 调度器新代码与官方结果不一致 | 中 | 验收标准：同一存档同一 Form，MCP 结果与网页端 topN 完全一致 |
-| 23313 端口互斥 | 低 | 占用检测/让位逻辑 |
-| 上游更新需重新打包 | 低 | 挂 `npm run build:mcp` 脚本，锁 commit（hsr-relic-agent 同款做法） |
-| `Optimizer.optimize` 未来重构导致内核变化 | 低 | 锁 fork commit + 定期 rebase |
+| 风险                                      | 等级 | 对策                                                                                                |
+| ----------------------------------------- | ---- | --------------------------------------------------------------------------------------------------- |
+| Engine A 单线程慢（2059 遗器全库穷举）    | 中   | `node:worker_threads` 池（leaderboard `profileWorkerThread` 有先例）；或限套装/主词条约束缩小解空间 |
+| 调度器新代码与官方结果不一致              | 中   | 验收标准：同一存档同一 Form，MCP 结果与网页端 topN 完全一致                                         |
+| 23313 端口互斥                            | 低   | 占用检测/让位逻辑                                                                                   |
+| 上游更新需重新打包                        | 低   | 挂 `npm run build:mcp` 脚本，锁 commit（hsr-relic-agent 同款做法）                                  |
+| `Optimizer.optimize` 未来重构导致内核变化 | 低   | 锁 fork commit + 定期 rebase                                                                        |
 
 ### 4.6 实施分期
 

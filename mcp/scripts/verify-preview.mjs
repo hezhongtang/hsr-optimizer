@@ -135,17 +135,19 @@ const { getDefaultEnvironment, StdioClientTransport } = await import(
 )
 
 const client = new Client({ name: 'verify-preview', version: '0.0.0' })
-await client.connect(new StdioClientTransport({
-  command: process.execPath,
-  args: [serverEntry],
-  cwd: mcpDir,
-  env: {
-    ...getDefaultEnvironment(),
-    HSR_MCP_STATE_FILE: `${tempDir}/localstorage.json`,
-    HSR_MCP_ARTIFACTS_DIR: `${tempDir}/artifacts`,
-  },
-  stderr: 'inherit',
-}))
+await client.connect(
+  new StdioClientTransport({
+    command: process.execPath,
+    args: [serverEntry],
+    cwd: mcpDir,
+    env: {
+      ...getDefaultEnvironment(),
+      HSR_MCP_STATE_FILE: `${tempDir}/localstorage.json`,
+      HSR_MCP_ARTIFACTS_DIR: `${tempDir}/artifacts`,
+    },
+    stderr: 'inherit',
+  }),
+)
 
 function payloadOf(result) {
   if (result.structuredContent !== undefined) return result.structuredContent
@@ -456,10 +458,15 @@ async function openCharacter(page, id) {
   await pollUntil(`展示卡就绪(${id})`, async () => await page.evaluate(CARD_READY, [id]), 60_000)
 }
 async function waitScoreHeader(page, timeoutMs = 120_000) {
-  await pollUntil('评分头渲染出百分数', async () => {
-    const h = await page.evaluate(SCORE_HEADER)
-    return { ok: h != null, detail: JSON.stringify(h) }
-  }, timeoutMs, 250)
+  await pollUntil(
+    '评分头渲染出百分数',
+    async () => {
+      const h = await page.evaluate(SCORE_HEADER)
+      return { ok: h != null, detail: JSON.stringify(h) }
+    },
+    timeoutMs,
+    250,
+  )
   return await page.evaluate(SCORE_HEADER)
 }
 function parseNumber(text) {
@@ -502,11 +509,15 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
     const mcp = await callTool('update_state', { section: 'settings', patch: { ShowComboDmgWarning: 'HideV2' } })
     const mcpSnap = await snapshot()
     const mcpValue = mcpSnap.settings?.ShowComboDmgWarning
-    record('preview.disclaimer.dismiss', 1,
+    record(
+      'preview.disclaimer.dismiss',
+      1,
       '关闭提示后两边存档的 settings.ShowComboDmgWarning 都是 HideV2',
       webValue === 'HideV2' && mcpValue === 'HideV2' && mcp.updated === true
-        ? 'PASS' : 'FAIL',
-      `web=${webValue} mcp=${mcpValue}`)
+        ? 'PASS'
+        : 'FAIL',
+      `web=${webValue} mcp=${mcpValue}`,
+    )
   } catch (e) {
     record('preview.disclaimer.dismiss', 1, '关闭提示后两边存档的 settings.ShowComboDmgWarning 都是 HideV2', 'FAIL', String(e.message).slice(0, 120))
   }
@@ -523,9 +534,10 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
     for (const row of rows) {
       if (row.text.startsWith('Combo DMG')) continue // combat row, not a basic stat
       const label = row.text.replace(/\s*[-\d.,]+K?%?\s*$/, '').trim()
-      const key = ['CRIT Rate', 'CRIT DMG', 'Effect Hit Rate', 'Effect RES', 'Break Effect', 'Outgoing Healing Boost', 'Energy Regeneration Rate'].includes(label)
-        ? label
-        : basicKeys.find((k) => k === label || (label.endsWith('DMG') && k === `${label} Boost`))
+      const key =
+        ['CRIT Rate', 'CRIT DMG', 'Effect Hit Rate', 'Effect RES', 'Break Effect', 'Outgoing Healing Boost', 'Energy Regeneration Rate'].includes(label)
+          ? label
+          : basicKeys.find((k) => k === label || (label.endsWith('DMG') && k === `${label} Boost`))
       const raw = key != null ? basic[key] : undefined
       if (raw == null) continue
       compared++
@@ -534,10 +546,13 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
       if (Math.abs(shown - expected) <= 0.05) matched++
       else diffs.push(`${label}: card=${shown} mcp=${expected.toFixed(3)}`)
     }
-    record('preview.card.read', 1,
+    record(
+      'preview.card.read',
+      1,
       '同一角色返回的面板属性与展示卡上各项数值逐项一致',
       compared >= 9 && matched === compared ? 'PASS' : 'FAIL',
-      `${matched}/${compared} 项一致${diffs.length ? '; ' + diffs.slice(0, 3).join('; ') : ''}`)
+      `${matched}/${compared} 项一致${diffs.length ? '; ' + diffs.slice(0, 3).join('; ') : ''}`,
+    )
   } catch (e) {
     record('preview.card.read', 1, '同一角色返回的面板属性与展示卡上各项数值逐项一致', 'FAIL', String(e.message).slice(0, 120))
   }
@@ -546,10 +561,15 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
   try {
     await waitScoreHeader(page)
     const header = await page.evaluate(SCORE_HEADER)
-    const combatRows = await pollUntil('四套分数行渲染', async () => {
-      const rows = await page.evaluate(LABELED_ROWS, [['Character', 'Baseline', 'Benchmark', 'Maximum']])
-      return { ok: rows.Baseline != null && rows.Maximum != null, rows }
-    }, 120_000, 400)
+    const combatRows = await pollUntil(
+      '四套分数行渲染',
+      async () => {
+        const rows = await page.evaluate(LABELED_ROWS, [['Character', 'Baseline', 'Benchmark', 'Maximum']])
+        return { ok: rows.Baseline != null && rows.Maximum != null, rows }
+      },
+      120_000,
+      400,
+    )
     const rows = combatRows.rows
     const webPercent = parseNumber(header.percent)
     const gradeOk = header.grade === mcpScore.grade
@@ -558,10 +578,17 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
       && Math.abs(parseNumber(rows.Baseline) - mcpScore.scores.baseline) <= Math.max(1, mcpScore.scores.baseline * 0.001)
       && Math.abs(parseNumber(rows.Benchmark) - mcpScore.scores.benchmark) <= Math.max(1, mcpScore.scores.benchmark * 0.001)
       && Math.abs(parseNumber(rows.Maximum) - mcpScore.scores.maximum) <= Math.max(1, mcpScore.scores.maximum * 0.001)
-    record('preview.simScore.read', 1,
+    record(
+      'preview.simScore.read',
+      1,
       '同一角色、同一队伍下，分数百分比、评级与四套分数和展示卡一致',
       gradeOk && percentOk && buildsOk ? 'PASS' : 'FAIL',
-      `web ${webPercent}%·${header.grade}; mcp ${(mcpScore.percent * 100).toFixed(1)}%·${mcpScore.grade}; 四套 web=${rows.Character}/${rows.Baseline}/${rows.Benchmark}/${rows.Maximum} mcp=${mcpScore.scores.original.toFixed(0)}/${mcpScore.scores.baseline.toFixed(0)}/${mcpScore.scores.benchmark.toFixed(0)}/${mcpScore.scores.maximum.toFixed(0)}`)
+      `web ${webPercent}%·${header.grade}; mcp ${
+        (mcpScore.percent * 100).toFixed(1)
+      }%·${mcpScore.grade}; 四套 web=${rows.Character}/${rows.Baseline}/${rows.Benchmark}/${rows.Maximum} mcp=${mcpScore.scores.original.toFixed(0)}/${
+        mcpScore.scores.baseline.toFixed(0)
+      }/${mcpScore.scores.benchmark.toFixed(0)}/${mcpScore.scores.maximum.toFixed(0)}`,
+    )
   } catch (e) {
     record('preview.simScore.read', 1, '同一角色、同一队伍下，分数百分比、评级与四套分数和展示卡一致', 'FAIL', String(e.message).slice(0, 120))
   }
@@ -572,14 +599,30 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
     await sleep(1200)
     await page.evaluate(SCROLL_DOWN)
     await sleep(1200)
-    const webRows = await pollUntil('副词条升级表渲染', async () => {
-      const r = await page.evaluate(UPGRADE_TABLE_ROWS)
-      return { ok: r.length >= 4, rows: r }
-    }, 120_000, 500)
+    const webRows = await pollUntil(
+      '副词条升级表渲染',
+      async () => {
+        const r = await page.evaluate(UPGRADE_TABLE_ROWS)
+        return { ok: r.length >= 4, rows: r }
+      },
+      120_000,
+      500,
+    )
     const shortToStat = {
-      'HP %': 'HP%', 'ATK %': 'ATK%', 'DEF %': 'DEF%', 'HP': 'HP', 'ATK': 'ATK', 'DEF': 'DEF', 'SPD': 'SPD',
-      'CR': 'CRIT Rate', 'CD': 'CRIT DMG', 'EHR': 'Effect Hit Rate', 'RES': 'Effect RES', 'BE': 'Break Effect',
-      'ERR': 'Energy Regeneration Rate', 'OHB': 'Outgoing Healing Boost',
+      'HP %': 'HP%',
+      'ATK %': 'ATK%',
+      'DEF %': 'DEF%',
+      'HP': 'HP',
+      'ATK': 'ATK',
+      'DEF': 'DEF',
+      'SPD': 'SPD',
+      'CR': 'CRIT Rate',
+      'CD': 'CRIT DMG',
+      'EHR': 'Effect Hit Rate',
+      'RES': 'Effect RES',
+      'BE': 'Break Effect',
+      'ERR': 'Energy Regeneration Rate',
+      'OHB': 'Outgoing Healing Boost',
     }
     const byStat = new Map(mcpScore.upgrades.substats.map((u) => [u.stat, u]))
     let matched = 0
@@ -588,17 +631,25 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
       const short = row.label.replace(/^\+1x roll /, '')
       const stat = shortToStat[short] ?? short
       const mcpRow = byStat.get(stat)
-      if (!mcpRow) { diffs.push(`${short}(${stat}): MCP 无此项`); continue }
+      if (!mcpRow) {
+        diffs.push(`${short}(${stat}): MCP 无此项`)
+        continue
+      }
       const upgradedShown = parseNumber(row.cells[3])
       const comboDeltaShown = parseNumber(row.cells[2])
       if (Math.abs(upgradedShown - mcpRow.percent * 100) <= 0.06 && Math.abs(comboDeltaShown - mcpRow.delta) <= 1) matched++
       else diffs.push(`${short}: web ${upgradedShown}/${comboDeltaShown} mcp ${(mcpRow.percent * 100).toFixed(2)}/${mcpRow.delta.toFixed(1)}`)
     }
     const countOk = webRows.rows.length === mcpScore.upgrades.substats.length
-    record('preview.simScore.read', 3,
+    record(
+      'preview.simScore.read',
+      3,
       '四张升级表的条目与增量和构筑分析里的表格逐行一致',
       matched === webRows.rows.length && countOk ? 'PASS' : 'FAIL',
-      `副词条表 ${matched}/${webRows.rows.length} 行一致(Upgraded DPS Score+Δ% 两列,行数与 MCP substats ${mcpScore.upgrades.substats.length} 对齐=${countOk})${diffs.length ? '; ' + diffs.slice(0, 2).join('; ') : ''};套装/主词条/队友表同源渲染(upgrades.sets ${mcpScore.upgrades.sets.length}/mains ${mcpScore.upgrades.mains.length}/teammateOrnaments ${mcpScore.upgrades.teammateOrnaments.length})`)
+      `副词条表 ${matched}/${webRows.rows.length} 行一致(Upgraded DPS Score+Δ% 两列,行数与 MCP substats ${mcpScore.upgrades.substats.length} 对齐=${countOk})${
+        diffs.length ? '; ' + diffs.slice(0, 2).join('; ') : ''
+      };套装/主词条/队友表同源渲染(upgrades.sets ${mcpScore.upgrades.sets.length}/mains ${mcpScore.upgrades.mains.length}/teammateOrnaments ${mcpScore.upgrades.teammateOrnaments.length})`,
+    )
   } catch (e) {
     record('preview.simScore.read', 3, '四张升级表的条目与增量和构筑分析里的表格逐行一致', 'FAIL', String(e.message).slice(0, 120))
   }
@@ -614,11 +665,18 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
     // rerunSim), and a concurrent MCP-side trace computation starves it of CPU
     // (the 150s timeout of the previous run). The MCP trace runs after the
     // harvest, before comparison.
-    const webRows = await pollUntil('增益分析汇总渲染', async () => {
-      try { await page.evaluate(SCROLL_DOWN) } catch { /* transient nav */ }
-      const r = await page.evaluate(BUFF_SUMMARY_ROWS)
-      return { ok: r.length >= 3, rows: r }
-    }, 150_000, 1000)
+    const webRows = await pollUntil(
+      '增益分析汇总渲染',
+      async () => {
+        try {
+          await page.evaluate(SCROLL_DOWN)
+        } catch { /* transient nav */ }
+        const r = await page.evaluate(BUFF_SUMMARY_ROWS)
+        return { ok: r.length >= 3, rows: r }
+      },
+      150_000,
+      1000,
+    )
     const mcpTrace = await callTool('score_character', { source: 'roster', characterId: TARGET, trace: true }, LONG)
     const primary = mcpTrace.buffs.primaryAction
     // The MCP trace runs the page's own pipeline (runStatSimulations with
@@ -640,15 +698,43 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
       sums.CD = (sums.CD ?? 0) - sums.UNCONVERTIBLE_CD_BUFF
     }
     const labelMap = {
-      'hp%': 'HP_P', 'spd%': 'SPD_P', 'atk%': 'ATK_P', 'def%': 'DEF_P',
-      'hp': 'HP', 'atk': 'ATK', 'def': 'DEF',
-      'critrate': 'CR', 'critdmg': 'CD', 'effectres': 'RES', 'effecthitrate': 'EHR',
-      'dmgboost': 'BOOST', 'vulnerability': 'VULNERABILITY', 'defpen': 'DEF_PEN',
-      'cdboost': 'CD_BOOST', 'unconvertiblecritdmg': 'UNCONVERTIBLE_CD_BUFF',
+      'hp%': 'HP_P',
+      'spd%': 'SPD_P',
+      'atk%': 'ATK_P',
+      'def%': 'DEF_P',
+      'hp': 'HP',
+      'atk': 'ATK',
+      'def': 'DEF',
+      'critrate': 'CR',
+      'critdmg': 'CD',
+      'effectres': 'RES',
+      'effecthitrate': 'EHR',
+      'dmgboost': 'BOOST',
+      'vulnerability': 'VULNERABILITY',
+      'defpen': 'DEF_PEN',
+      'cdboost': 'CD_BOOST',
+      'unconvertiblecritdmg': 'UNCONVERTIBLE_CD_BUFF',
     }
     const norm = (s) => String(s).toLowerCase().replace(/\s+/g, '')
     const elementDmg = (label) => label.endsWith('dmgboost') ? `${label.replace(/boost$/, '').toUpperCase().replace(/\s/g, '')}_DMG_BOOST` : null
-    const PERCENT_STATS = new Set(['HP_P', 'SPD_P', 'ATK_P', 'DEF_P', 'CR', 'CD', 'RES', 'EHR', 'BE', 'BOOST', 'VULNERABILITY', 'DEF_PEN', 'CD_BOOST', 'UNCONVERTIBLE_CD_BUFF', 'OHB', 'ERR'])
+    const PERCENT_STATS = new Set([
+      'HP_P',
+      'SPD_P',
+      'ATK_P',
+      'DEF_P',
+      'CR',
+      'CD',
+      'RES',
+      'EHR',
+      'BE',
+      'BOOST',
+      'VULNERABILITY',
+      'DEF_PEN',
+      'CD_BOOST',
+      'UNCONVERTIBLE_CD_BUFF',
+      'OHB',
+      'ERR',
+    ])
     let matched = 0
     const diffs = []
     for (const row of webRows.rows) {
@@ -658,16 +744,24 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
         ?? (sums[n.toUpperCase()] != null ? n.toUpperCase() : null)
         ?? elementDmg(n)
         ?? Object.keys(sums).find((k) => norm(k) === n)
-      if (key == null || sums[key] == null) { diffs.push(`${row.label}: MCP 无汇总`); continue }
+      if (key == null || sums[key] == null) {
+        diffs.push(`${row.label}: MCP 无汇总`)
+        continue
+      }
       const isPercent = PERCENT_STATS.has(key) || /_DMG_BOOST$/.test(key)
       const expected = isPercent ? sums[key] * 100 : sums[key]
       if (Math.abs(value - expected) <= 0.5) matched++
       else diffs.push(`${row.label}: web=${value} mcp=${expected.toFixed(1)}`)
     }
-    record('preview.analysis.buffs', 1,
+    record(
+      'preview.analysis.buffs',
+      1,
       '对同一角色的评测模拟，返回的某个动作的增益条目（来源、属性、数值）与增益分析里选中该动作时显示的条目一致',
       matched >= 3 && matched === webRows.rows.length ? 'PASS' : 'FAIL',
-      `主动作 ${primary}:web 属性合计 ${matched}/${webRows.rows.length} 行与 MCP trace(byAction+basic,网页同一条 runStatSimulations 管线)数值一致${diffs.length ? '; ' + diffs.slice(0, 2).join('; ') : ''}`)
+      `主动作 ${primary}:web 属性合计 ${matched}/${webRows.rows.length} 行与 MCP trace(byAction+basic,网页同一条 runStatSimulations 管线)数值一致${
+        diffs.length ? '; ' + diffs.slice(0, 2).join('; ') : ''
+      }`,
+    )
   } catch (e) {
     record('preview.analysis.buffs', 1, '对同一角色的评测模拟，返回的某个动作的增益条目与增益分析显示一致', 'FAIL', String(e.message).slice(0, 120))
   }
@@ -676,13 +770,19 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
   try {
     await page.evaluate(SCROLL_DOWN)
     await sleep(1200)
-    const web = await pollUntil('遗器稀有度指标渲染', async () => {
-      const m = await page.evaluate(TBP_METRICS)
-      return {
-        ok: m.days.length >= 6 && m.days.every((d) => d && d !== '-') && m.rolls.length >= 6 && m.rolls.every((r) => r && r !== '-') && m.potential.length >= 6 && m.potential.every((pp) => pp && pp !== '-'),
-        metrics: m,
-      }
-    }, 150_000, 600)
+    const web = await pollUntil(
+      '遗器稀有度指标渲染',
+      async () => {
+        const m = await page.evaluate(TBP_METRICS)
+        return {
+          ok: m.days.length >= 6 && m.days.every((d) => d && d !== '-') && m.rolls.length >= 6 && m.rolls.every((r) => r && r !== '-')
+            && m.potential.length >= 6 && m.potential.every((pp) => pp && pp !== '-'),
+          metrics: m,
+        }
+      },
+      150_000,
+      600,
+    )
     const equipped = await callTool('score_relics', {
       characterId: TARGET,
       relicFilters: { equippedBy: TARGET },
@@ -709,23 +809,30 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
     }
     const webRollsTotal = web.metrics.rolls.slice(0, 6).reduce((a, b) => a + parseNumber(b), 0)
     const totalOk = Math.abs(webRollsTotal - equipped.rollsTotals.weightedRolls) <= 0.06
-    record('preview.analysis.relicRarity', 1,
+    record(
+      'preview.analysis.relicRarity',
+      1,
       'score_relics(characterId, includeEstTbp=true) 对角色已装备的六件返回的天数与潜力，和这一栏逐件显示的数值一致；补齐汇总后每件 roll 数与六件合计与网页逐件统计一致',
       daysMatched === 6 && rollsMatched === 6 && potMatched === 6 && totalOk ? 'PASS' : 'FAIL',
-      `六件 days ${daysMatched}/6、rolls ${rollsMatched}/6、potential ${potMatched}/6;合计 web=${webRollsTotal.toFixed(1)} mcp=${equipped.rollsTotals.weightedRolls.toFixed(1)}${diffs.length ? '; ' + diffs.slice(0, 2).join('; ') : ''}`)
+      `六件 days ${daysMatched}/6、rolls ${rollsMatched}/6、potential ${potMatched}/6;合计 web=${webRollsTotal.toFixed(1)} mcp=${
+        equipped.rollsTotals.weightedRolls.toFixed(1)
+      }${diffs.length ? '; ' + diffs.slice(0, 2).join('; ') : ''}`,
+    )
   } catch (e) {
     record('preview.analysis.relicRarity', 1, 'score_relics estTBP 天数/潜力/roll 与遗器稀有度栏一致', 'FAIL', String(e.message).slice(0, 120))
   }
 }).catch((e) => {
   console.error('PHASE 1 failed:', e)
-  for (const [f, c, d] of [
-    ['preview.disclaimer.dismiss', 1, '关闭提示'],
-    ['preview.card.read', 1, '面板属性一致'],
-    ['preview.simScore.read', 1, '分数一致'],
-    ['preview.simScore.read', 3, '升级表一致'],
-    ['preview.analysis.buffs', 1, '增益分析一致'],
-    ['preview.analysis.relicRarity', 1, '稀有度分析一致'],
-  ]) {
+  for (
+    const [f, c, d] of [
+      ['preview.disclaimer.dismiss', 1, '关闭提示'],
+      ['preview.card.read', 1, '面板属性一致'],
+      ['preview.simScore.read', 1, '分数一致'],
+      ['preview.simScore.read', 3, '升级表一致'],
+      ['preview.analysis.buffs', 1, '增益分析一致'],
+      ['preview.analysis.relicRarity', 1, '稀有度分析一致'],
+    ]
+  ) {
     if (!cases.some((x) => x.feature === f && x.case === c)) record(f, c, d, 'FAIL', `phase error: ${String(e.message).slice(0, 100)}`)
   }
 })
@@ -751,12 +858,21 @@ await runSeedTask('verify-preview(substat)', freshSeed(baseSavePath), async (pag
     await callTool('update_state', { section: 'showcase', patch: { characterId: TARGET, scoringType: 1 } })
     const mcpSnap = await snapshot()
     const mcpPref = mcpSnap.showcasePreferences?.[TARGET]
-    record('preview.scoring.typeSwitch', 1,
+    record(
+      'preview.scoring.typeSwitch',
+      1,
       '切到副词条评分后，两边存档的 showcasePreferences[角色].scoringType 都是 1',
       webPref?.scoringType === 1 && mcpPref?.scoringType === 1 ? 'PASS' : 'FAIL',
-      `web=${JSON.stringify(webPref)} mcp=${JSON.stringify(mcpPref)}`)
+      `web=${JSON.stringify(webPref)} mcp=${JSON.stringify(mcpPref)}`,
+    )
   } catch (e) {
-    record('preview.scoring.typeSwitch', 1, '切到副词条评分后，两边存档的 showcasePreferences[角色].scoringType 都是 1', 'FAIL', String(e.message).slice(0, 120))
+    record(
+      'preview.scoring.typeSwitch',
+      1,
+      '切到副词条评分后，两边存档的 showcasePreferences[角色].scoringType 都是 1',
+      'FAIL',
+      String(e.message).slice(0, 120),
+    )
   }
 
   // card.read case 2: roll summary + per-relic scores in the substat view
@@ -811,23 +927,33 @@ await runSeedTask('verify-preview(substat)', freshSeed(baseSavePath), async (pag
     for (const row of webRolls) {
       const label = row.label.replace(/\s+/g, '')
       const key = Object.keys(effective).find((k) => label.includes(k.replace(/\s+/g, '')))
-      if (key == null) { rollDiffs.push(`${row.label}: MCP 无 roll 数据`); continue }
+      if (key == null) {
+        rollDiffs.push(`${row.label}: MCP 无 roll 数据`)
+        continue
+      }
       if (Math.abs(parseNumber(row.effective) - effective[key]) <= 0.06) rollMatched++
       else rollDiffs.push(`${row.label}: web=${row.effective} mcp=${effective[key].toFixed(1)}`)
     }
-    record('preview.card.read', 2,
+    record(
+      'preview.card.read',
+      2,
       '副词条评分视图下，逐副词条的 roll 数与卡上的 roll 汇总一致，逐件遗器评分与卡上右侧遗器分数一致',
       scoreMatched === 6 && rollMatched === webRolls.length && rollDiffs.length === 0 ? 'PASS' : 'FAIL',
-      `遗器分 ${scoreMatched}/6 一致;roll 汇总 ${rollMatched}/${webRolls.length} 一致${scoreDiffs.length || rollDiffs.length ? '; ' + scoreDiffs.concat(rollDiffs).slice(0, 3).join('; ') : ''}`)
+      `遗器分 ${scoreMatched}/6 一致;roll 汇总 ${rollMatched}/${webRolls.length} 一致${
+        scoreDiffs.length || rollDiffs.length ? '; ' + scoreDiffs.concat(rollDiffs).slice(0, 3).join('; ') : ''
+      }`,
+    )
   } catch (e) {
     record('preview.card.read', 2, '副词条评分视图下逐副词条 roll 数与逐件遗器评分一致', 'FAIL', String(e.message).slice(0, 120))
   }
 }).catch((e) => {
   console.error('PHASE 2 failed:', e)
-  for (const [f, c, d] of [
-    ['preview.scoring.typeSwitch', 1, '切到副词条评分'],
-    ['preview.card.read', 2, 'roll 汇总一致'],
-  ]) {
+  for (
+    const [f, c, d] of [
+      ['preview.scoring.typeSwitch', 1, '切到副词条评分'],
+      ['preview.card.read', 2, 'roll 汇总一致'],
+    ]
+  ) {
     if (!cases.some((x) => x.feature === f && x.case === c)) record(f, c, d, 'FAIL', `phase error: ${String(e.message).slice(0, 100)}`)
   }
 })
@@ -867,12 +993,21 @@ await runSeedTask('verify-preview(substat)', freshSeed(baseSavePath), async (pag
       await callTool('load_save', { path: freshSeed(healSeed) })
       const resolved = await callTool('score_character', { source: 'roster', characterId: TARGET }, LONG)
       const mcpEffective = resolved.configResolution.scoringType
-      record('preview.scoring.typeSwitch', 2,
+      record(
+        'preview.scoring.typeSwitch',
+        2,
         '给一个没有治疗配置的角色写入 HEAL_SCORE，读回的生效类型回退到该角色可选项的第一项，与网页一致',
         webShowsDps && mcpEffective === 0 ? 'PASS' : 'FAIL',
-        `存档存 scoringType=4 后:网页卡渲染 DPS 视图=${webShowsDps}(分数 ${header.percent}%);MCP 生效类型=${mcpEffective}(0=DPS,可选项第一项)`)
+        `存档存 scoringType=4 后:网页卡渲染 DPS 视图=${webShowsDps}(分数 ${header.percent}%);MCP 生效类型=${mcpEffective}(0=DPS,可选项第一项)`,
+      )
     } catch (e) {
-      record('preview.scoring.typeSwitch', 2, '给一个没有治疗配置的角色写入 HEAL_SCORE，读回的生效类型回退到该角色可选项的第一项，与网页一致', 'FAIL', String(e.message).slice(0, 140))
+      record(
+        'preview.scoring.typeSwitch',
+        2,
+        '给一个没有治疗配置的角色写入 HEAL_SCORE，读回的生效类型回退到该角色可选项的第一项，与网页一致',
+        'FAIL',
+        String(e.message).slice(0, 140),
+      )
     }
 
     // simScore case 2: heal score parity on Natasha
@@ -883,10 +1018,13 @@ await runSeedTask('verify-preview(substat)', freshSeed(baseSavePath), async (pag
       const header = await waitScoreHeader(page, 150_000)
       const webPercent = parseNumber(header.percent)
       const ok = headerPercentClose(webPercent, mcpHeal.percent) && header.grade === mcpHeal.grade
-      record('preview.simScore.read', 2,
+      record(
+        'preview.simScore.read',
+        2,
         '对一个带治疗配置的角色，返回的治疗评分与网页切到治疗评分后的结果一致',
         ok ? 'PASS' : 'FAIL',
-        `web ${webPercent}%·${header.grade} vs mcp ${(mcpHeal.percent * 100).toFixed(1)}%·${mcpHeal.grade}`)
+        `web ${webPercent}%·${header.grade} vs mcp ${(mcpHeal.percent * 100).toFixed(1)}%·${mcpHeal.grade}`,
+      )
     } catch (e) {
       record('preview.simScore.read', 2, '治疗评分与网页一致', 'FAIL', String(e.message).slice(0, 120))
     }
@@ -932,7 +1070,10 @@ const teamSeedPath = deriveSave('team-seed', (s) => {
   const equipped = {}
   for (const part of partsNeeded) {
     const relic = free.find((r) => r.part === part)
-    if (relic) { relic.equippedBy = MOZE; equipped[part] = relic.id }
+    if (relic) {
+      relic.equippedBy = MOZE
+      equipped[part] = relic.id
+    }
   }
   s.characters.push({
     id: MOZE,
@@ -986,10 +1127,15 @@ const TEAM_SEG_ACTIVE = `() => {
 }`
 /** Wait until the score header percent moves away from `previous`. */
 async function waitScoreChange(page, previous, timeoutMs = 150_000) {
-  return await pollUntil(`评分变化(自 ${previous})`, async () => {
-    const h = await page.evaluate(SCORE_HEADER)
-    return { ok: h != null && parseNumber(h.percent) !== previous, detail: h ? h.percent : 'null' }
-  }, timeoutMs, 300)
+  return await pollUntil(
+    `评分变化(自 ${previous})`,
+    async () => {
+      const h = await page.evaluate(SCORE_HEADER)
+      return { ok: h != null && parseNumber(h.percent) !== previous, detail: h ? h.percent : 'null' }
+    },
+    timeoutMs,
+    300,
+  )
 }
 
 // ── task 4a: team default resolution + teammate editing ──────────────────────
@@ -1006,10 +1152,13 @@ await runSeedTask('verify-preview(teams-select)', freshSeed(teamSeedPath), async
     }), 30_000)
     const webPercent = parseNumber(header.percent)
     const ok = segActive.value === 'Custom' && headerPercentClose(webPercent, mcpCustom.percent)
-    record('preview.team.select', 1,
+    record(
+      'preview.team.select',
+      1,
       '角色存有自定义队友时，不指定队伍得到的分数与网页首次打开展示卡时一致（自定义队）',
       ok ? 'PASS' : 'FAIL',
-      `网页队伍控件=${segActive.value},分数 ${webPercent}%;MCP team=auto→${mcpCustom.team}, ${(mcpCustom.percent * 100).toFixed(1)}%`)
+      `网页队伍控件=${segActive.value},分数 ${webPercent}%;MCP team=auto→${mcpCustom.team}, ${(mcpCustom.percent * 100).toFixed(1)}%`,
+    )
   } catch (e) {
     record('preview.team.select', 1, '自定义队默认解析一致', 'FAIL', String(e.message).slice(0, 120))
   }
@@ -1023,10 +1172,13 @@ await runSeedTask('verify-preview(teams-select)', freshSeed(teamSeedPath), async
     const header = await page.evaluate(SCORE_HEADER)
     const webPercent = parseNumber(header.percent)
     const ok = headerPercentClose(webPercent, mcpDefault.percent)
-    record('preview.team.select', 2,
+    record(
+      'preview.team.select',
+      2,
       '显式指定默认队后得到的分数与网页切到默认队后一致',
       ok ? 'PASS' : 'FAIL',
-      `网页默认队 ${webPercent}% vs MCP team=default ${(mcpDefault.percent * 100).toFixed(1)}%`)
+      `网页默认队 ${webPercent}% vs MCP team=default ${(mcpDefault.percent * 100).toFixed(1)}%`,
+    )
   } catch (e) {
     record('preview.team.select', 2, '默认队分数一致', 'FAIL', String(e.message).slice(0, 120))
   }
@@ -1039,14 +1191,16 @@ await runSeedTask('verify-preview(teams-select)', freshSeed(teamSeedPath), async
     await pollUntil('队友头像可点', async () => ({ ok: await page.evaluate(CLICK_TEAMMATE, [1]) }), 10_000)
     await pollUntil('角色弹窗打开', async () => ({ ok: await page.evaluate(MODAL_OPEN) }), 10_000)
     // CharacterSelect: click the readonly trigger, type the name, Enter picks first
-    await pollUntil('选择器触发输入框聚焦', async () => ({ ok: await page.evaluate(`() => {
+    await pollUntil('选择器触发输入框聚焦', async () => ({
+      ok: await page.evaluate(`() => {
       const modal = [...document.querySelectorAll('[role="dialog"]')].filter((m) => m.offsetParent !== null).pop()
       if (!modal) return false
       const input = modal.querySelector('input[readonly]')
       if (!input) return false
       input.click()
       return true
-    }`) }), 10_000)
+    }`),
+    }), 10_000)
     await sleep(400)
     await pollUntil('搜索输入聚焦', async () => ({ ok: await page.evaluate(FOCUS_MODAL_INPUT) }), 10_000)
     await page.type('Seele')
@@ -1054,7 +1208,8 @@ await runSeedTask('verify-preview(teams-select)', freshSeed(teamSeedPath), async
     await page.press('Enter')
     await sleep(600)
     // LightConeSelect: same pattern — trigger, search, Enter
-    await pollUntil('光锥选择器触发', async () => ({ ok: await page.evaluate(`() => {
+    await pollUntil('光锥选择器触发', async () => ({
+      ok: await page.evaluate(`() => {
       const modal = [...document.querySelectorAll('[role="dialog"]')].filter((m) => m.offsetParent !== null).pop()
       if (!modal) return false
       const inputs = Array.from(modal.querySelectorAll('input[readonly]'))
@@ -1062,7 +1217,8 @@ await runSeedTask('verify-preview(teams-select)', freshSeed(teamSeedPath), async
       if (!lc) return false
       lc.click()
       return true
-    }`) }), 10_000)
+    }`),
+    }), 10_000)
     await sleep(400)
     await pollUntil('光锥搜索聚焦', async () => ({ ok: await page.evaluate(FOCUS_MODAL_INPUT) }), 10_000)
     await page.type('In the Night')
@@ -1094,31 +1250,45 @@ await runSeedTask('verify-preview(teams-select)', freshSeed(teamSeedPath), async
     const mcpSnap = await snapshot()
     const mcpTeam = mcpSnap.scoringMetadataOverrides?.[TARGET]?.simulation?.teammates
     const teamEqual = JSON.stringify(webTeam) === JSON.stringify(mcpTeam)
-    record('preview.team.editTeammate', 1,
+    record(
+      'preview.team.editTeammate',
+      1,
       '替换第二位队友后，两边存档的 scoringMetadataOverrides[角色].simulation.teammates 一致',
       teamEqual ? 'PASS' : 'FAIL',
-      `web=${JSON.stringify(webTeam?.map((t) => t.characterId))} mcp=${JSON.stringify(mcpTeam?.map((t) => t.characterId))};全字段相等=${teamEqual}`)
+      `web=${JSON.stringify(webTeam?.map((t) => t.characterId))} mcp=${JSON.stringify(mcpTeam?.map((t) => t.characterId))};全字段相等=${teamEqual}`,
+    )
 
     // case 2 — the custom team now scores identically on both sides
     const webHeader = await waitScoreHeader(page, 150_000)
     const mcpAfter = await callTool('score_character', { source: 'roster', characterId: TARGET }, LONG)
     const webPercent = parseNumber(webHeader.percent)
-    record('preview.team.editTeammate', 2,
+    record(
+      'preview.team.editTeammate',
+      2,
       '随后以自定义队评分，分数与网页一致',
       headerPercentClose(webPercent, mcpAfter.percent) ? 'PASS' : 'FAIL',
-      `web ${webPercent}% vs mcp ${(mcpAfter.percent * 100).toFixed(1)}%`)
+      `web ${webPercent}% vs mcp ${(mcpAfter.percent * 100).toFixed(1)}%`,
+    )
   } catch (e) {
-    record('preview.team.editTeammate', 1, '替换第二位队友后，两边存档的 scoringMetadataOverrides[角色].simulation.teammates 一致', 'FAIL', String(e.message).slice(0, 140))
+    record(
+      'preview.team.editTeammate',
+      1,
+      '替换第二位队友后，两边存档的 scoringMetadataOverrides[角色].simulation.teammates 一致',
+      'FAIL',
+      String(e.message).slice(0, 140),
+    )
     record('preview.team.editTeammate', 2, '随后以自定义队评分，分数与网页一致', 'FAIL', String(e.message).slice(0, 140))
   }
 }).catch((e) => {
   console.error('PHASE 4a failed:', e)
-  for (const [f, c, d] of [
-    ['preview.team.select', 1, '自定义队默认解析一致'],
-    ['preview.team.select', 2, '默认队分数一致'],
-    ['preview.team.editTeammate', 1, '替换队友后存档一致'],
-    ['preview.team.editTeammate', 2, '自定义队评分一致'],
-  ]) {
+  for (
+    const [f, c, d] of [
+      ['preview.team.select', 1, '自定义队默认解析一致'],
+      ['preview.team.select', 2, '默认队分数一致'],
+      ['preview.team.editTeammate', 1, '替换队友后存档一致'],
+      ['preview.team.editTeammate', 2, '自定义队评分一致'],
+    ]
+  ) {
     if (!cases.some((x) => x.feature === f && x.case === c)) record(f, c, d, 'FAIL', `phase error: ${String(e.message).slice(0, 100)}`)
   }
 })
@@ -1141,17 +1311,34 @@ await runSeedTask('verify-preview(teams-reset)', freshSeed(teamSeedPath), async 
     const mcpOverride = mcpSnap.scoringMetadataOverrides?.[TARGET]
     const ok = webOverride?.simulation == null && mcpOverride?.simulation == null
       && JSON.stringify(webOverride?.stats) === JSON.stringify(mcpOverride?.stats)
-    record('preview.team.reset', 1,
+    record(
+      'preview.team.reset',
+      1,
       '重置 DPS 队伍后，存档里该角色的 simulation 覆盖消失，而副词条权重覆盖保持不变，与网页一致',
       ok ? 'PASS' : 'FAIL',
-      `web simulation=${webOverride?.simulation == null ? '已清' : '残留'}, stats=${JSON.stringify(webOverride?.stats)}; mcp simulation=${mcpOverride?.simulation == null ? '已清' : '残留'}, stats=${JSON.stringify(mcpOverride?.stats)}`)
+      `web simulation=${webOverride?.simulation == null ? '已清' : '残留'}, stats=${JSON.stringify(webOverride?.stats)}; mcp simulation=${
+        mcpOverride?.simulation == null ? '已清' : '残留'
+      }, stats=${JSON.stringify(mcpOverride?.stats)}`,
+    )
   } catch (e) {
-    record('preview.team.reset', 1, '重置 DPS 队伍后，存档里该角色的 simulation 覆盖消失，而副词条权重覆盖保持不变，与网页一致', 'FAIL', String(e.message).slice(0, 140))
+    record(
+      'preview.team.reset',
+      1,
+      '重置 DPS 队伍后，存档里该角色的 simulation 覆盖消失，而副词条权重覆盖保持不变，与网页一致',
+      'FAIL',
+      String(e.message).slice(0, 140),
+    )
   }
 }).catch((e) => {
   console.error('PHASE 4b failed:', e)
   if (!cases.some((x) => x.feature === 'preview.team.reset' && x.case === 1)) {
-    record('preview.team.reset', 1, '重置 DPS 队伍后，存档里该角色的 simulation 覆盖消失，而副词条权重覆盖保持不变，与网页一致', 'FAIL', `phase error: ${String(e.message).slice(0, 100)}`)
+    record(
+      'preview.team.reset',
+      1,
+      '重置 DPS 队伍后，存档里该角色的 simulation 覆盖消失，而副词条权重覆盖保持不变，与网页一致',
+      'FAIL',
+      `phase error: ${String(e.message).slice(0, 100)}`,
+    )
   }
 })
 
@@ -1181,17 +1368,34 @@ await runSeedTask('verify-preview(teams-sync)', freshSeed(teamSeedPath), async (
         && (t.lightCone != null ? t.lightCone === form.lightCone : true)
         && (t.lightCone != null ? (t.lightConeSuperimposition ?? 1) === (form.lightConeSuperimposition ?? 1) : true)
     })
-    record('preview.team.sync', 1,
+    record(
+      'preview.team.sync',
+      1,
       '同步后三位队友的星魂、光锥、叠影与角色列表里的对应角色一致，列表里没有的队友不变，两边存档相同',
       equal && syncedOk ? 'PASS' : 'FAIL',
-      `两边存档完全相等=${equal},逐队友采纳列表值=${syncedOk};web=${JSON.stringify(webTeam?.map((t) => [t.characterId, t.characterEidolon, t.lightCone, t.lightConeSuperimposition]))}`)
+      `两边存档完全相等=${equal},逐队友采纳列表值=${syncedOk};web=${
+        JSON.stringify(webTeam?.map((t) => [t.characterId, t.characterEidolon, t.lightCone, t.lightConeSuperimposition]))
+      }`,
+    )
   } catch (e) {
-    record('preview.team.sync', 1, '同步后三位队友的星魂、光锥、叠影与角色列表里的对应角色一致，列表里没有的队友不变，两边存档相同', 'FAIL', String(e.message).slice(0, 140))
+    record(
+      'preview.team.sync',
+      1,
+      '同步后三位队友的星魂、光锥、叠影与角色列表里的对应角色一致，列表里没有的队友不变，两边存档相同',
+      'FAIL',
+      String(e.message).slice(0, 140),
+    )
   }
 }).catch((e) => {
   console.error('PHASE 4c failed:', e)
   if (!cases.some((x) => x.feature === 'preview.team.sync' && x.case === 1)) {
-    record('preview.team.sync', 1, '同步后三位队友的星魂、光锥、叠影与角色列表里的对应角色一致，列表里没有的队友不变，两边存档相同', 'FAIL', `phase error: ${String(e.message).slice(0, 100)}`)
+    record(
+      'preview.team.sync',
+      1,
+      '同步后三位队友的星魂、光锥、叠影与角色列表里的对应角色一致，列表里没有的队友不变，两边存档相同',
+      'FAIL',
+      `phase error: ${String(e.message).slice(0, 100)}`,
+    )
   }
 })
 
@@ -1214,7 +1418,10 @@ await runSeedTask('verify-preview(buffPriority)', freshSeed(teamSeedPath), async
       await sleep(1200)
       const hb = await page.evaluate(SCORE_HEADER)
       const b = hb ? parseNumber(hb.percent) : null
-      if (a != null && a === b) { stable = b; break }
+      if (a != null && a === b) {
+        stable = b
+        break
+      }
     }
     const hFinal = await pollUntil('评分头(副C)', async () => ({ ok: (await page.evaluate(SCORE_HEADER)) != null }), 60_000)
     const webPercent = stable ?? parseNumber((await page.evaluate(SCORE_HEADER)).percent)
@@ -1225,12 +1432,21 @@ await runSeedTask('verify-preview(buffPriority)', freshSeed(teamSeedPath), async
     const mcpPrio = mcpSnap.scoringMetadataOverrides?.[TARGET]?.simulation?.deprioritizeBuffs
     const mcpRun = await callTool('score_character', { source: 'roster', characterId: TARGET }, LONG)
     const ok = webPrio === true && mcpPrio === true && headerPercentClose(webPercent, mcpRun.percent)
-    record('preview.scoring.buffPriority', 1,
+    record(
+      'preview.scoring.buffPriority',
+      1,
       '切到副 C 后两边存档的 simulation.deprioritizeBuffs 都是 true，DPS 评分与网页一致',
       ok ? 'PASS' : 'FAIL',
-      `存档 web=${webPrio} mcp=${mcpPrio};自定义队评分 web ${webPercent}% vs mcp ${(mcpRun.percent * 100).toFixed(1)}%`)
+      `存档 web=${webPrio} mcp=${mcpPrio};自定义队评分 web ${webPercent}% vs mcp ${(mcpRun.percent * 100).toFixed(1)}%`,
+    )
   } catch (e) {
-    record('preview.scoring.buffPriority', 1, '切到副 C 后两边存档的 simulation.deprioritizeBuffs 都是 true，DPS 评分与网页一致', 'FAIL', String(e.message).slice(0, 140))
+    record(
+      'preview.scoring.buffPriority',
+      1,
+      '切到副 C 后两边存档的 simulation.deprioritizeBuffs 都是 true，DPS 评分与网页一致',
+      'FAIL',
+      String(e.message).slice(0, 140),
+    )
   }
 
   // case 2 — Moze: metadata sub-DPS + custom team without a real DPS teammate
@@ -1243,19 +1459,30 @@ await runSeedTask('verify-preview(buffPriority)', freshSeed(teamSeedPath), async
     const snap = await snapshot()
     const mcpEffective = mcpMoze.deprioritizeBuffs
     const mcpNoOverride = snap.scoringMetadataOverrides?.[MOZE]?.simulation?.deprioritizeBuffs == null
-    record('preview.scoring.buffPriority', 2,
+    record(
+      'preview.scoring.buffPriority',
+      2,
       '对一个元数据标为副 C、队里没有其他输出位的角色，未覆盖时读到的生效值是 false',
       webEffectiveFalse && mcpEffective === false && mcpNoOverride ? 'PASS' : 'FAIL',
-      `网页 DPS mode 控件选中=${segActive}(false=Main);MCP score_character.deprioritizeBuffs=${mcpEffective},存档无显式覆盖=${mcpNoOverride}`)
+      `网页 DPS mode 控件选中=${segActive}(false=Main);MCP score_character.deprioritizeBuffs=${mcpEffective},存档无显式覆盖=${mcpNoOverride}`,
+    )
   } catch (e) {
-    record('preview.scoring.buffPriority', 2, '对一个元数据标为副 C、队里没有其他输出位的角色，未覆盖时读到的生效值是 false', 'FAIL', String(e.message).slice(0, 140))
+    record(
+      'preview.scoring.buffPriority',
+      2,
+      '对一个元数据标为副 C、队里没有其他输出位的角色，未覆盖时读到的生效值是 false',
+      'FAIL',
+      String(e.message).slice(0, 140),
+    )
   }
 }).catch((e) => {
   console.error('PHASE 4d failed:', e)
-  for (const [f, c, d] of [
-    ['preview.scoring.buffPriority', 1, '副C存档与评分一致'],
-    ['preview.scoring.buffPriority', 2, '生效false'],
-  ]) {
+  for (
+    const [f, c, d] of [
+      ['preview.scoring.buffPriority', 1, '副C存档与评分一致'],
+      ['preview.scoring.buffPriority', 2, '生效false'],
+    ]
+  ) {
     if (!cases.some((x) => x.feature === f && x.case === c)) record(f, c, d, 'FAIL', `phase error: ${String(e.message).slice(0, 100)}`)
   }
 })
@@ -1292,10 +1519,13 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
     const prunedSnap = (await snapshot()).scoringMetadataOverrides?.[TARGET]?.stats ?? {}
     const mcpPruned = !('SPD' in prunedSnap)
     const ok = webSet === nonDefaultValue && mcpSet === nonDefaultValue && webPruned && mcpPruned
-    record('preview.scoring.spdWeight', 1,
+    record(
+      'preview.scoring.spdWeight',
+      1,
       'set_scoring_override(weights={SPD: 0}) 后的存档与网页把速度权重切到 0% 后的存档一致；与默认值相同时覆盖项被剪掉',
       ok ? 'PASS' : 'FAIL',
-      `角色默认 SPD 权重=${defaultSpd};切到 ${nonDefaultValue} 后 web=${webSet}/mcp=${mcpSet};切回默认后剪除 web=${webPruned}/mcp=${mcpPruned}`)
+      `角色默认 SPD 权重=${defaultSpd};切到 ${nonDefaultValue} 后 web=${webSet}/mcp=${mcpSet};切回默认后剪除 web=${webPruned}/mcp=${mcpPruned}`,
+    )
   } catch (e) {
     record('preview.scoring.spdWeight', 1, 'SPD 权重写入与剪除一致', 'FAIL', String(e.message).slice(0, 140))
   }
@@ -1303,7 +1533,7 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
   // spdPrecision — '.000' segment; SPD row must render 3 decimals
   try {
     const before = await page.evaluate(SPD_ROW_TEXT)
-    await pollUntil("SPD 精度分段(.000)可点", async () => ({ ok: await page.evaluate(SEGMENT_BY_LABEL, ['.000']) }), 10_000)
+    await pollUntil('SPD 精度分段(.000)可点', async () => ({ ok: await page.evaluate(SEGMENT_BY_LABEL, ['.000']) }), 10_000)
     await sleep(800)
     const after = await page.evaluate(SPD_ROW_TEXT)
     const harvest = await page.harvestSaveState()
@@ -1315,10 +1545,13 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
     const mcpFlag = session.savedSession.global.showcasePreciseSpd
     const renders3 = /\d+\.\d{3}/.test(after ?? '')
     const ok = webFlag === true && mcpFlag === true && renders3
-    record('preview.scoring.spdPrecision', 1,
+    record(
+      'preview.scoring.spdPrecision',
+      1,
       '打开后两边存档的 savedSession.global.showcasePreciseSpd 都是 true，渲染出的展示卡速度显示三位小数',
       ok ? 'PASS' : 'FAIL',
-      `存档 web=${webFlag} mcp=${mcpFlag};SPD 行 web "${before}" → "${after}"(三位小数=${renders3})`)
+      `存档 web=${webFlag} mcp=${mcpFlag};SPD 行 web "${before}" → "${after}"(三位小数=${renders3})`,
+    )
   } catch (e) {
     record('preview.scoring.spdPrecision', 1, 'SPD 精度存档与渲染一致', 'FAIL', String(e.message).slice(0, 140))
   }
@@ -1327,7 +1560,8 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
   // the custom speed and the score changes
   try {
     const before = parseNumber((await page.evaluate(SCORE_HEADER)).percent)
-    await pollUntil('基准速度输入框聚焦', async () => ({ ok: await page.evaluate(`() => {
+    await pollUntil('基准速度输入框聚焦', async () => ({
+      ok: await page.evaluate(`() => {
       const inputs = [...document.querySelectorAll('input')]
         .filter((i) => i.offsetParent !== null && !i.readOnly && i.type !== 'radio')
       const box = inputs.find((i) => (i.placeholder || '') === '...')
@@ -1336,7 +1570,8 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
       target.focus()
       target.select()
       return true
-    }`) }), 10_000)
+    }`),
+    }), 10_000)
     await page.type('100')
     await page.press('Tab')
     await sleep(2500)
@@ -1344,7 +1579,8 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
     let headerMatch = cardText.match(/(\d+(?:\.\d+)?) SPD Benchmark/)
     if (!headerMatch) {
       // retry once — the blur commit can race the first attempt
-      await pollUntil('基准速度输入框聚焦(重试)', async () => ({ ok: await page.evaluate(`() => {
+      await pollUntil('基准速度输入框聚焦(重试)', async () => ({
+        ok: await page.evaluate(`() => {
         const inputs = [...document.querySelectorAll('input')]
           .filter((i) => i.offsetParent !== null && !i.readOnly && i.type !== 'radio')
         const box = inputs.find((i) => (i.placeholder || '') === '...')
@@ -1353,7 +1589,8 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
         target.focus()
         target.select()
         return true
-      }`) }), 10_000)
+      }`),
+      }), 10_000)
       await page.type('100')
       await page.press('Tab')
       await sleep(2500)
@@ -1367,17 +1604,24 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
       && headerPercentClose(webPercent, mcpRun.percent)
       && mcpRun.spdBenchmark != null
       && webPercent !== before
-    record('preview.scoring.spdBenchmark', 1,
+    record(
+      'preview.scoring.spdBenchmark',
+      1,
       '把基准速度设为某个阈值后，返回的基准速度、分数与网页在同一输入下的展示卡一致',
       ok ? 'PASS' : 'FAIL',
-      `网页标题 "${headerMatch ? headerMatch[1] : '?'} SPD Benchmark",分数 ${webPercent}%;MCP spdBenchmark=${mcpRun.spdBenchmark}, ${(mcpRun.percent * 100).toFixed(1)}%`)
+      `网页标题 "${headerMatch ? headerMatch[1] : '?'} SPD Benchmark",分数 ${webPercent}%;MCP spdBenchmark=${mcpRun.spdBenchmark}, ${
+        (mcpRun.percent * 100).toFixed(1)
+      }%`,
+    )
   } catch (e) {
     record('preview.scoring.spdBenchmark', 1, '基准速度评分一致', 'FAIL', String(e.message).slice(0, 140))
   }
 
   // customize.color — ColorInput: set the hex through the real input handlers
   try {
-    await pollUntil('取色器输入框聚焦', async () => ({ ok: await page.evaluate(`(hex) => {
+    await pollUntil('取色器输入框聚焦', async () => ({
+      ok: await page.evaluate(
+        `(hex) => {
       const input = document.querySelector('input.mantine-ColorInput-input')
       if (!input || !(input.offsetWidth || input.getClientRects().length)) return false
       input.focus()
@@ -1385,7 +1629,10 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
       setter.call(input, hex)
       input.dispatchEvent(new Event('input', { bubbles: true }))
       return true
-    }`, ['#FF8800']) }), 10_000)
+    }`,
+        ['#FF8800'],
+      ),
+    }), 10_000)
     await page.press('Tab')
     await sleep(1500)
     const harvest = await page.harvestSaveState()
@@ -1396,10 +1643,13 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
     const mcpPref = (await snapshot()).showcasePreferences?.[TARGET]
     const colorOk = (webPref?.color ?? '').toLowerCase() === (mcpPref?.color ?? '').toLowerCase()
     const modeOk = webPref?.colorMode === 'CUSTOM' && mcpPref?.colorMode === 'CUSTOM'
-    record('preview.customize.color', 1,
+    record(
+      'preview.customize.color',
+      1,
       '给角色设置自定义颜色后，两边存档的 showcasePreferences[角色] 都是 { color, colorMode: CUSTOM }',
       colorOk && modeOk && Object.keys(webPref ?? {}).length === 2 && Object.keys(mcpPref ?? {}).length === 2 ? 'PASS' : 'FAIL',
-      `web=${JSON.stringify(webPref)} mcp=${JSON.stringify(mcpPref)}`)
+      `web=${JSON.stringify(webPref)} mcp=${JSON.stringify(mcpPref)}`,
+    )
   } catch (e) {
     record('preview.customize.color', 1, '自定义颜色存档一致', 'FAIL', String(e.message).slice(0, 140))
   }
@@ -1415,10 +1665,13 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
     await callTool('update_state', { section: 'showcase', patch: { characterId: TARGET, colorMode: 'STANDARD' } })
     const session = (await callTool('get_state', { section: 'session' })).session
     const mcpFlag = session.savedSession.global.showcaseStandardMode
-    record('preview.customize.color', 2,
+    record(
+      'preview.customize.color',
+      2,
       '把配色模式改为 STANDARD 后，两边存档的 savedSession.global.showcaseStandardMode 都是 true',
       webFlag === true && mcpFlag === true ? 'PASS' : 'FAIL',
-      `web=${webFlag} mcp=${mcpFlag}`)
+      `web=${webFlag} mcp=${mcpFlag}`,
+    )
   } catch (e) {
     record('preview.customize.color', 2, 'STANDARD 联动一致', 'FAIL', String(e.message).slice(0, 140))
   }
@@ -1460,10 +1713,15 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
       && webGlobal?.showcaseDarkMode === g.showcaseDarkMode
       && webGlobal?.showcaseL2D === g.showcaseL2D
     const renderChanged = blendBefore !== blendAfterPreset || filterBefore !== filterAfterDark || spineBefore !== spineAfter
-    record('preview.customize.display', 1,
+    record(
+      'preview.customize.display',
+      1,
       '逐个修改四个开关后，两边存档的 savedSession.global 对应四键一致；渲染出的展示卡外观随之变化',
       keysOk && renderChanged ? 'PASS' : 'FAIL',
-      `preset/dark/L2D 三键 web=${webGlobal?.showcasePreset}/${webGlobal?.showcaseDarkMode}/${webGlobal?.showcaseL2D} mcp=${g.showcasePreset}/${g.showcaseDarkMode}/${g.showcaseL2D}(UID 开关仅存在于展示柜页,其两键一致性在 verify-showcase 实况会话核对);渲染变化:blend ${blendBefore}→${blendAfterPreset},filter ${filterBefore ? 'x' : '?'}→${filterAfterDark ? 'x' : '?'},spine canvas ${spineBefore}→${spineAfter}`)
+      `preset/dark/L2D 三键 web=${webGlobal?.showcasePreset}/${webGlobal?.showcaseDarkMode}/${webGlobal?.showcaseL2D} mcp=${g.showcasePreset}/${g.showcaseDarkMode}/${g.showcaseL2D}(UID 开关仅存在于展示柜页,其两键一致性在 verify-showcase 实况会话核对);渲染变化:blend ${blendBefore}→${blendAfterPreset},filter ${
+        filterBefore ? 'x' : '?'
+      }→${filterAfterDark ? 'x' : '?'},spine canvas ${spineBefore}→${spineAfter}`,
+    )
   } catch (e) {
     record('preview.customize.display', 1, '外观开关存档与渲染一致', 'FAIL', String(e.message).slice(0, 140))
   }
@@ -1476,7 +1734,8 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
     await pollUntil('角色编辑弹窗打开', async () => ({ ok: await page.evaluate(MODAL_OPEN) }), 10_000)
     await sleep(500)
     // LightConeSelect is the second readonly input in the modal
-    await pollUntil('光锥选择器触发', async () => ({ ok: await page.evaluate(`() => {
+    await pollUntil('光锥选择器触发', async () => ({
+      ok: await page.evaluate(`() => {
       const modal = [...document.querySelectorAll('[role="dialog"]')].filter((m) => m.offsetParent !== null).pop()
       if (!modal) return false
       const inputs = Array.from(modal.querySelectorAll('input[readonly]'))
@@ -1484,7 +1743,8 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
       if (!lc) return false
       lc.click()
       return true
-    }`) }), 10_000)
+    }`),
+    }), 10_000)
     await sleep(400)
     await pollUntil('光锥搜索聚焦', async () => ({ ok: await page.evaluate(FOCUS_MODAL_INPUT) }), 10_000)
     await page.type('On the Fall of an Aeon')
@@ -1492,7 +1752,8 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
     await page.press('Enter')
     await sleep(600)
     // superimposition segmented (values 1..5) → pick 3
-    await pollUntil('叠影分段(3)可点', async () => ({ ok: await page.evaluate(`() => {
+    await pollUntil('叠影分段(3)可点', async () => ({
+      ok: await page.evaluate(`() => {
       for (const root of document.querySelectorAll('.mantine-SegmentedControl-root')) {
         if (!root.offsetParent) continue
         const inputs = Array.from(root.querySelectorAll('input[type="radio"]')).map((i) => i.value)
@@ -1502,7 +1763,8 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
         }
       }
       return false
-    }`) }), 10_000)
+    }`),
+    }), 10_000)
     await sleep(300)
     await pollUntil('弹窗 Save 可点(edit)', async () => ({ ok: await page.evaluate(CLICK_BUTTON_TEXT, ['Save']) }), 10_000)
     await sleep(1200)
@@ -1510,15 +1772,23 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
     const webForm = harvest?.characters?.find((c) => c.id === TARGET)?.form
 
     await callTool('load_save', { path: freshSeed(baseSavePath) })
-    await callTool('upsert_character', { characterId: TARGET, lightCone: webForm.lightCone, lightConeSuperimposition: webForm.lightConeSuperimposition, characterEidolon: webForm.characterEidolon })
+    await callTool('upsert_character', {
+      characterId: TARGET,
+      lightCone: webForm.lightCone,
+      lightConeSuperimposition: webForm.lightConeSuperimposition,
+      characterEidolon: webForm.characterEidolon,
+    })
     const mcpSnap = await snapshot()
     const mcpForm = mcpSnap.characters?.find((c) => c.id === TARGET)?.form
     const relevant = (f) => ({ lightCone: f.lightCone, lightConeSuperimposition: f.lightConeSuperimposition, characterEidolon: f.characterEidolon })
     const equal = JSON.stringify(relevant(webForm)) === JSON.stringify(relevant(mcpForm))
-    record('preview.character.edit', 1,
+    record(
+      'preview.character.edit',
+      1,
       '从展示卡改光锥与叠影后的存档，与 upsert_character 传同样参数后的存档一致',
       equal ? 'PASS' : 'FAIL',
-      `web=${JSON.stringify(relevant(webForm))} mcp=${JSON.stringify(relevant(mcpForm))}`)
+      `web=${JSON.stringify(relevant(webForm))} mcp=${JSON.stringify(relevant(mcpForm))}`,
+    )
   } catch (e) {
     record('preview.character.edit', 1, '改光锥叠影后存档一致', 'FAIL', String(e.message).slice(0, 140))
   }
@@ -1529,7 +1799,8 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
     await sleep(400)
     await openCharacter(page, HEALER)
     await sleep(1500)
-    await pollUntil('空 Head 槽可点', async () => ({ ok: await page.evaluate(`() => {
+    await pollUntil('空 Head 槽可点', async () => ({
+      ok: await page.evaluate(`() => {
       const card = document.getElementById('characterTabPreview')
       if (!card) return false
       const slots = Array.from(card.querySelectorAll('[data-testid="relic-preview"]'))
@@ -1537,27 +1808,32 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
       if (!head) return false
       head.click()
       return true
-    }`) }), 10_000)
+    }`),
+    }), 10_000)
     await pollUntil('遗器新增弹窗打开', async () => ({ ok: await page.evaluate(MODAL_OPEN) }), 10_000)
     await sleep(500)
     // pick a set through the Set combobox (a button whose text starts 'Set'),
     // then Submit
-    await pollUntil('套装下拉可点', async () => ({ ok: await page.evaluate(`() => {
+    await pollUntil('套装下拉可点', async () => ({
+      ok: await page.evaluate(`() => {
       const modal = [...document.querySelectorAll('[role="dialog"]')].filter((m) => m.offsetParent !== null).pop()
       if (!modal) return false
       const trigger = Array.from(modal.querySelectorAll('button')).find((b) => /^(Set|Choose)/.test((b.textContent || '').trim()) && b.offsetParent !== null)
       if (!trigger) return false
       trigger.click()
       return true
-    }`) }), 10_000)
+    }`),
+    }), 10_000)
     await sleep(500)
     // click the first option in the opened dropdown
-    await pollUntil('套装选项可点', async () => ({ ok: await page.evaluate(`() => {
+    await pollUntil('套装选项可点', async () => ({
+      ok: await page.evaluate(`() => {
       const options = [...document.querySelectorAll('[role="option"]')].filter((o) => o.offsetParent !== null)
       if (!options.length) return false
       options[0].click()
       return true
-    }`) }), 10_000)
+    }`),
+    }), 10_000)
     await sleep(500)
     await pollUntil('遗器弹窗 Submit 可点', async () => ({ ok: await page.evaluate(CLICK_BUTTON_TEXT, ['Submit']) }), 10_000)
     await sleep(1500)
@@ -1579,14 +1855,20 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
     const mcpSnap = await snapshot()
     const mcpNatasha = mcpSnap.characters?.find((c) => c.id === HEALER)
     const mcpRelic = (mcpSnap.relics ?? []).find((r) => r.id === added.relic?.id ?? added.relicId)
-    const relicComparable = (r) => r && { set: r.set, part: r.part, grade: r.grade, enhance: r.enhance, equippedBy: r.equippedBy, main: r.main, substats: r.substats }
+    const relicComparable = (r) =>
+      r && { set: r.set, part: r.part, grade: r.grade, enhance: r.enhance, equippedBy: r.equippedBy, main: r.main, substats: r.substats }
     const relicEqual = canon(relicComparable(webNewRelic)) === canon(relicComparable(mcpRelic))
     const equipOk = webNatasha?.equipped?.Head === webNewRelic?.id && mcpNatasha?.equipped?.Head === mcpRelic?.id
     const countOk = (harvest?.relics ?? []).length === (mcpSnap.relics ?? []).length
-    record('preview.relic.addOrEdit', 1,
+    record(
+      'preview.relic.addOrEdit',
+      1,
       '给空的头部槽位新增一件遗器后，两边存档的 relics 多出同一件且 equippedBy 为该角色，角色的 equipped.Head 指向它',
       relicEqual && equipOk && countOk ? 'PASS' : 'FAIL',
-      `遗器字段相等=${relicEqual},equipped.Head web=${webNatasha?.equipped?.Head === webNewRelic?.id} mcp=${mcpNatasha?.equipped?.Head === mcpRelic?.id},库存 ${harvest?.relics?.length} vs ${mcpSnap.relics?.length}`)
+      `遗器字段相等=${relicEqual},equipped.Head web=${webNatasha?.equipped?.Head === webNewRelic?.id} mcp=${
+        mcpNatasha?.equipped?.Head === mcpRelic?.id
+      },库存 ${harvest?.relics?.length} vs ${mcpSnap.relics?.length}`,
+    )
   } catch (e) {
     record('preview.relic.addOrEdit', 1, '空槽新增遗器后存档一致', 'FAIL', String(e.message).slice(0, 140))
   }
@@ -1596,19 +1878,22 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
     await page.evaluate(CLOSE_OVERLAYS)
     await sleep(400)
     await openCharacter(page, TARGET)
-    await pollUntil('已装备遗器可点(编辑)', async () => ({ ok: await page.evaluate(`() => {
+    await pollUntil('已装备遗器可点(编辑)', async () => ({
+      ok: await page.evaluate(`() => {
       const card = document.getElementById('characterTabPreview')
       if (!card) return false
       const slots = Array.from(card.querySelectorAll('[data-testid="relic-preview"]'))
       if (!slots[0]) return false
       slots[0].click()
       return true
-    }`) }), 10_000)
+    }`),
+    }), 10_000)
     await pollUntil('遗器编辑弹窗打开', async () => ({ ok: await page.evaluate(MODAL_OPEN) }), 10_000)
     await sleep(500)
     // type into the first substat value input (a TextInput carrying a number;
     // the enhance field is a NumberInput — excluded by class)
-    await pollUntil('副词条输入聚焦', async () => ({ ok: await page.evaluate(`() => {
+    await pollUntil('副词条输入聚焦', async () => ({
+      ok: await page.evaluate(`() => {
       const modal = [...document.querySelectorAll('[role="dialog"]')].filter((m) => m.offsetParent !== null).pop()
       if (!modal) return false
       const inputs = Array.from(modal.querySelectorAll('input')).filter((i) => !i.readOnly && i.type !== 'radio' && i.offsetParent !== null)
@@ -1618,7 +1903,8 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
       sub.select()
       window.__relicEditBefore = sub.value
       return true
-    }`) }), 10_000)
+    }`),
+    }), 10_000)
     const beforeValue = await page.evaluate(`() => window.__relicEditBefore ?? null`)
     const typedValue = beforeValue != null ? (Number(beforeValue) + 1).toFixed(1) : '12.0'
     await page.type(typedValue)
@@ -1652,26 +1938,33 @@ await runSeedTask('verify-preview(customize)', freshSeed(baseSavePath), async (p
         }
       }
     }
-    record('preview.relic.addOrEdit', 2,
+    record(
+      'preview.relic.addOrEdit',
+      2,
       '编辑一件已装备遗器的副词条后两边存档一致',
       equal ? 'PASS' : 'FAIL',
-      `遗器 ${webRelic.id} 全字段相等=${equal};副词条 web=${JSON.stringify(webRelic.substats?.map((s) => [s.stat, s.value]))}${fieldDiff.length ? ';差异 ' + fieldDiff.slice(0, 3).join('; ') : ''}`)
+      `遗器 ${webRelic.id} 全字段相等=${equal};副词条 web=${JSON.stringify(webRelic.substats?.map((s) => [s.stat, s.value]))}${
+        fieldDiff.length ? ';差异 ' + fieldDiff.slice(0, 3).join('; ') : ''
+      }`,
+    )
   } catch (e) {
     record('preview.relic.addOrEdit', 2, '编辑副词条后存档一致', 'FAIL', String(e.message).slice(0, 140))
   }
 }).catch((e) => {
   console.error('PHASE 5 failed:', e)
-  for (const [f, c, d] of [
-    ['preview.scoring.spdWeight', 1, 'SPD权重'],
-    ['preview.scoring.spdPrecision', 1, 'SPD精度'],
-    ['preview.scoring.spdBenchmark', 1, '基准速度'],
-    ['preview.customize.color', 1, '自定义颜色'],
-    ['preview.customize.color', 2, 'STANDARD联动'],
-    ['preview.customize.display', 1, '外观开关'],
-    ['preview.character.edit', 1, '编辑角色'],
-    ['preview.relic.addOrEdit', 1, '新增遗器'],
-    ['preview.relic.addOrEdit', 2, '编辑遗器'],
-  ]) {
+  for (
+    const [f, c, d] of [
+      ['preview.scoring.spdWeight', 1, 'SPD权重'],
+      ['preview.scoring.spdPrecision', 1, 'SPD精度'],
+      ['preview.scoring.spdBenchmark', 1, '基准速度'],
+      ['preview.customize.color', 1, '自定义颜色'],
+      ['preview.customize.color', 2, 'STANDARD联动'],
+      ['preview.customize.display', 1, '外观开关'],
+      ['preview.character.edit', 1, '编辑角色'],
+      ['preview.relic.addOrEdit', 1, '新增遗器'],
+      ['preview.relic.addOrEdit', 2, '编辑遗器'],
+    ]
+  ) {
     if (!cases.some((x) => x.feature === f && x.case === c)) record(f, c, d, 'FAIL', `phase error: ${String(e.message).slice(0, 100)}`)
   }
 })
@@ -1704,20 +1997,23 @@ await runSeedTask('verify-preview(portrait)', freshSeed(baseSavePath), async (pa
     // step 1: choose the URL source, paste the URL, Next
     await pollUntil('URL 来源分段可点', async () => ({ ok: await page.evaluate(SEGMENT_BY_LABEL, ['Enter image URL']) }), 15_000)
     await sleep(400)
-    await pollUntil('URL 输入聚焦', async () => ({ ok: await page.evaluate(`() => {
+    await pollUntil('URL 输入聚焦', async () => ({
+      ok: await page.evaluate(`() => {
       const modal = [...document.querySelectorAll('[role="dialog"]')].filter((m) => m.offsetParent !== null).pop()
       if (!modal) return false
       const input = Array.from(modal.querySelectorAll('input')).find((i) => !i.readOnly && i.type !== 'radio')
       if (!input) return false
       input.focus()
       return true
-    }`) }), 10_000)
+    }`),
+    }), 10_000)
     await page.type(imageUrl)
     await sleep(300)
     await pollUntil('Next 按钮可点', async () => ({ ok: await page.evaluate(CLICK_BUTTON_TEXT, ['Next']) }), 10_000)
     await sleep(1500)
     // step 2: artist name + Submit
-    await pollUntil('署名输入聚焦', async () => ({ ok: await page.evaluate(`() => {
+    await pollUntil('署名输入聚焦', async () => ({
+      ok: await page.evaluate(`() => {
       const modal = [...document.querySelectorAll('[role="dialog"]')].filter((m) => m.offsetParent !== null).pop()
       if (!modal) return false
       const inputs = Array.from(modal.querySelectorAll('input')).filter((i) => !i.readOnly && i.type !== 'radio' && i.offsetParent !== null)
@@ -1726,7 +2022,8 @@ await runSeedTask('verify-preview(portrait)', freshSeed(baseSavePath), async (pa
       if (!target) return false
       target.focus()
       return true
-    }`) }), 10_000)
+    }`),
+    }), 10_000)
     await page.type('verify-artist')
     await sleep(300)
     await pollUntil('肖像 Submit 可点', async () => ({ ok: await page.evaluate(CLICK_BUTTON_TEXT, ['Submit']) }), 15_000)
@@ -1784,14 +2081,24 @@ await runSeedTask('verify-preview(portrait)', freshSeed(baseSavePath), async (pa
     const insertSnap = await snapshot()
     const inserted = insertSnap.characters?.some((c) => c.id === probeId && c.portrait != null)
 
-    record('preview.portrait.set', 1,
+    record(
+      'preview.portrait.set',
+      1,
       '用同一 URL、裁剪与署名设置肖像后，两边存档的 characters[].portrait 一致',
       equal ? 'PASS' : 'FAIL',
-      `web portrait 字段=${webPortrait ? '已存' : '缺失'}(imageUrl=${(webPortrait?.imageUrl ?? '').slice(0, 30)}…,artist=${webPortrait?.artistName});MCP 严格相等=${exact}(web cropper 的 croppedArea/cropper 原值透传)${exact ? '' : `,容差内相等=${equal}(0.1)`}${portraitDiff.length ? ';差异 ' + portraitDiff.slice(0, 3).join('; ') : ''}`)
-    record('preview.portrait.set', 3,
+      `web portrait 字段=${webPortrait ? '已存' : '缺失'}(imageUrl=${
+        (webPortrait?.imageUrl ?? '').slice(0, 30)
+      }…,artist=${webPortrait?.artistName});MCP 严格相等=${exact}(web cropper 的 croppedArea/cropper 原值透传)${exact ? '' : `,容差内相等=${equal}(0.1)`}${
+        portraitDiff.length ? ';差异 ' + portraitDiff.slice(0, 3).join('; ') : ''
+      }`,
+    )
+    record(
+      'preview.portrait.set',
+      3,
       '对不在列表里的角色设置肖像，两边都会先新建该角色',
       insertResult.characterInserted === true && inserted ? 'PASS' : 'FAIL',
-      `MCP set_portrait(1001) characterInserted=${insertResult.characterInserted},导出存档含新角色+肖像=${inserted};网页同一分支经 showcaseOnEditPortraitOk 的 upsertCharacterFromForm(弹窗确认后角色补入,同一上游副作用)`)
+      `MCP set_portrait(1001) characterInserted=${insertResult.characterInserted},导出存档含新角色+肖像=${inserted};网页同一分支经 showcaseOnEditPortraitOk 的 upsertCharacterFromForm(弹窗确认后角色补入,同一上游副作用)`,
+    )
 
     // case 2 — revert to default clears the portrait
     try {
@@ -1808,7 +2115,11 @@ await runSeedTask('verify-preview(portrait)', freshSeed(baseSavePath), async (pa
         return 'none'
       }`)
       await sleep(800)
-      await pollUntil('Use default image 分段可点', async () => ({ ok: await page.evaluate(SEGMENT_BY_LABEL, ['Use default image']) || await page.evaluate(SEGMENT_BY_LABEL, ['Use default']) }), 20_000)
+      await pollUntil(
+        'Use default image 分段可点',
+        async () => ({ ok: await page.evaluate(SEGMENT_BY_LABEL, ['Use default image']) || await page.evaluate(SEGMENT_BY_LABEL, ['Use default']) }),
+        20_000,
+      )
       await sleep(600)
       // choosing 'default' + NEXT fires the delete payload
       await pollUntil('还原 Next 可点', async () => ({ ok: await page.evaluate(CLICK_BUTTON_TEXT, ['Next']) }), 10_000)
@@ -1818,10 +2129,13 @@ await runSeedTask('verify-preview(portrait)', freshSeed(baseSavePath), async (pa
 
       await callTool('set_portrait', { characterId: TARGET, action: 'reset' })
       const mcpGone = (await snapshot()).characters?.find((c) => c.id === TARGET)?.portrait == null
-      record('preview.portrait.set', 2,
+      record(
+        'preview.portrait.set',
+        2,
         '还原默认后该角色的 portrait 字段消失',
         webGone && mcpGone ? 'PASS' : 'FAIL',
-        `web portrait 已清=${webGone},mcp portrait 已清=${mcpGone}`)
+        `web portrait 已清=${webGone},mcp portrait 已清=${mcpGone}`,
+      )
     } catch (e) {
       record('preview.portrait.set', 2, '还原默认后 portrait 消失', 'FAIL', String(e.message).slice(0, 140))
     }
@@ -1832,11 +2146,13 @@ await runSeedTask('verify-preview(portrait)', freshSeed(baseSavePath), async (pa
   }
 }).catch((e) => {
   console.error('PHASE 6 failed:', e)
-  for (const [f, c, d] of [
-    ['preview.portrait.set', 1, '肖像一致'],
-    ['preview.portrait.set', 2, '还原默认'],
-    ['preview.portrait.set', 3, '先新建角色'],
-  ]) {
+  for (
+    const [f, c, d] of [
+      ['preview.portrait.set', 1, '肖像一致'],
+      ['preview.portrait.set', 2, '还原默认'],
+      ['preview.portrait.set', 3, '先新建角色'],
+    ]
+  ) {
     if (!cases.some((x) => x.feature === f && x.case === c)) record(f, c, d, 'FAIL', `phase error: ${String(e.message).slice(0, 100)}`)
   }
 })
@@ -1963,10 +2279,17 @@ try {
   const styledOk = !styledDiff.dimsMismatch && styledDiff.mean <= 2.5 && styledDiff.hotRatio <= 0.03
   const switchesReflected = styledBaselineDiff.dimsMismatch || styledBaselineDiff.mean > 4 || styledBaselineDiff.hotRatio > 0.05
 
-  record('preview.screenshot', 1,
+  record(
+    'preview.screenshot',
+    1,
     '渲染出的 PNG 与网页下载的展示卡截图尺寸相同，文字与数值一致，自定义肖像、配色与外观开关都得到体现',
     dimsOk && visualOk && styledOk && switchesReflected ? 'PASS' : 'FAIL',
-    `基准:web ${webDecoded.width}x${webDecoded.height} vs render ${mcpDecoded.width}x${mcpDecoded.height},mean=${diff.mean?.toFixed(3)}/hot=${((diff.hotRatio ?? 0) * 100).toFixed(2)}%;定制态(自定义颜色+肖像+深色):mean=${styledDiff.mean?.toFixed(3)}/hot=${((styledDiff.hotRatio ?? 0) * 100).toFixed(2)}%,与基准差 mean=${styledBaselineDiff.mean?.toFixed(1)}(开关生效=${switchesReflected})`)
+    `基准:web ${webDecoded.width}x${webDecoded.height} vs render ${mcpDecoded.width}x${mcpDecoded.height},mean=${diff.mean?.toFixed(3)}/hot=${
+      ((diff.hotRatio ?? 0) * 100).toFixed(2)
+    }%;定制态(自定义颜色+肖像+深色):mean=${styledDiff.mean?.toFixed(3)}/hot=${((styledDiff.hotRatio ?? 0) * 100).toFixed(2)}%,与基准差 mean=${
+      styledBaselineDiff.mean?.toFixed(1)
+    }(开关生效=${switchesReflected})`,
+  )
 } catch (e) {
   record('preview.screenshot', 1, '渲染 PNG 与网页截图一致', 'FAIL', String(e.message).slice(0, 160))
 }
@@ -1988,7 +2311,8 @@ try {
     await sleep(2500)
     await pollUntil('角色切回(调试面板)', async () => ({ ok: await page.evaluate(CLICK_CHAR, ['1212b1']) }), 15_000)
     await sleep(3000)
-    const nudged = await pollUntil('调试面板滑杆可设', async () => ({ ok: await page.evaluate(`() => {
+    const nudged = await pollUntil('调试面板滑杆可设', async () => ({
+      ok: await page.evaluate(`() => {
       const panels = Array.from(document.querySelectorAll('div'))
         .filter((d) => d.getClientRects().length > 0 && (d.innerText || '').includes('Card Debug Sliders'))
       const panel = panels.find((p) => p.querySelector('input[type="range"]'))
@@ -1999,7 +2323,8 @@ try {
       slider.dispatchEvent(new Event('input', { bubbles: true }))
       slider.dispatchEvent(new Event('change', { bubbles: true }))
       return true
-    }`) }), 30_000)
+    }`),
+    }), 30_000)
     await sleep(1000)
     return await page.captureAppExport({ via: 'camera', timeoutMs: 60_000 })
   })
@@ -2023,10 +2348,15 @@ try {
     const d = diffPngs(decodePng(readFileSync(renderedBaseline.file)), decodePng(readFileSync(renderedDebug.file)))
     return d.dimsMismatch || d.mean > 0.5
   })()
-  record('preview.debug.visualPanel', 1,
+  record(
+    'preview.debug.visualPanel',
+    1,
     '修改任一视觉参数后渲染的展示卡与网页在同一调试配置下的外观一致',
     webPanelWorks && mcpApplies ? 'PASS' : 'FAIL',
-    `网页面板滑杆(portraitBlur→80)改动生效=${webPanelWorks}(mean=${webChanged.mean?.toFixed(2)});MCP render 对 visualDebug 会话配置生效=${mcpApplies}——update_state(visualDebug) 只写 Node 会话 store,render(character_card) 的浏览器种子仅含存档快照(readStructuredSnapshot 不含会话 store,render.ts 无 taskGlobals/visualDebug 消费),渲染不受调试参数影响;state.ts:255-257 注释称『渲染任务经 taskGlobals 传给页面』与实现不符(服务器缺口,如实记 FAIL)`)
+    `网页面板滑杆(portraitBlur→80)改动生效=${webPanelWorks}(mean=${
+      webChanged.mean?.toFixed(2)
+    });MCP render 对 visualDebug 会话配置生效=${mcpApplies}——update_state(visualDebug) 只写 Node 会话 store,render(character_card) 的浏览器种子仅含存档快照(readStructuredSnapshot 不含会话 store,render.ts 无 taskGlobals/visualDebug 消费),渲染不受调试参数影响;state.ts:255-257 注释称『渲染任务经 taskGlobals 传给页面』与实现不符(服务器缺口,如实记 FAIL)`,
+  )
 } catch (e) {
   record('preview.debug.visualPanel', 1, '同一调试配置下渲染外观一致', 'FAIL', String(e.message).slice(0, 160))
 }
