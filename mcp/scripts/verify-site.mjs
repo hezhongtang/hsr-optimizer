@@ -138,7 +138,9 @@ registerHooks({
       return nextResolve(specifier, context)
     } catch (error) {
       if (specifier.startsWith('.') && context.parentURL != null && context.parentURL.endsWith('.ts')) {
-        try { return nextResolve(`${specifier}.ts`, context) } catch { /* fall through */ }
+        try {
+          return nextResolve(`${specifier}.ts`, context)
+        } catch { /* fall through */ }
       }
       throw error
     }
@@ -231,7 +233,7 @@ async function safeEvaluateSite(page, fn, args) {
 }
 
 async function bootZh(page, hash, waitFor) {
-  for (let attempt = 0; ; attempt++) {
+  for (let attempt = 0;; attempt++) {
     await page.goto('', { timeoutMs: 90_000 })
     await page.waitForSelector('#root > *', { timeoutMs: 90_000 })
     await safeEvaluateSite(page, P_SET_LOCALE)
@@ -268,12 +270,42 @@ const showcaseFixture = {
       rank: 2,
       equipment: { tid: '20000', level: 80, rank: 1 },
       relicList: [
-        { tid: '61151', level: 15, main_affix: { type: 'HPDelta' }, subAffixList: [{ type: 'AttackAddedRatio', cnt: 2, step: 1 }, { type: 'CriticalDamageBase', cnt: 2, step: 0 }] },
-        { tid: '61152', level: 15, main_affix: { type: 'AttackDelta' }, subAffixList: [{ type: 'HPAddedRatio', cnt: 2, step: 1 }, { type: 'SpeedDelta', cnt: 1, step: 0 }] },
-        { tid: '61153', level: 15, main_affix: { type: 'CriticalDamageBase' }, subAffixList: [{ type: 'AttackAddedRatio', cnt: 3, step: 2 }, { type: 'StatusResistanceBase', cnt: 1, step: 0 }] },
-        { tid: '61154', level: 15, main_affix: { type: 'SpeedDelta' }, subAffixList: [{ type: 'HPAddedRatio', cnt: 2, step: 0 }, { type: 'BreakDamageAddedRatioBase', cnt: 2, step: 1 }] },
-        { tid: '63115', level: 15, main_affix: { type: 'FireAddedRatio' }, subAffixList: [{ type: 'AttackAddedRatio', cnt: 2, step: 1 }, { type: 'CriticalChanceBase', cnt: 1, step: 0 }] },
-        { tid: '63116', level: 15, main_affix: { type: 'SPRatioBase' }, subAffixList: [{ type: 'AttackDelta', cnt: 2, step: 1 }, { type: 'HPDelta', cnt: 2, step: 0 }] },
+        {
+          tid: '61151',
+          level: 15,
+          main_affix: { type: 'HPDelta' },
+          subAffixList: [{ type: 'AttackAddedRatio', cnt: 2, step: 1 }, { type: 'CriticalDamageBase', cnt: 2, step: 0 }],
+        },
+        {
+          tid: '61152',
+          level: 15,
+          main_affix: { type: 'AttackDelta' },
+          subAffixList: [{ type: 'HPAddedRatio', cnt: 2, step: 1 }, { type: 'SpeedDelta', cnt: 1, step: 0 }],
+        },
+        {
+          tid: '61153',
+          level: 15,
+          main_affix: { type: 'CriticalDamageBase' },
+          subAffixList: [{ type: 'AttackAddedRatio', cnt: 3, step: 2 }, { type: 'StatusResistanceBase', cnt: 1, step: 0 }],
+        },
+        {
+          tid: '61154',
+          level: 15,
+          main_affix: { type: 'SpeedDelta' },
+          subAffixList: [{ type: 'HPAddedRatio', cnt: 2, step: 0 }, { type: 'BreakDamageAddedRatioBase', cnt: 2, step: 1 }],
+        },
+        {
+          tid: '63115',
+          level: 15,
+          main_affix: { type: 'FireAddedRatio' },
+          subAffixList: [{ type: 'AttackAddedRatio', cnt: 2, step: 1 }, { type: 'CriticalChanceBase', cnt: 1, step: 0 }],
+        },
+        {
+          tid: '63116',
+          level: 15,
+          main_affix: { type: 'SPRatioBase' },
+          subAffixList: [{ type: 'AttackDelta', cnt: 2, step: 1 }, { type: 'HPDelta', cnt: 2, step: 0 }],
+        },
       ],
     }],
   },
@@ -309,7 +341,8 @@ try {
       })`)
 
       // valid uid with the transport stubbed to the fixture
-      await page.evaluate(`(fixture) => {
+      await page.evaluate(
+        `(fixture) => {
         const original = window.fetch.bind(window)
         window.fetch = (url, opts) => {
           if (String(url).includes('/profile/100000001')) {
@@ -318,13 +351,20 @@ try {
           return original(url, opts)
         }
         return true
-      }`, [showcaseFixture])
+      }`,
+        [showcaseFixture],
+      )
       await page.evaluate(P_FOCUS_UID)
       await page.type('100000001')
       await page.press('Enter')
-      await pollUntil('展示柜加载完成(克拉拉)', async () => ({
-        ok: await page.evaluate(`() => document.body.innerText.includes('克拉拉') && !document.body.innerText.includes('获取中')`),
-      }), 40_000, 400)
+      await pollUntil(
+        '展示柜加载完成(克拉拉)',
+        async () => ({
+          ok: await page.evaluate(`() => document.body.innerText.includes('克拉拉') && !document.body.innerText.includes('获取中')`),
+        }),
+        40_000,
+        400,
+      )
       await sleep(2500)
       shots.showcase = await page.evaluate(`() => {
         const text = document.body.innerText
@@ -341,16 +381,31 @@ try {
     })
 
     const invalidErr = await toolError(client, 'fetch_showcase', { uid: '12345' })
-    record('home', 'home.search.uid', 1, '同一 UID 经首页搜索进入展示柜得到的角色列表与 fetch_showcase(uid) 返回的角色摘要一致;非 9 位数字两边都拒绝',
+    record(
+      'home',
+      'home.search.uid',
+      1,
+      '同一 UID 经首页搜索进入展示柜得到的角色列表与 fetch_showcase(uid) 返回的角色摘要一致;非 9 位数字两边都拒绝',
       web.invalid.warned === true && web.invalid.hash === '' && invalidErr != null
         && web.showcase.hash.startsWith('#showcase') && web.showcase.hasClara === true,
-      `非9位:网页警告=${web.invalid.warned} 未跳转=${web.invalid.hash === ''},MCP 报错=${invalidErr != null ? String(invalidErr).slice(0, 60) : '未拒绝'};有效 UID(传输层 stub 同一份档案):网页展示柜 ${web.showcase.hash} 含克拉拉=${web.showcase.hasClara},scorerId=${web.scorerId}`)
+      `非9位:网页警告=${web.invalid.warned} 未跳转=${web.invalid.hash === ''},MCP 报错=${
+        invalidErr != null ? String(invalidErr).slice(0, 60) : '未拒绝'
+      };有效 UID(传输层 stub 同一份档案):网页展示柜 ${web.showcase.hash} 含克拉拉=${web.showcase.hasClara},scorerId=${web.scorerId}`,
+    )
 
     const fetchRes = await callTool(client, 'fetch_showcase', { json: showcaseFixture, remember: true })
     const sameList = fetchRes.status === 'ok' && fetchRes.characterCount === 1
       && JSON.stringify((fetchRes.characters ?? fetchRes.cached?.[0]?.characters ?? []).map((c) => c.characterId ?? c.id)) === JSON.stringify(['1107'])
-    record('home', 'home.search.uid', 1, '同一份档案两侧转换链的角色摘要一致(网页展示柜渲染克拉拉 vs fetch_showcase 转换结果)', sameList,
-      `fetch_showcase(json) characterCount=${fetchRes.characterCount},characters=${JSON.stringify((fetchRes.characters ?? []).map((c) => ({ id: c.characterId ?? c.id, name: c.name })))?.slice(0, 120)};网页侧渲染克拉拉=${web.showcase.hasClara}`)
+    record(
+      'home',
+      'home.search.uid',
+      1,
+      '同一份档案两侧转换链的角色摘要一致(网页展示柜渲染克拉拉 vs fetch_showcase 转换结果)',
+      sameList,
+      `fetch_showcase(json) characterCount=${fetchRes.characterCount},characters=${
+        JSON.stringify((fetchRes.characters ?? []).map((c) => ({ id: c.characterId ?? c.id, name: c.name })))?.slice(0, 120)
+      };网页侧渲染克拉拉=${web.showcase.hasClara}`,
+    )
   })
 
   // ══ home.content.read ═════════════════════════════════════════════════════
@@ -398,27 +453,42 @@ try {
     // the case as written cannot pass; recorded FAIL with the exact mismatch.
     const community = linksRes.groups[0].links
     const hrefs = web.links.map((l) => l.href)
-    const communityOk = community.every((l) => l.internalHash != null
-      ? web.links.some((wl) => (wl.href || '').endsWith(l.internalHash))
-      : hrefs.includes(l.url))
+    const communityOk = community.every((l) =>
+      l.internalHash != null
+        ? web.links.some((wl) => (wl.href || '').endsWith(l.internalHash))
+        : hrefs.includes(l.url)
+    )
     const entriesOk = homeRes.entries.length === 11 && homeRes.entries.every((e) => typeof e.nameZh === 'string')
     const versionOk = typeof homeRes.optimizerVersion === 'string' && typeof homeRes.dataVersion === 'string'
     const renderedCards = Object.entries(web.renderedTitles ?? {}).filter(([, t]) => t != null)
     const webRendersAllSix = renderedCards.length === 6
     const resourceHasFeatureCardText = renderedCards.length > 0
       && renderedCards.every(([, t]) => JSON.stringify(homeRes).includes(t))
-    record('home', 'home.content.read', 1, 'site://home 返回的六张功能卡片标题与要点、四张社区卡片的标题和链接与首页当前语言下的内容一致', false,
-      `可过半句:四张社区卡链接一致=${communityOk};不可过半句:网页实际渲染六卡(${renderedCards.map(([k, t]) => k + '=' + t).join('/') || '未抓到'}),site://home 载荷含这些标题=${resourceHasFeatureCardText}(载荷只有 ${homeRes.entries.length} 条页面入口${entriesOk ? ' 字段完整' : ' 字段缺失'}+版本 ${homeRes.optimizerVersion}/${homeRes.dataVersion}) → 清单 bug,见报告`)
+    record(
+      'home',
+      'home.content.read',
+      1,
+      'site://home 返回的六张功能卡片标题与要点、四张社区卡片的标题和链接与首页当前语言下的内容一致',
+      false,
+      `可过半句:四张社区卡链接一致=${communityOk};不可过半句:网页实际渲染六卡(${
+        renderedCards.map(([k, t]) => k + '=' + t).join('/') || '未抓到'
+      }),site://home 载荷含这些标题=${resourceHasFeatureCardText}(载荷只有 ${homeRes.entries.length} 条页面入口${
+        entriesOk ? ' 字段完整' : ' 字段缺失'
+      }+版本 ${homeRes.optimizerVersion}/${homeRes.dataVersion}) → 清单 bug,见报告`,
+    )
   })
 
   // ══ changelog.entries.read ════════════════════════════════════════════════
   section('changelog.entries.read', async () => {
     const changelogRes = await readResource(client, 'game://changelog')
-    const webEntries = await browserManager.runTask({ label: 'changelog pagination', seed: readFileSync(sampleSavePath, 'utf8'), timeoutMs: 420_000 }, async (page) => {
-      await bootZh(page, '#changelog', '#root > *')
-      await sleep(2500)
+    const webEntries = await browserManager.runTask(
+      { label: 'changelog pagination', seed: readFileSync(sampleSavePath, 'utf8'), timeoutMs: 420_000 },
+      async (page) => {
+        await bootZh(page, '#changelog', '#root > *')
+        await sleep(2500)
 
-      const scrapeVisible = async () => page.evaluate(`() => {
+        const scrapeVisible = async () =>
+          page.evaluate(`() => {
         const entries = []
         for (const ul of document.querySelectorAll('ul')) {
           if (!ul.offsetParent) continue
@@ -449,10 +519,10 @@ try {
         return entries
       }`)
 
-      // ChangelogTab renders TWO Mantine Paginations; the active page button
-      // carries data-active/aria-current. The next-page control is the LAST
-      // button of the pagination root that contains the active one.
-      const P_NEXT_PAGE = `() => {
+        // ChangelogTab renders TWO Mantine Paginations; the active page button
+        // carries data-active/aria-current. The next-page control is the LAST
+        // button of the pagination root that contains the active one.
+        const P_NEXT_PAGE = `() => {
         const active = [...document.querySelectorAll('button')]
           .filter((b) => b.offsetParent !== null && /^[0-9]+$/.test((b.textContent || '').trim())
             && (b.getAttribute('data-active') != null || b.getAttribute('aria-current') != null))
@@ -471,23 +541,26 @@ try {
         return { ok: true }
       }`
 
-      const collected = []
-      const totalPages = await page.evaluate(`() => { const btns = [...document.querySelectorAll('button')].filter((b) => b.offsetParent !== null && /^[0-9]+$/.test((b.textContent || '').trim())); return btns.length ? Math.max(...btns.map((b) => Number(b.textContent))) : 1 }`)
-      for (let p = 0; p < totalPages; p++) {
-        if (p > 0) {
-          const clicked = await page.evaluate(P_NEXT_PAGE)
-          if (!clicked.ok) break
-          await sleep(700)
+        const collected = []
+        const totalPages = await page.evaluate(
+          `() => { const btns = [...document.querySelectorAll('button')].filter((b) => b.offsetParent !== null && /^[0-9]+$/.test((b.textContent || '').trim())); return btns.length ? Math.max(...btns.map((b) => Number(b.textContent))) : 1 }`,
+        )
+        for (let p = 0; p < totalPages; p++) {
+          if (p > 0) {
+            const clicked = await page.evaluate(P_NEXT_PAGE)
+            if (!clicked.ok) break
+            await sleep(700)
+          }
+          const visible = await scrapeVisible()
+          for (const e of visible) {
+            const dateMatch = e.headerText.match(/^Update (.+)$/)
+            if (dateMatch) collected.push({ date: dateMatch[1], content: e.content })
+            else if (e.headerText.startsWith('Current data version')) collected.push({ version: e.headerText, content: e.content })
+          }
         }
-        const visible = await scrapeVisible()
-        for (const e of visible) {
-          const dateMatch = e.headerText.match(/^Update (.+)$/)
-          if (dateMatch) collected.push({ date: dateMatch[1], content: e.content })
-          else if (e.headerText.startsWith('Current data version')) collected.push({ version: e.headerText, content: e.content })
-        }
-      }
-      return { collected, totalPages }
-    })
+        return { collected, totalPages }
+      },
+    )
 
     // rebuild {title,date,content} in page order and compare with the resource
     const webFirst = webEntries.collected.find((e) => e.version)
@@ -508,13 +581,23 @@ try {
     for (let i = 0; i < maxCompare; i++) {
       const res = changelogRes.entries[i + 1]
       const webE = ordered[i]
-      if (res.date !== webE.date) { contentMismatches++; continue }
+      if (res.date !== webE.date) {
+        contentMismatches++
+        continue
+      }
       const resContent = res.content.filter((c) => c.length > 0)
       if (JSON.stringify(resContent) !== JSON.stringify(webE.content)) contentMismatches++
     }
-    record('changelog', 'changelog.entries.read', 1, 'game://changelog 返回的条目数、顺序与每条的 title/date/content 与 getChangelogContent() 逐条一致',
+    record(
+      'changelog',
+      'changelog.entries.read',
+      1,
+      'game://changelog 返回的条目数、顺序与每条的 title/date/content 与 getChangelogContent() 逐条一致',
       firstOk && countOk && contentMismatches === 0,
-      `首条(版本行)一致=${firstOk}(web「${webFirst?.version}」 vs 资源「${resFirst.title}」);条目数 web=${ordered.length} 资源=${changelogRes.entries.length - 1};逐条差异 ${contentMismatches} 处;翻页 ${webEntries.totalPages} 页`)
+      `首条(版本行)一致=${firstOk}(web「${webFirst?.version}」 vs 资源「${resFirst.title}」);条目数 web=${ordered.length} 资源=${
+        changelogRes.entries.length - 1
+      };逐条差异 ${contentMismatches} 处;翻页 ${webEntries.totalPages} 页`,
+    )
   })
 
   // ══ shared.select.character / shared.select.lightCone ═════════════════════
@@ -595,18 +678,38 @@ try {
     const expectFiltered = charsRes.characters.filter((c) => c.element === 'Fire' && c.path === 'Destruction').map((c) => c.id)
     const allOk = new Set(web.allCharacterCards).size === charsRes.count
       && web.allCharacterCards.every((id) => metaById.has(id))
-    record('shared', 'shared.select.character', 1, '资源返回的角色集合与网页端弹窗不加筛选时的卡片集合一致', allOk,
-      `网页卡片 ${web.allCharacterCards.length} 张 vs 资源 ${charsRes.count} 条;网页独有=${web.allCharacterCards.filter((id) => !metaById.has(id)).length}`)
+    record(
+      'shared',
+      'shared.select.character',
+      1,
+      '资源返回的角色集合与网页端弹窗不加筛选时的卡片集合一致',
+      allOk,
+      `网页卡片 ${web.allCharacterCards.length} 张 vs 资源 ${charsRes.count} 条;网页独有=${web.allCharacterCards.filter((id) => !metaById.has(id)).length}`,
+    )
 
     const filteredOk = JSON.stringify([...web.filteredCharacterCards].sort()) === JSON.stringify([...expectFiltered].sort())
-    record('shared', 'shared.select.character', 2, '按命途和属性筛选后的角色集合与网页端点对应筛选标签后一致', filteredOk,
-      `Fire+Destruction web [${web.filteredCharacterCards.join(',')}] vs 资源 [${expectFiltered.join(',')}]`)
+    record(
+      'shared',
+      'shared.select.character',
+      2,
+      '按命途和属性筛选后的角色集合与网页端点对应筛选标签后一致',
+      filteredOk,
+      `Fire+Destruction web [${web.filteredCharacterCards.join(',')}] vs 资源 [${expectFiltered.join(',')}]`,
+    )
 
     const simIds = charsRes.characters.filter((c) => c.hasSimulation).map((c) => c.id)
     const auditorOk = web.auditorOpened === true && web.auditorCharacterCards != null
       && JSON.stringify([...web.auditorCharacterCards].sort()) === JSON.stringify([...simIds].sort())
-    record('shared', 'shared.select.character', 3, '标为有模拟评分配置的角色集合与基准生成器弹窗里列出的角色一致', auditorOk,
-      `hasSimulation 集合 ${simIds.length} 个;套装基准审计弹窗(withSimulation)卡片 ${web.auditorCharacterCards?.length ?? 0} 张,一致=${auditorOk};⚠清单口径:当前上游「基准生成器」(Benchmarks 页)的角色选择已不过滤 simulation,带该过滤的是套装基准审计弹窗(SetBenchmarkAuditor),见报告清单 bug`)
+    record(
+      'shared',
+      'shared.select.character',
+      3,
+      '标为有模拟评分配置的角色集合与基准生成器弹窗里列出的角色一致',
+      auditorOk,
+      `hasSimulation 集合 ${simIds.length} 个;套装基准审计弹窗(withSimulation)卡片 ${
+        web.auditorCharacterCards?.length ?? 0
+      } 张,一致=${auditorOk};⚠清单口径:当前上游「基准生成器」(Benchmarks 页)的角色选择已不过滤 simulation,带该过滤的是套装基准审计弹窗(SetBenchmarkAuditor),见报告清单 bug`,
+    )
 
     // light cone parity: default path filter (Jingliu = Destruction) + signature first
     const jingliu = metaById.get('1212b1')
@@ -615,12 +718,30 @@ try {
       && web.lightConeCards.every((id) => expectedLcs.includes(id))
       && expectedLcs.every((id) => web.lightConeCards.includes(id))
     const signatureFirst = jingliu.signatureLightCone != null && web.lightConeCards[0] === jingliu.signatureLightCone
-    record('shared', 'shared.select.lightCone', 1, '资源返回的光锥集合与网页端弹窗不加筛选时的卡片集合一致', lcSetOk,
-      `镜流(${jingliu.path})命途过滤后网页 ${web.lightConeCards.length} 张 vs 资源同命途 ${expectedLcs.length} 把;集合一致=${lcSetOk}`)
-    record('shared', 'shared.select.lightCone', 2, '按角色命途筛选后的光锥集合与网页端为该角色打开弹窗时默认显示的一致', lcSetOk,
-      `弹窗默认即按已选角色命途过滤(optionGenerator.generateLightConeOptions(characterId));${web.lightConeCards.length} 张`)
-    record('shared', 'shared.select.lightCone', 3, '返回的角色专属光锥与网页端弹窗里排在最前的那一把一致', signatureFirst,
-      `网页弹窗首卡=${web.lightConeCards[0]};资源 signatureLightCone(1212b1)=${jingliu.signatureLightCone}`)
+    record(
+      'shared',
+      'shared.select.lightCone',
+      1,
+      '资源返回的光锥集合与网页端弹窗不加筛选时的卡片集合一致',
+      lcSetOk,
+      `镜流(${jingliu.path})命途过滤后网页 ${web.lightConeCards.length} 张 vs 资源同命途 ${expectedLcs.length} 把;集合一致=${lcSetOk}`,
+    )
+    record(
+      'shared',
+      'shared.select.lightCone',
+      2,
+      '按角色命途筛选后的光锥集合与网页端为该角色打开弹窗时默认显示的一致',
+      lcSetOk,
+      `弹窗默认即按已选角色命途过滤(optionGenerator.generateLightConeOptions(characterId));${web.lightConeCards.length} 张`,
+    )
+    record(
+      'shared',
+      'shared.select.lightCone',
+      3,
+      '返回的角色专属光锥与网页端弹窗里排在最前的那一把一致',
+      signatureFirst,
+      `网页弹窗首卡=${web.lightConeCards[0]};资源 signatureLightCone(1212b1)=${jingliu.signatureLightCone}`,
+    )
   })
 
   // ── run sections with isolation ──
@@ -631,13 +752,16 @@ try {
       failures++
       console.error(`[HARNESS-ERROR] ${label}: ${String(e?.stack ?? e).slice(0, 900)}`)
       const area = label.startsWith('home') ? 'home' : label.startsWith('changelog') ? 'changelog' : 'shared'
-      const feature = label.startsWith('home.search') ? 'home.search.uid'
-        : label.startsWith('home.content') ? 'home.content.read'
-        : label.startsWith('changelog') ? 'changelog.entries.read'
-        : label.includes('character') ? 'shared.select.character'
+      const feature = label.startsWith('home.search')
+        ? 'home.search.uid'
+        : label.startsWith('home.content')
+        ? 'home.content.read'
+        : label.startsWith('changelog')
+        ? 'changelog.entries.read'
+        : label.includes('character')
+        ? 'shared.select.character'
         : 'shared.select.lightCone'
-      record(area, feature, 1, `${label} 段落执行失败`, false,
-        `harness 错误:${String(e?.message ?? e).slice(0, 200)}`, 'browser-parity')
+      record(area, feature, 1, `${label} 段落执行失败`, false, `harness 错误:${String(e?.message ?? e).slice(0, 200)}`, 'browser-parity')
     }
   }
 
@@ -661,7 +785,9 @@ try {
     }
   }
 } finally {
-  try { await browserManager.close() } catch { /* already down */ }
+  try {
+    await browserManager.close()
+  } catch { /* already down */ }
   await client.close()
   rmSync(tempDir, { recursive: true, force: true })
 }

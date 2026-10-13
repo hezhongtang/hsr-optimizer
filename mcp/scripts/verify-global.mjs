@@ -262,7 +262,8 @@ function parseSettingsConstants() {
 
 // ── in-page probes for the managed browser (evaluate strings) ────────────────
 
-const PAGE_IDS = '["HOME","OPTIMIZER","CHARACTERS","RELICS","IMPORT","SHOWCASE","WARP","BENCHMARKS","CALCULATORS","LEADERBOARD","CHANGELOG","WEBGPU_TEST","METADATA_TEST"]'
+const PAGE_IDS =
+  '["HOME","OPTIMIZER","CHARACTERS","RELICS","IMPORT","SHOWCASE","WARP","BENCHMARKS","CALCULATORS","LEADERBOARD","CHANGELOG","WEBGPU_TEST","METADATA_TEST"]'
 
 const ACTIVE_PAGE = `() => {
   const ids = ${PAGE_IDS}
@@ -464,16 +465,27 @@ function writeEvidence() {
       desc: descOf(feature, no),
       method,
       result: entry == null ? 'UNPROVEN' : entry.pass ? 'PASS' : 'FAIL',
-      detail: entry == null ? '脚本未执行到该 case(阶段异常,见运行日志)' : entry.details.join(' | ').slice(0, 300) || (entry.pass ? '(断言全部通过)' : '(存在失败断言,该断言未附数值 detail)'),
+      detail: entry == null
+        ? '脚本未执行到该 case(阶段异常,见运行日志)'
+        : entry.details.join(' | ').slice(0, 300) || (entry.pass ? '(断言全部通过)' : '(存在失败断言,该断言未附数值 detail)'),
       script: 'mcp/scripts/verify-global.mjs',
     }
   })
-  writeFileSync(evidencePath, `${JSON.stringify({
-    area: 'global',
-    generatedAt: new Date().toISOString(),
-    gitCommit,
-    cases,
-  }, null, 2)}\n`)
+  writeFileSync(
+    evidencePath,
+    `${
+      JSON.stringify(
+        {
+          area: 'global',
+          generatedAt: new Date().toISOString(),
+          gitCommit,
+          cases,
+        },
+        null,
+        2,
+      )
+    }\n`,
+  )
   return cases
 }
 
@@ -613,7 +625,11 @@ async function main() {
       const c = caseTracker('global.newFeature.badges', 1)
       await callTool(mcp, 'update_state', { section: 'flags', patch: { seenFeatures: ['leaderboard'] } })
       let snapshot = (await callTool(mcp, 'export_save', { structured: true })).snapshot
-      c.check('update_state(flags) 标记 leaderboard 后导出存档 seenFeatures=["leaderboard"]', JSON.stringify(snapshot.seenFeatures) === '["leaderboard"]', JSON.stringify(snapshot.seenFeatures))
+      c.check(
+        'update_state(flags) 标记 leaderboard 后导出存档 seenFeatures=["leaderboard"]',
+        JSON.stringify(snapshot.seenFeatures) === '["leaderboard"]',
+        JSON.stringify(snapshot.seenFeatures),
+      )
       const flags = await getState(mcp, 'flags')
       c.check('get_state(flags).activeNewFeatures 派生自 ACTIVE_NEW_FEATURES(=leaderboard)', JSON.stringify(flags.activeNewFeatures) === '["leaderboard"]')
       await callTool(mcp, 'update_state', { section: 'flags', patch: { seenFeatures: [] } })
@@ -639,7 +655,11 @@ async function main() {
       c.check(
         'describe_conditionals 返回的标签随之变为英文(与网页英文界面一致)',
         labelsSwitched,
-        labelsSwitched ? `前 3 项:${labelsAfter.slice(0, 3).join('/')}` : `切换前后标签逐字相同(前 3 项:${labelsBefore.slice(0, 3).join('/')})——update_state(language) 只写 i18nextLng 缓存键,本进程渲染语言按实现固定 zh_CN(mcp/src/domains/state.ts:86-101),标签不随切换`,
+        labelsSwitched
+          ? `前 3 项:${labelsAfter.slice(0, 3).join('/')}`
+          : `切换前后标签逐字相同(前 3 项:${
+            labelsBefore.slice(0, 3).join('/')
+          })——update_state(language) 只写 i18nextLng 缓存键,本进程渲染语言按实现固定 zh_CN(mcp/src/domains/state.ts:86-101),标签不随切换`,
       )
       const restored = await callTool(mcp, 'update_state', { section: 'session', patch: { language: 'zh_CN' } })
       c.check('切回 zh_CN 后偏好恢复', restored.session.ephemeral.language === 'zh_CN')
@@ -715,7 +735,9 @@ async function main() {
       c.check(
         'get_state 报告存档版本、当前版本和是否过期(与 isVersionOutdated 一致)',
         versionFields.length > 0,
-        versionFields.length ? JSON.stringify(versionFields) : 'get_state(revision/session) 无任何版本/过期字段——当前版本仅 site://home.optimizerVersion 与导出快照 version(恒为 CURRENT_OPTIMIZER_VERSION)可读,「是否过期」未透出;与用例描述不符',
+        versionFields.length
+          ? JSON.stringify(versionFields)
+          : 'get_state(revision/session) 无任何版本/过期字段——当前版本仅 site://home.optimizerVersion 与导出快照 version(恒为 CURRENT_OPTIMIZER_VERSION)可读,「是否过期」未透出;与用例描述不符',
       )
       const snapshot = (await callTool(mcp, 'export_save', { structured: true })).snapshot
       const home = await readJsonResource(mcp, 'site://home')
@@ -751,7 +773,9 @@ async function main() {
         c.check(
           'site://help/optimizer 返回仓库内 docs/guides 对应指南的正文',
           false,
-          `资源读取报错:${err.slice(0, 120)}——已注册帮助主题仅 reliquary/kelz/scorer/hoyolab/live-import(resources.ts SITE_HELP_TOPICS,导入页帮助区),无 optimizer 主题;docs/guides/en/optimizer.md 只被入门抽屉引用`,
+          `资源读取报错:${
+            err.slice(0, 120)
+          }——已注册帮助主题仅 reliquary/kelz/scorer/hoyolab/live-import(resources.ts SITE_HELP_TOPICS,导入页帮助区),无 optimizer 主题;docs/guides/en/optimizer.md 只被入门抽屉引用`,
         )
         const liveImport = await readJsonResource(mcp, 'site://help/live-import')
         c.check('旁证:site://help/live-import 指向仓库内指南 md', liveImport.url?.includes('docs/guides/en/live-import.md') === true, String(liveImport.url))
@@ -823,7 +847,7 @@ async function main() {
           // (ChangelogModal.tsx:27),对拍内容——case 本身只比较弹窗内容。
           const autoOpen = await (async () => {
             try {
-              await pollUntil('更新弹窗自动弹出', async () => ({ ok: (await page.evaluate(BODY_TEXT)).includes("What's New") }), 8000, 300)
+              await pollUntil('更新弹窗自动弹出', async () => ({ ok: (await page.evaluate(BODY_TEXT)).includes('What\'s New') }), 8000, 300)
               return true
             } catch {
               return false
@@ -831,9 +855,13 @@ async function main() {
           })()
           if (!autoOpen) {
             await page.evaluate(`() => { globalThis.openChangelogModal && globalThis.openChangelogModal(); return true }`)
-            await pollUntil('openChangelogModal() 打开更新弹窗', async () => ({ ok: (await page.evaluate(BODY_TEXT)).includes("What's New") }), 10_000, 200)
+            await pollUntil('openChangelogModal() 打开更新弹窗', async () => ({ ok: (await page.evaluate(BODY_TEXT)).includes('What\'s New') }), 10_000, 200)
           }
-          c.check('更新弹窗可打开(自动弹出或 globalThis.openChangelogModal 入口)', true, autoOpen ? '启动自动弹出' : '经 openChangelogModal() 入口打开(受管环境内自动弹出未触发,详见报告)')
+          c.check(
+            '更新弹窗可打开(自动弹出或 globalThis.openChangelogModal 入口)',
+            true,
+            autoOpen ? '启动自动弹出' : '经 openChangelogModal() 入口打开(受管环境内自动弹出未触发,详见报告)',
+          )
           {
             const entry = await page.evaluate(MODAL_ENTRY)
             c.check(
@@ -849,7 +877,7 @@ async function main() {
               missing.length === 0,
               missing.length ? `缺失:${missing.slice(0, 2).join(' / ').slice(0, 100)}` : '全部在场',
             )
-            out.changelogCtaHrefs = await page.evaluate(LINKS_IN_PORTAL, ["What's New"]) // 弹窗底部 CTA 卡(按弹窗容器收敛)
+            out.changelogCtaHrefs = await page.evaluate(LINKS_IN_PORTAL, ['What\'s New']) // 弹窗底部 CTA 卡(按弹窗容器收敛)
             await sleep(600)
             const dismissed = await page.evaluate(DISMISS_TOP_MODAL)
             if (!dismissed) await page.press('Escape')
@@ -910,7 +938,11 @@ async function main() {
             await page.evaluate('(hash) => { location.hash = hash; return true }', [hash])
             await sleep(900)
             const state = await page.evaluate(ACTIVE_PAGE)
-            c.check(`hashchange 直达 ${hash} → activeKey=${pageKey}(HashToPage 归一)`, state.hash === hash && state.active[state.active.length - 1] === pageKey, `hash=${state.hash},active=${state.active.join('/')}`)
+            c.check(
+              `hashchange 直达 ${hash} → activeKey=${pageKey}(HashToPage 归一)`,
+              state.hash === hash && state.active[state.active.length - 1] === pageKey,
+              `hash=${state.hash},active=${state.active.join('/')}`,
+            )
           }
           // SHOWCASE 特例:裸 #showcase 被网页守卫改跳首页;带 id 参数驻留
           await page.evaluate(`() => { location.hash = ''; return true }`)
@@ -964,8 +996,16 @@ async function main() {
           await page.evaluate(CLICK_NAV, ['设置'])
           await pollUntil('设置抽屉打开(六项 Select 就绪)', async () => ({ ok: (await page.evaluate(COMBOBOX_COUNT)) === 6 }), 20_000)
           const body = await page.evaluate(BODY_TEXT)
-          const labelOrder = ['装备其他角色所装备的遗器', '在较小屏幕上缩小优化器侧边工具栏', '优化器扩展信息面板位置', '遗物编辑器中的遗物定位器', '显示连招伤害警告', '新角色默认排序']
-          const orderOk = labelOrder.every((label) => body.includes(label)) && labelOrder.every((label, i) => i === 0 || body.indexOf(labelOrder[i - 1]) < body.indexOf(label))
+          const labelOrder = [
+            '装备其他角色所装备的遗器',
+            '在较小屏幕上缩小优化器侧边工具栏',
+            '优化器扩展信息面板位置',
+            '遗物编辑器中的遗物定位器',
+            '显示连招伤害警告',
+            '新角色默认排序',
+          ]
+          const orderOk = labelOrder.every((label) => body.includes(label))
+            && labelOrder.every((label, i) => i === 0 || body.indexOf(labelOrder[i - 1]) < body.indexOf(label))
           c.check('设置抽屉列出六项下拉(标签齐备,顺序与 SettingOptions 键序一致)', orderOk, orderOk ? '' : '标签存在性或顺序不符')
           const zhOptionLabels = [
             '与该遗器装备者交换遗器', // RelicEquippingBehavior → Swap
@@ -978,7 +1018,12 @@ async function main() {
           for (let i = 0; i < zhOptionLabels.length; i++) {
             await page.evaluate(OPEN_COMBOBOX, ['drawer', i])
             await sleep(350)
-            await pollUntil(`下拉选项可点(${zhOptionLabels[i]})`, async () => ({ ok: (await page.evaluate(ELEMENT_CLICKABLE, [zhOptionLabels[i]])) === true }), 8000, 120)
+            await pollUntil(
+              `下拉选项可点(${zhOptionLabels[i]})`,
+              async () => ({ ok: (await page.evaluate(ELEMENT_CLICKABLE, [zhOptionLabels[i]])) === true }),
+              8000,
+              120,
+            )
             await page.evaluate(CLICK_TOPMOST, [zhOptionLabels[i]])
             await sleep(350)
           }
@@ -1022,7 +1067,9 @@ async function main() {
           const selectAndHarvest = async () => {
             await page.evaluate('(hash) => { location.hash = hash; return true }', ['#characters'])
             await pollUntil('角色页容器就绪', async () => ({
-              ok: (await page.evaluate('(id) => { const el = document.getElementById(id); return el != null && getComputedStyle(el).display !== "none" }', ['CHARACTERS'])) === true,
+              ok: (await page.evaluate('(id) => { const el = document.getElementById(id); return el != null && getComputedStyle(el).display !== "none" }', [
+                'CHARACTERS',
+              ])) === true,
             }), 20_000)
             await page.waitForSelector('[data-character-id="1212b1"]', { timeoutMs: 30_000, visible: true })
             await page.click('[data-character-id="1212b1"]', { timeoutMs: 30_000 })
@@ -1031,7 +1078,11 @@ async function main() {
             return page.evaluate(CARD_TEXT)
           }
           const zhCard = await selectAndHarvest()
-          c.check('zh_CN 预置语言下角色卡文字为中文(含角色名「镜流」)', zhCard != null && zhCard.includes('镜流'), (zhCard || 'null').slice(0, 80).replace(/\n/g, '/'))
+          c.check(
+            'zh_CN 预置语言下角色卡文字为中文(含角色名「镜流」)',
+            zhCard != null && zhCard.includes('镜流'),
+            (zhCard || 'null').slice(0, 80).replace(/\n/g, '/'),
+          )
           await page.evaluate(OPEN_COMBOBOX, ['header', 0])
           await sleep(400)
           await pollUntil('语言选项 English 可点', async () => ({ ok: (await page.evaluate(ELEMENT_CLICKABLE, ['English'])) === true }), 8000, 120)
@@ -1086,7 +1137,11 @@ async function main() {
           c.check(
             '入门抽屉的外链同样逐条一致(四处 UI ⊆ site://links)',
             missing.length === 0,
-            missing.length ? `入门抽屉「查看完整指南」等链接未收录进 site://links:${missing.join(',')}——资源组仅覆盖首页社区卡/侧边栏链接组/页眉(resources.ts SITE_LINK_GROUPS),指南类链接只经 site://help/{topic} 部分提供` : '逐条一致',
+            missing.length
+              ? `入门抽屉「查看完整指南」等链接未收录进 site://links:${
+                missing.join(',')
+              }——资源组仅覆盖首页社区卡/侧边栏链接组/页眉(resources.ts SITE_LINK_GROUPS),指南类链接只经 site://help/{topic} 部分提供`
+              : '逐条一致',
           )
           out.linkSurfaces = surfaces
           await page.press('Escape')
@@ -1261,7 +1316,8 @@ async function main() {
       )
       c.check(
         `角色数与遗器数与重启前一致(${preRestart.relics}/${preRestart.characters})`,
-        status.relics === preRestart.relics && status.characters === preRestart.characters && JSON.stringify(status.characterIds) === JSON.stringify(preRestart.characterIds),
+        status.relics === preRestart.relics && status.characters === preRestart.characters
+          && JSON.stringify(status.characterIds) === JSON.stringify(preRestart.characterIds),
         `${status.relics}/${status.characters} vs ${preRestart.relics}/${preRestart.characters}`,
       )
     } finally {
