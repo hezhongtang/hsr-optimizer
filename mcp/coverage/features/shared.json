@@ -5,26 +5,70 @@
     {
       "id": "shared.select.character",
       "title": "从角色选择弹窗里挑角色",
-      "surface": { "page": "GLOBAL", "overlay": "角色选择弹窗", "entry": "各页面里显示角色名的只读输入框：优化器的角色与队友、角色编辑弹窗、评分设置弹窗、基准生成器、跃迁规划的目标、遗器页顶栏、队伍展示的槽位、套装基准审计" },
+      "surface": {
+        "page": "GLOBAL",
+        "overlay": "角色选择弹窗",
+        "entry": "各页面里显示角色名的只读输入框：优化器的角色与队友、角色编辑弹窗、评分设置弹窗、基准生成器、跃迁规划的目标、遗器页顶栏、队伍展示的槽位、套装基准审计"
+      },
       "kind": "read",
       "action": "点输入框打开弹窗，里面是全部角色的卡片。可以按名字搜索，按属性和命途多选筛选，点卡片选中并关闭；在搜索框里按回车直接选中第一个结果。卡片按名称排序，已经出了换代升级版的旧角色排在最后。输入框右侧的叉可以清空选择。每次打开弹窗筛选条件都会重置。",
       "upstream": [
-        { "file": "src/lib/ui/selectors/CharacterSelect.tsx", "symbol": "CharacterSelect" },
-        { "file": "src/lib/ui/selectors/CardSelectModalComponents.tsx", "symbol": "SegmentedFilterRow" },
-        { "file": "src/lib/ui/selectors/SelectCardGrid.tsx", "symbol": "SelectCardGrid" },
-        { "file": "src/lib/ui/selectors/optionGenerator.ts", "symbol": "generateCharacterOptions" },
-        { "file": "src/lib/ui/selectors/selectConstants.ts", "symbol": "applyCharacterFilters" },
-        { "file": "src/lib/ui/selectors/useSelectModal.ts", "symbol": "useSelectModal" }
+        {
+          "file": "src/lib/ui/selectors/CharacterSelect.tsx",
+          "symbol": "CharacterSelect"
+        },
+        {
+          "file": "src/lib/ui/selectors/CardSelectModalComponents.tsx",
+          "symbol": "SegmentedFilterRow"
+        },
+        {
+          "file": "src/lib/ui/selectors/SelectCardGrid.tsx",
+          "symbol": "SelectCardGrid"
+        },
+        {
+          "file": "src/lib/ui/selectors/optionGenerator.ts",
+          "symbol": "generateCharacterOptions"
+        },
+        {
+          "file": "src/lib/ui/selectors/selectConstants.ts",
+          "symbol": "applyCharacterFilters"
+        },
+        {
+          "file": "src/lib/ui/selectors/useSelectModal.ts",
+          "symbol": "useSelectModal"
+        }
       ],
       "params": [
-        { "name": "name", "type": "string", "default": "空", "notes": "按当前语言的角色长名做不区分大小写的包含匹配" },
-        { "name": "element", "type": "属性多选", "default": "不限" },
-        { "name": "path", "type": "命途多选", "default": "不限" }
+        {
+          "name": "name",
+          "type": "string",
+          "default": "空",
+          "notes": "按当前语言的角色长名做不区分大小写的包含匹配"
+        },
+        {
+          "name": "element",
+          "type": "属性多选",
+          "default": "不限"
+        },
+        {
+          "name": "path",
+          "type": "命途多选",
+          "default": "不限"
+        }
       ],
       "conditions": "基准生成器和套装基准审计只列出有输出类模拟评分配置的角色。个别入口不允许清空选择。",
       "runtime": "node",
-      "state": { "owner": "useSelectModal 的本地筛选状态", "lifecycle": "ephemeral" },
-      "mcp": { "status": "verified", "resources": ["game://metadata/characters", "game://metadata/characters/{id}"] },
+      "state": {
+        "owner": "useSelectModal 的本地筛选状态",
+        "lifecycle": "ephemeral"
+      },
+      "mcp": {
+        "status": "verified",
+        "resources": [
+          "game://metadata/characters",
+          "game://metadata/characters/{id}"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -33,7 +77,9 @@
           "按命途和属性筛选后的角色集合与网页端点对应筛选标签后一致",
           "标为有模拟评分配置的角色集合与基准生成器弹窗里列出的角色一致"
         ],
-        "tests": ["mcp/scripts/smoke-conditionals.mjs"],
+        "tests": [
+          "mcp/scripts/smoke-conditionals.mjs"
+        ],
         "evidence": [
           "mcp/coverage/evidence/shared.json#shared.select.character cases 1-3 PASS 2026-10-09 (browser-parity)"
         ]
@@ -42,23 +88,59 @@
     {
       "id": "shared.select.lightCone",
       "title": "从光锥选择弹窗里挑光锥",
-      "surface": { "page": "GLOBAL", "overlay": "光锥选择弹窗", "entry": "各页面里显示光锥名的只读输入框：优化器的角色与队友、角色编辑弹窗、基准生成器、跃迁规划的目标、套装基准审计" },
+      "surface": {
+        "page": "GLOBAL",
+        "overlay": "光锥选择弹窗",
+        "entry": "各页面里显示光锥名的只读输入框：优化器的角色与队友、角色编辑弹窗、基准生成器、跃迁规划的目标、套装基准审计"
+      },
       "kind": "read",
       "action": "点输入框打开弹窗，里面是全部光锥的卡片。可以按名字搜索，按稀有度和命途多选筛选，点卡片选中并关闭；在搜索框里按回车直接选中第一个结果。已经选了角色时，命途筛选默认就是该角色的命途，该角色的五星专属光锥排在最前并有专门的样式。输入框右侧的叉可以清空选择。",
       "upstream": [
-        { "file": "src/lib/ui/selectors/LightConeSelect.tsx", "symbol": "LightConeSelect" },
-        { "file": "src/lib/ui/selectors/optionGenerator.ts", "symbol": "generateLightConeOptions" },
-        { "file": "src/lib/ui/selectors/SelectCardGrid.tsx", "symbol": "signatureId" }
+        {
+          "file": "src/lib/ui/selectors/LightConeSelect.tsx",
+          "symbol": "LightConeSelect"
+        },
+        {
+          "file": "src/lib/ui/selectors/optionGenerator.ts",
+          "symbol": "generateLightConeOptions"
+        },
+        {
+          "file": "src/lib/ui/selectors/SelectCardGrid.tsx",
+          "symbol": "signatureId"
+        }
       ],
       "params": [
-        { "name": "name", "type": "string", "default": "空", "notes": "按当前语言的光锥名做不区分大小写的包含匹配" },
-        { "name": "rarity", "type": "稀有度多选", "default": "不限" },
-        { "name": "path", "type": "命途多选", "default": "已选角色时为该角色的命途，否则不限" }
+        {
+          "name": "name",
+          "type": "string",
+          "default": "空",
+          "notes": "按当前语言的光锥名做不区分大小写的包含匹配"
+        },
+        {
+          "name": "rarity",
+          "type": "稀有度多选",
+          "default": "不限"
+        },
+        {
+          "name": "path",
+          "type": "命途多选",
+          "default": "已选角色时为该角色的命途，否则不限"
+        }
       ],
       "conditions": "命途默认筛选只是初值，可以取消后选其他命途的光锥。每次打开弹窗筛选条件都会重置为初值。",
       "runtime": "node",
-      "state": { "owner": "useSelectModal 的本地筛选状态", "lifecycle": "ephemeral" },
-      "mcp": { "status": "verified", "resources": ["game://metadata/lightcones", "game://metadata/lightcones/{id}", "game://metadata/characters"] },
+      "state": {
+        "owner": "useSelectModal 的本地筛选状态",
+        "lifecycle": "ephemeral"
+      },
+      "mcp": {
+        "status": "verified",
+        "resources": [
+          "game://metadata/lightcones",
+          "game://metadata/lightcones/{id}",
+          "game://metadata/characters"
+        ]
+      },
       "scope": "baseline",
       "upstreamChange": "none",
       "acceptance": {
@@ -67,7 +149,9 @@
           "按角色命途筛选后的光锥集合与网页端为该角色打开弹窗时默认显示的一致",
           "返回的角色专属光锥与网页端弹窗里排在最前的那一把一致"
         ],
-        "tests": ["mcp/scripts/smoke-conditionals.mjs"],
+        "tests": [
+          "mcp/scripts/smoke-conditionals.mjs"
+        ],
         "evidence": [
           "mcp/coverage/evidence/shared.json#shared.select.lightCone cases 1-3 PASS 2026-10-09 (browser-parity)"
         ]
@@ -79,31 +163,82 @@
       "id": "shared.mech.formWidgets",
       "title": "通用表单控件",
       "upstream": [
-        { "file": "src/lib/ui/CascaderSelect.tsx", "symbol": "CascaderSelect" },
-        { "file": "src/lib/ui/ComboboxNumberInput.tsx", "symbol": "ComboboxNumberInput" },
-        { "file": "src/lib/ui/MultiSelectPills.tsx", "symbol": "MultiSelectPills" },
-        { "file": "src/lib/ui/SearchableCombobox.tsx", "symbol": "SearchableCombobox" },
-        { "file": "src/lib/ui/WithPopover.tsx", "symbol": "WithPopover" }
+        {
+          "file": "src/lib/ui/CascaderSelect.tsx",
+          "symbol": "CascaderSelect"
+        },
+        {
+          "file": "src/lib/ui/ComboboxNumberInput.tsx",
+          "symbol": "ComboboxNumberInput"
+        },
+        {
+          "file": "src/lib/ui/MultiSelectPills.tsx",
+          "symbol": "MultiSelectPills"
+        },
+        {
+          "file": "src/lib/ui/SearchableCombobox.tsx",
+          "symbol": "SearchableCombobox"
+        },
+        {
+          "file": "src/lib/ui/WithPopover.tsx",
+          "symbol": "WithPopover"
+        }
       ],
-      "serves": ["optimizer.form.mainStats", "optimizer.form.setFilters", "optimizer.form.resultFilters", "optimizer.form.weights", "optimizer.form.conditionals", "optimizer.combo.definition", "optimizer.statSim.run", "relics.grid.filter", "warp.resources.set", "benchmarks.configure.settings", "benchmarks.configure.sets", "calculators.aha.form", "calculators.aha.solve", "metadata.imageCenter.edit", "preview.relic.addOrEdit"],
+      "serves": [
+        "optimizer.form.mainStats",
+        "optimizer.form.setFilters",
+        "optimizer.form.resultFilters",
+        "optimizer.form.weights",
+        "optimizer.form.conditionals",
+        "optimizer.combo.definition",
+        "optimizer.statSim.run",
+        "relics.grid.filter",
+        "warp.resources.set",
+        "benchmarks.configure.settings",
+        "benchmarks.configure.sets",
+        "calculators.aha.form",
+        "calculators.aha.solve",
+        "metadata.imageCenter.edit",
+        "preview.relic.addOrEdit"
+      ],
       "reason": "被优化器表单、遗器筛选、基准配置、跃迁设置、阿哈面板等大量复用的输入控件：级联选择、带下拉的数字输入、多选标签组、可搜索下拉、悬浮说明（serves 列出已确认的直接消费方，非穷尽）。每个具体字段的读写和默认值已按所属功能行登记；MCP 用结构化参数直接表达这些字段，不存在「操作控件」这一步。"
     },
     {
       "id": "shared.mech.infoLinks",
       "title": "着色外链与带说明的标题",
       "upstream": [
-        { "file": "src/lib/ui/ColorizedLink.tsx", "symbol": "ColorizedLinkWithIcon" },
-        { "file": "src/lib/ui/ColorizedLink.tsx", "symbol": "ColorizedTitleWithInfo" }
+        {
+          "file": "src/lib/ui/ColorizedLink.tsx",
+          "symbol": "ColorizedLinkWithIcon"
+        },
+        {
+          "file": "src/lib/ui/ColorizedLink.tsx",
+          "symbol": "ColorizedTitleWithInfo"
+        }
       ],
-      "serves": ["home.content.read", "changelog.entries.read", "global.changelog.whatsNew", "import.help.read", "characters.scoring.weights", "characters.scoring.resetAll", "preview.simScore.read"],
+      "serves": [
+        "home.content.read",
+        "changelog.entries.read",
+        "global.changelog.whatsNew",
+        "import.help.read",
+        "characters.scoring.weights",
+        "characters.scoring.resetAll",
+        "preview.simScore.read"
+      ],
       "reason": "带图标的外链和带信息浮层的着色标题组件，散布在首页社区卡片、更新日志、导入说明、通知、评分弹窗、跃迁页等处（serves 列出已确认的直接消费方，非穷尽）。链接指向的资源已记在各功能行；组件本身是展示管道，不是用户功能。"
     },
     {
       "id": "shared.mech.unmountedHeroHeader",
       "title": "未挂载的首页头部组件",
       "upstream": [
-        { "file": "src/lib/ui/HeroHeader.tsx", "symbol": "HeroHeader" },
-        { "file": "src/lib/ui/HeroHeader.tsx", "symbol": "SearchBar" }
+        {
+          "file": "src/lib/ui/HeroHeader.tsx",
+          "symbol": "HeroHeader"
+        },
+        {
+          "file": "src/lib/ui/HeroHeader.tsx",
+          "symbol": "SearchBar"
+        }
       ],
       "serves": [],
       "reason": "上游 #1818（navigation）引入的首页头部与 UID 搜索条，当前没有被任何页面导入，用户不可达；真正生效的首页搜索在 HomeTab 的 HeroSection（已登记为 home.search.uid）。源码清点如实列出它；若上游日后挂载，须转为 home 区域的功能行并并入 home.search.uid 的验收。"
