@@ -8,6 +8,10 @@
 // or the site dist is missing), ran past the time limit, or was killed. A
 // killed script's partial writes are rolled back.
 //
+// Each script runs in its own process group so that a stop reaches the MCP
+// server and Chrome it started. Killing this runner with SIGKILL skips that
+// and leaves the running script behind.
+//
 // Usage: node scripts/verify-all.mjs [name ...]   (from mcp/; no names = every script)
 //   name is the part between "verify-" and ".mjs", e.g. `showcase preview site`
 //   VERIFY_TIMEOUT_MIN  per-script limit in minutes (default 90)
@@ -27,8 +31,14 @@ import {
   dirname,
   resolve,
 } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { evidenceDir } from './evidence.mjs'
+import {
+  fileURLToPath,
+  pathToFileURL,
+} from 'node:url'
+import {
+  evidenceCommit,
+  evidenceDir,
+} from './evidence.mjs'
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url))
 const mcpDir = dirname(scriptsDir)
@@ -83,12 +93,20 @@ function preflight() {
   } else if (statSync(siteBuild).mtimeMs < sourcesOf('src', 'public', 'index.html', 'vite.config.ts')) {
     warnings.push('the site dist is older than its sources — rebuild it, or the web side of the parity runs the previous site build')
   }
+  const dirty = scripts.filter((script) => evidenceCommit(pathToFileURL(resolve(scriptsDir, script)).href).endsWith('+dirty'))
+  if (dirty.length > 0) {
+    warnings.push(
+      `uncommitted changes in the build inputs or in ${dirty.length === scripts.length ? 'the scripts' : dirty.map(nameOf).join(', ')} — `
+        + 'that evidence will be stamped +dirty, which coverage:check reports as stale; commit first',
+    )
+  }
   return warnings
 }
 
 // ── Run ──────────────────────────────────────────────────────────────────────
 
 const STOP_GRACE_MS = 10_000
+const STOP_SETTLE_MS = 3_000
 
 function signalGroup(child, signal) {
   try {
@@ -147,9 +165,11 @@ const snapshot = () => new Map(evidenceFiles().map((name) => [name, readFileSync
 
 function rollBack(before) {
   for (const name of evidenceFiles()) {
+    if (!before.has(name)) rmSync(resolve(evidenceDir, name))
+  }
+  for (const [name, text] of before) {
     const path = resolve(evidenceDir, name)
-    if (!before.has(name)) rmSync(path)
-    else if (readFileSync(path, 'utf8') !== before.get(name)) writeFileSync(path, before.get(name))
+    if (!existsSync(path) || readFileSync(path, 'utf8') !== text) writeFileSync(path, text)
   }
 }
 
@@ -173,7 +193,11 @@ for (const script of scripts) {
   const outcome = await run(script)
   // 0 = every case passed, 1 = some case failed; anything else, or a stop request mid-run, means it did not finish.
   const completed = !interrupted && (outcome.exit === 0 || outcome.exit === 1)
-  if (!completed) rollBack(before)
+  if (!completed) {
+    rollBack(before)
+    // A stopped script's Chrome and server may still be on their way out.
+    if (!interrupted) await new Promise((settled) => setTimeout(settled, STOP_SETTLE_MS))
+  }
   const written = completed ? [...snapshot()].filter(([name, text]) => before.get(name) !== text) : []
   rows.push({ script, ...outcome, completed, evidence: written.map(([name, text]) => tally(name, text)) })
   if (interrupted) break

@@ -343,6 +343,19 @@ async function bootPage(page, hash, seed, settleMs = 2500) {
   await sleep(settleMs)
 }
 
+// The page's scanner socket belongs to the Import tab, which opens it on mount.
+// The site mounts background tabs on a timer and can skip one (Tabs.tsx reads
+// queue[i] after i++), so whether Import is mounted at #warp differs by machine.
+// Visit it, then return to the Warp tab whose sync hook consumes the events.
+async function connectPageScanner(page, clientCount) {
+  await page.evaluate(`() => { location.hash = '#import' }`)
+  const deadline = Date.now() + 30_000
+  while (archiverClients.size < clientCount && Date.now() < deadline) await sleep(300)
+  await page.evaluate(`() => { location.hash = '#warp' }`)
+  await sleep(1000)
+  return archiverClients.size >= clientCount
+}
+
 // milestone comparison: web rows [label, chance%, ceil] vs MCP milestones [{label, warps, wins}]
 function compareMilestones(webRows, mcpMilestones) {
   if (webRows.length !== mcpMilestones.length) {
@@ -856,7 +869,7 @@ try {
   const connected = await callTool('scanner', { action: 'connect', url: archiverUrl })
   if (connected.connected !== true) throw new Error('MCP scanner connect failed')
 
-  // web side: seeded scannerSettings auto-connects at boot (SaveState.load(false,false) keeps customUrl)
+  // web side: the seeded scannerSettings (SaveState.load(false,false) keeps customUrl) connect once the Import tab mounts
   const scannerEvents = [
     ['UpdateMaterials', [{ id: '102', name: 'Special Pass', count: 5 }, { id: '252', name: 'Undying Starlight', count: 37 }]],
     ['UpdateGachaFunds', { stellar_jade: 1600, oneric_shards: 320 }],
@@ -878,10 +891,8 @@ try {
 
   await browserManager.runTask({ label: 'verify(warp-D)', seed: readFileSync(scannerSavePath, 'utf8'), timeoutMs: 600_000 }, async (page) => {
     await bootPage(page, '#warp', readFileSync(scannerSavePath, 'utf8'), 5000)
-    // wait until both clients (MCP + page) are connected to the fake archiver
-    const deadline = Date.now() + 30_000
-    while (archiverClients.size < 2 && Date.now() < deadline) await sleep(300)
-    const bothConnected = archiverClients.size >= 2
+    // both clients (MCP + page) must be on the fake archiver before the replay
+    const bothConnected = await connectPageScanner(page, 2)
 
     for (const [event, data] of scannerEvents) {
       push(event, data)
@@ -927,8 +938,8 @@ try {
   const mcpBefore2 = (await callTool('warp_plan', { fromSaved: true })).request
   await browserManager.runTask({ label: 'verify(warp-D2)', seed: readFileSync(scannerOffPath, 'utf8'), timeoutMs: 600_000 }, async (page) => {
     await bootPage(page, '#warp', readFileSync(scannerOffPath, 'utf8'), 5000)
-    const deadline = Date.now() + 30_000
-    while (archiverClients.size < 2 && Date.now() < deadline) await sleep(300)
+    // without the page on the archiver its warpRequest would be unchanged for the wrong reason
+    const bothConnected2 = await connectPageScanner(page, 2)
     const webBefore2 = await page.evaluate(HARVEST)
 
     push('UpdateGachaFunds', { stellar_jade: 9999, oneric_shards: 0 })
@@ -952,8 +963,8 @@ try {
       2,
       'ingestWarpResources 关闭时同样的事件不改动 warpRequest',
       'browser-parity',
-      webUnchanged && mcpUnchanged ? 'PASS' : 'FAIL',
-      `关闭(网页经存档 scannerSettings.ingestWarpResources=false / MCP update_state(section=scanner))后回放资源帧与抽卡帧:网页 warpRequest 不变:${webUnchanged}(jades=${webAfter2.warpRequest?.jades},pity=${webAfter2.warpRequest?.pityCharacter});MCP 不变:${mcpUnchanged}(jades=${mcpAfter2.jades},pity=${mcpAfter2.pityCharacter})`,
+      bothConnected2 && webUnchanged && mcpUnchanged ? 'PASS' : 'FAIL',
+      `两侧均已连接假 Archiver:${bothConnected2}(${archiverClients.size} 客户端);关闭(网页经存档 scannerSettings.ingestWarpResources=false / MCP update_state(section=scanner))后回放资源帧与抽卡帧:网页 warpRequest 不变:${webUnchanged}(jades=${webAfter2.warpRequest?.jades},pity=${webAfter2.warpRequest?.pityCharacter});MCP 不变:${mcpUnchanged}(jades=${mcpAfter2.jades},pity=${mcpAfter2.pityCharacter})`,
     )
   })
   // restore the MCP-side flag for cleanliness

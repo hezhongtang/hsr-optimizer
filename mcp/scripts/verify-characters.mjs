@@ -320,14 +320,24 @@ registerHooks({
 const { pathToFileURL } = await import('node:url')
 const { browserManager } = await import(pathToFileURL(resolve(mcpDir, 'src/browser/browserManager.ts')).href)
 
+// Same discovery as the other verify scripts (and browserManager): env override, then per-platform defaults.
 function findChromeLike() {
-  const candidates = [
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  ]
+  if (process.env.HSR_MCP_BROWSER_PATH && existsSync(process.env.HSR_MCP_BROWSER_PATH)) return true
+  const candidates = process.platform === 'win32'
+    ? [
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    ]
+    : process.platform === 'darwin'
+    ? [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    ]
+    : ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser', '/usr/bin/chromium']
   return candidates.some((p) => existsSync(p))
 }
-const hasDist = existsSync(resolve(mcpDir, '../dist/index.html'))
+const hasDist = (process.env.HSR_MCP_SITE_DIST && existsSync(`${process.env.HSR_MCP_SITE_DIST}/index.html`))
+  || existsSync(resolve(mcpDir, '../dist/index.html'))
 if (!findChromeLike() || !hasDist) {
   console.log('[SKIP] verify-characters 需要受管浏览器(Chrome + 根 dist/),当前环境缺失')
   await client.close()

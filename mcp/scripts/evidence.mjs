@@ -22,7 +22,17 @@ export const evidenceDir = resolve(mcpDir, 'coverage/evidence')
 
 // Inputs of the two builds a parity run executes (root dist/ and mcp/dist). The
 // verify script driving them is added per script.
-const ENGINE_PATHS = ['src', 'public', 'index.html', 'vite.config.ts', 'package-lock.json', 'mcp/src', 'mcp/vite.mcp.config.ts', 'mcp/package-lock.json']
+const ENGINE_PATHS = [
+  'src',
+  'public',
+  'index.html',
+  'vite.config.ts',
+  'package-lock.json',
+  'patches',
+  'mcp/src',
+  'mcp/vite.mcp.config.ts',
+  'mcp/package-lock.json',
+]
 
 function git(...args) {
   const result = spawnSync('git', ['-C', repoRoot, ...args], { encoding: 'utf8' })
@@ -57,8 +67,11 @@ export function loadEvidence() {
     } catch (e) {
       throw new Error(`coverage/evidence/${file} is not valid JSON (${e.message}) — rerun its verify script`)
     }
+    if (doc == null || typeof doc !== 'object' || !Array.isArray(doc.cases)) {
+      throw new Error(`coverage/evidence/${file} has no cases array — rerun its verify script`)
+    }
     docs.set(area, doc)
-    for (const record of doc.cases ?? []) {
+    for (const record of doc.cases) {
       if (!byFeature.has(record.feature)) byFeature.set(record.feature, [])
       byFeature.get(record.feature).push({ ...record, area })
     }
@@ -117,7 +130,7 @@ export function staleEvidence(evidence) {
       unknown.push({ area, stamp })
       continue
     }
-    const paths = [...ENGINE_PATHS, ...new Set((doc.cases ?? []).map((record) => record.script).filter(Boolean))]
+    const paths = [...ENGINE_PATHS, ...new Set(doc.cases.map((record) => record.script).filter(Boolean))]
     // Against the working tree, so uncommitted edits count too; diff does not list untracked files.
     const changed = spawnSync('git', ['-C', repoRoot, 'diff', '--quiet', commit, '--', ...paths]).status !== 0
       || git('ls-files', '--others', '--exclude-standard', '--', ...paths) !== ''

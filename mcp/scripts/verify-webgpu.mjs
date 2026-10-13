@@ -118,6 +118,10 @@ async function resilientEvaluate(page, fn, args, attempts = 5) {
 
 // ── page-side driver (independent scraper — NOT the tool's) ──────────────────
 
+// Accordion items of the WebGPU tab only: other tabs stay mounted in the same
+// document and have accordions of their own (4 of them, as of this writing).
+const TEST_ITEMS = '#WEBGPU_TEST .mantine-Accordion-item'
+
 const CLICK_RUN_BUTTON = `() => {
   const btn = [...document.querySelectorAll('button')].find((b) => (b.textContent || '').includes('Run all WebGPU tests'))
   if (!btn) return false
@@ -131,14 +135,14 @@ const BUTTON_STATE = `() => {
   return {
     done: (btn?.textContent ?? '').includes('Tests complete'),
     running: btn?.getAttribute('data-loading') === 'true',
-    items: document.querySelectorAll('.mantine-Accordion-item').length,
+    items: document.querySelectorAll('${TEST_ITEMS}').length,
     gpuFlag: typeof globalThis.WEBGPU_DEBUG === 'boolean' ? globalThis.WEBGPU_DEBUG : null,
   }
 }`
 
 // statuses from the Accordion controls' icons — visible WITHOUT expanding
 const SCRAPE_STATUSES = `() => {
-  const items = Array.from(document.querySelectorAll('.mantine-Accordion-item'))
+  const items = Array.from(document.querySelectorAll('${TEST_ITEMS}'))
   return {
     ok: true,
     tests: items.map((item) => {
@@ -153,7 +157,7 @@ const SCRAPE_STATUSES = `() => {
 // focus control #i (Node presses trusted Enter afterwards — synthetic clicks
 // do not reach this page's React handlers)
 const FOCUS_ACCORDION_CONTROL = `(index) => {
-  const items = Array.from(document.querySelectorAll('.mantine-Accordion-item'))
+  const items = Array.from(document.querySelectorAll('${TEST_ITEMS}'))
   const control = items[index]?.querySelector('.mantine-Accordion-control')
   if (!control) return { ok: false, reason: 'no control ' + index }
   control.focus()
@@ -162,7 +166,7 @@ const FOCUS_ACCORDION_CONTROL = `(index) => {
 
 // rows of the first N expanded items
 const SCRAPE_ROWS = `(count) => {
-  const items = Array.from(document.querySelectorAll('.mantine-Accordion-item')).slice(0, count)
+  const items = Array.from(document.querySelectorAll('${TEST_ITEMS}')).slice(0, count)
   return items.map((item) => {
     const control = item.querySelector('.mantine-Accordion-control')
     const rows = Array.from(item.querySelectorAll('tbody tr')).map((tr) => {
