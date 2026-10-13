@@ -36,8 +36,8 @@
 //                     payload (panel/combat stats, elemental DMG override,
 //                     per-ability + rotation damage).
 //                     Finally dps_score is called AFTER benchmark_runs to
-//                     prove the SEQUENTIAL_BENCHMARKS global it sets does not
-//                     break the other inline-benchmark tool.
+//                     prove the SEQUENTIAL_BENCHMARKS global it clears does
+//                     not break the inline-benchmark tool.
 //
 // Usage: node scripts/smoke-simulation.mjs [serverEntry]
 //   serverEntry defaults to ./dist/index.js (resolved against mcp/).
@@ -794,11 +794,11 @@ try {
     `Ice DMG Boost = ${rowWithDetail.combatStats['Ice DMG Boost']?.toFixed(4)}`,
   )
 
-  // SEQUENTIAL_BENCHMARKS 全局置位的跨工具影响:benchmark_runs 之后 dps_score
-  // (同样走内联基准链)必须仍然可用。
+  // SEQUENTIAL_BENCHMARKS 全局标志的跨工具影响:benchmark_runs 会把它清掉,
+  // 之后 dps_score(自行置位、走内联基准链)必须仍然可用。
   const dpsAfter = await callTool(client, 'dps_score', { characterId: TARGET, team: 'default' }, { timeout: 120_000 })
   check(
-    'after benchmark_runs set SEQUENTIAL_BENCHMARKS, dps_score still works (finite percent 0–2 + grade + 4 scores)',
+    'after benchmark_runs cleared SEQUENTIAL_BENCHMARKS, dps_score still works (finite percent 0–2 + grade + 4 scores)',
     typeof dpsAfter.percent === 'number' && dpsAfter.percent >= 0 && dpsAfter.percent <= 2
       && typeof dpsAfter.grade === 'string' && dpsAfter.grade.length > 0
       && [dpsAfter.scores?.original, dpsAfter.scores?.baseline, dpsAfter.scores?.benchmark, dpsAfter.scores?.maximum]

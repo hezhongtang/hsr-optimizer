@@ -1542,7 +1542,7 @@ try {
     }${sweepCancelled?.error ? ';error=' + String(sweepCancelled.error).slice(0, 60) : ''}`
       + (cancelOk
         ? '(取消即弃置全部半截汇总)'
-        : '——内联引擎占满服务器单线程,中途的 cancel 请求要等审计跑完才被读取(与 benchmarks.generate#3 同根因);未取消时返回的是完整汇总而非半截'),
+        : '——取消未在审计中途生效:服务器应在两次搜索之间读到 cancel_job,并在当前基准结束后停止;未取消时返回的是完整汇总而非半截'),
   )
 } catch (e) {
   failures++

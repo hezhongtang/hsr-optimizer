@@ -691,9 +691,9 @@ export function registerScoringTools(server: McpServer): void {
         params: { progressToken, progress, total: 3, message },
       } as Any).catch(() => {})
     } // Run the optimal-simulation search inline on the main thread (spike S6
-     // pattern). The flag stays set for the process lifetime — every consumer
-    // of defaultComputeOptimalSimulationSearchRunner in this server should run
-    // inline; the browser worker pool is not wired for the orchestrator path.
+     // pattern) — the browser worker pool is not wired for the orchestrator
+    // path. The flag is left set; benchmark_runs clears it for its own
+    // batches (worker/cooperativeSearch), so every tool sets it before use.
     ;(globalThis as Any).SEQUENTIAL_BENCHMARKS = true
 
     const started = performance.now()

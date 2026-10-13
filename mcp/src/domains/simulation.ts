@@ -11,8 +11,9 @@
 //                     calculateStatUpgrades + calculateTeammateUpgrades +
 //                     extractDamageSplits on trace=true double simulations
 //   benchmark_runs  → runCustomBenchmarkOrchestrator() — the Benchmarks tab's
-//                     custom benchmark (SEQUENTIAL_BENCHMARKS inline search),
-//                     fanned out over 4pc-set × SPD-threshold presets; with
+//                     custom benchmark (searches run one per event-loop turn,
+//                     see worker/cooperativeSearch), fanned out over
+//                     4pc-set × SPD-threshold presets; with
 //                     sweep="sets" it is the metadata-test Set Benchmark
 //                     Auditor instead (runAudit over the generated set grid)
 //
@@ -130,6 +131,7 @@ import {
   serializeRotationDamageStep,
 } from '../serializers/stats'
 import { toolResult } from '../toolResult'
+import { enableCooperativeSearch } from '../worker/cooperativeSearch'
 import {
   finishJob,
   linkedAbortController,
@@ -628,18 +630,19 @@ async function runSetSweep(args: {
     lightConeSuperimposition: lightConeSuperimposition ?? 1,
     teammates: resolvedTeammates,
     scoringModes,
-  } // Inline benchmark search on the main thread (the presets-mode pattern)
-  ;(globalThis as Any).SEQUENTIAL_BENCHMARKS = true
+  }
 
   // Everything above can throw — register the job only now (M4 lesson)
   const jobId = nextJobId('bench')
   const cancelController = linkedAbortController(extra.signal)
-  const cancelRef = { current: false }
+  // runAudit polls cancelRef between runs. Driven by the abort signal so a
+  // cancelled request stops the audit the same way cancel_job does.
+  const cancelRef = { current: cancelController.signal.aborted }
+  cancelController.signal.addEventListener('abort', () => {
+    cancelRef.current = true
+  }, { once: true })
   registerJob(jobId, 'benchmark_runs', {
-    cancel: () => {
-      cancelController.abort()
-      cancelRef.current = true
-    },
+    cancel: () => cancelController.abort(),
     summary: {
       sweep: 'sets',
       characterId,
@@ -669,10 +672,18 @@ async function runSetSweep(args: {
   const started = performance.now()
   let results: AuditorResults
   try {
+    // One search per event-loop turn (the presets-mode pattern). runAudit owns
+    // the loop, so the progress callback re-asserts it ahead of the next run.
+    enableCooperativeSearch()
     results = await runAudit(
       characterId as Any,
       config,
-      (completed, total) => notify(completed, `audit ${completed}/${total} benchmark runs done`),
+      (completed, total) => {
+        enableCooperativeSearch()
+        notify(completed, `audit ${completed}/${total} benchmark runs done`)
+        // A load_save landed mid-audit: stop here, the gate below discards the results
+        if (generation !== runtimeContext.getSaveGeneration()) cancelRef.current = true
+      },
       cancelRef,
     )
   } catch (e) {
@@ -1721,10 +1732,7 @@ export function registerSimulationTools(server: McpServer): void {
         if (mate.lightCone == null || !(getGameMetadata().lightCones as Record<string, unknown>)[mate.lightCone]) {
           throw new Error(`队友 ${mate.characterId} 的光锥 "${mate.lightCone ?? ''}" 不存在——请显式传入 teammates 或修正评分元数据`)
         }
-      } // Run the optimal-simulation search inline on the main thread (dps_score's
-      // spike-verified pattern) — the browser worker pool is not wired here.
-
-      ;(globalThis as Any).SEQUENTIAL_BENCHMARKS = true
+      }
 
       // Job registry (M4-B): ONE job per batch — cancellation only lands
       // between presets and the tool returns a single aggregated result, so
@@ -1871,6 +1879,9 @@ export function registerSimulationTools(server: McpServer): void {
             },
           }
           try {
+            // One search per event-loop turn instead of an inline batch, so
+            // get_job / cancel_job are answered while this preset is running
+            enableCooperativeSearch()
             const orchestrator = await runCustomBenchmarkOrchestrator(
               benchmarkForm,
               includePerfection ? undefined : { benchmarkOnly: true },
@@ -1909,6 +1920,10 @@ export function registerSimulationTools(server: McpServer): void {
           }
           results.push(entry)
           notify(results.length, `preset ${results.length}/${presets.length} done (${String(entry.status)})`)
+        }
+        // The gate above only runs ahead of a preset; this covers the last one
+        if (generation !== runtimeContext.getSaveGeneration()) {
+          throw new Error('A load_save changed the save while benchmark_runs was running — 已完成的预设结果基于旧存档;请对当前存档重新运行')
         }
       } catch (e) {
         finishJob(jobId, 'failed', {

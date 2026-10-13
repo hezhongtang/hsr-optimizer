@@ -1224,12 +1224,12 @@ try {
   })
 
   // ── generate c3: progressToken + cancel_job (MCP semantics, no web dependency) ──
-  // Structural note (measured): the presets batch runs the engine INLINE on
-  // the server's single thread (SEQUENTIAL_BENCHMARKS) — the event loop never
-  // takes a macrotask turn while it computes, so a get_job/cancel_job sent
-  // mid-batch is only READ once the tool call returns. The RTT below makes
-  // that visible: a get_job fired at the first progress notification should
-  // answer ≈ when the batch finishes, with the job already settled.
+  // The presets batch runs on the server's main thread, one search per
+  // event-loop turn (src/worker/cooperativeSearch.ts), so a get_job/cancel_job
+  // sent mid-batch is read between searches and the cancel lands once the
+  // current preset finishes. The RTT below makes that visible: a get_job fired
+  // at the first progress notification should answer within a search or two,
+  // with the job still running.
   const progressEvents = []
   let cancelJobId = null
   let cancelDiag = ''
@@ -1239,8 +1239,9 @@ try {
   const batchStartAt = Date.now()
   const cancelledRun = await callTool(client, 'benchmark_runs', {
     characterId: TARGET,
-    // 12 presets × benchmark+perfection: a batch long enough (~15-25s) that
-    // the get_job round-trip has a clear mid-batch window to land in.
+    // 12 presets × benchmark+perfection: enough presets left after the first
+    // progress notification for the get_job / cancel_job round-trips to land
+    // mid-batch.
     presets: [
       { relicSet1: relic1, relicSet2: relic2, ornamentSet: ornament, spdThreshold: 133.334 },
       { relicSet1: relicB, relicSet2: relicB, ornamentSet: ornament2, spdThreshold: 0 },
@@ -1300,7 +1301,7 @@ try {
       + `;结果 cancelled=${cancelledRun?.cancelled},保留 ${kept.length}/12 个预设(状态 ${statuses || '无'}${
         cancelledRun?.error ? ';error=' + cancelledRun.error.slice(0, 60) : ''
       })`
-      + (cancelOk ? '' : `——get_job RTT≈剩余批时长(内联引擎占满单线程,中途的取消请求要等整批算完才被读取;服务器取消检查点存在但 stdio 面无法触达)`),
+      + (cancelOk ? '' : `——取消未在批内生效:服务器应在两次搜索之间读到 cancel_job,并在当前预设结束后停止`),
   )
 } catch (e) {
   failures++

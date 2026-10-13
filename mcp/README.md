@@ -406,12 +406,12 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 4. **`weightScore` 恒为 null(诚实化)**:加权分只在优化管线内部计算(对克隆遗器),主线程从不计算/刷新;存档文件可能残留网页端历史保存的 weightScore(如 sample-save 中 35/162 件),不代表任何当前角色——`list_relics`/`get_character` 输出一律 null,`sortBy` 也不再接受该键。按角色打分请用 `score_relics`。
 5. **`dps_score` 的 `benchmarkSpd` 可能为 null**:部分角色的评分基准不设 SPD 目标(上游 `spdBenchmark` 为空),此时仅 `originalSpd` 有值,属合法输出而非缺数据。
 6. **字母评级 `'?'` 的合法情形**(不是 bug):`score_relics` 的当前分评级在 ① 非 5★ 遗器、② 加权分为 0(该角色权重下无有效词条)、③ Body/Feet/PlanarSphere/LinkRope 主词条不在该角色评分候选内 时返回 `'?'`(低于最低档 F 亦然);`dps_score` 的评级在未满 6 件装备或无光锥时返回 `'?'`。
-7. **`SEQUENTIAL_BENCHMARKS` 进程内置位**:首次调用 `dps_score` 会把该全局标志置 true 并保持到进程结束——本服务内所有最优模拟搜索都应在主线程内联执行(浏览器 worker 池未接线),这是有意的;但意味着该进程内其他依赖该标志的代码路径也会切换到串行。
+7. **最优模拟搜索都在主线程执行**(浏览器 worker 池未接线):`dps_score`、`score_character` 与榜单评分把 `SEQUENTIAL_BENCHMARKS` 置 true 后整段内联跑完,期间服务器不读取其他请求(单次调用只算一组基准,样例存档实测 1 秒以内);长批量的 `benchmark_runs`(预设批量与 `sweep="sets"` 套装审计)改为每个事件循环回合只跑一个搜索(`src/worker/cooperativeSearch.ts`),运行中 `get_job`/`cancel_job` 与请求取消都能及时处理,取消在当前预设/当前基准结束后生效。运行期间到达的其他工具调用会穿插执行:`load_save` 会让该批结果作废并报错;并发的 `benchmark_runs` 与 `dps_score` 实测不影响数值。
 8. **评分数值为 Float32 打包精度,不做四舍五入**:优化行与评分里的伤害/百分比来自引擎的 Float32Array 打包(与网页端网格显示一致),跨工具复算可能有 1e-7 量级相对误差(见 spike S5c 实测 1.4e-8)。
 9. **上游 `persistenceService.mergeRelics` 本身是整库替换语义**(继承自上游):导入工具在其之上实现 hash 并集合并——`merge=union`(默认)先合成完整并集清单再走整库写入,并集清单意外小于待合并库存、或被替换的旧记录找不到同 id 继任记录时拒绝落盘(反擦写);`merge=replace` 保留上游原生语义,未被导入件覆盖的旧遗器会被丢弃(见方案 §2 勘误 #5)。并集清单把未覆盖的旧遗器接在导入件后面,而上游会按清单顺序用遗器的佩戴者回写角色槽位。连同导入角色时,接回的旧遗器去掉佩戴者再交给上游,避免部分导入(战绩导出、裁剪过的扫描)里旧件把刚穿上的新件盖掉;文件没给新件的部位仍穿原来的遗器。不导入角色时不改穿戴。Reliquary Archiver 来源下「覆盖」还按 id 认定:同 id 不同 hash 的库存件是同一件遗器的旧状态。上游 `mergeRelics` 只按 hash 配对,所以并集模式在调用它之前先把导入件的新状态折入遗器 store(旧记录换成导入件、沿用其佩戴者,并按导入顺序对齐各 hash 桶),让上游按普通的 hash 命中处理;只把旧记录从清单里拿掉是不够的——它仍在上游的 hash 桶里,接回清单的 hash 孪生件会配到它并继承它的 id。HSR-Scanner 的 `_uid` 按扫描位置编号,两次导出里相同的 `_uid` 通常是两件不同的遗器。上游不处理这种相撞(未验证件命中 hash 时保留库存 id,新件又带着同一个位置编号落库)。导入层在交给上游之前,给会撞号的未命中件(以及解析后没有 id 的件)换一个新 uuid,`merge=union` 和 `merge=replace` 都换;replace 仍然丢掉未覆盖的旧遗器。已经写进库存的重复 id 不会因此被合并。
 10. **同步桥的退出钩子已接线 `closeBridge`**(2026-10 复核修复批次):关停流程(SIGINT/SIGTERM/EOF)会关闭 ws 监听并对在线网页端客户端发干净的关闭帧;退出前显式调 `sync_bridge_stop` 仍可用于即时停止(不必等进程退出)。
 11. **`analyze_build` 不支持从 optimize 结果行引用配装**:M1 的 `fromCache` 机制不在此工具上(`equipment.ts` 的 `resolveCachedBuild` 未导出)。agent 需用 `optimize`/`get_results` 行内 `builds` 字段的遗器 id 自行组装 `newRelicIds`。
-12. **`benchmark_runs` 的取消只在预设之间生效**:上游 orchestrator 内部无取消信号,已开始的预设会跑完(单个预设内联约 0.3–2s),取消后返回已完成部分。
+12. **`benchmark_runs` 的取消只在预设之间生效**:上游 orchestrator 内部无取消信号,已开始的预设会跑完(单个预设约 0.2–2s),取消后返回已完成部分;`sweep="sets"` 套装审计同理,在当前基准结束后停止,且不返回半截汇总。
 13. **中文标签的三处上游现状**(原样透出,与网页端一致):①个别旧条件文件(如 Pearl)标签为上游硬编码英文;②角色名册个别新角色/光锥 zh_CN 缺译,返回 `null` 而不回显 key;③`game://changelog` 为上游英文原文,且条目 `title` 多为空串、以 `date` 标识(仅首条带版本标题)。
 14. **工具异常消息中英混杂**:M1 基础域(archive/query/optimizer/equipment/scoring)的 `throw` 异常消息为英文,M2/M3 扩展域(imports/showcase/simulation/conditionals/calculators/teams/bridge)全中文——`mcp/src` 127 处 `throw` 中 33 处为纯英文(含内部对拍入口 `parityRef.ts` 1 处)。结构化字段不受影响,仅同一会话内报错语言不一致;统一语言属文案级重构,登记暂不处理。
 15. **`analyze_build` 的 `statUpgrades` 是 12 副词条全量**:升级表与网页端同源(`calculateStatUpgrades` 遍历全部 SubStats),对每个上游副词条各 +1 roll——**包括该配装不存在/不适用的词条**;`pct` 字段为百分数口径(已乘 100,如 `12.3` 表示 12.3%)。agent 需要「只看已有词条」的视图时,按 `builds` 内遗器的副词条自行过滤。
@@ -422,7 +422,7 @@ M1 验收标准「同一存档同一 Form,MCP optimize 与上游引擎逐行一�
 
 ## P3 登记(已知但暂不修)
 
-- **`dps_score` 并发无锁**:两个并发的 `dps_score` 会同时读写 `SEQUENTIAL_BENCHMARKS` 相关全局与 store,结果可能交叉污染。M1 语义按网页端单用户串行使用设计;若 M2 需要并发安全,加一个进程内互斥即可。
+- **`dps_score` 并发无锁**:两个并发的 `dps_score` 会同时读写 `SEQUENTIAL_BENCHMARKS` 相关全局与 store,结果可能交叉污染。M1 语义按网页端单用户串行使用设计;若 M2 需要并发安全,加一个进程内互斥即可。(`benchmark_runs` 运行中穿插 `dps_score` 的情形见已知限制 7,实测不影响数值。)
 - **`scoreRelicsThread` 为 M2 预留、无 M1 消费方**:`score_relics` 在主线程同步计算(162 件约 7ms),worker 入口仅在构建期接线(见 `src/worker/scoreRelicsThread.ts` 头注释)。
 - **错误路径覆盖待补**:smoke 断言集中在 happy path 与少数关键错误(unknown id、缓存归属/世代、重名、擦写保护);其余错误分支(坏 JSON、越界分页之外的畸形输入等)依赖 zod 校验,专项断言待 M2 补齐。
 - **恒真断言已清理**:曾存在的 `JSON.parse(JSON.stringify(x)) != null` 类恒真断言已替换为具体字段类型检查(dps_score round-trip 断言)。

@@ -252,6 +252,56 @@ try {
     benchJob ? `jobId=${benchJob.jobId} (observed ${benchJob.status})` : 'never observed',
   )
 
+  // ── 4a. a long batch keeps the server responsive ────────────────────────
+  // benchmark_runs runs one search per event-loop turn (src/worker/
+  // cooperativeSearch.ts), so requests sent mid-batch are answered while it is
+  // still running — also after dps_score, which searches inline and leaves
+  // SEQUENTIAL_BENCHMARKS set — and cancel_job lands between presets.
+  {
+    const presets = []
+    for (const spdThreshold of [0, 120.0001, 127.0001, 133.334, 140.0001, 147.0001, 153.0001, 160.0001]) {
+      presets.push({ relicSet1: 'Scholar Lost in Erudition', relicSet2: 'Scholar Lost in Erudition', ornamentSet: 'Rutilant Arena', spdThreshold })
+      presets.push({
+        relicSet1: 'Hunter of Glacial Forest',
+        relicSet2: 'Hunter of Glacial Forest',
+        ornamentSet: 'Bone Collection\'s Serene Demesne',
+        spdThreshold,
+      })
+    }
+    const runningBatch = async () => (await callTool(client, 'get_job', {})).jobs.find((j) => j.kind === 'benchmark_runs' && j.status === 'running')
+    const dpsBefore = await callTool(client, 'dps_score', { characterId: '1212b1' }, { timeout: 120_000 })
+    let midBatch = null
+    const batch = await callTool(client, 'benchmark_runs', { characterId: '1212b1', presets, candidateLimit: 1 }, {
+      timeout: 300_000,
+      resetTimeoutOnProgress: true,
+      onprogress: () => {
+        midBatch ??= (async () => {
+          const seenFirst = await runningBatch()
+          const dpsMid = await callTool(client, 'dps_score', { characterId: '1212b1' }, { timeout: 120_000 })
+          const seenAfterDps = await runningBatch()
+          if (seenAfterDps) await callTool(client, 'cancel_job', { jobId: seenAfterDps.jobId })
+          return { seenFirst, dpsMid, seenAfterDps }
+        })().catch((e) => ({ error: String(e.message) }))
+      },
+    })
+    const mid = await midBatch
+    check(
+      'get_job is answered while a benchmark batch is running',
+      mid?.seenFirst != null,
+      mid?.error ?? `observed ${mid?.seenFirst?.status} (${mid?.seenFirst?.jobId})`,
+    )
+    check(
+      'dps_score mid-batch scores the same, and the batch still answers afterwards',
+      mid?.dpsMid?.percent === dpsBefore.percent && mid?.seenAfterDps != null,
+      `percent ${dpsBefore.percent} → ${mid?.dpsMid?.percent}; batch after dps_score: ${mid?.seenAfterDps?.status ?? 'not running'}`,
+    )
+    check(
+      'cancel_job stops the batch between presets, keeping the finished ones',
+      batch.cancelled === true && batch.presets.length >= 1 && batch.presets.length < presets.length,
+      `cancelled=${batch.cancelled}, kept ${batch.presets?.length}/${presets.length}`,
+    )
+  }
+
   // ── 4b. a throwing PRE-registration guard must not leave a zombie job ────
   // A character with no light cone makes benchmark_runs throw BEFORE the job
   // is registered (the guard was deliberately moved ahead of registerJob);
