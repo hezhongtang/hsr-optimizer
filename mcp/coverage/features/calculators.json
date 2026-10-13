@@ -62,7 +62,7 @@
           "mcp/scripts/smoke-render.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/calculators.json#calculators.panel.switch cases 1-2 PASS 2026-10-13 (5e65fb94)"
+          "mcp/coverage/evidence/calculators.json#calculators.panel.switch cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     },
@@ -156,7 +156,7 @@
           "mcp/scripts/smoke-calculators.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/calculators.json#calculators.aha.form cases 1,2 PASS 2026-10-08 (browser-parity)"
+          "mcp/coverage/evidence/calculators.json#calculators.aha.form cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     },
@@ -215,7 +215,7 @@
           "mcp/scripts/smoke-misc.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/calculators.json#calculators.aha.compute cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+          "mcp/coverage/evidence/calculators.json#calculators.aha.compute cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     },
@@ -277,7 +277,7 @@
           "mcp/scripts/smoke-calculators.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/calculators.json#calculators.aha.solve cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+          "mcp/coverage/evidence/calculators.json#calculators.aha.solve cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     },
@@ -380,7 +380,7 @@
           "mcp/scripts/smoke-calculators.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/calculators.json#calculators.ehr.probability cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+          "mcp/coverage/evidence/calculators.json#calculators.ehr.probability cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     },
@@ -439,7 +439,7 @@
           "mcp/scripts/smoke-calculators.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/calculators.json#calculators.ehr.grid cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+          "mcp/coverage/evidence/calculators.json#calculators.ehr.grid cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     },
@@ -501,7 +501,7 @@
           "mcp/scripts/smoke-misc.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/calculators.json#calculators.ehr.solve cases 1,2,3 PASS 2026-10-08 (browser-parity)"
+          "mcp/coverage/evidence/calculators.json#calculators.ehr.solve cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     }

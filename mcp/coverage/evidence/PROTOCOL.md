@@ -8,6 +8,7 @@
 
 - 每条 `acceptance.cases` 必须有可复现的对拍证明；**全部 case PASS 才能把该行 status 改为 verified**。
 - 任何 case 失败或无法取证 → 该行保持 `implemented`，在证据文件里如实记录，不得硬改状态。
+- 状态由证据决定，两个方向都成立（规则实现在 `mcp/scripts/evidence.mjs` 的 `evidenceVerdict`）：某行所属域的证据文件里用例 1..n 每条都有 PASS 记录，且这个功能在**任何**证据文件里都没有 FAIL / UNPROVEN 记录（同一用例记了多条时须全部 PASS），该行才是 verified；证据重新生成后不再满足的行退回 `implemented`。
 - 涉及视觉、GPU、剪贴板/平台分享、真实外部成功路径的 case **必须真实浏览器取证**，Node 冒烟不算过。
 
 ## 三种取证方法
@@ -43,7 +44,7 @@ MCP stdio 结果 vs 以完全相同的规范化输入直喂上游引擎，逐行
    {
      "area": "warp",
      "generatedAt": "2026-10-08T...",
-     "gitCommit": "<git rev-parse HEAD>",
+     "gitCommit": "<evidence.mjs 的 evidenceCommit()：短 HEAD，相关源码有未提交改动时带 +dirty>",
      "cases": [
        {
          "feature": "warp.plan.simple", "case": 1, "desc": "<原文前40字>",
@@ -55,10 +56,12 @@ MCP stdio 结果 vs 以完全相同的规范化输入直喂上游引擎，逐行
      ]
    }
    ```
-3. 修改 `mcp/coverage/features/<area>.json`：全 case PASS 的行 `mcp.status` → `"verified"`，并加 `acceptance.evidence`：
-   `["mcp/coverage/evidence/<area>.json#<featureId> cases <通过的编号列表> PASS 2026-10-08 (<method>)"]`
-   未全过的行不动 status；若发现描述与实际行为不符（清单 bug），记录在报告里，不改 case 原文。
+3. `mcp/coverage/features/<area>.json` 的状态不手改，跑 `npm run coverage:flip`（`scripts/flip-verified.mjs`）按证据对齐：全 case PASS 的基线行 `mcp.status` → `"verified"` 并写入 `acceptance.evidence`：
+   `["mcp/coverage/evidence/<area>.json#<featureId> cases 1-<n> PASS <证据日期> (<gitCommit>, <method>)"]`
+   证据不再支持的 verified 行退回 `implemented` 并去掉引用；仍然成立的行，引用跟着证据文件的日期与提交更新。若发现描述与实际行为不符（清单 bug），记录在报告里，不改 case 原文。
 
 ## 校验
 
 改完自己的 area JSON 后跑 `node scripts/coverage-check.mjs`，**唯一允许的失败是 `coverage/summary.md is stale`**（汇总由协调者统一重生成）；其他任何 FAIL 都必须修掉。注意 schema 是 `.strict()`：不要增删字段，evidence 是 acceptance 下的字符串数组。
+
+`coverage-check` 同时核对状态与证据：verified 行的证据不成立、基线行证据已齐却仍是 `implemented`、引用与证据文件对不上，都按失败处理（跑 `npm run coverage:flip` 对齐）。证据的 `gitCommit` 之后 `src/`、`public/`、`mcp/src/` 或对应的验收脚本有改动时给出过期警告，`--fresh` 下按失败处理；重新取证用 `npm run verify:all`（可带脚本名只跑一部分，如 `-- showcase site`）；取证前先提交源码与验收脚本的改动，否则证据带 `+dirty`，会一直被判过期。

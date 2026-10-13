@@ -1,7 +1,7 @@
 {
   "area": "optimizer",
-  "generatedAt": "2026-10-11T06:13:29.833Z",
-  "gitCommit": "8ac1d045",
+  "generatedAt": "2026-10-13T12:47:53.331Z",
+  "gitCommit": "0539a185",
   "cases": [
     {
       "feature": "optimizer.character.switch",
@@ -486,7 +486,7 @@
       "desc": "带 progressToken 调用时能收到至少一条进度通知,含已搜索数、总数、",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "6 progress notifications (searched/total/rate in message)",
+      "detail": "4 progress notifications (searched/total/rate in message)",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -495,7 +495,7 @@
       "desc": "结束后 summary 里的已搜索数、有效排列数与耗时齐全",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "summary complete (searched=462,672, valid=462,672, 2490ms); web Searched equal",
+      "detail": "summary complete (searched=462,672, valid=462,672, 863ms); web Searched equal",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {

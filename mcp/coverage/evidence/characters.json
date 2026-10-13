@@ -1,7 +1,7 @@
 {
   "area": "characters",
-  "generatedAt": "2026-10-08T21:34:04.958Z",
-  "gitCommit": "8ac1d045",
+  "generatedAt": "2026-10-13T13:24:58.517Z",
+  "gitCommit": "ea47fdb6",
   "cases": [
     {
       "feature": "characters.list.read",
@@ -198,7 +198,7 @@
       "desc": "渲染出的图片尺寸、文字与数值和网页下载的配装截图一致,背景透明处理相同",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "PNG 头逐字节一致=true;render 2200x1760 4029882B via=app-camera",
+      "detail": "PNG 头逐字节一致=true;render 2200x1760 4026256B via=app-camera",
       "script": "mcp/scripts/verify-characters.mjs"
     },
     {

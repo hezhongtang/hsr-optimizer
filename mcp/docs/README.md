@@ -9,11 +9,14 @@
 
 - 03 的路线图 ① ②:`team_audit` / `plan_diff` 两个工具(默认策略后来改为按强化等级分两遍搜的 tiered)。
 - 03 的路线图 ③ Mode A:`npm run plan-refresh -- --plan <plan.json>`,用 `plan_diff` 找出过期的队、只对它们重跑 `team_audit`、重写报告,全程没有 LLM。Mode B 的工作流改造与 `team_score` 未做。
-- 当前口径:64 个工具、191 个功能条目(网站基线 175 项全部实现,157 项 verified),权威状态见 `mcp/coverage/summary.md`。
-- 基线里还没 verified 的 18 项,按原因分四类(2026-10-13 分诊,尚未逐项复现的标注为初判):
+- 当前口径:64 个工具、191 个功能条目(网站基线 175 项全部实现,156 项 verified),权威状态见 `mcp/coverage/summary.md`。verified 不再手工标注:由 `coverage/evidence/` 里的对拍记录决定,`npm run coverage:flip` 对齐、`npm run coverage:check` 核对(规则见 `mcp/coverage/evidence/PROTOCOL.md`)。全部证据于 2026-10-13 在 macOS(Apple GPU)上用 `npm run verify:all` 重新生成。
+- 这次按证据对齐后有三行变动:`preview.scoring.spdBenchmark` 升为 verified;`optimizer.run.cancel` 与 `preview.customize.display` 退回 implemented——两行此前标着 verified,但证据里各有一条用例一直是 FAIL。
+- 基线里还没 verified 的 19 项,按原因分六类(尚未逐项复现的标注为初判):
   - 环境构造不出来(2 项):`optimizer.engine.select`、`webgpu.tests.run` 各有一条用例要求「没有 WebGPU 的浏览器」,受管浏览器起不出这种环境。
-  - 验收脚本的网页一侧驱动失败或超时,服务端行为未见问题(初判,12 项):`showcase.profile.fetch` / `showcase.card.read` / `showcase.import` / `showcase.simulate.override` / `showcase.sidebar.toggle`、`preview.scoring.spdBenchmark`、`preview.analysis.buffs`、`preview.debug.visualPanel`、`relics.upsert`、`relics.locator`、`optimizer.statSim.importResult`、`metadata.imageCenter.edit`。
-  - 真实的行为差异(3 项):`benchmarks.generate` 与 `metadata.setAuditor.run` 的「中途取消」用例——内联引擎占满单线程,取消请求读不进来;`metadata.colorGrid.view`——`render` 不消费 visualDebug。
+  - 验收脚本的网页一侧驱动失败或超时,服务端行为未见问题(初判,11 项):`showcase.profile.fetch` / `showcase.card.read` / `showcase.import` / `showcase.simulate.override` / `showcase.sidebar.toggle`、`preview.customize.display`(展示柜页的 UID 开关那条,记在 showcase 证据里)、`preview.debug.visualPanel`、`relics.upsert`、`relics.locator`、`optimizer.statSim.importResult`、`metadata.imageCenter.edit`。
+  - 验收脚本自身报错(1 项):`optimizer.run.cancel`——取消后读结果时 `get_results` 报「缓存结果属于上一次载入的存档」,用例没有走到比对。
+  - 对拍已能跑通但数值没对齐,尚未判定是哪一侧(1 项):`preview.analysis.buffs`——此前一直超时是因为脚本里的正则转义被模板字符串吃掉;修正后 12 行属性合计里 9 行一致,剩下的是 DMG Boost 的归并口径(网页 112,MCP 92 且没有 Ice DMG Boost 的汇总行)。
+  - 真实的行为差异(3 项):`benchmarks.generate` 与 `metadata.setAuditor.run` 的「中途取消」用例——内联引擎占满单线程,取消请求读不进来(后者另有两条网页侧抓取为空的用例);`metadata.colorGrid.view`——`render` 不消费 visualDebug。
   - 需要先定口径(1 项):`global.language.switch`——服务端渲染语言按设计固定 zh_CN,`update_state(language)` 只写偏好键;用例要求标签随语言切换。要么让服务端真的切语言,要么把用例改成当前口径。
 
 ## 文档导引
@@ -36,4 +39,4 @@
 
 - `mcp/README.md` — MCP 服务器使用入口
 - `hsr-optimizer-MCP-调研报告.md` / `hsr-optimizer-MCP-实施方案.md` / `hsr-optimizer-MCP-契约冻结.md` — 建设期文档（M1-M9，本目录内）
-- `mcp/coverage/` — 验收协议：features JSON + 15 个 verify-*.mjs + coverage-check 门禁（191 features / 基线 175 项中 157 项 verified）
+- `mcp/coverage/` — 验收协议：features JSON + 15 个取证脚本 verify-*.mjs + coverage-check 门禁（191 features / 基线 175 项中 156 项 verified）

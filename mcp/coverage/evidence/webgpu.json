@@ -1,7 +1,7 @@
 {
   "area": "webgpu",
-  "generatedAt": "2026-10-11T04:44:08.929Z",
-  "gitCommit": "8ac1d045",
+  "generatedAt": "2026-10-13T13:29:41.389Z",
+  "gitCommit": "ea47fdb6",
   "cases": [
     {
       "feature": "webgpu.tests.run",
@@ -9,7 +9,7 @@
       "desc": "(环境)受管浏览器 GPU 探测",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "available=true softwareAdapter=false vendor=nvidia architecture=turing maxBufferMB=2048",
+      "detail": "available=true softwareAdapter=false vendor=apple architecture=metal-3 maxBufferMB=4095.9999961853027",
       "script": "mcp/scripts/verify-webgpu.mjs"
     },
     {
@@ -18,7 +18,7 @@
       "desc": "在受管浏览器里执行后返回的用例数、每个用例是否通过与网页端手动点按钮跑完后一致",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "web 251 例 vs tool 251 例;逐用例状态比对全部一致;两侧各自独立跑完整套件(真实 GPU nvidia/turing)",
+      "detail": "web 246 例 vs tool 246 例;逐用例状态比对全部一致;两侧各自独立跑完整套件(真实 GPU apple/metal-3)",
       "script": "mcp/scripts/verify-webgpu.mjs"
     },
     {
@@ -27,7 +27,7 @@
       "desc": "有失败项时返回具体的属性名、CPU 值、GPU 值、差值和允许精度",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "实测 2 条失败用例,逐行携带 stat/cpu/gpu/delta/precision/pass;字段齐备",
+      "detail": "本机全量通过(0 失败)——逐属性行结构在全部用例上验证(stat/cpu/gpu/delta 文本非空 + precision 数值 + pass 布尔);两侧逐行比对一致",
       "script": "mcp/scripts/verify-webgpu.mjs"
     },
     {

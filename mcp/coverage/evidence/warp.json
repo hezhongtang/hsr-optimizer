@@ -1,7 +1,7 @@
 {
   "area": "warp",
-  "generatedAt": "2026-10-08T20:31:41.259Z",
-  "gitCommit": "8ac1d045",
+  "generatedAt": "2026-10-13T13:24:58.770Z",
+  "gitCommit": "ea47fdb6",
   "cases": [
     {
       "feature": "warp.resources.set",
@@ -126,7 +126,7 @@
       "desc": "ingestWarpResources 关闭时同样的事件不改动 warpRequest",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "关闭(网页经存档 scannerSettings.ingestWarpResources=false / MCP update_state(section=scanner))后回放资源帧与抽卡帧:网页 warpRequest 不变:true(jades=1000,pity=5);MCP 不变:true(jades=1920,pity=8)",
+      "detail": "两侧均已连接假 Archiver:true(2 客户端);关闭(网页经存档 scannerSettings.ingestWarpResources=false / MCP update_state(section=scanner))后回放资源帧与抽卡帧:网页 warpRequest 不变:true(jades=1000,pity=5);MCP 不变:true(jades=1920,pity=8)",
       "script": "mcp/scripts/verify-warp.mjs"
     }
   ]

@@ -1,6 +1,6 @@
 # HSR Optimizer MCP Server
 
-让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **61 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4 + M5 角色/遗器/表单/队伍域 4 + M6 扫描器/评分/榜单/分析域 4 + M7 浏览器/渲染/诊断域 5)与 **11 个资源**(`game://` 元数据 7 项 + `site://` 站点面 4 项),覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4–M9 全主线:状态基础、角色/遗器/表单/队伍操作、实时导入、四配置角色评分、排行榜数据层与本地复算、遗器分析,以及受管浏览器运行环境下的图片导出、WebGPU 检验与 GPU 优化执行;M9 收尾后网站基线 175/175 全部接入(矩阵见 coverage/summary.md)。操作视角的接入文档见[使用指南](./docs/hsr-optimizer-MCP-使用指南.md)。
+让 agent 在会话中通过 MCP(stdio)完成 fribbels HSR Optimizer 的核心用户功能:载入存档 → 查询角色/遗器 → 优化搜索 → 装备 → 评分,并扩展到导入(扫描器/Hoyolab/展示柜)、战斗模拟与基准、条件定义查询、纯计算器、组队展示与网页端同步桥。当前交付 **64 个工具**(M1 基础域 26 + M2/M3 扩展域 18 + M4 状态与任务域 4 + M5 角色/遗器/表单/队伍域 5 + M6 扫描器/评分/榜单/分析域 4 + M7 浏览器/渲染/诊断域 5 + 队伍审计域 2)与 **11 个资源**(`game://` 元数据 7 项 + `site://` 站点面 4 项),覆盖方案 §7 M1–M3 的全部条目与全站覆盖计划 M4–M9 全主线:状态基础、角色/遗器/表单/队伍操作、实时导入、四配置角色评分、排行榜数据层与本地复算、遗器分析,以及受管浏览器运行环境下的图片导出、WebGPU 检验与 GPU 优化执行;M9 收尾后网站基线 175/175 全部接入(矩阵见 coverage/summary.md)。操作视角的接入文档见[使用指南](./docs/hsr-optimizer-MCP-使用指南.md)。
 
 - 设计与分期依据:[`hsr-optimizer-MCP-实施方案.md`](./docs/hsr-optimizer-MCP-实施方案.md)(§6.1 规模闸门、§6.2 一致性验收、§7 验收标准)
 - 可行性实测背景(spike)已删除,历史见 commit `81f0789a`(见文末「与 spike 的关系」)
@@ -61,17 +61,28 @@ npm run smoke:all      # 依次跑全部三十五份(浏览器套件在缺 Chrom
 npm run check:packaged # M9 仓库外完整安装验收:组装便携树 → 空目录启动 → i18n/媒体渲染/GPU/重启恢复断言
 ```
 
+覆盖清单与对拍证据(协议见 [`coverage/evidence/PROTOCOL.md`](./coverage/evidence/PROTOCOL.md)):
+
+```bash
+npm run coverage:check # 覆盖门禁:清单 schema、上游引用、工具面、普查覆盖、summary.md,以及每行的 verified 状态与证据是否一致
+npm run verify:all     # 重新生成对拍证据:依次跑 15 个 verify-<域>.mjs(需要 Chrome 与站点 dist),某个域有失败用例不会中断后面的域
+                       # 只跑其中几个脚本:npm run verify:all -- showcase preview(名字取 verify- 与 .mjs 之间的部分;home/changelog/shared 三个域由 site 产出)
+npm run coverage:flip  # 按证据对齐清单:用例全部 PASS 的基线行升为 verified,证据不再支持的 verified 行退回 implemented,证据引用随之更新
+```
+
+清单里的 verified 状态由证据文件决定,不手改:某行所属域的证据里每条验收用例都有 PASS 记录,且这个功能在任何证据文件里都没有 FAIL / UNPROVEN 记录,才是 verified。`coverage:check` 在两者不一致时失败,`coverage:flip` 负责对齐。每份证据带着生成时的提交(`gitCommit`,相关源码有未提交改动时带 `+dirty`);此后 `src/`、`public/`、`mcp/src/` 或对应的验收脚本有改动,`coverage:check` 会给出一条证据过期的警告,加 `--fresh` 时按失败处理。改完引擎或服务端后的完整流程:**先提交源码改动**(带 `+dirty` 的证据说不清跑的是哪棵树,会一直被判过期)→ 重建两份 dist → `npm run verify:all` → `npm run coverage:flip` → `npm run coverage:check -- --write` → 提交证据与清单。
+
 ## 质量门(须从仓库根执行)
 
 dprint 的 glob 相对当前工作目录解析——在 `mcp/` 下执行会静默假绿,务必在仓库根:
 
 ```bash
 npx dprint check "mcp/src/**/*.ts" "mcp/scripts/*.mjs" "mcp/*.ts" "mcp/*.json" "mcp/README.md" "mcp/docs/*.md"
-npx oxlint mcp/src mcp/scripts
+npx oxlint --deny-warnings mcp/src mcp/scripts
 npx tsgo --noEmit -p mcp/tsconfig.json
 ```
 
-三者均须 0 报警/0 错误;类型检查也可在仓库根用 `npx tsgo --noEmit -p mcp/tsconfig.json`。
+三者均须 0 报警/0 错误。CI(`.github/workflows/mcp.yml`)在推送与 PR 时跑这三项和 `npm --prefix mcp run coverage:check`;冒烟与对拍需要 Chrome、GPU 和站点 dist,仍在本机跑。
 
 ## 环境变量
 

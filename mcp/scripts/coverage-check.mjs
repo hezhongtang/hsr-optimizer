@@ -13,11 +13,15 @@
 //   6. the committed census still matches the web source (no silent upstream drift)
 //   7. registered tools plus proposed new tools stay within the manifest's toolBudget
 //   8. coverage/summary.md is up to date
+//   9. a row's verified status agrees with coverage/evidence/: verified rows are
+//      backed by PASS on every case, and no baseline row the evidence fully
+//      supports is left at implemented (`npm run coverage:flip` brings rows in line)
 //
 // Usage: node scripts/coverage-check.mjs                    full check (exit 1 on any failure)
 //        node scripts/coverage-check.mjs --write            regenerate coverage/summary.md, then check
 //        node scripts/coverage-check.mjs --uncovered        also list every uncovered census entry
 //        node scripts/coverage-check.mjs --allow-uncovered  report coverage gaps without failing (authoring mode)
+//        node scripts/coverage-check.mjs --fresh            also fail when evidence predates the current sources
 
 import {
   existsSync,
@@ -37,6 +41,11 @@ import {
   censusKeys,
   censusPath,
 } from './coverage-census.mjs'
+import {
+  evidenceVerdict,
+  loadEvidence,
+  staleEvidence,
+} from './evidence.mjs'
 
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const repoRoot = resolve(mcpDir, '..')
@@ -296,6 +305,78 @@ function proposedSurface(features, surface) {
   return { newTools, newResources, extendedTools }
 }
 
+// ── Evidence ─────────────────────────────────────────────────────────────────
+
+// A row's verified status is a function of the evidence files (PROTOCOL.md).
+// Claiming it without the evidence, or leaving a baseline row the evidence fully
+// supports at implemented, both make the matrix say something the evidence does not.
+function checkEvidence(features, requireFresh) {
+  let evidence
+  try {
+    evidence = loadEvidence()
+  } catch (e) {
+    fail(e.message)
+    return
+  }
+  const byId = new Map(features.map((feature) => [feature.id, feature]))
+  for (const [id, records] of evidence.byFeature) {
+    const feature = byId.get(id)
+    if (!feature) {
+      fail(`evidence/${records[0].area}.json: records name "${id}", which is not a feature row`)
+      continue
+    }
+    const extra = records.filter((record) => record.case > feature.acceptance.cases.length)
+    if (extra.length > 0) {
+      warnings.push(
+        `[${id}]: evidence records case ${
+          extra.map((record) => `#${record.case} (${record.area}.json)`).join(', ')
+        }, beyond the row's ${feature.acceptance.cases.length} acceptance case(s)`,
+      )
+    }
+  }
+
+  // Regenerating an area's evidence outdates every citation in it at once: one line per area.
+  const outdated = new Map()
+  for (const feature of features) {
+    const where = `[${feature.id}]`
+    const { status } = feature.mcp
+    const cited = feature.acceptance.evidence ?? []
+    const verdict = evidenceVerdict(feature, feature.area, evidence)
+    if (status !== 'verified' && cited.length > 0) fail(`${where}: only verified rows cite parity evidence — run \`npm run coverage:flip\``)
+    if (status === 'verified' && !verdict.supported) {
+      fail(`${where}: status is verified but the evidence does not support it (${verdict.blockers.join('; ')}) — run \`npm run coverage:flip\``)
+    } else if (status === 'verified' && cited.length > 0 && (cited.length !== 1 || cited[0] !== verdict.citation)) {
+      outdated.set(feature.area, [...(outdated.get(feature.area) ?? []), feature.id])
+    } else if (status === 'implemented' && feature.scope === 'baseline' && verdict.supported) {
+      fail(`${where}: the evidence passes every case but the row is still implemented — run \`npm run coverage:flip\``)
+    }
+  }
+  for (const [area, ids] of outdated) {
+    fail(
+      `features/${area}.json: ${ids.length} evidence citation(s) no longer match evidence/${area}.json (${ids[0]}${
+        ids.length > 1 ? ', …' : ''
+      }) — run \`npm run coverage:flip\``,
+    )
+  }
+
+  const { stale, unknown } = staleEvidence(evidence)
+  const report = (message) => (requireFresh ? fail(message) : warnings.push(`${message} (--fresh fails on this)`))
+  if (stale.length > 0) {
+    report(
+      `evidence predates the current sources in ${stale.length} area(s): ${
+        stale.map((entry) => `${entry.area} (${entry.stamp})`).join(', ')
+      } — rerun \`npm run verify:all\``,
+    )
+  }
+  if (unknown.length > 0) {
+    report(
+      `evidence age cannot be checked in ${unknown.length} area(s): the stamp is not a commit in this clone — ${
+        unknown.map((entry) => `${entry.area} (${entry.stamp})`).join(', ')
+      }`,
+    )
+  }
+}
+
 // ── Census coverage ──────────────────────────────────────────────────────────
 
 function indexReferences(rows) {
@@ -462,6 +543,7 @@ const surface = registeredSurface()
 
 const featureIds = new Set(features.map((feature) => feature.id))
 for (const feature of features) checkFeature(feature, surface)
+checkEvidence(features, args.has('--fresh'))
 for (const mechanism of mechanisms) checkMechanism(mechanism, featureIds)
 
 const claimedTools = new Set(features.flatMap((feature) => feature.mcp.tools ?? []))

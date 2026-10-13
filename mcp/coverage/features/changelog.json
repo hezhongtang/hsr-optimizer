@@ -51,7 +51,7 @@
           "mcp/scripts/smoke-conditionals.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/changelog.json#changelog.entries.read cases 1 PASS 2026-10-09 (browser-parity)"
+          "mcp/coverage/evidence/changelog.json#changelog.entries.read cases 1-1 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     }

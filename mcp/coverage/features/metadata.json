@@ -296,7 +296,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/metadata.json#metadata.simulation.sets cases 1-2 PASS 2026-10-09 (8ac1d045)"
+          "mcp/coverage/evidence/metadata.json#metadata.simulation.sets cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     },
@@ -346,7 +346,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/metadata.json#metadata.simulation.teams cases 1-2 PASS 2026-10-09 (8ac1d045)"
+          "mcp/coverage/evidence/metadata.json#metadata.simulation.teams cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     },
@@ -402,7 +402,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/metadata.json#metadata.simulation.combo cases 1-2 PASS 2026-10-09 (8ac1d045)"
+          "mcp/coverage/evidence/metadata.json#metadata.simulation.combo cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     },
@@ -456,7 +456,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/metadata.json#metadata.setPresets.read cases 1-2 PASS 2026-10-09 (8ac1d045)"
+          "mcp/coverage/evidence/metadata.json#metadata.setPresets.read cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     },
@@ -506,7 +506,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/metadata.json#metadata.substatWeights.read cases 1-2 PASS 2026-10-09 (8ac1d045)"
+          "mcp/coverage/evidence/metadata.json#metadata.substatWeights.read cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     },
@@ -556,7 +556,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/metadata.json#metadata.leaderboardTeams.read cases 1-2 PASS 2026-10-09 (8ac1d045)"
+          "mcp/coverage/evidence/metadata.json#metadata.leaderboardTeams.read cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
         ]
       }
     }
