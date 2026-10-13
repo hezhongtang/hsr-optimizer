@@ -731,16 +731,23 @@ async function main() {
       c.check('载入旧版本存档:load_save 直读存档 version 字段(v0.0.1)', loaded.version === 'v0.0.1', `version=${JSON.stringify(loaded.version)}`)
       const revision = await getState(mcp, 'revision')
       const session = await getState(mcp, 'session')
-      const versionFields = Object.entries({ ...revision, ...session }).filter(([k, v]) => /version/i.test(k) || /outdated|过期/i.test(String(k ?? '')))
+      const home = await readJsonResource(mcp, 'site://home')
       c.check(
         'get_state 报告存档版本、当前版本和是否过期(与 isVersionOutdated 一致)',
-        versionFields.length > 0,
-        versionFields.length
-          ? JSON.stringify(versionFields)
-          : 'get_state(revision/session) 无任何版本/过期字段——当前版本仅 site://home.optimizerVersion 与导出快照 version(恒为 CURRENT_OPTIMIZER_VERSION)可读,「是否过期」未透出;与用例描述不符',
+        revision.saveVersion === 'v0.0.1' && revision.currentVersion === home.optimizerVersion && revision.versionOutdated === true,
+        `saveVersion=${revision.saveVersion},currentVersion=${revision.currentVersion},versionOutdated=${revision.versionOutdated}`,
       )
+      const currentSavePath = `${dirMain}/current-version.json`
+      writeFileSync(currentSavePath, JSON.stringify({ ...oldSave, version: home.optimizerVersion }))
+      await callTool(mcp, 'load_save', { path: currentSavePath })
+      const fresh = await getState(mcp, 'revision')
+      c.check(
+        '当前版本写出的存档不算过期',
+        fresh.saveVersion === fresh.currentVersion && fresh.versionOutdated === false,
+        `saveVersion=${fresh.saveVersion},versionOutdated=${fresh.versionOutdated}`,
+      )
+      await callTool(mcp, 'load_save', { path: oldSavePath })
       const snapshot = (await callTool(mcp, 'export_save', { structured: true })).snapshot
-      const home = await readJsonResource(mcp, 'site://home')
       c.check(
         '可读版本面交叉核对:导出快照 version = site://home.optimizerVersion(saveState.ts:84 恒写当前版)',
         snapshot.version === home.optimizerVersion,
@@ -768,17 +775,14 @@ async function main() {
       const err = await readResourceError(mcp, 'site://help/optimizer')
       if (err == null) {
         const help = await readJsonResource(mcp, 'site://help/optimizer')
-        c.check('site://help/optimizer 返回指南正文', help != null && ((help.points?.length ?? 0) > 0 || help.url != null))
-      } else {
+        const guide = readFileSync(resolve(mcpDir, '../docs/guides/en/optimizer.md'), 'utf8')
         c.check(
           'site://help/optimizer 返回仓库内 docs/guides 对应指南的正文',
-          false,
-          `资源读取报错:${
-            err.slice(0, 120)
-          }——已注册帮助主题仅 reliquary/kelz/scorer/hoyolab/live-import(resources.ts SITE_HELP_TOPICS,导入页帮助区),无 optimizer 主题;docs/guides/en/optimizer.md 只被入门抽屉引用`,
+          help.body === guide && help.url?.endsWith('docs/guides/en/optimizer.md') === true,
+          `body ${help.body?.length ?? 0} 字符,指南文件 ${guide.length} 字符,url=${help.url}`,
         )
-        const liveImport = await readJsonResource(mcp, 'site://help/live-import')
-        c.check('旁证:site://help/live-import 指向仓库内指南 md', liveImport.url?.includes('docs/guides/en/live-import.md') === true, String(liveImport.url))
+      } else {
+        c.check('site://help/optimizer 返回仓库内 docs/guides 对应指南的正文', false, `资源读取报错:${err.slice(0, 160)}`)
       }
     }
 
@@ -1134,14 +1138,15 @@ async function main() {
           )
           const allSurface = [...new Set([...sidebarSet, ...drawerHrefs])]
           const missing = allSurface.filter((url) => !resourceUrls.has(url))
+          const guideUrl = linksResource.groups.flatMap((g) => g.links).find((l) => l.key === 'optimizer-guide')?.url
           c.check(
             '入门抽屉的外链同样逐条一致(四处 UI ⊆ site://links)',
-            missing.length === 0,
+            missing.length === 0 && guideUrl != null && drawerHrefs.includes(guideUrl),
             missing.length
               ? `入门抽屉「查看完整指南」等链接未收录进 site://links:${
                 missing.join(',')
               }——资源组仅覆盖首页社区卡/侧边栏链接组/页眉(resources.ts SITE_LINK_GROUPS),指南类链接只经 site://help/{topic} 部分提供`
-              : '逐条一致',
+              : `入门抽屉抓到 ${drawerHrefs.length} 条外链,含指南链接=${guideUrl != null && drawerHrefs.includes(guideUrl)};逐条一致`,
           )
           out.linkSurfaces = surfaces
           await page.press('Escape')

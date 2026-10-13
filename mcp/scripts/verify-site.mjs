@@ -31,6 +31,7 @@
 // Usage: node scripts/verify-site.mjs [serverEntry]
 //   serverEntry defaults to ./dist/index.js (resolved against mcp/).
 
+import { spawnSync } from 'node:child_process'
 import {
   copyFileSync,
   existsSync,
@@ -55,7 +56,9 @@ import {
 const mcpDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
 const repoSampleSavePath = resolve(mcpDir, '../src/data/sample-save.json')
-const GIT_COMMIT = '8ac1d045'
+// The commit the verified build was made from; the literal is only a fallback outside a git checkout.
+const GIT_COMMIT = String(spawnSync('git', ['-C', mcpDir, 'rev-parse', '--short=8', 'HEAD'], { encoding: 'utf8' }).stdout ?? '').trim().slice(0, 8)
+  || '8ac1d045'
 
 const evidenceDir = resolve(mcpDir, 'coverage/evidence')
 const tempDir = mkdtempSync(`${tmpdir()}/hsr-verify-site-`)
@@ -150,10 +153,10 @@ const { pathToFileURL } = await import('node:url')
 const { browserManager } = await import(pathToFileURL(resolve(mcpDir, 'src/browser/browserManager.ts')).href)
 
 function findChromeLike() {
-  return [
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  ].some((p) => existsSync(p))
+  const candidates = process.platform === 'win32'
+    ? ['C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe']
+    : ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/chromium-browser', '/usr/bin/chromium']
+  return candidates.some((p) => existsSync(p))
 }
 if (!findChromeLike() || !existsSync(resolve(mcpDir, '../dist/index.html'))) {
   console.log('[SKIP] verify-site 需要受管浏览器(Chrome + 根 dist/),当前环境缺失')
@@ -423,34 +426,30 @@ try {
       return page.evaluate(`() => {
         const text = document.body.innerText
         const links = [...document.querySelectorAll('a')].filter((a) => a.offsetParent !== null)
-          .map((a) => ({ text: (a.textContent || '').trim(), href: a.getAttribute('href') }))
-        // FeatureCard copy: the component reads hometab:FeatureCard.<X> — the
-        // zh_CN hometab.yaml only carries stale FeatureCards: keys, so the zh
-        // page falls back to the en_US titles for these six cards.
-        const featureCardTitles = {
-          Showcase: ['角色展示', 'Character Showcase'],
-          Optimizer: ['配装优化器', 'Optimization Engine'],
-          Warp: ['跃迁规划器', 'Warp Planner'],
-          DamageCalculator: ['伤害计算', 'Damage Calculator'],
-          Benchmarks: ['基准生成器', 'Build Benchmarks'],
-          RarityAnalysis: ['稀有度分析', 'Rarity Analysis'],
-        }
-        const renderedTitles = Object.fromEntries(Object.entries(featureCardTitles).map(([k, alts]) =>
-          [k, alts.filter((a) => text.includes(a))[0] ?? null]))
+          .map((a) => ({ text: (a.textContent || '').trim(), href: a.getAttribute('href'), title: a.querySelector('h4')?.textContent ?? null }))
+        // The cards themselves: FeatureCard renders <img alt={feature}>, an
+        // <h2> title and a <p> description inside its own <section>. The zh_CN
+        // hometab.yaml only carries stale FeatureCards: keys, so the zh page
+        // falls back to the en_US copy for these six cards.
+        const cards = [...document.querySelectorAll('section')]
+          .filter((section) => section.querySelector('h2') && section.querySelector('img[alt]'))
+          .map((section) => ({
+            key: section.querySelector('img[alt]').getAttribute('alt'),
+            title: section.querySelector('h2').textContent,
+            description: section.querySelector('p')?.textContent ?? '',
+            text: section.innerText,
+          }))
         return {
           textHead: text.slice(0, 600),
-          hasFeatureSections: ['角色展示', '配装优化器'].every((s) => text.includes(s)),
-          renderedTitles,
+          cards,
           links,
         }
       }`)
     })
 
-    // site://links: the four community cards' real URLs must appear in the DOM;
-    // site://home: entries are the 11-page capability list. The case text also
-    // expects the six feature cards' titles+points in the resource payload —
-    // they are NOT there (upstream FeatureCard copy lives only in the page), so
-    // the case as written cannot pass; recorded FAIL with the exact mismatch.
+    // site://links: the four community cards' real URLs must appear in the DOM.
+    // site://home: the six feature cards carry the copy the page renders — each
+    // card's title, description and every bullet are compared with its own card.
     const community = linksRes.groups[0].links
     const hrefs = web.links.map((l) => l.href)
     const communityOk = community.every((l) =>
@@ -458,23 +457,42 @@ try {
         ? web.links.some((wl) => (wl.href || '').endsWith(l.internalHash))
         : hrefs.includes(l.url)
     )
+    // The card's own <h4> is its title; site://links has to show the same text.
+    const titleDiffs = community.flatMap((l) => {
+      const card = web.links.find((wl) => (l.internalHash != null ? (wl.href || '').endsWith(l.internalHash) : wl.href === l.url) && wl.title != null)
+      return card != null && card.title === l.labelZh ? [] : [`${l.key}: 资源 ${l.labelZh} ≠ 网页 ${card?.title ?? '(没抓到卡片)'}`]
+    })
     const entriesOk = homeRes.entries.length === 11 && homeRes.entries.every((e) => typeof e.nameZh === 'string')
     const versionOk = typeof homeRes.optimizerVersion === 'string' && typeof homeRes.dataVersion === 'string'
-    const renderedCards = Object.entries(web.renderedTitles ?? {}).filter(([, t]) => t != null)
-    const webRendersAllSix = renderedCards.length === 6
-    const resourceHasFeatureCardText = renderedCards.length > 0
-      && renderedCards.every(([, t]) => JSON.stringify(homeRes).includes(t))
+    const webRendersAllSix = web.cards.length === 6
+    const cards = homeRes.featureCards ?? []
+    const flat = (value) => value.replace(/\s+/g, ' ').trim()
+    const cardDiffs = []
+    if (JSON.stringify(cards.map((card) => card.key)) !== JSON.stringify(web.cards.map((card) => card.key))) {
+      cardDiffs.push(`卡片顺序 ${cards.map((card) => card.key).join(',')} ≠ 网页 ${web.cards.map((card) => card.key).join(',')}`)
+    }
+    for (const card of cards) {
+      const rendered = web.cards.find((candidate) => candidate.key === card.key)
+      if (rendered == null) continue
+      if (flat(card.title) !== flat(rendered.title)) cardDiffs.push(`${card.key} 标题 ${card.title} ≠ 网页 ${rendered.title}`)
+      if (flat(card.description) !== flat(rendered.description)) cardDiffs.push(`${card.key} 说明与网页不同`)
+      if (card.features.length === 0) cardDiffs.push(`${card.key} 没有要点`)
+      const cardText = flat(rendered.text)
+      for (const feature of card.features) if (!cardText.includes(flat(feature))) cardDiffs.push(`${card.key} 要点不在卡片上:${feature.slice(0, 30)}`)
+    }
+    const pass = communityOk && titleDiffs.length === 0 && entriesOk && versionOk && webRendersAllSix && cardDiffs.length === 0
     record(
       'home',
       'home.content.read',
       1,
       'site://home 返回的六张功能卡片标题与要点、四张社区卡片的标题和链接与首页当前语言下的内容一致',
-      false,
-      `可过半句:四张社区卡链接一致=${communityOk};不可过半句:网页实际渲染六卡(${
-        renderedCards.map(([k, t]) => k + '=' + t).join('/') || '未抓到'
-      }),site://home 载荷含这些标题=${resourceHasFeatureCardText}(载荷只有 ${homeRes.entries.length} 条页面入口${
-        entriesOk ? ' 字段完整' : ' 字段缺失'
-      }+版本 ${homeRes.optimizerVersion}/${homeRes.dataVersion}) → 清单 bug,见报告`,
+      pass,
+      `四张社区卡(site://links)链接一致=${communityOk};标题一致=${titleDiffs.length === 0}${
+        titleDiffs.length ? `(${titleDiffs.join(';')})` : `(${community.map((l) => l.labelZh).join('/')})`
+      };页面入口 11 条=${entriesOk};版本字段=${versionOk};网页渲染六卡(${web.cards.map((card) => `${card.key}=${card.title}`).join('/') || '未抓到'});`
+        + `功能卡片标题/说明/要点逐张与网页卡片一致=${cardDiffs.length === 0}${
+          cardDiffs.length ? `(${cardDiffs.slice(0, 4).join(';')})` : `(${cards.reduce((n, card) => n + card.features.length, 0)} 条要点)`
+        }`,
     )
   })
 

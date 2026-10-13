@@ -27,6 +27,7 @@
 // Usage: node scripts/verify-calculators.mjs [serverEntry]
 //   serverEntry defaults to ./dist/index.js (resolved against mcp/).
 
+import { spawnSync } from 'node:child_process'
 import {
   copyFileSync,
   existsSync,
@@ -53,7 +54,9 @@ const serverEntry = resolve(mcpDir, process.argv[2] ?? 'dist/index.js')
 const repoSampleSavePath = resolve(mcpDir, '../src/data/sample-save.json')
 const evidencePath = resolve(mcpDir, 'coverage/evidence/calculators.json')
 
-const GIT_COMMIT = '8ac1d045'
+// The commit the verified build was made from; the literal is only a fallback outside a git checkout.
+const GIT_COMMIT = String(spawnSync('git', ['-C', mcpDir, 'rev-parse', '--short=8', 'HEAD'], { encoding: 'utf8' }).stdout ?? '').trim().slice(0, 8)
+  || '8ac1d045'
 const GENERATED_AT = new Date().toISOString()
 
 // ── SKIP guard (mirrors smoke-browser.mjs) ───────────────────────────────────
@@ -347,7 +350,7 @@ try {
       'site://pages 在计算器页下列出两个子面板，hash 分别是 #aha 与 #ehr，并指明对应的工具是 calc_aha 与 calc_ehr',
       'browser-parity',
       listsHashes && namesTools ? 'PASS' : 'FAIL',
-      `site://pages 顶层键=[${Object.keys(pagesResource).join(',')}];CALCULATORS.hash=${calcPage?.hash},note含#aha/#ehr:${note.includes('#aha') && note.includes('#ehr')};资源全文指明 calc_aha/calc_ehr:${namesTools}(实测未提及工具名 — 清单描述超出资源实际内容)`,
+      `site://pages 顶层键=[${Object.keys(pagesResource).join(',')}];CALCULATORS.hash=${calcPage?.hash},note含#aha/#ehr:${note.includes('#aha') && note.includes('#ehr')};资源全文指明 calc_aha/calc_ehr:${namesTools}`,
     )
 
     // ── aha.compute #1: contributions 32/12/5 + ahaSpeed 129 from the panel ─

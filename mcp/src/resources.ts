@@ -62,6 +62,15 @@ import {
 } from 'lib/tabs/navigation/constants'
 import { getChangelogContent } from 'lib/tabs/tabChangelog/changelogData'
 import { toI18NVisual } from 'lib/utils/displayUtils'
+import {
+  existsSync,
+  readFileSync,
+} from 'node:fs'
+import {
+  dirname,
+  join,
+} from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { CharacterId } from 'types/character'
 import type { LightConeId } from 'types/lightCone'
 import type {
@@ -573,7 +582,11 @@ const SITE_PAGE_ORDER: Array<{ page: AppPages, titleKey: string | null, devOnly?
   { page: AppPages.SHOWCASE, titleKey: 'Tools.Showcase' },
   { page: AppPages.WARP, titleKey: 'Tools.WarpPlanner' },
   { page: AppPages.BENCHMARKS, titleKey: 'Tools.Benchmarks' },
-  { page: AppPages.CALCULATORS, titleKey: 'Tools.Calculators', note: '双面板同页切换:#aha(AHA 速度调优)与 #ehr(效果命中计算器)' },
+  {
+    page: AppPages.CALCULATORS,
+    titleKey: 'Tools.Calculators',
+    note: '双面板同页切换:#aha(AHA 速度调优,对应工具 calc_aha)与 #ehr(效果命中计算器,对应工具 calc_ehr)',
+  },
   { page: AppPages.LEADERBOARD, titleKey: 'Tools.Leaderboards', note: 'zh 翻译缺失,回退英文标题(网页端同行为)' },
   { page: AppPages.CHANGELOG, titleKey: 'Links.Changelog' },
   { page: AppPages.WEBGPU_TEST, titleKey: null, devOnly: true, note: '开发测试页:逐项跑 WebGPU 能力测试(无侧边栏入口)' },
@@ -582,18 +595,27 @@ const SITE_PAGE_ORDER: Array<{ page: AppPages, titleKey: string | null, devOnly?
 
 // site://links — 真实 URL 逐条核对自上游源码(勿凭记忆改):
 //   社区卡 HomeTab.tsx:275-308,侧边栏链接组 MenuDrawer.tsx:294-299,
-//   页眉 LayoutHeader.tsx:68,Hero API 链接 HomeTab.tsx:122,贡献者 HomeTab.tsx:328-330。
+//   页眉 LayoutHeader.tsx:68,Hero API 链接 HomeTab.tsx:122,贡献者 HomeTab.tsx:328-330,
+//   入门抽屉 GettingStartedDrawer.tsx:45。
 const SITE_LINK_GROUPS: Array<{
   group: string,
-  links: Array<{ key: string, labelZh: string | null, url: string | null, internalHash?: string, note?: string }>,
+  // titleKey: hometab 命名空间里这张卡片的标题;有它时 labelZh 在读取时取译文(zh 缺译回退英文,与网页一致)。
+  links: Array<{ key: string, labelZh: string | null, titleKey?: string, url: string | null, internalHash?: string, note?: string }>,
 }> = [
   {
     group: '首页社区卡(HomeTab CommunitySection)',
     links: [
-      { key: 'discord', labelZh: 'Discord', url: 'https://discord.gg/rDmB4Un7qg' },
-      { key: 'github', labelZh: 'GitHub', url: 'https://github.com/fribbels/hsr-optimizer' },
-      { key: 'roadmap', labelZh: 'Roadmap', url: 'https://github.com/users/fribbels/projects/2' },
-      { key: 'changelog', labelZh: '更新日志', url: null, internalHash: '#changelog', note: '站内页,非外链' },
+      { key: 'discord', labelZh: 'Discord', titleKey: 'CommunityCard.Discord.Title', url: 'https://discord.gg/rDmB4Un7qg' },
+      { key: 'github', labelZh: 'GitHub', titleKey: 'CommunityCard.Github.Title', url: 'https://github.com/fribbels/hsr-optimizer' },
+      { key: 'roadmap', labelZh: 'Roadmap', titleKey: 'CommunityCard.Roadmap.Title', url: 'https://github.com/users/fribbels/projects/2' },
+      {
+        key: 'changelog',
+        labelZh: '更新日志',
+        titleKey: 'CommunityCard.Changelog.Title',
+        url: null,
+        internalHash: '#changelog',
+        note: '站内页,非外链',
+      },
     ],
   },
   {
@@ -623,6 +645,17 @@ const SITE_LINK_GROUPS: Array<{
       },
     ],
   },
+  {
+    group: '入门抽屉(GettingStartedDrawer)',
+    links: [
+      {
+        key: 'optimizer-guide',
+        labelZh: '查看完整指南',
+        url: 'https://github.com/fribbels/hsr-optimizer/blob/main/docs/guides/en/optimizer.md',
+        note: '正文可读:site://help/optimizer',
+      },
+    ],
+  },
 ]
 
 // site://help/{topic} — 导入页(ScannerImportSubmenu.tsx)帮助链接的真实清单。
@@ -632,8 +665,12 @@ const SITE_HELP_TOPICS: Array<{
   topic: string,
   url: string | null,
   internalHash?: string,
+  /** Translation namespace of titleKey and bullets; importSaveTab when omitted */
+  namespace?: string,
   titleKey: string,
   bullets: string[],
+  /** Repository path of the guide the url points at; its text is returned as `body` */
+  guide?: string,
   source: string,
 }> = [
   {
@@ -670,12 +707,47 @@ const SITE_HELP_TOPICS: Array<{
     url: 'https://github.com/fribbels/hsr-optimizer/blob/main/docs/guides/en/live-import.md',
     titleKey: 'Import.LiveImport.Title',
     bullets: ['Import.LiveImport.Description.l1', 'Import.LiveImport.Description.l2'],
+    guide: 'docs/guides/en/live-import.md',
     source: 'ScannerImportSubmenu.tsx:332',
+  },
+  {
+    topic: 'optimizer',
+    url: 'https://github.com/fribbels/hsr-optimizer/blob/main/docs/guides/en/optimizer.md',
+    namespace: 'getStartedTab',
+    titleKey: 'TryOut.DocumentationTitle',
+    bullets: [],
+    guide: 'docs/guides/en/optimizer.md',
+    source: 'GettingStartedDrawer.tsx:45(入门抽屉「查看完整指南」)',
   },
 ]
 
+// The guides are repository files, not part of the build: found by walking up
+// from this module, the way the locale files are. An install outside the
+// repository has none, and the topic then carries its url only.
+function readGuide(repoPath: string): string | null {
+  let dir = dirname(fileURLToPath(import.meta.url))
+  for (;;) {
+    const candidate = join(dir, repoPath)
+    if (existsSync(candidate)) {
+      try {
+        return readFileSync(candidate, 'utf8')
+      } catch {
+        return null
+      }
+    }
+    const parent = dirname(dir)
+    if (parent === dir) return null
+    dir = parent
+  }
+}
+
+// site://home — 首页六张功能卡(HomeTab.tsx:39-74,同序)。文案取 hometab 命名空间的
+// FeatureCard.<key>,与网页端 FeatureCard 组件同一批 key、同样 zh 缺译回退英文。
+const HOME_FEATURE_CARDS = ['Showcase', 'Optimizer', 'Warp', 'DamageCalculator', 'Benchmarks', 'RarityAnalysis']
+
 function registerSiteResources(server: McpServer): void {
   const sidebar = fixedT('sidebar')
+  const hometab = fixedT('hometab')
 
   // -- site://pages — 页面清单(hash 路由) ----------------------------------
   server.registerResource('site-pages', 'site://pages', {
@@ -714,14 +786,14 @@ function registerSiteResources(server: McpServer): void {
   // -- site://links — 站点外链 -----------------------------------------------
   server.registerResource('site-links', 'site://links', {
     title: '站点外链清单',
-    description: '首页社区卡、侧边栏链接组、页眉与 UID 搜索条等处出现的全部真实外链 URL'
-      + '(逐条核对自 HomeTab.tsx / MenuDrawer.tsx / LayoutHeader.tsx 源码,响应内注明出处);'
+    description: '首页社区卡、侧边栏链接组、页眉、UID 搜索条与入门抽屉等处出现的全部真实外链 URL'
+      + '(逐条核对自 HomeTab.tsx / MenuDrawer.tsx / LayoutHeader.tsx / GettingStartedDrawer.tsx 源码,响应内注明出处);'
       + '站内跳转(changelog 卡、评分器入口)以 internalHash 标注而非外链。',
     mimeType: JSON_MIME_TYPE,
   }, (uri) => {
     const groups = SITE_LINK_GROUPS.map((group) => ({
       group: group.group,
-      links: group.links,
+      links: group.links.map(({ titleKey, ...link }) => (titleKey != null ? { ...link, labelZh: zhText(hometab, titleKey) ?? link.labelZh } : link)),
     }))
     return jsonResource(uri.toString(), {
       count: groups.reduce((sum, g) => sum + g.links.length, 0),
@@ -733,7 +805,8 @@ function registerSiteResources(server: McpServer): void {
   server.registerResource('site-home', 'site://home', {
     title: '首页能力摘要',
     description: '网页端首页(能力总览)的元信息:优化器版本与游戏数据版本(取自上游 constants,'
-      + '与更新日志首条一致)、全部页面能力入口摘要(一页一行)、以及 MCP 侧浏览器能力'
+      + '与更新日志首条一致)、全部页面能力入口摘要(一页一行)、首页六张功能卡片的标题、说明与要点'
+      + '(featureCards,与首页当前语言下的文案一致,zh 缺译时同样回退英文)、以及 MCP 侧浏览器能力'
       + '(render 截图等)的就绪查询方式(get_runtime_capabilities action=status)。',
     mimeType: JSON_MIME_TYPE,
   }, (uri) => {
@@ -748,6 +821,15 @@ function registerSiteResources(server: McpServer): void {
           hash: PageToHash[page],
           nameZh: titleKey != null ? zhText(sidebar, titleKey) : null,
         })),
+      featureCards: HOME_FEATURE_CARDS.map((key) => {
+        const features: unknown = i18next.t(`hometab:FeatureCard.${key}.Features` as never, { returnObjects: true })
+        return {
+          key,
+          title: zhText(hometab, `FeatureCard.${key}.Title`),
+          description: zhText(hometab, `FeatureCard.${key}.Description`),
+          features: Array.isArray(features) ? features.filter((feature): feature is string => typeof feature === 'string') : [],
+        }
+      }),
       mcpBrowserNote: '渲染/截图等浏览器能力用 get_runtime_capabilities(action=status)查询就绪状态;site://pages 给全部页面路由。',
     })
   })
@@ -759,11 +841,13 @@ function registerSiteResources(server: McpServer): void {
       list: undefined,
     }),
     {
-      title: '导入帮助主题',
-      description: '网页端「导入 / 保存」页帮助区的主题清单与真实链接:'
+      title: '帮助主题',
+      description: '网页端帮助链接的主题清单与真实链接。「导入 / 保存」页帮助区:'
         + 'reliquary(IceDynamix Reliquary Archiver,推荐)/ kelz(Kel-Z HSR Scanner)/'
-        + ' scorer(遗器评分器,站内展示页)/ hoyolab(HoyoLab 导入步骤)/ live-import(实时导入指南)。'
-        + '每条带 URL(或站内 hash)、中文标题与要点(上游 importSaveTab 翻译)及源码出处。',
+        + ' scorer(遗器评分器,站内展示页)/ hoyolab(HoyoLab 导入步骤)/ live-import(实时导入指南);'
+        + '入门抽屉:optimizer(优化器完整指南)。'
+        + '每条带 URL(或站内 hash)、中文标题与要点(上游翻译)及源码出处;'
+        + '链接指向仓库内 docs/guides 的主题(live-import、optimizer)另带 body——该指南的 Markdown 正文(英文原文),仓库外安装读不到文件时为 null。',
       mimeType: JSON_MIME_TYPE,
     },
     (uri, variables) => {
@@ -774,13 +858,14 @@ function registerSiteResources(server: McpServer): void {
           `未知的帮助主题:${topic || '(空)'}。可用主题:${SITE_HELP_TOPICS.map((t) => t.topic).join(' / ')}`,
         )
       }
-      const t = fixedT('importSaveTab')
+      const t = fixedT(entry.namespace ?? 'importSaveTab')
       return jsonResource(uri.toString(), {
         topic: entry.topic,
         titleZh: zhText(t, entry.titleKey),
         url: entry.url,
         ...(entry.internalHash != null ? { internalHash: entry.internalHash } : {}),
         points: entry.bullets.map((key) => zhText(t, key)).filter((v): v is string => v != null),
+        ...(entry.guide != null ? { guide: entry.guide, body: readGuide(entry.guide) } : {}),
         source: entry.source,
         allTopics: SITE_HELP_TOPICS.map((x) => x.topic),
       })

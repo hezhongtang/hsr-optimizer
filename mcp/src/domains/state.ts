@@ -32,6 +32,7 @@ import {
   COMPUTE_ENGINE_CPU,
   COMPUTE_ENGINE_GPU_EXPERIMENTAL,
   COMPUTE_ENGINE_GPU_STABLE,
+  CURRENT_OPTIMIZER_VERSION,
   ShowcaseColorMode,
 } from 'lib/constants/constants'
 import { ACTIVE_NEW_FEATURES } from 'lib/constants/newFeatures'
@@ -64,6 +65,7 @@ import {
 import { useRelicsTabStore } from 'lib/tabs/tabRelics/useRelicsTabStore'
 import type { ShowcaseTabSavedSession } from 'lib/tabs/tabShowcase/showcaseTabTypes'
 import { useShowcaseTabStore } from 'lib/tabs/tabShowcase/useShowcaseTabStore'
+import { isVersionOutdated } from 'lib/utils/miscUtils'
 import type { CharacterId } from 'types/character'
 import type {
   GlobalSavedSession,
@@ -121,6 +123,29 @@ function revisionSection() {
     generation: runtimeContext.getSaveGeneration(),
     blockedWrite: runtimeContext.getLastBlockedWrite(),
     bootLoaded: runtimeContext.isBootLoaded(),
+    ...versionStatus(),
+  }
+}
+
+// What the web decides its "what's new" popup on (App.tsx →
+// checkForUpdatesNotification(useGlobalStore version)): the version the loaded
+// save was written by against the running one. The store keeps the running
+// version when a save carries none, so such a save is not outdated — on the
+// web either.
+// Same test as the web app's checkForUpdatesNotification, which swallows a
+// version it cannot compare (a save may carry any shape there) and shows nothing.
+function versionStatus() {
+  const version: unknown = useGlobalStore.getState().version
+  let versionOutdated = false
+  try {
+    versionOutdated = !version || isVersionOutdated(version as string, CURRENT_OPTIMIZER_VERSION)
+  } catch {
+    versionOutdated = false
+  }
+  return {
+    saveVersion: version == null ? '' : String(version),
+    currentVersion: CURRENT_OPTIMIZER_VERSION,
+    versionOutdated,
   }
 }
 
@@ -424,6 +449,11 @@ const revisionSectionSchema = z.object({
   generation: z.number().int(),
   blockedWrite: blockedWriteSchema,
   bootLoaded: z.boolean().describe('当前存档是否来自进程启动时的自动恢复(状态文件后端;此时 path 为 null)'),
+  saveVersion: z.string().describe('载入的存档是由哪个优化器版本写出的(存档的 version 字段);没载入过存档、或存档没有版本号时是当前版本;reset_all 不改它'),
+  currentVersion: z.string().describe('正在运行的优化器版本'),
+  versionOutdated: z.boolean().describe(
+    'saveVersion 是否早于 currentVersion——网页端据此在打开时弹出「更新内容」。写回磁盘的存档总是记当前版本,这里保留的是载入时的值',
+  ),
 })
 
 const settingDefinitionSchema = z.object({
@@ -984,7 +1014,7 @@ export function registerStateTools(server: McpServer): void {
   server.registerTool('get_state', {
     title: '读取状态域',
     description: '读取服务器状态与配置域的当前值——对应网页端设置抽屉/侧栏/扫描器设置等持久化状态。'
-      + 'section=revision:变更修订号与存档概况(loaded/path/dirty/revision/generation/blockedWrite/bootLoaded,口径同 save_status;bootLoaded=存档来自进程启动时的自动恢复);'
+      + 'section=revision:变更修订号与存档概况(loaded/path/dirty/revision/generation/blockedWrite/bootLoaded,口径同 save_status;bootLoaded=存档来自进程启动时的自动恢复),以及存档版本、当前版本与是否过期(saveVersion/currentVersion/versionOutdated);'
       + 'section=settings:六项用户设置 + 每项定义(枚举值/上游默认值/中文说明);'
       + 'section=session:存档真正落盘的会话字段(savedSession:showcaseTab + global,含 sidebarCollapsed 等)与上游默认值,'
       + 'ephemeral 子对象为会话临时态(不写入存档),其中 language=语言偏好(上游经 i18next LanguageDetector 缓存在'
