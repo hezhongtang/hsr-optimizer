@@ -215,7 +215,7 @@ function warnBootDuplicateRelicIds(): void {
     process.stderr.write(
       `[mcp] bootLoad: WARNING ${duplicates.count} relic id(s) appear more than once in the restored state: `
         + `${describeDuplicateRelicIds(duplicates)} — every record stays in the inventory, `
-        + 'id lookups resolve to the last record only; see save_status.duplicateRelicIds\n',
+        + 'id lookups resolve to the last record only; see save_status.duplicateRelicIds, merge with dedupe_relics\n',
     )
   } catch (e) {
     process.stderr.write(`[mcp] bootLoad: duplicate relic id check failed: ${String(e)}\n`)

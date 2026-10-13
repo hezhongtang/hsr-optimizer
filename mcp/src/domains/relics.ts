@@ -75,6 +75,7 @@ import type {
 import { z } from 'zod'
 
 import { runtimeContext } from '../context'
+import { repairDuplicateRelicIds } from '../duplicateRelics'
 import { ensureI18nReady } from '../i18n/i18nNode'
 import { serializeRelic } from '../serializers/builds'
 import { toolResult } from '../toolResult'
@@ -957,6 +958,78 @@ export function registerRelicTools(server: McpServer): void {
           : ''
       }`
         + `;库存剩余 ${remaining} 件,revision=${runtimeContext.getRevision()}`,
+    )
+  })
+
+  // ── dedupe_relics ──────────────────────────────────────────────────────────
+  const recordSubstatsSchema = z.array(z.object({ stat: z.string(), value: z.number() })).describe('这条记录的副词条,供预览时人工核对')
+  server.registerTool('dedupe_relics', {
+    title: '合并重复的遗器记录',
+    description: '增强项,网页端没有对应入口:把库存里 id 重复的遗器记录合并成一条(重复情况见 load_save / save_status 的 duplicateRelicIds)。'
+      + '只合并对得上「同一件遗器的不同时期」的记录——部位、套装、星级、主词条相同,等级低的那条的副词条在等级高的那条里都有、数值不更大,'
+      + '且两个等级之间的强化次数付得起新增与变大的副词条(两条记录都带强化次数时要求恰好相等);'
+      + '这是必要条件而非证明:扫描器按位置编号的旧存档里,两件不同的遗器撞号后仍可能对得上,所以请先 dryRun,'
+      + '用 merged[].kept / dropped 里的副词条核对,再正式执行。'
+      + '保留强化等级最高的那条,等级相同时保留按 id 取明细命中的那条。记录之间对不上的 id 原样保留并列在 skipped 里,不会丢任何一件。'
+      + '不合并的后果:上游在下一次任何遗器写入时只留数组里靠后的那条,实测存档里靠后的恰是陈旧记录,等于把已强化的遗器退回旧状态。'
+      + '穿戴:保留的记录现在被谁穿着就还是谁;它没人穿、而被合并掉的记录有人穿时,由那个角色继续穿(换成新属性)。'
+      + '两个角色的槽位同时指向这个 id 时只有一个能留下,另一个的槽位清空并列在 unequipped 里。'
+      + 'dryRun=true 只返回将要做的事,不改任何数据。',
+    inputSchema: {
+      dryRun: z.boolean().optional().describe('只预览,不修改'),
+      baseRevision: z.number().int().optional().describe('乐观并发门:调用方读取状态时拿到的修订号;与当前不一致报冲突,需重读后重试'),
+    },
+    outputSchema: {
+      dryRun: z.boolean(),
+      merged: z.array(z.object({
+        id: z.string(),
+        part: z.string(),
+        set: z.string(),
+        kept: z.object({ index: z.number().int(), enhance: z.number(), substats: recordSubstatsSchema }).describe(
+          '保留的记录:合并前在 relics 数组里的下标与强化等级',
+        ),
+        dropped: z.array(z.object({ index: z.number().int(), enhance: z.number(), equippedBy: z.string().nullable(), substats: recordSubstatsSchema }))
+          .describe('被合并掉的记录'),
+        equippedBy: z.string().nullable().describe('合并后的穿戴者'),
+        unequipped: z.array(z.string()).describe('槽位原本指向这个 id、合并后被清空的角色'),
+      })),
+      skipped: z.array(z.object({
+        id: z.string(),
+        reason: z.literal('differentRelics'),
+        records: z.array(z.object({ index: z.number().int(), part: z.string(), set: z.string(), enhance: z.number() })),
+      })).describe('记录之间对不上、不能认定为同一件的 id:全部原样保留'),
+      relicsBefore: z.number().int().describe('调用前库存里的记录数'),
+      relicsAfter: z.number().int().describe('调用后库存里的记录数;dryRun 不改数据,所以与 relicsBefore 相同——将要去掉几条看 merged[].dropped'),
+      revision: z.number().int(),
+      dirty: z.boolean(),
+    },
+  }, async ({ dryRun, baseRevision }) => {
+    runtimeContext.ensureMetadataReady()
+    runtimeContext.requireSave()
+
+    const preview = dryRun === true
+    let relicsBefore = 0
+    const repair = await runtimeContext.withChange('dedupe_relics', () => {
+      relicsBefore = getRelics().length
+      const result = repairDuplicateRelicIds(!preview)
+      if (!preview && result.merged.length > 0) runtimeContext.markDirty()
+      return result
+    }, baseRevision != null ? { baseRevision } : {})
+    const changed = !preview && repair.merged.length > 0
+    const unequipped = repair.merged.reduce((count, entry) => count + entry.unequipped.length, 0)
+    return toolResult(
+      {
+        dryRun: preview,
+        ...repair,
+        relicsBefore,
+        relicsAfter: getRelics().length,
+        revision: runtimeContext.getRevision(),
+        dirty: changed || runtimeContext.isDirty(),
+      },
+      `${preview ? '[dryRun] 将' : '已'}合并 ${repair.merged.length} 个重复的遗器 id`
+        + `${unequipped ? `,清空 ${unequipped} 个角色槽位` : ''}`
+        + `${repair.skipped.length ? `;${repair.skipped.length} 个 id 的记录对不上,原样保留:${repair.skipped.map((entry) => entry.id).join(', ')}` : ''}`
+        + `;库存 ${relicsBefore} → ${preview ? relicsBefore - repair.merged.reduce((count, entry) => count + entry.dropped.length, 0) : getRelics().length} 件`,
     )
   })
 

@@ -610,7 +610,7 @@ export async function runTeamAudit(args: TeamAuditArgs, deps: TeamAuditDeps): Pr
     if (duplicateIds.size) {
       warnings.push(
         `存档里有 ${duplicateIds.size} 个遗器 id 重复出现(同一 id 两条记录,强化等级不同):这些遗器的强化等级按较高的那条记录展示,`
-          + '但当前配装的基线(comboNow)与含这些遗器的结果行可能是按陈旧记录算的;它们不会被列为待强化候选。建议在网页端清理重复记录后重新导出存档',
+          + '但当前配装的基线(comboNow)与含这些遗器的结果行可能是按陈旧记录算的;它们不会被列为待强化候选。建议先用 dedupe_relics 合并重复记录再重新审计',
       )
     }
   }

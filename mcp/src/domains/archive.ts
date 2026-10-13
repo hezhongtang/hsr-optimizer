@@ -82,14 +82,14 @@ const duplicateRelicIdsSchema = z.object({
   })).describe('每个重复 id 的全部记录,与 ids 逐项对应'),
   truncated: z.boolean().describe('true=count 超过 50,ids/entries 只列了前 50 个'),
 }).describe(
-  '库存里重复出现的遗器 id(只检测、不修复):同一 id 的多条记录都留在库存,各自通过表单遗器过滤后都是 optimize 的候选,'
+  '库存里重复出现的遗器 id(这里只检测;合并用 dedupe_relics):同一 id 的多条记录都留在库存,各自通过表单遗器过滤后都是 optimize 的候选,'
     + '但按 id 取明细的路径只看得到 resolvedById=true 的那一条。上游载入链不去重,MCP 与之一致。',
 )
 
 function duplicateRelicIdsNote(duplicates: DuplicateRelicIds): string {
   if (duplicates.count === 0) return ''
   return `;⚠ ${duplicates.count} 个遗器 id 重复出现:${describeDuplicateRelicIds(duplicates)}`
-    + '——多条记录都留在库存,按 id 取明细只命中其中一条,明细见 duplicateRelicIds'
+    + '——多条记录都留在库存,按 id 取明细只命中其中一条,明细见 duplicateRelicIds;可用 dedupe_relics 合并'
 }
 
 /**
@@ -136,7 +136,7 @@ export function registerArchiveTools(server: McpServer): void {
       + 'sample=true 会整体替换当前数据(与网页端「试一试」语义一致,网页端须经确认框,MCP 侧由调用方自行确认);'
       + '载入后语义同普通 load_save(示例来源无文件路径,视同内联 JSON,导出需显式 path)。'
       + '载入后即可用 list_relics / optimize 等工具操作这份数据。'
-      + '返回的 duplicateRelicIds 列出存档里重复出现的遗器 id 及各条记录的强化等级(只检测,载入不去重,与网页端一致)。'
+      + '返回的 duplicateRelicIds 列出存档里重复出现的遗器 id 及各条记录的强化等级(只检测,载入不去重,与网页端一致;要合并用 dedupe_relics)。'
       + '可选 baseRevision 做乐观并发检查(与 update_state 同款):载入前状态已被其他变更改动即报冲突。',
     inputSchema: {
       path: z.string().optional().describe('存档文件路径(fribbels-optimizer-save.json)'),

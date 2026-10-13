@@ -8,7 +8,7 @@
 
 | 域 | 功能条目 | missing | partial | implemented | verified | 机制项 |
 | --- | --- | --- | --- | --- | --- | --- |
-| global | 16 | 1 | 1 | 7 | 7 | 4 |
+| global | 17 | 1 | 1 | 8 | 7 | 4 |
 | home | 2 | 0 | 0 | 1 | 1 | 0 |
 | changelog | 1 | 0 | 0 | 0 | 1 | 0 |
 | import | 14 | 0 | 0 | 3 | 11 | 0 |
@@ -25,14 +25,15 @@
 | webgpu | 1 | 0 | 0 | 1 | 0 | 0 |
 | metadata | 9 | 0 | 0 | 3 | 6 | 2 |
 | shared | 2 | 0 | 0 | 0 | 2 | 3 |
-| **合计** | 190 | 4 | 1 | 32 | 153 | 21 |
+| **合计** | 191 | 4 | 1 | 33 | 153 | 21 |
 
 网站基线条目 175 个：implemented 175 · partial 0 · missing 0 · verified 153。
 
 ## 增强项（独立报告，不计入覆盖分母）
 
 - global.debug.consoleUtilities：implemented
-- global.state.duplicateRelicIds：implemented（只检测不修复：是否自动去重、保留哪一条会改变用户数据，尚待用户决定）
+- global.state.duplicateRelicIds：implemented（载入时不自动合并：保留哪一条会改变用户数据，只在调用方显式调用 dedupe_relics 时进行）
+- global.state.dedupeRelics：implemented
 - global.state.categorizedClear：missing
 - import.scanner.unionEquip：implemented
 - import.bridge.push：implemented
@@ -46,19 +47,19 @@
 
 ## 分布
 
-- **范围**：baseline 175 · foundation 3 · enhancement 12
-- **运行环境**：node 176 · browser 13 · host 1
-- **是否需要动上游**：none 146 · mirror 38 · export 6 · extract 0
-- **类型**：read 36 · write 86 · compute 29 · artifact 5 · external 8 · navigate 4 · view 22
-- **状态生命周期**：persisted 92 · session 42 · ephemeral 16 · derived 26 · external 4 · none 10
+- **范围**：baseline 175 · foundation 3 · enhancement 13
+- **运行环境**：node 177 · browser 13 · host 1
+- **是否需要动上游**：none 147 · mirror 38 · export 6 · extract 0
+- **类型**：read 36 · write 87 · compute 29 · artifact 5 · external 8 · navigate 4 · view 22
+- **状态生命周期**：persisted 93 · session 42 · ephemeral 16 · derived 26 · external 4 · none 10
 
 ## 工具面与预算
 
-- 已注册工具 63 个（被条目引用 63 个），已注册资源 11 个。
+- 已注册工具 64 个（被条目引用 64 个），已注册资源 11 个。
 - 候选新工具 0 个：无。
 - 候选新资源 0 个：无。
 - 需扩展参数的现有工具 9 个：`analyze_relic`、`get_results`、`leaderboard`、`optimize`、`render`、`reset_all`、`scanner`、`update_state`、`warp_plan`。
-- 全部建成后工具数 63，预算 70。
+- 全部建成后工具数 64，预算 70。
 
 ## 普查对照
 

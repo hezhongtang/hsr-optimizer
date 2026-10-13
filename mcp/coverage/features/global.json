@@ -414,7 +414,7 @@
       "title": "重复遗器 id 检测（增强项）",
       "surface": { "page": "GLOBAL", "entry": "网页端没有任何提示；存档 relics 数组里同一个 id 出现多次时网页与 MCP 都照单载入" },
       "kind": "read",
-      "action": "扫描内存里的 relics 数组，报告出现多次的 id（总数，明细最多列 50 个）及每条记录的数组下标、部位、套装、强化等级、穿戴者，以及按 id 取明细时命中的是哪一条。只检测，不修复。",
+      "action": "扫描内存里的 relics 数组，报告出现多次的 id（总数，明细最多列 50 个）及每条记录的数组下标、部位、套装、强化等级、穿戴者，以及按 id 取明细时命中的是哪一条。这里只检测；合并见 global.state.dedupeRelics。",
       "upstream": [
         { "file": "src/lib/stores/relic/relicStore.ts", "symbol": "buildRelicsById" },
         { "file": "src/lib/stores/relic/relicStore.ts", "symbol": "upsertRelic" },
@@ -426,7 +426,7 @@
       "mcp": {
         "status": "implemented",
         "tools": ["load_save", "save_status"],
-        "gaps": "只检测不修复：是否自动去重、保留哪一条会改变用户数据，尚待用户决定"
+        "gaps": "载入时不自动合并：保留哪一条会改变用户数据，只在调用方显式调用 dedupe_relics 时进行"
       },
       "scope": "enhancement",
       "upstreamChange": "none",
@@ -435,6 +435,37 @@
           "样例存档不注入时 load_save 与 save_status 的 duplicateRelicIds 为 count=0、两个列表为空、truncated=false，文字摘要与改动前逐字相同",
           "注入一对重复 id 后两个工具报告同一 id、两条记录的强化等级与下标，resolvedById 落在数组靠后的那条；载入不去重，存档文件逐字节不变",
           "启动自动恢复遇到重复 id 时在 stderr 打一行警告，没有重复时不打"
+        ],
+        "tests": ["mcp/scripts/smoke-duplicate-relics.mjs"]
+      }
+    },
+    {
+      "id": "global.state.dedupeRelics",
+      "title": "合并重复的遗器记录（增强项）",
+      "surface": { "page": "GLOBAL", "entry": "网页端没有入口：重复记录只会在下一次遗器写入时被上游按数组顺序折叠，留下的可能是陈旧记录" },
+      "kind": "write",
+      "action": "把 id 重复的遗器记录合并成一条：只合并能证明是同一件遗器不同时期的记录（部位、套装、星级、主词条相同，等级低的那条的副词条在等级高的那条里都有且数值不更大），保留强化等级最高的那条，等级相同时保留按 id 取明细命中的那条；记录之间对不上的 id 原样保留并报告。保留的记录由它现在的穿戴者继续穿，它没人穿而被合并掉的记录有人穿时由那个角色继续穿；另有角色的槽位指向同一 id 时清空那个槽位并报告。",
+      "upstream": [
+        { "file": "src/lib/stores/relic/relicStore.ts", "symbol": "setRelics" },
+        { "file": "src/lib/stores/character/characterStore.ts", "symbol": "setCharacter" }
+      ],
+      "params": [
+        { "name": "dryRun", "type": "boolean", "notes": "只返回将要做的事，不改任何数据" },
+        { "name": "baseRevision", "type": "number", "notes": "乐观并发检查" }
+      ],
+      "conditions": "只在显式调用时执行，载入与启动恢复都不触发。没有可合并的 id 时不改状态、不递增 revision。",
+      "runtime": "node",
+      "state": { "owner": "useRelicStore（relics / relicsById）、useCharacterStore（equipped）", "lifecycle": "persisted", "saveKey": "relics" },
+      "sideEffects": ["SaveState.delayedSave()"],
+      "mcp": { "status": "implemented", "tools": ["dedupe_relics"] },
+      "scope": "enhancement",
+      "upstreamChange": "none",
+      "acceptance": {
+        "cases": [
+          "干净存档上调用不合并任何记录，revision 与 dirty 不变",
+          "dryRun 返回的合并计划与实际执行的结果一致，且不改库存、revision 与存档文件",
+          "执行后每个可合并的 id 只剩强化等级最高的那条，穿戴者按规则落定，被挤掉的角色槽位清空；记录对不上的 id 两条都在并列入 skipped",
+          "export_save 写出的存档与内存一致：合并过的 id 各一条记录"
         ],
         "tests": ["mcp/scripts/smoke-duplicate-relics.mjs"]
       }
