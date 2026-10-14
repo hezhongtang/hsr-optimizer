@@ -1,7 +1,7 @@
 {
   "area": "teams",
-  "generatedAt": "2026-10-14T01:38:43.132Z",
-  "gitCommit": "35af7ae8",
+  "generatedAt": "2026-10-14T02:58:53.263Z",
+  "gitCommit": "135d446d",
   "cases": [
     {
       "feature": "teams.working.setSlot",
@@ -99,7 +99,7 @@
       "desc": "保存同样的四槽后，两边存档的 teamShowcaseSavedTeams 末尾多出的队伍除 id 外一致",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "网页把工作队伍改为 [1217,1005,1102,1205] 后保存 → 末尾新增「Team 2」(id 4b8294de…);MCP save_team 同槽位 → 「Team 2」(id 94cf800d…);名字/四槽一致,仅 id 不同",
+      "detail": "网页把工作队伍改为 [1217,1005,1102,1205] 后保存 → 末尾新增「Team 2」(id 060151fa…);MCP save_team 同槽位 → 「Team 2」(id d44269fe…);名字/四槽一致,仅 id 不同",
       "script": "mcp/scripts/verify-teams.mjs"
     },
     {

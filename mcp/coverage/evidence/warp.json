@@ -1,7 +1,7 @@
 {
   "area": "warp",
-  "generatedAt": "2026-10-14T01:42:00.444Z",
-  "gitCommit": "35af7ae8",
+  "generatedAt": "2026-10-14T03:02:10.636Z",
+  "gitCommit": "135d446d",
   "cases": [
     {
       "feature": "warp.resources.set",

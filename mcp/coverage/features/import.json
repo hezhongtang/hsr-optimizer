@@ -81,7 +81,7 @@
           "mcp/scripts/parity.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/import.json#import.save.load cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/import.json#import.save.load cases 1-3 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -136,7 +136,7 @@
           "mcp/scripts/smoke-equip.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/import.json#import.save.export cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/import.json#import.save.export cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -192,7 +192,7 @@
           "mcp/scripts/smoke-archive.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/import.json#import.save.clear cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/import.json#import.save.clear cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -252,7 +252,7 @@
           "mcp/scripts/smoke-imports.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/import.json#import.scanner.parseFile cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/import.json#import.scanner.parseFile cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -304,7 +304,7 @@
           "mcp/scripts/smoke-scanner.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/import.json#import.scanner.mergeRelicsOnly cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/import.json#import.scanner.mergeRelicsOnly cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -374,7 +374,7 @@
           "mcp/scripts/smoke-imports.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/import.json#import.scanner.mergeCharacters cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/import.json#import.scanner.mergeCharacters cases 1-2 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -529,7 +529,7 @@
           "mcp/scripts/smoke-scanner.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/import.json#import.live.settings cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/import.json#import.live.settings cases 1-2 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -584,7 +584,7 @@
           "mcp/scripts/smoke-scanner.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/import.json#import.live.connection cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/import.json#import.live.connection cases 1-2 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -695,7 +695,7 @@
           "mcp/scripts/smoke-scanner.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/import.json#import.live.events cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/import.json#import.live.events cases 1-3 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -747,7 +747,7 @@
           "mcp/scripts/smoke-scanner.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/import.json#import.live.rerollPreview cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/import.json#import.live.rerollPreview cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -795,7 +795,7 @@
           "mcp/scripts/smoke-browser.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/import.json#import.help.read cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/import.json#import.help.read cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },

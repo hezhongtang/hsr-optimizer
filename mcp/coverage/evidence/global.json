@@ -1,7 +1,7 @@
 {
   "area": "global",
-  "generatedAt": "2026-10-14T01:09:26.148Z",
-  "gitCommit": "35af7ae8",
+  "generatedAt": "2026-10-14T02:29:56.809Z",
+  "gitCommit": "135d446d",
   "cases": [
     {
       "feature": "global.state.bootLoad",
@@ -36,7 +36,7 @@
       "desc": "集合被清空时自动写回被拦截并在 save_status.blockedWrite",
       "method": "inprocess-parity",
       "result": "PASS",
-      "detail": "集合被清空(reset_all)后自动写回被拦截:磁盘存档保持 162 件遗器 / 8 角色: 磁盘 162 遗器 / 8 角色 | 拦截在 save_status.blockedWrite 中报告(且 dirty 保持 true): dirty=true,blockedWrite={\"at\":1791940153717,\"reason\":\"防擦写护栏拦截:拒绝用空的遗器+角色集合覆写仍持有数据的存档文件 /var/folders/w1/jfpmdcf57v11yv3z_dzyh9pw0000gn/T/hsr-mcp-verify-global-5MgRzS/wipe-guard/sample",
+      "detail": "集合被清空(reset_all)后自动写回被拦截:磁盘存档保持 162 件遗器 / 8 角色: 磁盘 162 遗器 / 8 角色 | 拦截在 save_status.blockedWrite 中报告(且 dirty 保持 true): dirty=true,blockedWrite={\"at\":1791944982637,\"reason\":\"防擦写护栏拦截:拒绝用空的遗器+角色集合覆写仍持有数据的存档文件 /var/folders/w1/jfpmdcf57v11yv3z_dzyh9pw0000gn/T/hsr-mcp-verify-global-YgHoJo/wipe-guard/sample",
       "script": "mcp/scripts/verify-global.mjs"
     },
     {
@@ -117,7 +117,7 @@
       "desc": "load_save(sample=true) 之后导出的存档与网页点击「试一试」",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "load_save(sample=true) 载入内置示例(162 遗器 / 8 角色,sample echo,无路径): 162/8 | 网页「试一试」后的存档与 load_save(sample=true) 导出逐键一致: 15 个顶层键逐键相等 | 试一经确认框执行并整体替换(162/8 全量示例): 162/8 | 服务器工作目录在仓库外(便携安装形态)时 sample=true 同样可用(示例存档内嵌于构建产物): cwd=/var/folders/w1/jfpmdcf57v11yv3z_dzyh9pw0000gn/T/hsr-mcp-verify-global-5MgRzS/out",
+      "detail": "load_save(sample=true) 载入内置示例(162 遗器 / 8 角色,sample echo,无路径): 162/8 | 网页「试一试」后的存档与 load_save(sample=true) 导出逐键一致: 15 个顶层键逐键相等 | 试一经确认框执行并整体替换(162/8 全量示例): 162/8 | 服务器工作目录在仓库外(便携安装形态)时 sample=true 同样可用(示例存档内嵌于构建产物): cwd=/var/folders/w1/jfpmdcf57v11yv3z_dzyh9pw0000gn/T/hsr-mcp-verify-global-YgHoJo/out",
       "script": "mcp/scripts/verify-global.mjs"
     },
     {

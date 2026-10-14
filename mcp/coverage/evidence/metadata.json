@@ -1,7 +1,7 @@
 {
   "area": "metadata",
-  "generatedAt": "2026-10-14T01:14:13.364Z",
-  "gitCommit": "35af7ae8",
+  "generatedAt": "2026-10-14T02:34:48.075Z",
+  "gitCommit": "135d446d",
   "cases": [
     {
       "feature": "metadata.simulation.sets",
@@ -189,7 +189,7 @@
       "desc": "带进度令牌时按已完成的基准数发送进度,取消后不返回半截结果",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "2 progress notification(s)(progress=已完成基准数,样例 progress=1/total=63);get_job(首条进度后即发)→2 条(running=1),RTT 41ms;cancel_job(bench-2-mv7f2tub) 已发;审计耗时 1.2s;cancelled=true, summaries=0(取消即弃置全部半截汇总)",
+      "detail": "2 progress notification(s)(progress=已完成基准数,样例 progress=1/total=63);get_job(首条进度后即发)→2 条(running=1),RTT 45ms;cancel_job(bench-2-mv7hyga5) 已发;审计耗时 1.3s;cancelled=true, summaries=0(取消即弃置全部半截汇总)",
       "script": "mcp/scripts/verify-metadata.mjs"
     }
   ]

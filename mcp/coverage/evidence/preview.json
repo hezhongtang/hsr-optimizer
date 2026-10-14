@@ -1,7 +1,7 @@
 {
   "area": "preview",
-  "generatedAt": "2026-10-14T01:33:53.828Z",
-  "gitCommit": "35af7ae8",
+  "generatedAt": "2026-10-14T02:53:59.072Z",
+  "gitCommit": "135d446d",
   "cases": [
     {
       "feature": "preview.disclaimer.dismiss",
@@ -252,7 +252,7 @@
       "desc": "用同一 URL、裁剪与署名设置肖像后，两边存档的 characters[].portrait 一致",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "web portrait 字段=已存(imageUrl=http://127.0.0.1:54767/hsr-opt…,artist=verify-artist);MCP 严格相等=true(web cropper 的 croppedArea/cropper 原值透传)",
+      "detail": "web portrait 字段=已存(imageUrl=http://127.0.0.1:52892/hsr-opt…,artist=verify-artist);MCP 严格相等=true(web cropper 的 croppedArea/cropper 原值透传)",
       "script": "mcp/scripts/verify-preview.mjs"
     },
     {

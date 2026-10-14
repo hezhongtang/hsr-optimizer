@@ -72,7 +72,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.card.read cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.card.read cases 1-2 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -143,7 +143,7 @@
           "mcp/scripts/smoke-state.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.scoring.typeSwitch cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.scoring.typeSwitch cases 1-2 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -225,7 +225,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.simScore.read cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.simScore.read cases 1-3 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -289,7 +289,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.team.select cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.team.select cases 1-2 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -385,7 +385,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.team.editTeammate cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.team.editTeammate cases 1-2 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -443,7 +443,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.team.reset cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.team.reset cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -500,7 +500,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.team.sync cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.team.sync cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -562,7 +562,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.scoring.buffPriority cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.scoring.buffPriority cases 1-2 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -620,7 +620,7 @@
           "mcp/scripts/smoke-equip.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.scoring.spdWeight cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.scoring.spdWeight cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -676,7 +676,7 @@
           "mcp/scripts/smoke-state.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.scoring.spdPrecision cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.scoring.spdPrecision cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -740,7 +740,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.scoring.spdBenchmark cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.scoring.spdBenchmark cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -822,7 +822,7 @@
           "mcp/scripts/smoke-state.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.customize.color cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.customize.color cases 1-2 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -909,7 +909,7 @@
           "mcp/scripts/smoke-state.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.customize.display cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.customize.display cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -1025,7 +1025,7 @@
           "mcp/scripts/smoke-portrait.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.portrait.set cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.portrait.set cases 1-3 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -1076,7 +1076,7 @@
           "mcp/scripts/smoke-archive.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.character.edit cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.character.edit cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -1152,7 +1152,7 @@
           "mcp/scripts/smoke-relics.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.relic.addOrEdit cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.relic.addOrEdit cases 1-2 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -1224,7 +1224,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.analysis.buffs cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.analysis.buffs cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -1286,7 +1286,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.analysis.relicRarity cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.analysis.relicRarity cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -1342,7 +1342,7 @@
           "mcp/scripts/smoke-state.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.disclaimer.dismiss cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.disclaimer.dismiss cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -1405,7 +1405,7 @@
           "mcp/scripts/smoke-portrait.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/preview.json#preview.screenshot cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/preview.json#preview.screenshot cases 1-1 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },

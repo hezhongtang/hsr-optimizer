@@ -75,7 +75,7 @@
           "mcp/scripts/smoke-leaderboard.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/leaderboard.json#leaderboard.data.load cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/leaderboard.json#leaderboard.data.load cases 1-3 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -163,7 +163,7 @@
           "mcp/scripts/smoke-leaderboard.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/leaderboard.json#leaderboard.characters.list cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/leaderboard.json#leaderboard.characters.list cases 1-3 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -253,7 +253,7 @@
           "mcp/scripts/smoke-leaderboard.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/leaderboard.json#leaderboard.board.read cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/leaderboard.json#leaderboard.board.read cases 1-3 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -337,7 +337,7 @@
           "mcp/scripts/smoke-leaderboard.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/leaderboard.json#leaderboard.board.filter cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/leaderboard.json#leaderboard.board.filter cases 1-3 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -422,7 +422,7 @@
           "mcp/scripts/smoke-render.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/leaderboard.json#leaderboard.entry.read cases 1-4 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/leaderboard.json#leaderboard.entry.read cases 1-4 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -488,7 +488,7 @@
           "mcp/scripts/smoke-leaderboard.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/leaderboard.json#leaderboard.timeline.read cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/leaderboard.json#leaderboard.timeline.read cases 1-3 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     },
@@ -561,7 +561,7 @@
           "mcp/scripts/smoke-leaderboard.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/leaderboard.json#leaderboard.myRanks.read cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
+          "mcp/coverage/evidence/leaderboard.json#leaderboard.myRanks.read cases 1-3 PASS 2026-10-14 (135d446d, browser-parity)"
         ]
       }
     }

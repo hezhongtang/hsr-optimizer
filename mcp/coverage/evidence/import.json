@@ -1,7 +1,7 @@
 {
   "area": "import",
-  "generatedAt": "2026-10-14T01:12:09.191Z",
-  "gitCommit": "35af7ae8",
+  "generatedAt": "2026-10-14T02:32:42.857Z",
+  "gitCommit": "135d446d",
   "cases": [
     {
       "feature": "import.save.load",
@@ -99,7 +99,7 @@
       "desc": "逐项修改后导出的存档 scannerSettings(含 customUrl)与",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "web {\"ingest\":true,\"ingestCharacters\":true,\"ingestOnlyExistingCharacters\":true,\"ingestWarpResources\":true,\"websocketUrl\":\"ws://127.0.0.1:60225/ws\",\"customUrl\":true} ≡ mcp {\"ingest\":true,\"ingestCharact",
+      "detail": "web {\"ingest\":true,\"ingestCharacters\":true,\"ingestOnlyExistingCharacters\":true,\"ingestWarpResources\":true,\"websocketUrl\":\"ws://127.0.0.1:60519/ws\",\"customUrl\":true} ≡ mcp {\"ingest\":true,\"ingestCharact",
       "script": "mcp/scripts/verify-import.mjs"
     },
     {
@@ -126,7 +126,7 @@
       "desc": "目标地址不可达时返回明确的连接失败原因,而不是空成功",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "mcp error: 连接扫描器失败:ws://127.0.0.1:60560/ws — connect ECONNREFUSED 127.0.0.1:60560。请确认扫描器(Re; web status after 4s: disconnected",
+      "detail": "mcp error: 连接扫描器失败:ws://127.0.0.1:60887/ws — connect ECONNREFUSED 127.0.0.1:60887。请确认扫描器(Re; web status after 4s: disconnected",
       "script": "mcp/scripts/verify-import.mjs"
     },
     {

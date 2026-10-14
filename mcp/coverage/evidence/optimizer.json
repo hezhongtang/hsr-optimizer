@@ -1,7 +1,7 @@
 {
   "area": "optimizer",
-  "generatedAt": "2026-10-14T02:08:54.103Z",
-  "gitCommit": "e20514a8",
+  "generatedAt": "2026-10-14T02:50:59.426Z",
+  "gitCommit": "135d446d",
   "cases": [
     {
       "feature": "optimizer.character.switch",
@@ -459,7 +459,7 @@
       "desc": "超过规模闸门时返回 rejected 及各部位数量,force 后可以运行",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "gate: MCP rejected w/ 6 part counts; web showed the confirm modal; force-leg aborted as client cancel, server idle 505ms later",
+      "detail": "gate: MCP rejected w/ 6 part counts; web showed the confirm modal; force-leg aborted as client cancel, server idle 254ms later",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -495,7 +495,7 @@
       "desc": "结束后 summary 里的已搜索数、有效排列数与耗时齐全",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "summary complete (searched=462,672, valid=462,672, 922ms); web Searched equal",
+      "detail": "summary complete (searched=462,672, valid=462,672, 983ms); web Searched equal",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
