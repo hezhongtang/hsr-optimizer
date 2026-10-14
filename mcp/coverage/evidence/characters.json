@@ -1,7 +1,7 @@
 {
   "area": "characters",
-  "generatedAt": "2026-10-13T13:24:58.517Z",
-  "gitCommit": "ea47fdb6",
+  "generatedAt": "2026-10-14T01:08:20.224Z",
+  "gitCommit": "35af7ae8",
   "cases": [
     {
       "feature": "characters.list.read",

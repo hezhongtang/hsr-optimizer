@@ -1,7 +1,7 @@
 {
   "area": "webgpu",
-  "generatedAt": "2026-10-13T13:29:41.389Z",
-  "gitCommit": "ea47fdb6",
+  "generatedAt": "2026-10-14T01:45:58.211Z",
+  "gitCommit": "35af7ae8",
   "cases": [
     {
       "feature": "webgpu.tests.run",

@@ -1,7 +1,7 @@
 {
   "area": "calculators",
-  "generatedAt": "2026-10-13T12:26:21.528Z",
-  "gitCommit": "0539a185",
+  "generatedAt": "2026-10-14T01:05:08.675Z",
+  "gitCommit": "35af7ae8",
   "cases": [
     {
       "feature": "calculators.panel.switch",

@@ -92,7 +92,7 @@
         "换角色会改写基准生成器页的三名队友"
       ],
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": [
           "benchmark_runs"
         ]
@@ -109,6 +109,9 @@
         "tests": [
           "mcp/scripts/smoke-simulation.mjs",
           "mcp/scripts/smoke-analysis.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/metadata.json#metadata.setAuditor.run cases 1-4 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -296,7 +299,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/metadata.json#metadata.simulation.sets cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/metadata.json#metadata.simulation.sets cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -346,7 +349,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/metadata.json#metadata.simulation.teams cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/metadata.json#metadata.simulation.teams cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -402,7 +405,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/metadata.json#metadata.simulation.combo cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/metadata.json#metadata.simulation.combo cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -456,7 +459,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/metadata.json#metadata.setPresets.read cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/metadata.json#metadata.setPresets.read cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -506,7 +509,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/metadata.json#metadata.substatWeights.read cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/metadata.json#metadata.substatWeights.read cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -556,7 +559,7 @@
           "mcp/scripts/smoke-score.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/metadata.json#metadata.leaderboardTeams.read cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/metadata.json#metadata.leaderboardTeams.read cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     }

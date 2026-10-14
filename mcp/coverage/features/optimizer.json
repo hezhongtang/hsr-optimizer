@@ -98,7 +98,7 @@
           "mcp/scripts/smoke-state.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.character.switch cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.character.switch cases 1-3 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -158,7 +158,7 @@
           "mcp/scripts/smoke-query.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.read cases 1-2 PASS 2026-10-13 (0539a185, browser-parity + inprocess-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.read cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity + inprocess-parity)"
         ]
       }
     },
@@ -221,7 +221,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.persist cases 1-3 PASS 2026-10-13 (0539a185, browser-parity + inprocess-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.persist cases 1-3 PASS 2026-10-14 (e20514a8, browser-parity + inprocess-parity)"
         ]
       }
     },
@@ -320,7 +320,7 @@
           "mcp/scripts/smoke-conditionals.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.character cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.character cases 1-3 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -394,7 +394,7 @@
           "mcp/scripts/smoke-analysis.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.target cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.target cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -504,7 +504,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.options cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.options cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -558,7 +558,7 @@
           "mcp/scripts/smoke-equip.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.priority cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.priority cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -630,7 +630,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.mainStats cases 1-1 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.mainStats cases 1-1 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -769,7 +769,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.setFilters cases 1-3 PASS 2026-10-13 (0539a185, browser-parity + inprocess-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.setFilters cases 1-3 PASS 2026-10-14 (e20514a8, browser-parity + inprocess-parity)"
         ]
       }
     },
@@ -837,7 +837,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.weights cases 1-2 PASS 2026-10-13 (0539a185, browser-parity + inprocess-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.weights cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity + inprocess-parity)"
         ]
       }
     },
@@ -908,7 +908,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.resultFilters cases 1-3 PASS 2026-10-13 (0539a185, browser-parity + inprocess-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.resultFilters cases 1-3 PASS 2026-10-14 (e20514a8, browser-parity + inprocess-parity)"
         ]
       }
     },
@@ -1011,7 +1011,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.conditionals cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.conditionals cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -1092,7 +1092,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.setConditionals cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.setConditionals cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -1204,7 +1204,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.teammates cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.teammates cases 1-3 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -1301,7 +1301,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.enemy cases 1-1 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.enemy cases 1-1 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -1373,7 +1373,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.combatBuffs cases 1-2 PASS 2026-10-13 (0539a185, browser-parity + inprocess-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.combatBuffs cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity + inprocess-parity)"
         ]
       }
     },
@@ -1433,7 +1433,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.presets cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.presets cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -1492,7 +1492,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.form.reset cases 1-1 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.form.reset cases 1-1 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -1593,7 +1593,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.combo.definition cases 1-3 PASS 2026-10-13 (0539a185, browser-parity + inprocess-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.combo.definition cases 1-3 PASS 2026-10-14 (e20514a8, browser-parity + inprocess-parity)"
         ]
       }
     },
@@ -1710,7 +1710,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.combo.activations cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.combo.activations cases 1-3 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -1763,7 +1763,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.combo.sets cases 1-1 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.combo.sets cases 1-1 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -1821,7 +1821,7 @@
           "mcp/scripts/smoke-query.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.permutations.read cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.permutations.read cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -1902,7 +1902,7 @@
           "mcp/scripts/smoke-analysis.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.run.start cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.run.start cases 1-3 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -1931,7 +1931,7 @@
         "lifecycle": "session"
       },
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": [
           "optimize"
         ]
@@ -1946,6 +1946,9 @@
         "tests": [
           "mcp/scripts/smoke.mjs",
           "mcp/scripts/smoke-optimizer-generation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/optimizer.json#optimizer.run.cancel cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -2015,7 +2018,7 @@
           "mcp/scripts/smoke-optimizer-generation.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.run.progress cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.run.progress cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -2136,7 +2139,7 @@
           "mcp/scripts/smoke-optimizer-generation.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.results.read cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.results.read cases 1-3 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -2185,7 +2188,7 @@
           "mcp/scripts/smoke-optimizer-generation.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.results.filter cases 1-1 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.results.filter cases 1-1 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -2254,7 +2257,7 @@
           "mcp/scripts/smoke-equip.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.results.select cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.results.select cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -2306,7 +2309,7 @@
           "mcp/scripts/smoke-relics.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.results.editRelic cases 1-2 PASS 2026-10-13 (0539a185, browser-parity + inprocess-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.results.editRelic cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity + inprocess-parity)"
         ]
       }
     },
@@ -2364,7 +2367,7 @@
           "mcp/scripts/smoke-optimizer-generation.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.results.equip cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.results.equip cases 1-3 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -2409,7 +2412,7 @@
           "mcp/scripts/smoke-analysis.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.results.pin cases 1-1 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.results.pin cases 1-1 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -2481,7 +2484,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.grid.display cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.grid.display cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -2564,7 +2567,7 @@
           "mcp/scripts/smoke-analysis.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.analysis.read cases 1-4 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.analysis.read cases 1-4 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -2669,7 +2672,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.statSim.run cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.statSim.run cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -2761,7 +2764,7 @@
           "mcp/scripts/smoke-form.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.statSim.saved cases 1-3 PASS 2026-10-13 (0539a185, browser-parity + inprocess-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.statSim.saved cases 1-3 PASS 2026-10-14 (e20514a8, browser-parity + inprocess-parity)"
         ]
       }
     },
@@ -2874,7 +2877,7 @@
           "mcp/scripts/smoke-analysis.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.suggestions.zeroPermutations cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.suggestions.zeroPermutations cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -2935,7 +2938,7 @@
           "mcp/scripts/smoke-analysis.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.suggestions.zeroResults cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.suggestions.zeroResults cases 1-2 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },
@@ -2992,7 +2995,7 @@
           "mcp/scripts/smoke-state.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/optimizer.json#optimizer.layout.sections cases 1-1 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/optimizer.json#optimizer.layout.sections cases 1-1 PASS 2026-10-14 (e20514a8, browser-parity)"
         ]
       }
     },

@@ -1,7 +1,7 @@
 {
   "area": "optimizer",
-  "generatedAt": "2026-10-13T12:47:53.331Z",
-  "gitCommit": "0539a185",
+  "generatedAt": "2026-10-14T02:08:54.103Z",
+  "gitCommit": "e20514a8",
   "cases": [
     {
       "feature": "optimizer.character.switch",
@@ -459,7 +459,7 @@
       "desc": "超过规模闸门时返回 rejected 及各部位数量,force 后可以运行",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "gate: MCP rejected w/ 6 part counts; web showed the confirm modal; force-leg aborted as client cancel",
+      "detail": "gate: MCP rejected w/ 6 part counts; web showed the confirm modal; force-leg aborted as client cancel, server idle 505ms later",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -467,8 +467,8 @@
       "case": 1,
       "desc": "客户端取消 optimize 请求后搜索停止,已搜到的行留在结果缓存里,get_",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "harness error: tool get_results: Cached optimize results belong to a previous save load — re-run optimize for the current save before reading results",
+      "result": "PASS",
+      "detail": "MCP cancelled=true with 64 cached rows; web kept rows after Cancel (pager \"1 to 500 of 1024\")",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {
@@ -495,7 +495,7 @@
       "desc": "结束后 summary 里的已搜索数、有效排列数与耗时齐全",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "summary complete (searched=462,672, valid=462,672, 863ms); web Searched equal",
+      "detail": "summary complete (searched=462,672, valid=462,672, 922ms); web Searched equal",
       "script": "mcp/scripts/verify-optimizer.mjs"
     },
     {

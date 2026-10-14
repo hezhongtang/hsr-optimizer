@@ -1,7 +1,7 @@
 {
   "area": "relics",
-  "generatedAt": "2026-10-13T12:53:45.779Z",
-  "gitCommit": "0539a185",
+  "generatedAt": "2026-10-14T01:36:48.309Z",
+  "gitCommit": "35af7ae8",
   "cases": [
     {
       "feature": "relics.grid.read",

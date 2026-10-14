@@ -77,7 +77,7 @@
           "mcp/scripts/smoke-simulation.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/benchmarks.json#benchmarks.configure.character cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.configure.character cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -163,7 +163,7 @@
           "mcp/scripts/smoke-simulation.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/benchmarks.json#benchmarks.configure.teammates cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.configure.teammates cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -227,7 +227,7 @@
           "mcp/scripts/smoke-simulation.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/benchmarks.json#benchmarks.configure.settings cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.configure.settings cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -302,7 +302,7 @@
           "mcp/scripts/smoke-simulation.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/benchmarks.json#benchmarks.configure.sets cases 1-2 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.configure.sets cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -344,7 +344,7 @@
         "lifecycle": "session"
       },
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": [
           "benchmark_runs"
         ]
@@ -359,6 +359,9 @@
         ],
         "tests": [
           "mcp/scripts/smoke-simulation.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.generate cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -408,7 +411,7 @@
           "mcp/scripts/smoke-simulation.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/benchmarks.json#benchmarks.results.read cases 1-3 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.results.read cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -460,7 +463,7 @@
           "mcp/scripts/smoke-simulation.mjs"
         ],
         "evidence": [
-          "mcp/coverage/evidence/benchmarks.json#benchmarks.clear cases 1-1 PASS 2026-10-13 (0539a185, browser-parity)"
+          "mcp/coverage/evidence/benchmarks.json#benchmarks.clear cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     }

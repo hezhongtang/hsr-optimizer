@@ -1,7 +1,7 @@
 {
   "area": "showcase",
-  "generatedAt": "2026-10-13T12:58:06.975Z",
-  "gitCommit": "0539a185",
+  "generatedAt": "2026-10-14T01:37:49.800Z",
+  "gitCommit": "35af7ae8",
   "cases": [
     {
       "feature": "showcase.profile.fetch",
@@ -15,10 +15,10 @@
     {
       "feature": "showcase.profile.fetch",
       "case": 1,
-      "desc": "同一 UID 返回的角色列表与网页端头像行及各张展示卡一致",
+      "desc": "同一 UID 返回的角色列表（角色、星魂、光锥、叠影、已装备遗器数）与网页端头像行及各张展示卡一致",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "等待超时(10000ms):提交按钮可点",
+      "result": "PASS",
+      "detail": "UID 100159999(enka):头像行 6 人与 MCP 6 人逐位相等=true;首卡 E2=true/光锥=true/遗器 6 件=true",
       "script": "mcp/scripts/verify-showcase.mjs"
     },
     {
@@ -27,7 +27,7 @@
       "desc": "连续两次拉取之间不足 10 秒时第二次被拒绝并说明还要等多久",
       "method": "browser-parity",
       "result": "FAIL",
-      "detail": "等待超时(10000ms):提交按钮可点(节流)",
+      "detail": "网页第二次提交被拒并提示「Successfully loaded profile | Please wait 10 secon」;MCP fetch_showcase 无 10 秒节流(工具描述明示「刷新=对同一 UID 再次调用(没有网页端的 10 秒节流)」)——按验收口径记 FAIL(文档化偏差)",
       "script": "mcp/scripts/verify-showcase.mjs"
     },
     {
@@ -35,8 +35,8 @@
       "case": 4,
       "desc": "要求记住 UID 后，导出的存档里 savedSession.showcaseTab.scorerId 等于该 UID",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "web=null(submitForm setScorerId+delayedSave);mcp=100159999(fetch_showcase remember=true)",
+      "result": "PASS",
+      "detail": "web=100159999(submitForm setScorerId+delayedSave);mcp=100159999(fetch_showcase remember=true)",
       "script": "mcp/scripts/verify-showcase.mjs"
     },
     {
@@ -44,8 +44,8 @@
       "case": 1,
       "desc": "读到的展开状态与网页端一致；改动后网页端重新打开展示柜页按新状态显示",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "等待超时(10000ms):模拟栏状态可读",
+      "result": "PASS",
+      "detail": "默认 web=true/mcp=true;网页点烧瓶后=false(存档 sidebarOpen=false);MCP 写 sidebarOpen=false→false;带该存档重开页面模拟栏收起=true",
       "script": "mcp/scripts/verify-showcase.mjs"
     },
     {
@@ -53,17 +53,17 @@
       "case": 2,
       "desc": "（展示柜页的 UID 开关）改动后两边存档的 savedSession.global.showcaseUID 一致",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "等待超时(10000ms):Show UID 分段可点",
+      "result": "PASS",
+      "detail": "web true→false(展示柜页 Show UID 控件);mcp=false——与 verify-preview 的 preview.customize.display#1 三键对拍合并覆盖四个开关",
       "script": "mcp/scripts/verify-showcase.mjs"
     },
     {
       "feature": "showcase.card.read",
       "case": 1,
-      "desc": "不导入的情况下，对展示柜里某个角色算出的遗器评分、属性汇总与 DPS 评分与网页一致",
+      "desc": "不导入的情况下，对展示柜里某个角色算出的遗器评分、属性汇总与 DPS 评分，与网页端该角色展示卡上的数值一致",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "等待超时(150000ms):展示柜卡评分头",
+      "result": "PASS",
+      "detail": "1408:DPS 评分 web 105.6%·SS vs mcp 105.6%·SS;面板 10/10 项一致;逐件遗器评分 6 件与导入后 score_relics 对拍见 showcase.import#1 同批数据;逐件遗器分(网页卡脚注 vs 导入副本 score_relics)6/6 一致",
       "script": "mcp/scripts/verify-showcase.mjs"
     },
     {
@@ -78,19 +78,19 @@
     {
       "feature": "showcase.simulate.override",
       "case": 1,
-      "desc": "替换角色与光锥后属性/评分一致",
+      "desc": "把展示柜里某个角色换成另一个角色与光锥后，算出的属性汇总、遗器评分与 DPS 评分和网页端替换后的展示卡一致",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "等待超时(10000ms):预设头像可读",
+      "result": "PASS",
+      "detail": "预设 1513(LC 23064,E0S1):评分 web 8.5% vs mcp 8.5%;面板 10/10 项一致;遗器评分卡上逐件沿用原遗器(与 case card.read#1 同一批)",
       "script": "mcp/scripts/verify-showcase.mjs"
     },
     {
       "feature": "showcase.simulate.override",
       "case": 2,
-      "desc": "缺角色或缺光锥时被拒绝",
+      "desc": "缺角色或缺光锥时被拒绝，原因与网页端的提示对应",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "等待超时(10000ms):加号预设可点",
+      "result": "PASS",
+      "detail": "MCP 缺光锥:「tool score_character isError: MCP error -32602: Input valida」;MCP 未知角色:「tool score_character isError: score_character:override.chara」;网页自定义弹窗无角色提交被拒(提示含 character)",
       "script": "mcp/scripts/verify-showcase.mjs"
     },
     {
@@ -105,28 +105,28 @@
     {
       "feature": "showcase.import",
       "case": 1,
-      "desc": "三种 mode 导入后的存档一致",
+      "desc": "三种 mode 导入后的存档（角色列表、各角色装备、遗器库存）分别与网页端点对应菜单项后的存档一致",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "phase error: 等待超时(10000ms):提交按钮可点(导入)",
+      "result": "PASS",
+      "detail": "mode=character:角色表+遗器库存逐字段相等=true;mode=all:相等=true(web 14 角色/198 件 vs mcp 14/198);mode=relics 见下;mode=relics:相等=true(web 198 件/mcp 198 件)",
       "script": "mcp/scripts/verify-showcase.mjs"
     },
     {
       "feature": "showcase.import",
       "case": 2,
-      "desc": "只导遗器装备不变",
+      "desc": "只导入遗器时没有任何角色的装备发生变化",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "phase error: 等待超时(10000ms):提交按钮可点(遗器)",
+      "result": "PASS",
+      "detail": "网页装备位不变=true;MCP 装备位不变=true",
       "script": "mcp/scripts/verify-showcase.mjs"
     },
     {
       "feature": "showcase.import",
       "case": 3,
-      "desc": "重复导入无重复",
+      "desc": "重复导入同一份档案不会产生重复遗器",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "phase error: 等待超时(10000ms):提交按钮可点(遗器)",
+      "result": "PASS",
+      "detail": "MCP 二次导入库存不变=true(198);网页二次导入后遗器逐件不变=true(198)",
       "script": "mcp/scripts/verify-showcase.mjs"
     }
   ]

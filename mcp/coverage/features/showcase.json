@@ -144,7 +144,7 @@
         "lifecycle": "session"
       },
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": [
           "fetch_showcase",
           "score_character"
@@ -163,6 +163,9 @@
         "tests": [
           "mcp/scripts/smoke-imports.mjs",
           "mcp/scripts/smoke-score.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/showcase.json#showcase.card.read cases 1-2 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -214,7 +217,7 @@
         "SaveState.delayedSave()"
       ],
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": [
           "import_showcase",
           "fetch_showcase"
@@ -230,6 +233,9 @@
         ],
         "tests": [
           "mcp/scripts/smoke-imports.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/showcase.json#showcase.import cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -300,7 +306,7 @@
         "lifecycle": "session"
       },
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": [
           "score_character"
         ]
@@ -315,6 +321,9 @@
         ],
         "tests": [
           "mcp/scripts/smoke-score.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/showcase.json#showcase.simulate.override cases 1-3 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     },
@@ -358,7 +367,7 @@
         "SaveState.delayedSave()"
       ],
       "mcp": {
-        "status": "implemented",
+        "status": "verified",
         "tools": [
           "get_state",
           "update_state"
@@ -372,6 +381,9 @@
         ],
         "tests": [
           "mcp/scripts/smoke-state.mjs"
+        ],
+        "evidence": [
+          "mcp/coverage/evidence/showcase.json#showcase.sidebar.toggle cases 1-1 PASS 2026-10-14 (35af7ae8, browser-parity)"
         ]
       }
     }

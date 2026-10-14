@@ -1,7 +1,7 @@
 {
   "area": "benchmarks",
-  "generatedAt": "2026-10-13T12:26:21.399Z",
-  "gitCommit": "0539a185",
+  "generatedAt": "2026-10-14T01:05:08.544Z",
+  "gitCommit": "35af7ae8",
   "cases": [
     {
       "feature": "benchmarks.configure.character",
@@ -143,8 +143,8 @@
       "case": 3,
       "desc": "带进度令牌时逐预设收到进度通知,取消后返回已完成的部分",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "12 条进度通知(逐预设✓);get_job(首条进度后即发)→7 条(running benchmark_runs=0),RTT 1762ms;批耗时 2.7s;结果 cancelled=false,保留 12/12 个预设(状态 0:completed,1:completed,2:completed,3:completed,4:completed,5:completed,6:completed,7:completed,8:completed,9:completed,10:completed,11:completed)——get_job RTT≈剩余批时长(内联引擎占满单线程,中途的取消请求",
+      "result": "PASS",
+      "detail": "3 条进度通知(逐预设✓);get_job(首条进度后即发)→7 条(running benchmark_runs=1),RTT 51ms;cancel_job(bench-7-mv7er5hz) 已发;批耗时 1.3s;结果 cancelled=true,保留 2/12 个预设(状态 0:completed,1:completed)",
       "script": "mcp/scripts/verify-benchmarks.mjs"
     }
   ]

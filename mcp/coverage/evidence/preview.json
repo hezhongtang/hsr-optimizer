@@ -1,7 +1,7 @@
 {
   "area": "preview",
-  "generatedAt": "2026-10-13T12:50:52.678Z",
-  "gitCommit": "0539a185",
+  "generatedAt": "2026-10-14T01:33:53.828Z",
+  "gitCommit": "35af7ae8",
   "cases": [
     {
       "feature": "preview.disclaimer.dismiss",
@@ -44,8 +44,8 @@
       "case": 1,
       "desc": "对同一角色的评测模拟，返回的某个动作的增益条目（来源、属性、数值）与增益分析里选中该动作时显示的条目一致",
       "method": "browser-parity",
-      "result": "FAIL",
-      "detail": "主动作 SKILL:web 属性合计 9/12 行与 MCP trace(byAction+basic,网页同一条 runStatSimulations 管线)数值一致; DMG Boost: web=112 mcp=92.0; Ice DMG Boost: MCP 无汇总",
+      "result": "PASS",
+      "detail": "主动作 SKILL(默认筛选 web [SKILL] vs MCP SKILL):web 属性合计 12/12 行与 MCP trace(byAction+basic,网页同一条 runStatSimulations 管线)数值一致",
       "script": "mcp/scripts/verify-preview.mjs"
     },
     {
@@ -252,7 +252,7 @@
       "desc": "用同一 URL、裁剪与署名设置肖像后，两边存档的 characters[].portrait 一致",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "web portrait 字段=已存(imageUrl=http://127.0.0.1:53136/hsr-opt…,artist=verify-artist);MCP 严格相等=true(web cropper 的 croppedArea/cropper 原值透传)",
+      "detail": "web portrait 字段=已存(imageUrl=http://127.0.0.1:54767/hsr-opt…,artist=verify-artist);MCP 严格相等=true(web cropper 的 croppedArea/cropper 原值透传)",
       "script": "mcp/scripts/verify-preview.mjs"
     },
     {
@@ -279,7 +279,7 @@
       "desc": "渲染出的 PNG 与网页下载的展示卡截图尺寸相同，文字与数值一致，自定义肖像、配色与外观开关都得到体现",
       "method": "browser-parity",
       "result": "PASS",
-      "detail": "基准:web 2200x1760 vs render 2200x1760,mean=0.000/hot=0.00%;定制态(自定义颜色+肖像+深色):mean=0.000/hot=0.00%,与基准差 mean=51.0(开关生效=true)",
+      "detail": "基准:web 2200x1760 vs render 2200x1760,mean=0.000/hot=0.00%;定制态(自定义颜色+肖像+深色):mean=0.055/hot=0.09%,与基准差 mean=51.1(开关生效=true)",
       "script": "mcp/scripts/verify-preview.mjs"
     },
     {

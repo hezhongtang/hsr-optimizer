@@ -1,7 +1,7 @@
 {
   "area": "shared",
-  "generatedAt": "2026-10-13T12:59:00.968Z",
-  "gitCommit": "0539a185",
+  "generatedAt": "2026-10-14T01:38:42.906Z",
+  "gitCommit": "35af7ae8",
   "cases": [
     {
       "feature": "shared.select.character",
