@@ -151,8 +151,10 @@ const Tabs = () => {
 
     function mountNext() {
       if (i < queue.length) {
+        // Capture the page now: React may defer the updater until render, after i has advanced
+        const page = queue[i]
         startTransition(() => {
-          setMountedTabs((prev) => new Set(prev).add(queue[i]))
+          setMountedTabs((prev) => new Set(prev).add(page))
         })
         i++
         // Space out mounts so the browser stays responsive between heavy tabs

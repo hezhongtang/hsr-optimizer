@@ -823,23 +823,6 @@ const FN_CLICK_BUTTON_TEXT = `(text) => {
  * clicks fail to activate some Mantine targets (the combo drawer ability menu,
  * the statSim segmented control and its Simulate/Import buttons). Returns the
  * element's trimmed text, or null when no target was found. */
-/**
- * Switches the stat simulation panel to roll-count mode and presses Simulate
- * builds. The button stays disabled until the mode is on, and a click aimed at
- * the mode segment misses while the accordion is still opening, so the pair is
- * repeated until the button takes the click.
- */
-async function simulateBuilds(page) {
-  const deadline = Date.now() + 15_000
-  let segmentSeen = false
-  for (;;) {
-    if (await trustedClickText(page, 'Simulate custom substat rolls')) segmentSeen = true
-    await sleep(1000)
-    if (await trustedClickText(page, 'Simulate builds')) return
-    if (Date.now() >= deadline) throw new Error(segmentSeen ? 'Simulate builds button not found' : 'statSim mode segment not found')
-  }
-}
-
 async function trustedClickText(page, text) {
   const found = await page.evaluate(
     `(text) => {
@@ -1013,21 +996,70 @@ const FN_TOGGLE_SECTION = `(label) => {
   return true
 }`
 
-// The stat-simulation Simulate/Import buttons are disabled while the panel's
-// mode SegmentedControl is Off (session-only display state, defaults Off) —
-// switch it to roll-count mode first.
-const FN_ENABLE_STATSIM = `() => {
+// Expand a form section (left alone when already open) and resolve once its
+// Accordion panel has finished animating. Mantine's Collapse shows the panel
+// at height 0 and then transitions the height over ~200ms with overflow
+// hidden: offsetParent is non-null from the first frame, but a real click only
+// lands on content the panel has already grown past. Settled = the height
+// held the same non-zero value over consecutive rendered frames.
+const FN_EXPAND_SECTION = `(async (label, timeoutMs) => {
   const control = Array.from(document.querySelectorAll('.mantine-Accordion-control'))
-    .find((c) => (c.textContent || '').trim().startsWith('Character custom stats simulation'))
+    .find((c) => (c.textContent || '').trim().startsWith(label))
   const panelId = control?.getAttribute('aria-controls')
   const panel = panelId ? document.getElementById(panelId) : null
-  if (!panel) return false
-  const segment = Array.from(panel.querySelectorAll('label, div'))
-    .find((e) => (e.textContent || '').trim().startsWith('Simulate custom substat rolls'))
-  if (!segment) return false
-  segment.click()
-  return true
-}`
+  if (!panel) return { settled: false, reason: 'section not found' }
+  if (control.getAttribute('aria-expanded') !== 'true') control.click()
+  // Only a rendered frame counts as a sample; the timer just keeps the loop
+  // moving toward the deadline when the page renders none.
+  const nextFrame = () => new Promise((r) => {
+    const stalled = setTimeout(() => r(false), 500)
+    requestAnimationFrame(() => {
+      clearTimeout(stalled)
+      r(true)
+    })
+  })
+  const deadline = Date.now() + timeoutMs
+  let height = 0
+  let steadyFrames = 0
+  while (Date.now() < deadline) {
+    const rendered = await nextFrame()
+    const current = panel.getBoundingClientRect().height
+    steadyFrames = rendered && current > 0 && current === height ? steadyFrames + 1 : 0
+    height = current
+    if (steadyFrames >= 6) return { settled: true, height }
+  }
+  // Worded to miss webTask's retry patterns: this is not a transient Chromium flake.
+  return { settled: false, reason: 'panel not open and steady by the deadline', height, expanded: control.getAttribute('aria-expanded') }
+})`
+
+// Poll for a visible, enabled button containing `text` — the filter
+// trustedClickText applies, so enabled means that click will find its target.
+const FN_WAIT_BUTTON_ENABLED = `(async (text, timeoutMs) => {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const buttons = Array.from(document.querySelectorAll('button'))
+      .filter((b) => b.offsetParent !== null && (b.textContent || '').includes(text))
+    if (buttons.some((b) => b.getAttribute('disabled') == null)) return { enabled: true, found: buttons.length }
+    if (Date.now() >= deadline) return { enabled: false, found: buttons.length }
+    await new Promise((r) => setTimeout(r, 100))
+  }
+})`
+
+/** The stat-simulation Simulate/Import buttons are disabled while the panel's
+ * mode SegmentedControl is Off (session-only display state, defaults Off).
+ * Open the section, wait out its expand animation — a click issued mid-way
+ * lands on the clipped area under the panel and leaves the mode Off — switch
+ * to roll-count mode, then confirm the buttons came alive. */
+async function enableStatSim(page) {
+  const section = await page.evaluate(FN_EXPAND_SECTION, ['Character custom stats simulation', 10_000])
+  if (!section.settled) throw new Error(`statSim section did not finish expanding: ${JSON.stringify(section)}`)
+  const seg = await trustedClickText(page, 'Simulate custom substat rolls')
+  if (!seg) throw new Error('statSim mode segment not found')
+  const simulate = await page.evaluate(FN_WAIT_BUTTON_ENABLED, ['Simulate builds', 10_000])
+  if (!simulate.enabled) {
+    throw new Error(`statSim mode still Off after clicking the roll-count segment: Simulate builds ${simulate.found ? 'is disabled' : 'is not rendered'}`)
+  }
+}
 
 const FN_SELECT_COMPUTE_ENGINE = `() => {
   const controls = document.querySelector('#optimizerTab')
@@ -4265,8 +4297,10 @@ async function scenarioStatSim() {
     })
     const web = await webTask('statsim-run', baked.state, async (page) => {
       await bootOptimizer(page)
-      await page.evaluate(FN_TOGGLE_SECTION, ['Character custom stats simulation'])
-      await simulateBuilds(page)
+      await enableStatSim(page)
+      await sleep(1500)
+      const clicked = await trustedClickText(page, 'Simulate builds')
+      if (!clicked) throw new Error('Simulate builds button not found')
       // poll for the rendered sim row instead of a fixed sleep that raced it
       const wait = await page.evaluate(FN_WAIT_GRID_ROWS, [1, 45_000])
       if (!wait.ready) throw new Error(`sim rows never rendered: ${JSON.stringify(wait)}`)
@@ -4305,8 +4339,10 @@ async function scenarioStatSim() {
     })
     const web = await webTask('statsim-run2', baked.state, async (page) => {
       await bootOptimizer(page)
-      await page.evaluate(FN_TOGGLE_SECTION, ['Character custom stats simulation'])
-      await simulateBuilds(page)
+      await enableStatSim(page)
+      await sleep(1500)
+      const clicked = await trustedClickText(page, 'Simulate builds')
+      if (!clicked) throw new Error('Simulate builds button not found')
       // poll for both rendered sim rows instead of a fixed sleep that raced them
       const wait = await page.evaluate(FN_WAIT_GRID_ROWS, [2, 45_000])
       if (!wait.ready) throw new Error(`sim rows never rendered: ${JSON.stringify(wait)}`)
@@ -4468,8 +4504,7 @@ async function scenarioStatSim() {
       await startAndWait(page)
       await page.evaluate(FN_CLICK_CELL, [1])
       await sleep(1500)
-      await page.evaluate(FN_TOGGLE_SECTION, ['Character custom stats simulation'])
-      await trustedClickText(page, 'Simulate custom substat rolls')
+      await enableStatSim(page)
       await sleep(1500)
       // pre-click diagnostics: the Import button must be enabled (mode != Off)
       // and the grid must report a selected row, else the web toasts
