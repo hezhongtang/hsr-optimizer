@@ -43,6 +43,7 @@ npm run smoke:calculators  # M6 计算器:阿哈反解与底稿/EHR 概率与热
 npm run smoke:analysis     # M6 分析域:analyze_relic 三视图/优化诊断修复/resultsLimit/rowIds/套装审计
 npm run smoke:equip    # 装备+评分域:equip/unequip/switch/builds/score_relics/dps_score/scoring override
                         # + 缓存世代拒绝 / fromCache 表单回写 / 缺失遗器跳过 / 奶妈评分配置解析
+npm run smoke:toolsets # 工具清单开关:HSR_MCP_TOOLSETS 的启用/排除写法与拒绝启动、HSR_MCP_NO_OUTPUT_SCHEMA 下返回值不变
 npm run smoke:shutdown # 关停路径:stdin EOF 干净退出(exit 0,毫秒级)+ 防抖写回不丢
 npm run parity         # M1 验收对拍 harness(见下)
 npm run smoke:conditionals # 条件面板 + game:// 资源:zh_CN 标签、星魂/叠影门槛、枚举与滑杆元数据、
@@ -86,16 +87,58 @@ npx tsgo --noEmit -p mcp/tsconfig.json
 
 ## 环境变量
 
-| 变量                    | 默认                              | 说明                                                                                                                                                                                                                   |
-| ----------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HSR_MCP_WORKERS`       | `6`                               | 优化器 worker 池大小(1–10)。池大小在首次导入 `workerPool` 时定死;9 线程满载约 2.3 GB RSS,大库存场景建议保守设置                                                                                                        |
-| `HSR_MCP_STATE_FILE`    | `$HSR_MCP_HOME/localstorage.json` | localStorage 垫片的文件后端(上游 store 层的持久化通道)。测试时务必指到临时目录                                                                                                                                         |
-| `HSR_MCP_HOME`          | `~/.hsr-optimizer-mcp`            | 状态目录:未显式指定 `HSR_MCP_STATE_FILE` 时,localStorage 后端文件落在此目录下                                                                                                                                          |
-| `HSR_MCP_LOCALES_DIR`   | 自动定位(见说明)                  | i18n 翻译目录(`public/locales` 形状,含 `<语言>/<ns>.yaml`)的显式覆盖;缺省从构建产物位置逐级向上查找(dist→mcp→仓库根),即 dist 须留在仓库内运行——要把构建产物挪到仓库外时用本变量指向仓库的 `public/locales`             |
-| `HSR_MCP_BROWSER_PATH`  | 平台自动发现                      | 受管浏览器(Chromium 系)可执行文件路径;缺省按 macOS 应用路径 → Linux chrome/chromium → Windows 常见路径发现。M7 渲染/WebGPU 工具依赖它,缺失时返回具体的中文能力报告                                                     |
-| `HSR_MCP_SITE_DIST`     | `<仓库根>/dist`                   | 站点构建产物目录(受管浏览器伺服的页面与素材);仓库外运行时用本变量指向独立的 dist 副本                                                                                                                                  |
-| `HSR_MCP_ARTIFACTS_DIR` | `$TMPDIR/hsr-mcp-artifacts`       | render/图片导出产物的落盘目录(运行期用户数据,不进仓库)                                                                                                                                                                 |
-| `HSR_MCP_NO_BOOT_LOAD`  | 未设(=启用)                       | 设为 `1` 关闭进程启动时从 `HSR_MCP_STATE_FILE` 的 `state` 键自动恢复上次存档(默认开启,镜像网页「打开即载入」;恢复走 SaveState.load(false,false) 同链,会恢复扫描器地址——与手动 load_save 的安全语义不同,属网页启动语义) |
+| 变量                       | 默认                              | 说明                                                                                                                                                                                                                   |
+| -------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HSR_MCP_WORKERS`          | `6`                               | 优化器 worker 池大小(1–10)。池大小在首次导入 `workerPool` 时定死;9 线程满载约 2.3 GB RSS,大库存场景建议保守设置                                                                                                        |
+| `HSR_MCP_STATE_FILE`       | `$HSR_MCP_HOME/localstorage.json` | localStorage 垫片的文件后端(上游 store 层的持久化通道)。测试时务必指到临时目录                                                                                                                                         |
+| `HSR_MCP_HOME`             | `~/.hsr-optimizer-mcp`            | 状态目录:未显式指定 `HSR_MCP_STATE_FILE` 时,localStorage 后端文件落在此目录下                                                                                                                                          |
+| `HSR_MCP_LOCALES_DIR`      | 自动定位(见说明)                  | i18n 翻译目录(`public/locales` 形状,含 `<语言>/<ns>.yaml`)的显式覆盖;缺省从构建产物位置逐级向上查找(dist→mcp→仓库根),即 dist 须留在仓库内运行——要把构建产物挪到仓库外时用本变量指向仓库的 `public/locales`             |
+| `HSR_MCP_BROWSER_PATH`     | 平台自动发现                      | 受管浏览器(Chromium 系)可执行文件路径;缺省按 macOS 应用路径 → Linux chrome/chromium → Windows 常见路径发现。M7 渲染/WebGPU 工具依赖它,缺失时返回具体的中文能力报告                                                     |
+| `HSR_MCP_SITE_DIST`        | `<仓库根>/dist`                   | 站点构建产物目录(受管浏览器伺服的页面与素材);仓库外运行时用本变量指向独立的 dist 副本                                                                                                                                  |
+| `HSR_MCP_ARTIFACTS_DIR`    | `$TMPDIR/hsr-mcp-artifacts`       | render/图片导出产物的落盘目录(运行期用户数据,不进仓库)                                                                                                                                                                 |
+| `HSR_MCP_NO_BOOT_LOAD`     | 未设(=启用)                       | 设为 `1` 关闭进程启动时从 `HSR_MCP_STATE_FILE` 的 `state` 键自动恢复上次存档(默认开启,镜像网页「打开即载入」;恢复走 SaveState.load(false,false) 同链,会恢复扫描器地址——与手动 load_save 的安全语义不同,属网页启动语义) |
+| `HSR_MCP_TOOLSETS`         | 未设(=全部)                       | 只注册部分工具集,见下文「精简工具清单」                                                                                                                                                                                |
+| `HSR_MCP_NO_OUTPUT_SCHEMA` | 未设(=保留)                       | 设为 `1` 让 `tools/list` 不带输出 schema,见下文「精简工具清单」                                                                                                                                                        |
+
+### 精简工具清单
+
+`tools/list` 默认返回 64 个工具,约 26.5 万字符,其中输出 schema 占 15.5 万。客户端若在每个会话开头把整份清单交给模型,这就是固定开销。两个开关可以单独用,也可以一起用,都只改变清单,不改变工具的行为和返回值:
+
+- `HSR_MCP_NO_OUTPUT_SCHEMA=1`:清单里不再带输出 schema,降到约 10.9 万字符。工具照常返回 `structuredContent`,内容与默认模式相同;代价是客户端拿不到返回字段的说明,SDK 也不再用 schema 校验返回值。这部分是否占模型上下文取决于客户端:只把描述和输入 schema 交给模型的客户端,省下的是传输和解析;会把输出 schema 一并交给模型或据此生成类型的客户端,省下的是上下文。
+- `HSR_MCP_TOOLSETS`:逗号分隔的工具集名。直接列名字表示只注册这些(例 `query,scoring,optimizer`);每一项都以 `-` 开头表示注册除此之外的全部(例 `-bridge,-scanner,-debug`)。两种写法不能混用,名字写错时服务器拒绝启动并列出可用名字。`archive` 和 `jobs` 始终注册(排除它们同样拒绝启动)——多数工具集要在已载入的存档上工作,长任务靠任务 id 查询和取消。拒绝启动的原因写在 stderr 的 `[mcp] fatal:` 行,客户端只会看到连接失败。
+
+没注册的工具对客户端不存在(调用返回 `Tool … not found`),留下的工具在描述和报错提示里仍可能提到它们。这两个开关是为缩小清单,不是权限控制:只列 `query,scoring` 时 `reset_all`、`export_save` 仍然在。`team_audit`、`plan_diff` 内部调用的工具不受影响,`game://`、`site://` 资源也不受影响。任一开关生效时,启动日志(stderr)会多一行 `[mcp] tools/list: …` 说明实际注册了哪些工具集。
+
+各工具集在清单里的体积(字符数,`带输出 schema` / `不带`):
+
+| 工具集         | 工具数 | 带输出 schema | 不带   | 工具                                                                                                                                                                                                                     |
+| -------------- | ------ | ------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `simulation`   | 4      | 32,128        | 11,717 | `simulate_build` `stat_simulate` `analyze_build` `benchmark_runs`                                                                                                                                                        |
+| `equipment`    | 12     | 22,530        | 10,643 | `equip_build` `unequip_character` `switch_relics` `upsert_character` `delete_character` `set_character_rank` `save_build` `list_builds` `delete_build` `equip_saved_build` `get_scoring_metadata` `set_scoring_override` |
+| `query`        | 6      | 19,915        | 8,833  | `list_characters` `get_character` `get_form` `default_form` `permutations` `list_relics`                                                                                                                                 |
+| `form`         | 1      | 9,969         | 7,458  | `update_form`                                                                                                                                                                                                            |
+| `scoring`      | 3      | 21,141        | 7,302  | `score_relics` `dps_score` `score_character`                                                                                                                                                                             |
+| `calculators`  | 3      | 15,234        | 7,260  | `warp_plan` `calc_aha` `calc_ehr`                                                                                                                                                                                        |
+| `teamAudit`    | 2      | 13,298        | 6,081  | `team_audit` `plan_diff`                                                                                                                                                                                                 |
+| `relics`       | 4      | 16,237        | 6,017  | `upsert_relic` `delete_relics` `dedupe_relics` `analyze_relic`                                                                                                                                                           |
+| `optimizer`    | 2      | 15,100        | 5,445  | `optimize` `get_results`                                                                                                                                                                                                 |
+| `imports`      | 2      | 5,663         | 3,945  | `import_scanner_json` `import_hoyolab`                                                                                                                                                                                   |
+| `archive`      | 4      | 8,870         | 3,802  | `load_save` `export_save` `save_status` `reset_all`                                                                                                                                                                      |
+| `state`        | 2      | 17,113        | 3,658  | `get_state` `update_state`                                                                                                                                                                                               |
+| `teams`        | 3      | 8,614         | 3,468  | `list_teams` `save_team` `manage_team`                                                                                                                                                                                   |
+| `portrait`     | 1      | 4,871         | 2,892  | `set_portrait`                                                                                                                                                                                                           |
+| `leaderboard`  | 1      | 10,658        | 2,768  | `leaderboard`                                                                                                                                                                                                            |
+| `showcase`     | 2      | 6,319         | 2,671  | `fetch_showcase` `import_showcase`                                                                                                                                                                                       |
+| `bridge`       | 4      | 5,464         | 2,534  | `sync_bridge_start` `sync_bridge_status` `sync_bridge_stop` `sync_bridge_push`                                                                                                                                           |
+| `render`       | 1      | 3,755         | 2,519  | `render`                                                                                                                                                                                                                 |
+| `debug`        | 1      | 5,444         | 2,421  | `debug_utility`                                                                                                                                                                                                          |
+| `scanner`      | 1      | 4,718         | 1,965  | `scanner`                                                                                                                                                                                                                |
+| `conditionals` | 1      | 6,657         | 1,935  | `describe_conditionals`                                                                                                                                                                                                  |
+| `jobs`         | 2      | 3,376         | 1,208  | `get_job` `cancel_job`                                                                                                                                                                                                   |
+| `artifacts`    | 1      | 2,681         | 1,125  | `deliver_artifact`                                                                                                                                                                                                       |
+| `runtime`      | 1      | 4,797         | 922    | `get_runtime_capabilities`                                                                                                                                                                                               |
+
+`npm run smoke:toolsets` 覆盖以上行为。
 
 ## 工具清单(64 个,按域)
 

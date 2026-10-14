@@ -30,16 +30,18 @@ npm --prefix mcp run build   # 构建 MCP server → mcp/dist/
 
 ### 环境变量
 
-| 变量                    | 默认                              | 作用                                                                                                                                                                                      |
-| ----------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HSR_MCP_STATE_FILE`    | `$HSR_MCP_HOME/localstorage.json` | localStorage 垫片文件后端(上游 store 层持久化通道)。**进程重启后会自动从其中的 `state` 键恢复上次存档**(网页「打开即载入」同语义);`HSR_MCP_NO_BOOT_LOAD=1` 显式关闭。测试务必指向临时文件 |
-| `HSR_MCP_HOME`          | `~/.hsr-optimizer-mcp`            | 状态目录                                                                                                                                                                                  |
-| `HSR_MCP_WORKERS`       | `6`                               | 优化器 worker 池(1–10)                                                                                                                                                                    |
-| `HSR_MCP_LOCALES_DIR`   | 自动定位                          | i18n 翻译目录;仓库外运行时显式指定                                                                                                                                                        |
-| `HSR_MCP_BROWSER_PATH`  | 平台自动发现                      | 受管浏览器可执行文件                                                                                                                                                                      |
-| `HSR_MCP_SITE_DIST`     | `<仓库根>/dist`                   | 站点构建产物目录(受管浏览器伺服)                                                                                                                                                          |
-| `HSR_MCP_ARTIFACTS_DIR` | `$TMPDIR/hsr-mcp-artifacts`       | render 产物落盘目录                                                                                                                                                                       |
-| `HSR_MCP_NO_BOOT_LOAD`  | 未设                              | 设为 `1` 关闭启动自动恢复                                                                                                                                                                 |
+| 变量                       | 默认                              | 作用                                                                                                                                                                                      |
+| -------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HSR_MCP_STATE_FILE`       | `$HSR_MCP_HOME/localstorage.json` | localStorage 垫片文件后端(上游 store 层持久化通道)。**进程重启后会自动从其中的 `state` 键恢复上次存档**(网页「打开即载入」同语义);`HSR_MCP_NO_BOOT_LOAD=1` 显式关闭。测试务必指向临时文件 |
+| `HSR_MCP_HOME`             | `~/.hsr-optimizer-mcp`            | 状态目录                                                                                                                                                                                  |
+| `HSR_MCP_WORKERS`          | `6`                               | 优化器 worker 池(1–10)                                                                                                                                                                    |
+| `HSR_MCP_LOCALES_DIR`      | 自动定位                          | i18n 翻译目录;仓库外运行时显式指定                                                                                                                                                        |
+| `HSR_MCP_BROWSER_PATH`     | 平台自动发现                      | 受管浏览器可执行文件                                                                                                                                                                      |
+| `HSR_MCP_SITE_DIST`        | `<仓库根>/dist`                   | 站点构建产物目录(受管浏览器伺服)                                                                                                                                                          |
+| `HSR_MCP_ARTIFACTS_DIR`    | `$TMPDIR/hsr-mcp-artifacts`       | render 产物落盘目录                                                                                                                                                                       |
+| `HSR_MCP_NO_BOOT_LOAD`     | 未设                              | 设为 `1` 关闭启动自动恢复                                                                                                                                                                 |
+| `HSR_MCP_TOOLSETS`         | 未设                              | 只注册部分工具集:`query,scoring` 只启用所列,`-bridge,-scanner` 排除所列;`archive`、`jobs` 始终注册。详见 `mcp/README.md`「精简工具清单」                                                  |
+| `HSR_MCP_NO_OUTPUT_SCHEMA` | 未设                              | 设为 `1` 让 `tools/list` 不带输出 schema(清单约 26.5 万 → 10.9 万字符),工具返回值不变                                                                                                     |
 
 ## 3. 客户端接入(stdio)
 

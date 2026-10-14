@@ -18,7 +18,7 @@
 
 ## 3. 返回结构
 
-- 双通道（`src/toolResult.ts`，全工具强制）：`content` 一段中文文本摘要 + `structuredContent` 完整机器载荷；63 个工具全部声明 `outputSchema`，新增工具必须带。M7 起新增 `imageResult` 变体：`content` 在文本摘要之外附一个原生 MCP image 块（PNG base64），双通道契约不变，render/deliver_artifact(read)/debug_utility(image_center) 使用。
+- 双通道（`src/toolResult.ts`，全工具强制）：`content` 一段中文文本摘要 + `structuredContent` 完整机器载荷；64 个工具全部声明 `outputSchema`，新增工具必须带（`HSR_MCP_NO_OUTPUT_SCHEMA=1` 时清单里不列出，返回不变）。M7 起新增 `imageResult` 变体：`content` 在文本摘要之外附一个原生 MCP image 块（PNG base64），双通道契约不变，render/deliver_artifact(read)/debug_utility(image_center) 使用。
 - 载荷顶层是平铺字段（`total`/`rows`/`score`…），大结果用分页或引用，不一次塞满响应。
 
 ## 4. 数值与百分比口径
@@ -50,6 +50,8 @@
 修改任一冻结项须同步四处并过全部门禁：①`coverage/features/*.json`（候选/参数/状态）→ ②`README.md` 工具清单 → ③本文（记录变更）→ ④`coverage-check` + 四门禁 + smoke 全绿。
 
 ## 9. 变更记录
+
+- **2026-10-14 工具清单开关(HSR_MCP_TOOLSETS / HSR_MCP_NO_OUTPUT_SCHEMA)**（默认行为不变,工具数不变 64/70,各工具的参数、返回与行为不变,不改上游 `src/**`）:`tools/list` 默认约 26.5 万字符,其中输出 schema 占 15.5 万。①`HSR_MCP_NO_OUTPUT_SCHEMA=1`:注册时不带 `outputSchema`,清单降到约 10.9 万字符;工具照常返回 `structuredContent`,SDK 不再按 schema 校验返回值。②`HSR_MCP_TOOLSETS`:逗号分隔的工具集名(即 `src/domains/` 下的 24 个域),只列名字=只注册这些,每项以 `-` 开头=注册其余全部;`archive` 与 `jobs` 始终注册;混用两种写法、未知名字、排除始终注册的工具集时服务器拒绝启动(stderr `[mcp] fatal:`)。③`team_audit` / `plan_diff` 经回环调用的第二个服务器实例始终注册全部工具并保留输出 schema,不受两个开关影响。④任一开关生效时 stderr 多一行 `[mcp] tools/list: …`。⑤验收:新增 smoke:toolsets(16 条:默认 64 个工具且全带输出 schema;去掉 schema 后工具、描述、输入 schema 不变,返回值相同,清单不到一半;启用/排除两种写法的清单;只注册 teamAudit 时 `plan_diff` 仍能经回环读库存;四种非法写法拒绝启动),并入 smoke:all。各工具集的清单体积见 `mcp/README.md`「精简工具清单」。
 
 - **2026-10-14 trace 的默认伤害筛选(buffs.defaultFilter)**（add-only 输出字段,工具数不变 64/70,既有字段不变,不改上游 `src/**`）:①`score_character(trace=true)` 与 `simulate_build(trace=true)` 的 `buffs` 新增 `defaultFilter`(`{damageTags, damageTagsLabel}` 或 `null`),取自角色配置的 `scoring.defaultDamageType`,即网页增益分析面板打开时选中的伤害类型筛选。②用途:网页的属性合计行只累计不带伤害标签的增益,加上与当前筛选有交集的增益(`StatSummary` 的 `buffMatchesSumFilter`);要用 `byAction[*].buffs` 与 `basic` 复算出网页默认显示的合计,需要知道这个筛选。`null` 对应网页的 ALL,只累计不带标签的增益。③验收:smoke:score / smoke:simulation 各一条断言(镜流为 SKILL);`preview.analysis.buffs#1` 改为先比对网页当前选中的筛选按钮,再按该筛选逐行比对合计。
 
