@@ -22,6 +22,7 @@
 // buffType}) that attributes each buff to 角色/光锥/套装/行迹 — exposed as-is,
 // with damageTags/outputTags additionally decoded to readable names.
 
+import { getCharacterConfig } from 'lib/conditionals/resolver/characterConfigRegistry'
 import type { Buff } from 'lib/optimization/basicStatsArray'
 import { toBasicStatsObject } from 'lib/optimization/basicStatsArray'
 import {
@@ -38,6 +39,7 @@ import type {
   RotationDamageStep,
 } from 'lib/simulations/statSimulationTypes'
 import type { DamageSplitEntry } from 'lib/tabs/tabOptimizer/analysis/damageSplitsExtractor'
+import type { CharacterId } from 'types/character'
 
 // --- Tag decoding (numeric bitmasks → stable flag names) ---
 
@@ -99,6 +101,24 @@ export function serializeBuff(buff: Buff): SerializedBuff {
     ...(damageTagsLabel != null ? { damageTagsLabel } : {}),
     ...(outputTagsLabel != null ? { outputTagsLabel } : {}),
   }
+}
+
+export type SerializedDamageFilter = {
+  damageTags: number,
+  /** damageTags decoded to names, e.g. "SKILL" */
+  damageTagsLabel: string,
+}
+
+/**
+ * The damage-type filter the web buffs panel starts with (BuffsAnalysisDisplay):
+ * the character's scoring.defaultDamageType, null when it starts unfiltered.
+ * The panel's summary rows add up the buffs without damageTags and, with a
+ * filter set, also those whose damageTags overlap it.
+ */
+export function serializeDefaultDamageFilter(characterId: string): SerializedDamageFilter | null {
+  const damageTags = getCharacterConfig(characterId as CharacterId)?.scoring?.defaultDamageType
+  if (damageTags == null) return null
+  return { damageTags, damageTagsLabel: decodeFlags(damageTags, DAMAGE_FLAG_NAMES) ?? '' }
 }
 
 // --- Rotation damage steps / action damage ---

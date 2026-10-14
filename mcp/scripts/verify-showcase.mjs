@@ -98,6 +98,7 @@ const gitCommit = evidenceCommit(import.meta.url)
 const tempDir = mkdtempSync(`${tmpdir()}/hsr-mcp-verify-showcase-`)
 const baseSavePath = `${tempDir}/sample-save.json`
 copyFileSync(repoSampleSavePath, baseSavePath)
+const baseRelicIds = new Set(JSON.parse(readFileSync(baseSavePath, 'utf8')).relics.map((relic) => relic.id))
 /** A pristine copy per load — load_save write-backs mutate the loaded file. */
 let freshCounter = 0
 function freshSeed(sourcePath) {
@@ -187,21 +188,31 @@ const UID_INPUT = `() => {
   input.focus()
   return true
 }`
-const SUBMIT_CLICK = `() => {
-  const buttons = [...document.querySelectorAll('button')].filter((b) => b.offsetParent !== null && ['Submit', '提交'].includes((b.textContent || '').trim()))
-  if (!buttons.length) return false
-  buttons[0].click()
+// Counts the profile requests in flight. The Submit button's loading state
+// cannot tell: a throttled submit clears it while the accepted one is still out.
+const TRACK_PROFILE_FETCHES = `() => {
+  if (window.__profileFetches != null) return true
+  window.__profileFetches = 0
+  const nativeFetch = window.fetch
+  window.fetch = (...args) => {
+    if (!String(args[0]?.url ?? args[0]).includes('/profile/')) return nativeFetch(...args)
+    window.__profileFetches++
+    return nativeFetch(...args).finally(() => {
+      window.__profileFetches--
+    })
+  }
   return true
 }`
+const PROFILE_FETCHES_SETTLED = `() => window.__profileFetches === 0`
 const AVATAR_ROW = `() => {
   const card = document.getElementById('relicScorerPreview')
-  if (!card) return { ready: false }
+  if (!card) return { ok: false }
   // portrait row sits above the card: avatar imgs whose src carries an id
   const imgs = [...document.querySelectorAll('img')]
-    .filter((i) => /character_avatar/.test(i.src || '') && i.closest('div[class*="portraitContainer"]'))
+    .filter((i) => /icon\\/avatar\\//.test(i.src || '') && i.closest('div[class*="portraitContainer"]'))
   return {
-    ready: imgs.length > 0,
-    ids: imgs.map((i) => (i.src.match(/character_avatar\\/([^.]+)\\./) || [])[1] ?? i.src),
+    ok: imgs.length > 0,
+    ids: imgs.map((i) => (i.src.match(/icon\\/avatar\\/([^.]+)\\./) || [])[1] ?? i.src),
   }
 }`
 const CARD_READY_SC = `(id) => {
@@ -218,7 +229,7 @@ const SCORE_HEADER_SC = `() => {
   const c = document.getElementById('relicScorerPreview')
   if (!c) return null
   const m = c.innerText.match(/(\\d+(?:\\.\\d+)?)% · (\\S+)/)
-  return m ? { percent: m[1], grade: m[2] } : null
+  return m ? { ok: true, percent: m[1], grade: m[2] } : null
 }`
 const STAT_ROWS_SC = `() => {
   const card = document.getElementById('relicScorerPreview')
@@ -243,15 +254,15 @@ const SIDEBAR_OPEN = `() => {
   const flask = [...document.querySelectorAll('button')].find((b) => b.querySelector('svg.tabler-icon-flask') && b.offsetParent !== null)
   if (!flask) return null
   const panel = flask.parentElement.querySelector('div[style*="display"]')
-  const presets = [...document.querySelectorAll('img')].filter((i) => /character_avatar/.test(i.src || '') && i.closest('button') && i.offsetParent !== null && i.closest('.simSidebarPanel, [class*="simSidebarPanel"]'))
-  return { open: presets.length > 0, presets: presets.length }
+  const presets = [...document.querySelectorAll('img')].filter((i) => /icon\\/avatar\\//.test(i.src || '') && i.closest('button') && i.offsetParent !== null && i.closest('.simSidebarPanel, [class*="simSidebarPanel"]'))
+  return { ok: true, open: presets.length > 0, presets: presets.length }
 }`
 const PRESET_IDS = `() => [...document.querySelectorAll('img')]
-  .filter((i) => /character_avatar/.test(i.src || '') && i.closest('button') && i.offsetParent !== null && (i.closest('[class*="simSidebarPanel"]') != null))
-  .map((i) => (i.src.match(/character_avatar\\/([^.]+)\\./) || [])[1] ?? null)`
+  .filter((i) => /icon\\/avatar\\//.test(i.src || '') && i.closest('button') && i.offsetParent !== null && (i.closest('[class*="simSidebarPanel"]') != null))
+  .map((i) => (i.src.match(/icon\\/avatar\\/([^.]+)\\./) || [])[1] ?? null)`
 const CLICK_PRESET = `(index) => {
   const imgs = [...document.querySelectorAll('img')]
-    .filter((i) => /character_avatar/.test(i.src || '') && i.closest('button') && i.offsetParent !== null && (i.closest('[class*="simSidebarPanel"]') != null))
+    .filter((i) => /icon\\/avatar\\//.test(i.src || '') && i.closest('button') && i.offsetParent !== null && (i.closest('[class*="simSidebarPanel"]') != null))
   const target = imgs[index]
   if (!target) return false
   target.closest('button').click()
@@ -301,6 +312,52 @@ function parseNumber(text) {
 function headerPercentClose(webPercent, mcpPercent) {
   const expected = Math.max(0, mcpPercent * 100)
   return Math.abs(webPercent - expected) <= 0.11
+}
+
+/**
+ * Characters + relics of a save with the imported relics renamed by position.
+ * Every imported relic gets a fresh random uuid, so the web's and the MCP's
+ * saves can only be compared once those ids (and the equipped / build slots
+ * that reference them) are replaced by something stable.
+ */
+function comparableSave(state) {
+  let text = JSON.stringify({ characters: state.characters, relics: state.relics })
+  let imported = 0
+  for (const relic of state.relics ?? []) {
+    if (!baseRelicIds.has(relic.id)) text = text.replaceAll(`"${relic.id}"`, `"imported#${imported++}"`)
+  }
+  return JSON.parse(text)
+}
+
+/**
+ * First UID submit of a session. A fresh visit to #showcase has no UID yet, so
+ * the tab hands over to Home (ShowcaseTab's RedirectToHome) and the visible UID
+ * box is Home's search bar; it navigates to #showcase?id=<uid>, which loads the
+ * profile. Home's box and the Showcase submission bar both submit on Enter.
+ */
+async function submitUid(page, uid, label = '') {
+  await pollUntil(`UID 输入框聚焦${label}`, async () => ({ ok: await page.evaluate(UID_INPUT) }), 15_000)
+  await page.type(uid)
+  await sleep(300)
+  await page.press('Enter')
+}
+
+/**
+ * Submits the UID and waits for the avatar row. The profile API fails now and
+ * then, so a row that never shows gets one more load through the URL
+ * (#showcase?id=<uid> fetches on boot).
+ */
+async function loadProfile(page, uid, label = '') {
+  await submitUid(page, uid, label)
+  try {
+    return await pollUntil(`头像行渲染${label}`, async () => await page.evaluate(AVATAR_ROW), 60_000, 400)
+  } catch {
+    const notice = String(await page.evaluate(NOTIFICATION_TEXT).catch(() => '')).slice(0, 80)
+    console.log(`[retry] 头像行渲染${label} 首次未出现(页面提示:${notice || '无'}),重载后经 URL 再拉取一次`)
+    await page.evaluate(`() => { window.__sc = 1; location.reload(); return true }`)
+    await pollUntil(`重载完成${label}`, async () => ({ ok: await page.evaluate(RELOAD_DONE) }), 30_000)
+    return await pollUntil(`头像行渲染${label}(重试)`, async () => await page.evaluate(AVATAR_ROW), 90_000, 400)
+  }
 }
 
 /** One browser task on a seed. */
@@ -497,11 +554,7 @@ if (liveUid == null) {
   await runSeedTask('verify-showcase(live)', freshSeed(baseSavePath), async (page) => {
     // type the UID, submit, wait for the avatar row (real fetch, real parsing)
     try {
-      await pollUntil('UID 输入框聚焦', async () => ({ ok: await page.evaluate(UID_INPUT) }), 15_000)
-      await page.type(liveUid)
-      await sleep(300)
-      await pollUntil('提交按钮可点', async () => ({ ok: await page.evaluate(SUBMIT_CLICK) }), 10_000)
-      const row = await pollUntil('头像行渲染(真实拉取)', async () => await page.evaluate(AVATAR_ROW), 90_000, 400)
+      const row = await loadProfile(page, liveUid)
       const webIds = row.ids
       const mcpIds = mcpLive.characters.map((c) => c.characterId)
       const listOk = JSON.stringify(webIds) === JSON.stringify(mcpIds)
@@ -524,14 +577,25 @@ if (liveUid == null) {
       record('showcase.profile.fetch', 1, '同一 UID 返回的角色列表与网页端头像行及各张展示卡一致', 'FAIL', String(e.message).slice(0, 160))
     }
 
-    // throttle: a second manual submit within 10s is refused with a countdown
+    // throttle: a second manual submit within 10s is refused with a countdown.
+    // The first load came through the URL (initializeShowcaseOnMount submits
+    // with skipCooldown), so the window opens with the first manual submit.
+    // Enter rather than the Submit button: the button is disabled while the
+    // accepted submit is still fetching.
     try {
+      await page.evaluate(TRACK_PROFILE_FETCHES)
       await pollUntil('UID 输入框聚焦(节流)', async () => ({ ok: await page.evaluate(UID_INPUT) }), 10_000)
-      await pollUntil('提交按钮可点(节流)', async () => ({ ok: await page.evaluate(SUBMIT_CLICK) }), 10_000)
+      await page.press('Enter')
+      await sleep(500)
+      await page.press('Enter')
       const notif = await pollUntil('节流提示出现', async () => {
         const text = await page.evaluate(NOTIFICATION_TEXT)
         return { ok: /seconds before retry/i.test(text), text }
       }, 10_000)
+      // let the accepted submit land and render before the cases below read the page
+      await pollUntil('节流用例的重新拉取结束', async () => ({ ok: await page.evaluate(PROFILE_FETCHES_SETTLED) }), 90_000, 400)
+      await sleep(1500)
+      await pollUntil('头像行渲染(重新拉取后)', async () => await page.evaluate(AVATAR_ROW), 30_000)
       // MCP side: the same second fetch succeeds — the tool deliberately has
       // no throttle (documented in its description); record the deviation.
       const second = await callTool('fetch_showcase', { uid: liveUid, timeoutMs: 60_000 })
@@ -586,10 +650,7 @@ if (liveUid == null) {
       j.savedSession = { ...j.savedSession, showcaseTab: { ...j.savedSession?.showcaseTab, sidebarOpen: false } }
       writeFileSync(seed2, JSON.stringify(j))
       const closed = await runSeedTask('verify-showcase(sidebar-closed)', seed2, async (page2) => {
-        await pollUntil('UID 输入框聚焦(收起态)', async () => ({ ok: await page2.evaluate(UID_INPUT) }), 15_000)
-        await page2.type(liveUid)
-        await pollUntil('提交按钮可点(收起态)', async () => ({ ok: await page2.evaluate(SUBMIT_CLICK) }), 10_000)
-        await pollUntil('头像行渲染(收起态)', async () => await page2.evaluate(AVATAR_ROW), 90_000, 400)
+        await loadProfile(page2, liveUid, '(收起态)')
         await sleep(2000)
         return await page2.evaluate(SIDEBAR_OPEN)
       })
@@ -709,24 +770,45 @@ if (liveUid == null) {
         const ids = await page.evaluate(PRESET_IDS)
         return { ok: ids != null && ids.length >= 2, ids }
       }, 10_000)
-      const presetId = presets.ids[0]
-      // signature light cone from game metadata (the preset ships E0 S1)
-      const charsRes = JSON.parse((await client.readResource({ uri: `game://metadata/characters/${presetId}` })).contents[0].text)
-      const presetLc = charsRes.signatureLightCone ?? charsRes.character?.signatureLightCone
-      const before = parseNumber((await page.evaluate(SCORE_HEADER_SC)).percent)
-      await pollUntil('预设头像可点', async () => ({ ok: await page.evaluate(CLICK_PRESET, [0]) }), 10_000)
+      // The presets follow the newest releases and not every character has a
+      // DPS score: take the first one with a combat simulation, so the card
+      // shows a score to compare. Its light cone is the signature one from
+      // game metadata (the preset ships E0 S1).
+      const roster = JSON.parse((await client.readResource({ uri: 'game://metadata/characters' })).contents[0].text).characters
+      const scorable = presets.ids
+        .map((id, index) => ({
+          id,
+          index,
+          lightCone: roster.find((c) => c.id === id)?.signatureLightCone,
+          hasSimulation: roster.find((c) => c.id === id)?.hasSimulation === true,
+        }))
+        .filter((preset) => preset.hasSimulation && preset.lightCone != null)
+      if (!scorable.length) throw new Error(`侧栏预设 ${presets.ids.join(',')} 都没有 DPS 评分模拟,无法对拍评分`)
+      // The web floors the header at 0%, so prefer a preset the showcase relics
+      // score above 0% on: both sides are then compared on a real number.
+      await callTool('load_save', { path: freshSeed(baseSavePath) })
+      await callTool('fetch_showcase', { uid: liveUid, timeoutMs: 60_000 })
+      let chosen = null
+      let mcpOverride = null
+      for (const preset of scorable) {
+        const scored = await callTool('score_character', {
+          source: 'showcase',
+          characterId: firstChar.characterId,
+          override: { characterId: preset.id, lightCone: preset.lightCone },
+        }, LONG)
+        if (chosen == null || scored.percent > 0) {
+          chosen = preset
+          mcpOverride = scored
+        }
+        if (scored.percent > 0) break
+      }
+      const presetId = chosen.id
+      const presetLc = chosen.lightCone
+      await pollUntil('预设头像可点', async () => ({ ok: await page.evaluate(CLICK_PRESET, [chosen.index]) }), 10_000)
       await pollUntil('替换后卡就绪', async () => await page.evaluate(CARD_READY_SC, [presetId]), 60_000)
       const header = await pollUntil('替换后评分头', async () => await page.evaluate(SCORE_HEADER_SC), 150_000, 400)
       const webPercent = parseNumber(header.percent)
       const rows = await page.evaluate(STAT_ROWS_SC)
-
-      await callTool('load_save', { path: freshSeed(baseSavePath) })
-      await callTool('fetch_showcase', { uid: liveUid, timeoutMs: 60_000 })
-      const mcpOverride = await callTool('score_character', {
-        source: 'showcase',
-        characterId: firstChar.characterId,
-        override: { characterId: presetId, lightCone: presetLc },
-      }, LONG)
       const basic = mcpOverride.builds.original.stats.basic
       const basicKeys = Object.keys(basic)
       const FLAT = new Set(['HP', 'ATK', 'DEF', 'SPD'])
@@ -748,10 +830,11 @@ if (liveUid == null) {
         'showcase.simulate.override',
         1,
         '把展示柜里某个角色换成另一个角色与光锥后，算出的属性汇总、遗器评分与 DPS 评分和网页端替换后的展示卡一致',
-        scoreOk && statOk ? 'PASS' : 'FAIL',
-        `预设 ${presetId}(LC ${presetLc},E0S1):评分 web ${webPercent}% vs mcp ${
-          (mcpOverride.percent * 100).toFixed(1)
-        }%;面板 ${matched}/${compared} 项一致;遗器评分卡上逐件沿用原遗器(与 case card.read#1 同一批)`,
+        // The card floors the score at 0%, so a non-positive MCP score leaves the score unchecked
+        !(scoreOk && statOk) ? 'FAIL' : mcpOverride.percent <= 0 ? 'UNPROVEN' : 'PASS',
+        `预设 ${presetId}(LC ${presetLc},E0S1):评分 web ${webPercent}% vs mcp ${(mcpOverride.percent * 100).toFixed(1)}%${
+          mcpOverride.percent <= 0 ? '(网页卡下限 0%,各预设 MCP 评分均不高于 0,评分未能对拍)' : ''
+        };面板 ${matched}/${compared} 项一致;遗器评分卡上逐件沿用原遗器(与 case card.read#1 同一批)`,
       )
     } catch (e) {
       record('showcase.simulate.override', 1, '替换角色与光锥后属性/评分一致', 'FAIL', String(e.message).slice(0, 160))
@@ -823,7 +906,7 @@ if (liveUid == null) {
         }`)
         if (!saved) return { ok: false }
         const text = await page.evaluate(NOTIFICATION_TEXT)
-        return { ok: /select a character/i.test(text), text }
+        return { ok: /no selected character/i.test(text), text }
       }, 10_000)
       await page.evaluate(`() => {
         const dialogs = [...document.querySelectorAll('[role="dialog"]')].filter((m) => m.offsetParent !== null)
@@ -889,10 +972,7 @@ if (liveUid == null) {
   await callTool('load_save', { path: freshSeed(baseSavePath) })
   const baseSnap = await snapshot()
   await runSeedTask('verify-showcase(import)', freshSeed(baseSavePath), async (page) => {
-    await pollUntil('UID 输入框聚焦(导入)', async () => ({ ok: await page.evaluate(UID_INPUT) }), 15_000)
-    await page.type(liveUid)
-    await pollUntil('提交按钮可点(导入)', async () => ({ ok: await page.evaluate(SUBMIT_CLICK) }), 10_000)
-    await pollUntil('头像行渲染(导入)', async () => await page.evaluate(AVATAR_ROW), 90_000, 400)
+    await loadProfile(page, liveUid, '(导入)')
     await sleep(2500)
     // capture the web card relic scores BEFORE any import (for card.read#1's
     // relic-score leg — the same data score_relics sees post-import)
@@ -914,8 +994,7 @@ if (liveUid == null) {
       await callTool('fetch_showcase', { uid: liveUid, timeoutMs: 60_000 })
       await callTool('import_showcase', { mode: 'character', characterId: firstChar.characterId })
       const mcpChar = await snapshot()
-      const charEqual = JSON.stringify(webChar.characters) === JSON.stringify(mcpChar.characters)
-        && JSON.stringify(webChar.relics) === JSON.stringify(mcpChar.relics)
+      const charEqual = JSON.stringify(comparableSave(webChar)) === JSON.stringify(comparableSave(mcpChar))
 
       // relic-score leg: the imported copies carry the showcase values and are
       // equipped on the imported character — score_relics mirrors the card
@@ -967,8 +1046,7 @@ if (liveUid == null) {
       await callTool('fetch_showcase', { uid: liveUid, timeoutMs: 60_000 })
       await callTool('import_showcase', { mode: 'all' })
       const mcpAll = await snapshot()
-      const allEqual = JSON.stringify(webAll.characters) === JSON.stringify(mcpAll.characters)
-        && JSON.stringify(webAll.relics) === JSON.stringify(mcpAll.relics)
+      const allEqual = JSON.stringify(comparableSave(webAll)) === JSON.stringify(comparableSave(mcpAll))
       record(
         'showcase.import',
         1,
@@ -989,13 +1067,11 @@ if (liveUid == null) {
   // ── B3. relics-only mode + double import (fresh seed both sides) ──────────
   await callTool('load_save', { path: freshSeed(baseSavePath) })
   await runSeedTask('verify-showcase(import-relics)', freshSeed(baseSavePath), async (page) => {
-    await pollUntil('UID 输入框聚焦(遗器)', async () => ({ ok: await page.evaluate(UID_INPUT) }), 15_000)
-    await page.type(liveUid)
-    await pollUntil('提交按钮可点(遗器)', async () => ({ ok: await page.evaluate(SUBMIT_CLICK) }), 10_000)
-    await pollUntil('头像行渲染(遗器)', async () => await page.evaluate(AVATAR_ROW), 90_000, 400)
+    await loadProfile(page, liveUid, '(遗器)')
     await sleep(2500)
 
     // case 1 relics leg + case 2: relics-only import, equipment untouched
+    let webFirstImport = null
     try {
       await pollUntil('Import 菜单可点(relics)', async () => ({ ok: await page.evaluate(CLICK_IMPORT_MENU) }), 10_000)
       await sleep(500)
@@ -1007,8 +1083,9 @@ if (liveUid == null) {
       await callTool('fetch_showcase', { uid: liveUid, timeoutMs: 60_000 })
       await callTool('import_showcase', { mode: 'relics' })
       const mcpRelicsSnap = await snapshot()
-      const relicsEqual = JSON.stringify(webRelics.relics) === JSON.stringify(mcpRelicsSnap.relics)
-      const charsEqual = JSON.stringify(webRelics.characters) === JSON.stringify(mcpRelicsSnap.characters)
+      webFirstImport = webRelics
+      const relicsEqual = JSON.stringify(comparableSave(webRelics).relics) === JSON.stringify(comparableSave(mcpRelicsSnap).relics)
+      const charsEqual = JSON.stringify(comparableSave(webRelics).characters) === JSON.stringify(comparableSave(mcpRelicsSnap).characters)
 
       const equippedSame = JSON.stringify((webRelics.characters ?? []).map((c) =>
             c.equipped
@@ -1051,8 +1128,9 @@ if (liveUid == null) {
       await pollUntil('导入遗器菜单项可点(重复)', async () => ({ ok: await page.evaluate(CLICK_MENU_ITEM, ['Import relics into optimizer']) }), 10_000)
       await sleep(2500)
       const webTwice = await page.harvestSaveState()
-      const webNoDup = (webTwice.relics ?? []).every((r, i) => mcpSnap1.relics[i] && mcpSnap1.relics[i].id === r.id)
-        && webTwice.relics.length === mcpSnap1.relics.length
+      // the web's second import against its own first one: same relics, same ids
+      const webNoDup = webFirstImport != null && webTwice.relics.length === webFirstImport.relics.length
+        && webTwice.relics.every((r, i) => webFirstImport.relics[i].id === r.id)
       record(
         'showcase.import',
         3,

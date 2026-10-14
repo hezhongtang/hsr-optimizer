@@ -425,6 +425,14 @@ try {
     `${buffActions.length} actions, first action ${buffActions[0]} has ${firstActionBuffs.length} buffs`,
   )
   check('trace rotation steps are present', Array.isArray(traceRun.buffs.rotationSteps), `${traceRun.buffs.rotationSteps?.length ?? 0} steps`)
+  // The web buffs panel starts on the character's default damage-type filter;
+  // its summary rows count the untagged buffs plus the ones overlapping it.
+  const defaultFilter = traceRun.buffs.defaultFilter
+  check(
+    'trace reports the buffs panel default filter (Jingliu\'s config: SKILL)',
+    defaultFilter?.damageTags === 2 && defaultFilter.damageTagsLabel === 'SKILL',
+    JSON.stringify(defaultFilter),
+  )
 
   // ── 7. source=build: saved build preview ──────────────────────────────────
   const savedBuild = await callTool(client, 'save_build', { characterId: TARGET, name: 'smoke-score-build' })

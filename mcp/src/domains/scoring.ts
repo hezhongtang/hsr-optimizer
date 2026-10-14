@@ -99,6 +99,7 @@ import {
   serializeActionDamage,
   serializeBuff,
   serializeComputedStats,
+  serializeDefaultDamageFilter,
   serializeRotationDamageStep,
 } from '../serializers/stats'
 import { toolResult } from '../toolResult'
@@ -867,6 +868,10 @@ export function registerScoringTools(server: McpServer): void {
           })),
           basic: z.array(serializedBuffSchema),
           primaryAction: z.string(),
+          defaultFilter: z.object({ damageTags: z.number(), damageTagsLabel: z.string() }).nullable().describe(
+            '网页增益分析面板的默认伤害类型筛选(角色配置的 defaultDamageType,位标志同 damageTags);null = 默认不筛选。'
+              + '面板的属性合计行:只累加不带 damageTags 的增益,有筛选时再加上 damageTags 与筛选有交集的增益',
+          ),
         }).optional(),
         timing: z.object({
           prepareMs: z.number(),
@@ -1186,6 +1191,7 @@ export function registerScoringTools(server: McpServer): void {
             })),
             basic: (rerun.x.c as unknown as { buffs?: Any[] }).buffs?.map(serializeBuff) ?? [],
             primaryAction: traceContext.primaryAbilityKey ?? '',
+            defaultFilter: serializeDefaultDamageFilter(traceForm.characterId),
           }
         }
       }

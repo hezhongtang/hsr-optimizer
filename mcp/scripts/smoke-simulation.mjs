@@ -369,6 +369,11 @@ try {
     `${traced.buffs?.basic?.length} basic buffs`,
   )
   check(
+    'simulate_build trace=true reports the buffs panel default filter (Jingliu\'s config: SKILL)',
+    traced.buffs?.defaultFilter?.damageTags === 2 && traced.buffs.defaultFilter.damageTagsLabel === 'SKILL',
+    JSON.stringify(traced.buffs?.defaultFilter),
+  )
+  check(
     'simulate_build entities section empty for a single-entity character (no memo spawns)',
     Array.isArray(traced.stats.entities) && traced.stats.entities.length === 0,
     `${traced.stats.entities?.length} entities`,

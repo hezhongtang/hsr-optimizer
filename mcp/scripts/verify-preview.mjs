@@ -388,22 +388,26 @@ const TBP_METRICS = `() => {
     })
   return { days: values('Days'), rolls: values('Weighted Rolls'), potential: values('Reroll Potential') }
 }`
-// Buffs analysis stat summary rows ("NN % ∑ STAT ALL xN" / "NNN ∑ STAT ALL xN")
+// Buffs analysis stat summary rows (StatSummary): [value] [∑ label] [tag pills] [xN]
 const BUFF_SUMMARY_ROWS = `() => {
   const rows = []
-  for (const row of document.querySelectorAll('div')) {
-    if (row.children.length < 2) continue
-    const text = (row.innerText || '').replace(/\\s+/g, ' ').trim()
-    const m = text.match(/^(-?[\\d.,]+)\\s*%?\\s*∑\\s*(.+?)(?:\\s+ALL\\b.*x\\d+)?$/)
-    if (m) rows.push({ value: m[1], label: m[2] })
-  }
   const seen = new Set()
-  return rows.filter((r) => {
-    const key = r.label.trim()
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+  for (const sigma of document.querySelectorAll('span')) {
+    if (sigma.offsetParent === null || (sigma.textContent || '').trim() !== '∑') continue
+    const label = (sigma.nextElementSibling?.textContent || '').trim()
+    const value = (sigma.parentElement?.parentElement?.firstElementChild?.textContent || '').trim().match(/^(-?[\\d.,]+)\\s*%?$/)
+    if (label === '' || value == null || seen.has(label)) continue
+    seen.add(label)
+    rows.push({ value: value[1], label })
+  }
+  return rows
+}`
+// Buffs analysis filter bar (FilterBar): the selected filter's buttons are filled
+const BUFF_FILTER_BUTTONS = `() => {
+  const buttons = [...document.querySelectorAll('span[class*="filterButton"]')].filter((b) => b.offsetParent !== null)
+  const filled = (b) => !['transparent', 'rgba(0, 0, 0, 0)'].includes(getComputedStyle(b).backgroundColor)
+  const labels = (list) => [...new Set(list.map((b) => (b.textContent || '').trim()))]
+  return { shown: labels(buttons), active: labels(buttons.filter(filled)) }
 }`
 // Substat upgrade table rows: "+1x roll STAT" + the four cells
 const UPGRADE_TABLE_ROWS = `() => {
@@ -674,18 +678,28 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
       150_000,
       1000,
     )
+    const webFilter = await page.evaluate(BUFF_FILTER_BUTTONS)
     const mcpTrace = await callTool('score_character', { source: 'roster', characterId: TARGET, trace: true }, LONG)
     const primary = mcpTrace.buffs.primaryAction
     // The MCP trace runs the page's own pipeline (runStatSimulations with
-    // trace=true). The web StatSummary (filter=null — Jingliu has no
-    // defaultDamageType) sums UNIVERSAL entries of the selected action, plus
-    // the final container buffs (serialized as `basic`), splits output-boost
-    // stats by output tag (getBuffStatKey), and lists unconvertible CD
-    // separately from the folded CD total.
+    // trace=true). The web StatSummary starts on the character's default
+    // damage-type filter (buffs.defaultFilter; null = unfiltered) and sums the
+    // selected action's entries without damageTags plus, when filtered, those
+    // overlapping the filter (buffMatchesSumFilter). It adds the final
+    // container buffs (serialized as `basic`), splits output-boost stats by
+    // output tag (getBuffStatKey), and lists unconvertible CD separately from
+    // the folded CD total.
+    const filter = mcpTrace.buffs.defaultFilter?.damageTags ?? null
+    // The filter bar shows ALL plus one button per damage type that occurs in
+    // the buffs, and fills the ones in the selected filter (locale: S.BREAK).
+    const filterLabels = (mcpTrace.buffs.defaultFilter?.damageTagsLabel ?? '').split(' | ').map((name) => (name === 'SUPER_BREAK' ? 'S.BREAK' : name))
+    const expectedActive = filter == null ? ['ALL'] : filterLabels.filter((name) => webFilter.shown.includes(name))
+    const filterOk = webFilter.active.length > 0 && JSON.stringify([...webFilter.active].sort()) === JSON.stringify([...expectedActive].sort())
+    const inSummary = (b) => filter == null ? b.damageTags == null : b.damageTags == null || (b.damageTags & filter) !== 0
     const pool = [
       ...(mcpTrace.buffs.byAction[primary]?.buffs ?? []),
       ...(mcpTrace.buffs.basic ?? []),
-    ].filter((b) => b.damageTags == null || b.damageTags === 0)
+    ].filter(inSummary)
     const sums = {}
     for (const b of pool) {
       const key = b.stat === 'BOOST' && b.outputTagsLabel != null && b.outputTagsLabel !== 'DAMAGE' ? `BOOST:${b.outputTagsLabel}` : b.stat
@@ -710,10 +724,14 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
       'vulnerability': 'VULNERABILITY',
       'defpen': 'DEF_PEN',
       'cdboost': 'CD_BOOST',
+      // statsConfig labels: CR_BOOST "Crit Rate boost", CD_BOOST "Crit DMG boost"
+      'critrateboost': 'CR_BOOST',
+      'critdmgboost': 'CD_BOOST',
       'unconvertiblecritdmg': 'UNCONVERTIBLE_CD_BUFF',
     }
     const norm = (s) => String(s).toLowerCase().replace(/\s+/g, '')
-    const elementDmg = (label) => label.endsWith('dmgboost') ? `${label.replace(/boost$/, '').toUpperCase().replace(/\s/g, '')}_DMG_BOOST` : null
+    // "Ice DMG Boost" → ICE_DMG_BOOST; the generic "DMG Boost" row is in labelMap
+    const elementDmg = (label) => /^[a-z]+dmgboost$/.test(label) ? `${label.replace(/dmgboost$/, '').toUpperCase()}_DMG_BOOST` : null
     const PERCENT_STATS = new Set([
       'HP_P',
       'SPD_P',
@@ -728,6 +746,7 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
       'VULNERABILITY',
       'DEF_PEN',
       'CD_BOOST',
+      'CR_BOOST',
       'UNCONVERTIBLE_CD_BUFF',
       'OHB',
       'ERR',
@@ -754,9 +773,11 @@ await runSeedTask('verify-preview(read)', freshSeed(baseSavePath), async (page) 
       'preview.analysis.buffs',
       1,
       '对同一角色的评测模拟，返回的某个动作的增益条目（来源、属性、数值）与增益分析里选中该动作时显示的条目一致',
-      matched >= 3 && matched === webRows.rows.length ? 'PASS' : 'FAIL',
-      `主动作 ${primary}:web 属性合计 ${matched}/${webRows.rows.length} 行与 MCP trace(byAction+basic,网页同一条 runStatSimulations 管线)数值一致${
-        diffs.length ? '; ' + diffs.slice(0, 2).join('; ') : ''
+      filterOk && matched >= 3 && matched === webRows.rows.length ? 'PASS' : 'FAIL',
+      `主动作 ${primary}(默认筛选 web [${webFilter.active.join(', ')}] vs MCP ${
+        mcpTrace.buffs.defaultFilter?.damageTagsLabel ?? 'ALL'
+      }):web 属性合计 ${matched}/${webRows.rows.length} 行与 MCP trace(byAction+basic,网页同一条 runStatSimulations 管线)数值一致${
+        diffs.length ? '; ' + diffs.slice(0, 4).join('; ') : ''
       }`,
     )
   } catch (e) {

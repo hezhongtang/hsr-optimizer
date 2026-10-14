@@ -3374,11 +3374,17 @@ async function scenarioRunCancelProgress() {
       return null
     })
     let results = null
+    let lastReadError = null
     const deadline = Date.now() + 120_000
     while (Date.now() < deadline) {
       await sleep(1500)
-      results = await call('get_results', { limit: 1 })
-      if (results.summary?.cancelled === true) break
+      // Until the aborted run settles, the cache still holds the run from
+      // before load_save, which get_results refuses — poll through that.
+      results = await call('get_results', { limit: 1 }).catch((e) => {
+        lastReadError = String(e.message).slice(0, 120)
+        return null
+      })
+      if (results?.summary?.cancelled === true) break
     }
     // Web leg: start the big run, confirm modal, hit Cancel, grid keeps rows.
     const web = await webTask(
@@ -3415,7 +3421,9 @@ async function scenarioRunCancelProgress() {
     await loadBase()
     const mcpCancelled = results?.summary?.cancelled === true
     const webKeptRows = web.rows > 0 || /of\s+[\d,]+/.test(web.pager ?? '')
-    if (!mcpCancelled) return fail(`MCP summary.cancelled=${results?.summary?.cancelled}`)
+    if (!mcpCancelled) {
+      return fail(`MCP summary.cancelled=${results?.summary?.cancelled}${results == null && lastReadError ? ` (get_results: ${lastReadError})` : ''}`)
+    }
     if (!webKeptRows) return fail(`web kept no rows after Cancel (pager="${web.pager}")`)
     return ok(`MCP cancelled=true with ${results.total} cached rows; web kept rows after Cancel (pager "${web.pager}")`)
   })

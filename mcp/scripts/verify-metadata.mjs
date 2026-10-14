@@ -11,7 +11,7 @@
 //     over stdio — the resource reads happen on a FRESH server BEFORE any
 //     load_save, proving the "不载入存档即可读" clause.
 //   - Set benchmark auditor: the web panel is driven through its own
-//     checkboxes (ornament-only, SPD 0, reduced grid for CPU scale) and Run
+//     checkboxes (ornament-only, SPD 0 and 133, reduced grid for CPU scale) and Run
 //     Audit button; the summary table + drilldown are compared with
 //     benchmark_runs(sweep="sets").
 //   - Character color grid: MCP render(character_card) PNGs are compared
@@ -819,7 +819,7 @@ try {
       }`,
     )
 
-    // ── Set benchmark auditor (reduced grid: ornament only, SPD 0, noErr) ──
+    // ── Set benchmark auditor (reduced grid: ornament only, SPD 0/133, noErr) ──
     // The whole auditor phase is crash-guarded: a driver failure must record
     // UNPROVEN for its three browser-parity cases without killing the rest.
     let auditPhaseError = null
@@ -890,15 +890,17 @@ try {
       check('web: auditor character picked (镜流/1212b1)', auditorPick === true, 'auditor character label = 镜流')
       await sleep(1200)
 
-      // uncheck 4p relics / SPD 133 / SPD 160 / ERR rope to keep the grid small
+      // uncheck 4p relics / SPD 160 / ERR rope to keep the grid small; two SPD
+      // breakpoints stay so that every set has more than one run to rank
       const unchecks = []
-      for (const label of ['4p Relics', 'SPD 133', 'SPD 160', 'ERR Rope']) {
+      for (const label of ['4p Relics', 'SPD 160', 'ERR Rope']) {
         const focus = await p.evaluate(
           `(label) => {
         const boxes = [...document.querySelectorAll('label')]
         const hit = boxes.find((b) => b.offsetParent !== null && (b.textContent || '').trim() === label)
         if (!hit) return { ok: false, reason: 'label not found: ' + label }
-        const box = hit.querySelector('input[type="checkbox"]')
+        // Mantine's Checkbox ties its label to the input by id, not by nesting
+        const box = hit.control
         if (!box) return { ok: false, reason: 'no checkbox input' }
         box.focus()
         return { ok: true, checked: box.checked }
@@ -913,12 +915,12 @@ try {
       }
       const uncheckVerify = await p.evaluate(
         `() => [...document.querySelectorAll('label')].filter((b) => b.offsetParent !== null
-      && ['4p Relics', 'SPD 133', 'SPD 160', 'ERR Rope'].includes((b.textContent || '').trim())
-      && b.querySelector('input[type="checkbox"]')?.checked !== false).map((b) => (b.textContent || '').trim())`,
+      && ['4p Relics', 'SPD 160', 'ERR Rope'].includes((b.textContent || '').trim())
+      && b.control?.checked !== false).map((b) => (b.textContent || '').trim())`,
         [],
       )
       check(
-        'web: auditor grid narrowed (ornament-only, SPD 0, noErr)',
+        'web: auditor grid narrowed (ornament-only, SPD 0/133, noErr)',
         unchecks.every((u) => u.ok) && uncheckVerify.length === 0,
         JSON.stringify({ unchecks, stillChecked: uncheckVerify }),
       )
@@ -955,11 +957,11 @@ try {
       const mcpSweepPromise = callTool(client, 'benchmark_runs', {
         characterId: '1212b1',
         sweep: 'sets',
-        sweepOptions: { setTypes: ['ornament'], spdBreakpoints: [0], modes: ['dps'], errRope: ['noErr'], scoringModes: ['perfection'] },
+        sweepOptions: { setTypes: ['ornament'], spdBreakpoints: [0, 133], modes: ['dps'], errRope: ['noErr'], scoringModes: ['perfection'] },
       }, { timeout: 600_000 })
 
       // wait for the web audit to complete (the page's own worker pool runs it —
-      // ornament-only, SPD 0 keeps the grid small). Poll the auditor's own
+      // ornament-only, two SPD breakpoints keep the grid small). Poll the auditor's own
       // "Completed X / Y benchmarks" progress line: movement proves progress,
       // stillness + errors proves a crash, stillness without errors = stall.
       let auditDone = false
@@ -999,9 +1001,12 @@ try {
       const sections = [...document.querySelectorAll('h3')].filter((h) => visible(h) && (h.textContent || '').includes('Ornament Sets'))
       const section = sections[0]
       if (!section) return { ok: false, reason: 'no ornament section' }
-      const container = section.parentElement
-      const comparedTo = (container?.parentElement?.innerText.match(/Compared to:\\s*([^\\n]+)/) || [])[1]?.trim() ?? null
-      const rows = [...container.querySelectorAll('tr.custom-grid')].filter(visible).map((tr) => {
+      // SetAuditorSummaryTable: the h3 sits in a header row next to "Compared
+      // to"; the table is that header row's sibling, one level further up
+      const block = section.parentElement?.parentElement
+      if (!block) return { ok: false, reason: 'no ornament block' }
+      const comparedTo = (block.innerText.match(/Compared to:\\s*([^\\n]+)/) || [])[1]?.trim() ?? null
+      const rows = [...block.querySelectorAll('tr.custom-grid')].filter(visible).map((tr) => {
         const tds = [...tr.querySelectorAll('td')].filter(visible)
         return {
           flag: (tds[0]?.textContent || '').trim(),
@@ -1028,6 +1033,8 @@ try {
       )
 
       // per-set rows: flag + bestDelta + label + params
+      // setAuditorConstants.formatParamCombo
+      const paramText = (run) => `${run.spd === 0 ? 'No min' : `SPD ${run.spd}`} / ${run.subDps ? 'Sub DPS' : 'DPS'} / ${run.errRope ? 'ERR' : 'No ERR'}`
       const webRowsByLabel = new Map((webAudit.rows ?? []).map((r) => [r.label, r]))
       let auditRowsOk = (webAudit.rows?.length ?? 0) === mcpSweep.summaries.length
       const auditDiffs = []
@@ -1040,9 +1047,12 @@ try {
         }
         const expectDelta = summary.bestDelta === -Infinity ? '—' : `${summary.bestDelta >= 0 ? '+' : ''}${summary.bestDelta.toFixed(2)}%`
         const expectFlag = summary.flag === 'red' ? '🔴' : summary.flag === 'yellow' ? '🟡' : ''
-        if (web.bestDelta !== expectDelta || web.flag !== expectFlag || web.type !== 'Ornament') {
+        const expectParams = paramText(summary.bestDeltaParams)
+        if (web.bestDelta !== expectDelta || web.flag !== expectFlag || web.params !== expectParams || web.type !== 'Ornament') {
           auditRowsOk = false
-          if (auditDiffs.length < 3) auditDiffs.push(`${summary.label}: ${web.flag}${web.bestDelta} vs ${expectFlag}${expectDelta}`)
+          if (auditDiffs.length < 3) {
+            auditDiffs.push(`${summary.label}: ${web.flag}${web.bestDelta} @ ${web.params} vs ${expectFlag}${expectDelta} @ ${expectParams}`)
+          }
         }
       }
       assertCase(
@@ -1052,42 +1062,67 @@ try {
         'browser-parity',
         auditDone ? (auditRowsOk ? 'PASS' : 'FAIL') : 'UNPROVEN',
         auditDone
-          ? `${webAudit.rows?.length ?? 0} web rows vs ${mcpSweep.summaries.length} MCP summaries (flag emoji + bestDelta +X.XX% + label); ${
+          ? `${webAudit.rows?.length ?? 0} web rows vs ${mcpSweep.summaries.length} MCP summaries (flag emoji + bestDelta +X.XX% + label + at params); ${
             auditDiffs.join(' ; ') || 'all match'
           }`
           : `网页审计未完成(进度 "${lastProgressText}");MCP sweep=sets 完成 ${mcpSweep.summaries.length} 组汇总`,
       )
 
-      // drilldown: expand the first web row
-      await p.evaluate(`() => {
-      const rows = [...document.querySelectorAll('tr.custom-grid')].filter((el) => el.offsetParent !== null)
-      rows[0]?.scrollIntoView({ block: 'center' })
+      // drilldown: expand the first row of the ornament table, read its rows
+      const ORNAMENT_BLOCK =
+        `[...document.querySelectorAll('h3')].find((h) => h.offsetParent !== null && (h.textContent || '').includes('Ornament Sets'))?.parentElement?.parentElement`
+      const expandedLabel = await p.evaluate(`() => {
+      const block = ${ORNAMENT_BLOCK}
+      const first = block && [...block.querySelectorAll('tr.custom-grid')].find((tr) => tr.offsetParent !== null)
+      if (!first) return null
+      first.scrollIntoView({ block: 'center' })
+      first.click()
+      return (first.querySelectorAll('td')[3]?.textContent || '').trim()
     }`)
-      await p.click('tr.custom-grid', { timeoutMs: 10_000 }).catch(() => null)
-      const drilldown = await p.evaluate(`() => document.querySelectorAll('td[colspan="6"]').length > 0`, [])
       await sleep(1000)
       const webDrill = await p.evaluate(`() => {
-      const visible = (el) => el.offsetParent !== null
-      const cells = [...document.querySelectorAll('td')].filter((td) => td.colSpan === 6 && visible(td))
-      if (cells.length === 0) return { ok: false, reason: 'no drilldown cell' }
-      return { ok: true, text: cells[cells.length - 1].innerText.slice(0, 1500) }
+      const block = ${ORNAMENT_BLOCK}
+      const cell = block && [...block.querySelectorAll('td')].find((td) => td.colSpan === 6 && td.offsetParent !== null)
+      if (!cell) return { ok: false, reason: 'no drilldown cell' }
+      // SetAuditorDrillDown columns: Flag, Delta, Target, Parameters, Score, Reference
+      const rows = [...cell.querySelectorAll(':scope > table > tbody > tr')]
+      return { ok: true, rows: rows.map((tr) => [...tr.querySelectorAll('td')].map((td) => (td.textContent || '').trim())) }
     }`)
-      // MCP drilldown for the first summary (sorted the same way: red→yellow→其余, bestDelta desc)
-      const firstSummary = mcpSweep.summaries[0]
-      const drillOk = drilldown.ok && webDrill.ok && firstSummary.results.length > 0
-        && firstSummary.results.every((run) => Number.isFinite(run.score) && Number.isFinite(run.referenceScore))
-        && webDrill.text.length > 50
+      // MCP side: the same set's runs in the drilldown's order (deltaPct desc)
+      const drillSummary = mcpSweep.summaries.find((summary) => summary.label === expandedLabel)
+      const expectedRuns = [...(drillSummary?.results ?? [])].sort((a, b) => b.deltaPct - a.deltaPct)
+      // toLocaleString groups digits with whatever the browser locale uses
+      const asNumber = (text) => Number(String(text).replace(/[^\d-]/g, ''))
+      let drillMatched = 0
+      const drillDiffs = []
+      for (const [i, run] of expectedRuns.entries()) {
+        const [flag, delta, target, params, score, reference] = webDrill.rows?.[i] ?? []
+        const wantFlag = run.flag === 'red' ? '🔴' : run.flag === 'yellow' ? '🟡' : ''
+        const wantDelta = run.error ? '—' : `${run.deltaPct >= 0 ? '+' : ''}${run.deltaPct.toFixed(2)}%`
+        const scoreOk = run.error ? score === 'Error' : asNumber(score) === Math.round(run.score)
+        const columnsOk = flag === wantFlag && delta === wantDelta && target === (run.modeLabel ?? '') && params === paramText(run)
+        if (columnsOk && scoreOk && asNumber(reference) === Math.round(run.referenceScore)) drillMatched++
+        else if (drillDiffs.length < 2) {
+          drillDiffs.push(
+            `#${i}: web ${flag}${delta}/${target}/${params}/${score}/${reference} vs mcp ${wantFlag}${wantDelta}/${run.modeLabel ?? ''}/${paramText(run)}/${
+              Math.round(run.score)
+            }/${Math.round(run.referenceScore)}`,
+          )
+        }
+      }
+      const drillOk = webDrill.ok && drillSummary != null && expectedRuns.length > 1
+        && webDrill.rows.length === expectedRuns.length && drillMatched === expectedRuns.length
       assertCase(
         'metadata.setAuditor.run',
         3,
         '展开数据(每组参数下的分数、参照分、差距)与网页端展开行一致',
         'browser-parity',
         auditDone ? (drillOk ? 'PASS' : 'FAIL') : 'UNPROVEN',
-        `web drilldown text ${
-          webDrill.ok ? webDrill.text.length : 0
-        } chars; MCP first summary ${firstSummary.label} has ${firstSummary.results.length} param rows (score/referenceScore/deltaPct finite); params ${
-          JSON.stringify(firstSummary.bestDeltaParams)
-        }`,
+        `展开 ${expandedLabel ?? '(未找到汇总行)'}:web ${
+          webDrill.rows?.length ?? 0
+        } 行 vs MCP ${expectedRuns.length} 行;标记/差距/目标/参数/分数/参照分 ${drillMatched}/${expectedRuns.length} 行一致${
+          webDrill.ok ? '' : `(${webDrill.reason})`
+        }${drillDiffs.length ? '; ' + drillDiffs.join('; ') : ''}`,
       )
     } catch (e) {
       auditPhaseError = String(e?.message ?? e).slice(0, 150)
