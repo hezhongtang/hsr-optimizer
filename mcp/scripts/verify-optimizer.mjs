@@ -126,6 +126,21 @@ async function loadBase() {
   await call('load_save', { path })
 }
 
+/**
+ * Aborting an optimize request returns to the client at once; the server's
+ * search ends when its driver acknowledges, and until then a new optimize is
+ * refused. Resolves with the wait in ms, or null if a job is still running.
+ */
+async function waitForIdleServer(timeoutMs = 120_000) {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const listed = await call('get_job', {})
+    if (!(listed.jobs ?? []).some((job) => job.status === 'running')) return Date.now() - started
+    await sleep(250)
+  }
+  return null
+}
+
 /** Spawn dist/parityRef.js (wrapper-free upstream replay, resultsLimit 50). */
 import { spawn } from 'node:child_process'
 function runParityRef(savePath, characterId) {
@@ -808,6 +823,23 @@ const FN_CLICK_BUTTON_TEXT = `(text) => {
  * clicks fail to activate some Mantine targets (the combo drawer ability menu,
  * the statSim segmented control and its Simulate/Import buttons). Returns the
  * element's trimmed text, or null when no target was found. */
+/**
+ * Switches the stat simulation panel to roll-count mode and presses Simulate
+ * builds. The button stays disabled until the mode is on, and a click aimed at
+ * the mode segment misses while the accordion is still opening, so the pair is
+ * repeated until the button takes the click.
+ */
+async function simulateBuilds(page) {
+  const deadline = Date.now() + 15_000
+  let segmentSeen = false
+  for (;;) {
+    if (await trustedClickText(page, 'Simulate custom substat rolls')) segmentSeen = true
+    await sleep(1000)
+    if (await trustedClickText(page, 'Simulate builds')) return
+    if (Date.now() >= deadline) throw new Error(segmentSeen ? 'Simulate builds button not found' : 'statSim mode segment not found')
+  }
+}
+
 async function trustedClickText(page, text) {
   const found = await page.evaluate(
     `(text) => {
@@ -3337,11 +3369,15 @@ async function scenarioRunStart() {
         return ac.signal
       })(),
     }).catch(() => null)
+    const settledMs = await waitForIdleServer()
     await loadBase()
+    if (settledMs == null) return fail('the aborted force run was still running on the server 120s after the client cancel')
     if (!rejectedOk) return fail(`MCP gate: status=${refused.status}, partCounts=${JSON.stringify(refused.partCounts)}`)
     if (!webModalShown) return fail(`web gate modal missing: ${JSON.stringify(webGate).slice(0, 260)}`)
     if (forced == null && !webGate.started) {
-      return ok(`gate: MCP rejected w/ 6 part counts; web showed the confirm modal; force-leg aborted as client cancel`)
+      return ok(
+        `gate: MCP rejected w/ 6 part counts; web showed the confirm modal; force-leg aborted as client cancel, server idle ${settledMs}ms later`,
+      )
     }
     return ok(`gate: MCP rejected (6 part counts, ${refused.validPermutations.toExponential(2)} perms); web showed ManyPermsModal; force path exercisable`)
   })
@@ -3359,20 +3395,27 @@ async function scenarioRunCancelProgress() {
     }
     const bigPath = `${tempDir}/big-save.json`
     writeFileSync(bigPath, JSON.stringify({ ...structuredClone(baseSave), relics: bigRelics }))
+    await waitForIdleServer()
     await call('load_save', { path: bigPath })
     const ac = new AbortController()
+    let aborted = false
     let cancelledError = null
     await call('optimize', { characterId: TARGET, force: true, resultsLimit: 64 }, {
       timeout: 600_000,
       resetTimeoutOnProgress: true,
       signal: ac.signal,
       onprogress: () => {
+        aborted = true
         ac.abort()
       },
     }).catch((e) => {
       cancelledError = e
       return null
     })
+    if (!aborted) {
+      await loadBase()
+      return fail(`optimize ended before its first progress notification: ${String(cancelledError?.message ?? 'returned a result').slice(0, 160)}`)
+    }
     let results = null
     let lastReadError = null
     const deadline = Date.now() + 120_000
@@ -4223,11 +4266,7 @@ async function scenarioStatSim() {
     const web = await webTask('statsim-run', baked.state, async (page) => {
       await bootOptimizer(page)
       await page.evaluate(FN_TOGGLE_SECTION, ['Character custom stats simulation'])
-      const seg = await trustedClickText(page, 'Simulate custom substat rolls')
-      if (!seg) throw new Error('statSim mode segment not found')
-      await sleep(1500)
-      const clicked = await trustedClickText(page, 'Simulate builds')
-      if (!clicked) throw new Error('Simulate builds button not found')
+      await simulateBuilds(page)
       // poll for the rendered sim row instead of a fixed sleep that raced it
       const wait = await page.evaluate(FN_WAIT_GRID_ROWS, [1, 45_000])
       if (!wait.ready) throw new Error(`sim rows never rendered: ${JSON.stringify(wait)}`)
@@ -4267,11 +4306,7 @@ async function scenarioStatSim() {
     const web = await webTask('statsim-run2', baked.state, async (page) => {
       await bootOptimizer(page)
       await page.evaluate(FN_TOGGLE_SECTION, ['Character custom stats simulation'])
-      const seg = await trustedClickText(page, 'Simulate custom substat rolls')
-      if (!seg) throw new Error('statSim mode segment not found')
-      await sleep(1500)
-      const clicked = await trustedClickText(page, 'Simulate builds')
-      if (!clicked) throw new Error('Simulate builds button not found')
+      await simulateBuilds(page)
       // poll for both rendered sim rows instead of a fixed sleep that raced them
       const wait = await page.evaluate(FN_WAIT_GRID_ROWS, [2, 45_000])
       if (!wait.ready) throw new Error(`sim rows never rendered: ${JSON.stringify(wait)}`)
